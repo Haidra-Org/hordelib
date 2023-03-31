@@ -4,10 +4,17 @@
 
 ## Development
 
-To build the development environment and run the unit tests simply run `tox` from the project root. This will assume you have `git` installed and on the command line search path.
+Requirements:
+- `git` (install git)
+- `tox` (`pip install tox`)
+- Copy _any_ checkpoint model into the project root named `model.ckpt`
 
-If you don't have tox, install with `pip install tox`.
+To build the development environment and run the unit tests simply run `tox` from the project root.
 
 ### Tests
 
 If the tests run successfully an image will be produced named `image-test.png`
+
+### Build Configuration
+
+The config files for the project are: `pyproject.toml`, `tox.ini` and `requirements.txt`

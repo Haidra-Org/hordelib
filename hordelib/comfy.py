@@ -17,10 +17,8 @@ class Comfy:
     def __init__(self):
         self.pipelines = {}
 
-        # XXX Temporary hack to force model directory location in this test
-        os.environ["HORDE_MODEL_DIR_CHECKPOINTS"] = self._this_dir(
-            "../../models/nataili/compvis/"
-        )
+        # FIXME Temporary hack for model dir
+        os.environ["HORDE_MODEL_DIR_CHECKPOINTS"] = self._this_dir("../")
 
         # Load our pipelines
         self._load_pipelines()

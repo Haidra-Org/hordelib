@@ -20,7 +20,7 @@ class TestInference:
             "sampler.steps": 25,
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
-            "model_loader.ckpt_name": "model_1_5.ckpt",
+            "model_loader.ckpt_name": "model.ckpt",
             "empty_latent_image.width": 768,
             "empty_latent_image.height": 768,
         }
