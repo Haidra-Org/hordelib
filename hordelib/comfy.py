@@ -5,8 +5,6 @@ import glob
 import json
 import os
 import re
-from io import BytesIO
-from PIL import Image
 
 from loguru import logger
 
@@ -39,17 +37,28 @@ class Comfy:
         for file in files:
             self._load_node(os.path.basename(file))
 
+    def _load_pipeline(self, filename):
+        if not os.path.exists(filename):
+            logger.error(f"No such inference pipeline file: {filename}")
+            return
+
+        try:
+            with open(filename) as jsonfile:
+                pipeline_name = re.match(r".*pipeline_(.*)\.json", filename)[1]
+                data = json.loads(jsonfile.read())
+                self.pipelines[pipeline_name] = data
+                logger.debug(f"Loaded inference pipeline: {pipeline_name}")
+                return True
+        except (OSError, ValueError):
+            logger.error(f"Invalid inference pipeline file: {filename}")
+
     def _load_pipelines(self):
         files = glob.glob(self._this_dir("pipeline_*.json"))
+        loaded_count = 0
         for file in files:
-            try:
-                with open(file) as jsonfile:
-                    pipeline_name = re.match(r".*pipeline_(.*)\.json", file)[1]
-                    data = json.loads(jsonfile.read())
-                    self.pipelines[pipeline_name] = data
-                    logger.debug(f"Loaded inference pipeline: {pipeline_name}")
-            except (OSError, ValueError):
-                logger.error(f"Invalid inference pipeline file: {file}")
+            if self._load_pipeline(file):
+                loaded_count += 1
+        return loaded_count
 
     # Inject parameters into a pre-configured pipeline
     # We allow "inputs" to be missing from the key name, if it is we insert it.

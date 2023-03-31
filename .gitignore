@@ -138,3 +138,4 @@ cython_debug/
 test-image.png
 hordelib/ComfyUI
 model.ckpt
+coverage.lcov

@@ -11,12 +11,23 @@ class TestSetup:
         self.comfy = None
 
     def test_load_pipelines(self):
-        self.comfy._load_pipelines()
+        loaded = self.comfy._load_pipelines()
+        assert loaded == 1
         # Check the built in pipelines
         assert "stable_diffusion" in self.comfy.pipelines.keys()
 
+    def test_load_invalid_pipeline(self):
+        loaded = self.comfy._load_pipeline("no-such-pipeline")
+        assert loaded is None
+
+    def test_load_invalid_node(self, capsys):
+        self.comfy._load_node("no-such-node")
+        captured = capsys.readouterr()
+        assert "No such file or directory" in str(captured)
+
     def test_load_custom_nodes(self):
         self.comfy._load_custom_nodes()
+
         # Look for our nodes in the ComfyUI nodes list
         from hordelib.ComfyUI import execution
 

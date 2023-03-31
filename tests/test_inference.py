@@ -11,6 +11,10 @@ class TestInference:
         yield
         self.comfy = None
 
+    def test_unknown_pipeline(self):
+        result = self.comfy.run_pipeline("non-existent-pipeline", {})
+        assert result is None
+
     def test_stable_diffusion_pipeline(self):
         params = {
             "sampler.seed": 12345,
