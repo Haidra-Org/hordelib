@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hordelib"
+description = "A thin wrapper around ComfyUI to allow use by AI Horde."
+authors = [
+    {name = "Jug", email = "jugdev@proton.me"},
+]
+readme = "README.md"
+requires-python = ">=3.10,<3.11"
+license = { file="LICENSE" }
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Operating System :: OS Independent",
+    "Development Status :: 2 - Pre-Alpha",
+]
+dynamic=["version"]
+
+[project.urls]
+"Homepage" = "https://github.com/jug-dev/hordelib"
+"Bug Tracker" = "https://github.com/jug-dev/hordelib/issues"
+
+[tool.setuptools.dynamic]
+version = {attr = "hordelib.VERSION"}
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools.packages.find]
+exclude = ["hordelib.ComfyUI"]
+namespaces = false
+
+[options.index-client]
+extra-index-urls = [    "https://download.pytorch.org/whl/cu117"]
+
+[tool.pytest.ini_options]
+addopts = [
+    "--import-mode=importlib",
+]
+
+[tool.black]
+exclude = '''
+/(
+    ComfyUI
+  | \.tox
+)/
+'''
