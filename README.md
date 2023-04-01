@@ -9,7 +9,7 @@ Requirements:
 - `tox` (`pip install tox`)
 - Copy _any_ checkpoint model into the project root named `model.ckpt`
 
-To build the development environment and run the unit tests simply run `tox` from the project root.
+To build the development environment and run the unit tests simply run `tox` from the project root. This will take a while the first time as it installs all the dependencies.
 
 ### Tests
 
