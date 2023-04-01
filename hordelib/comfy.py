@@ -77,7 +77,6 @@ class Comfy:
             if "inputs" in node:
                 for _, input in node["inputs"].items():
                     if type(input) is list:
-                        print(_, input[0], renames)
                         if input and input[0] in renames:
                             input[0] = renames[input[0]]
         return newnodes
