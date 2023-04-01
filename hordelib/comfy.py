@@ -21,19 +21,22 @@ class Comfy:
         # Load our pipelines
         self._load_pipelines()
 
-    def _this_dir(self, filename):
-        return os.path.join(os.path.dirname(os.path.realpath(__file__)), filename)
+    def _this_dir(self, filename, subdir=""):
+        target_dir = os.path.dirname(os.path.realpath(__file__))
+        if subdir:
+            target_dir = os.path.join(target_dir, subdir)
+        return os.path.join(target_dir, filename)
 
     def _load_node(self, filename):
         try:
-            execution.nodes.load_custom_node(self._this_dir(filename))
+            execution.nodes.load_custom_node(self._this_dir(filename, subdir="nodes"))
         except Exception:
             logger.error(f"Failed to load custom pipeline node: {filename}")
             return
         logger.debug(f"Loaded custom pipeline node: {filename}")
 
     def _load_custom_nodes(self):
-        files = glob.glob(self._this_dir("node_*.py"))
+        files = glob.glob(self._this_dir("node_*.py", subdir="nodes"))
         for file in files:
             self._load_node(os.path.basename(file))
 
@@ -53,7 +56,7 @@ class Comfy:
             logger.error(f"Invalid inference pipeline file: {filename}")
 
     def _load_pipelines(self):
-        files = glob.glob(self._this_dir("pipeline_*.json"))
+        files = glob.glob(self._this_dir("pipeline_*.json", subdir="pipelines"))
         loaded_count = 0
         for file in files:
             if self._load_pipeline(file):
