@@ -12,6 +12,13 @@ from hordelib.ComfyUI import execution
 
 
 class Comfy:
+
+    # Lookup of ComfyUI standard nodes to hordelib custom nodes
+    NODE_REPLACEMENTS = {
+        "CheckpointLoaderSimple": "HordeCheckpointLoader",
+        "SaveImage": "HordeImageOutput",
+    }
+
     def __init__(self):
         self.pipelines = {}
 
@@ -40,6 +47,62 @@ class Comfy:
         for file in files:
             self._load_node(os.path.basename(file))
 
+    def _fix_pipeline_types(self, data):
+        # We have a list of nodes and each node has a class type, which we may want to change
+        for nodename, node in data.items():
+            if "class_type" in node:
+                if node["class_type"] in Comfy.NODE_REPLACEMENTS:
+                    data[nodename]["class_type"] = Comfy.NODE_REPLACEMENTS[
+                        node["class_type"]
+                    ]
+        return data
+
+    def _fix_node_names(self, data, design):
+        # We have a list of nodes, attempt to rename them to the "title" set
+        # in the design file. These must be unique names.
+        newnodes = {}
+        renames = {}
+        nodes = design["nodes"]
+        for nodename, oldnode in data.items():
+            newname = nodename
+            for node in nodes:
+                if str(node["id"]) == str(nodename):
+                    if "title" in node:
+                        newname = node["title"]
+                        break
+            renames[nodename] = newname
+            newnodes[newname] = oldnode
+        # Now we've renamed the node names, change any references to them also
+        for nodename, node in newnodes.items():
+            if "inputs" in node:
+                for _, input in node["inputs"].items():
+                    if type(input) is list:
+                        print(_, input[0], renames)
+                        if input and input[0] in renames:
+                            input[0] = renames[input[0]]
+        return newnodes
+
+    # We are passed a valid comfy pipeline and a design file from the comfyui web app.
+    # Why?
+    #
+    # 1. We replace some nodes with our own hordelib nodes, for example "CheckpointLoaderSimple"
+    #    with "HordeModelLoader".
+    # 2. We replace unfriendly node names like "3" and "7" with friendly names taken from the
+    #    "title" attribute in the webui so we can have nicer parameter names when we call the
+    #    inference pipeline.
+    #
+    # Note that point 1 does not actually need a design file, and point 2 is not technically
+    # essential.
+    #
+    # Note also that the format of the design files from web app is expected to change at a fast
+    # pace. This is why the only thing that partially relies on that format, is in fact, optional.
+    def _patch_pipeline(self, data, design):
+        # First replace comfyui standard types with hordelib node types
+        data = self._fix_pipeline_types(data)
+        # Now try to find better parameter names
+        data = self._fix_node_names(data, design)
+        return data
+
     def _load_pipeline(self, filename):
         if not os.path.exists(filename):
             logger.error(f"No such inference pipeline file: {filename}")
@@ -49,6 +112,18 @@ class Comfy:
             with open(filename) as jsonfile:
                 pipeline_name = re.match(r".*pipeline_(.*)\.json", filename)[1]
                 data = json.loads(jsonfile.read())
+                # Do we have a design file for this pipeline?
+                design = os.path.join(
+                    os.path.dirname(os.path.dirname(filename)),
+                    "pipeline_designs",
+                    os.path.basename(filename),
+                )
+                # If we do have a design pipeline, use it to patch the pipeline we loaded.
+                if os.path.exists(design):
+                    logger.debug(f"Patching pipeline {pipeline_name}")
+                    with open(design) as designfile:
+                        designdata = json.loads(designfile.read())
+                    data = self._patch_pipeline(data, designdata)
                 self.pipelines[pipeline_name] = data
                 logger.debug(f"Loaded inference pipeline: {pipeline_name}")
                 return True
