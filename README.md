@@ -65,7 +65,11 @@ Simply execute: `tox` (or `tox -q` for less noisy output)
 
 This will take a while the first time as it installs all the dependencies.
 
-If the tests run successfully images will be produced in the project with the name of each pipeline, for example, `pipeline_stable_diffusion.png`.
+If the tests run successfully images will be produced in the project with the name of each pipeline, for example, `pipeline_stable_diffusion.png` and likely some other .png files too.
+
+#### Running a specific test file
+
+`tox -- -k <filename>` for example `tox -- -k test_initialisation`
 
 ### Directory Structure
 

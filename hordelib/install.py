@@ -34,12 +34,17 @@ class Installer:
             directory = self.ourdir
         else:
             directory = os.path.join(self.ourdir, subdir)
-        result = subprocess.run(
-            command, shell=True, text=True, capture_output=True, cwd=directory
-        )
+        try:
+            result = subprocess.run(
+                command, shell=True, text=True, capture_output=True, cwd=directory
+            )
+        except Exception as Ex:
+            logger.error(Ex)
+            return
         if result.returncode:
             logger.error(result.stderr)
             return
+        return (True, result.stdout)
 
     def install(self, comfy_version):
 
