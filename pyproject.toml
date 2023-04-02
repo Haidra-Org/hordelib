@@ -18,9 +18,9 @@ classifiers = [
     "Development Status :: 2 - Pre-Alpha",
 ]
 
-# Don't specific dynamic deps for tox, only for build
-#dynamic=["version", "dependencies"]
+# Don't specify dynamic deps for tox, only for build
 dynamic=["version"]
+#dynamic=["version", "dependencies"]
 
 [project.urls]
 "Homepage" = "https://github.com/jug-dev/hordelib"
