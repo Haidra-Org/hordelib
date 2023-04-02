@@ -7,7 +7,6 @@ from loguru import logger
 
 
 class Installer:
-
     def __init__(self):
         self.ourdir = os.path.dirname(os.path.realpath(__file__))
 
