@@ -78,5 +78,22 @@ The config files for the project are: `pyproject.toml`, `tox.ini` and `requireme
 
 Three steps:
 1. Bump the version in `hordelib/__init__.py`
-2. `python -m build`
-3. `twine upload -r pypi dist/*`
+1. `python -m build`
+1. `twine upload -r pypi dist/*`
+
+### Updating the embedded version of ComfyUI
+
+We use a ComfyUI version pinned to a specific commit, see `hordelib/__init__.py:COMFYUI_VERSION`
+
+To test if the latest version works and upgrade to it, from the project root simply:
+
+1. `cd hordelib/Compfy` _Change CWD to the embedded compfy_
+1. `git checkout master` _Switch to master branch_
+1. `git pull` _Get the latest comfyui code_
+1. `git rev-parse HEAD` _Print the commit hash we'll need this_
+1. `cd ../../` _Get back to the hordelib project root_
+1. `tox` _See if everything still works_
+
+If everything still works. Take the commit hash printed above and put it in `hordelib/__init__.py:COMFYUI_VERSION`
+
+Now ComfyUI is pinned to a new version.
