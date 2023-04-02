@@ -87,7 +87,7 @@ We use a ComfyUI version pinned to a specific commit, see `hordelib/__init__.py:
 
 To test if the latest version works and upgrade to it, from the project root simply:
 
-1. `cd hordelib/Compfy` _Change CWD to the embedded compfy_
+1. `cd hordelib/Comfy` _Change CWD to the embedded comfy_
 1. `git checkout master` _Switch to master branch_
 1. `git pull` _Get the latest comfyui code_
 1. `git rev-parse HEAD` _Print the commit hash we'll need this_
