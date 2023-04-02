@@ -17,16 +17,18 @@ class TestInference:
 
     def test_stable_diffusion_pipeline(self):
         params = {
-            "sampler.seed": 12345,
-            "sampler.cfg": 7.5,
-            "sampler.scheduler": "karras",
             "sampler.sampler_name": "dpmpp_2m",
+            "sampler.cfg": 7.5,
+            "sampler.denoise": 1.0,
+            "sampler.seed": 12345,
+            "empty_latent_image.width": 768,
+            "empty_latent_image.height": 768,
+            "empty_latent_image.batch_size": 1,
+            "sampler.scheduler": "karras",
             "sampler.steps": 25,
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
             "model_loader.ckpt_name": "model.ckpt",
-            "empty_latent_image.width": 768,
-            "empty_latent_image.height": 768,
         }
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
 
@@ -39,6 +41,7 @@ class TestInference:
             "sampler.cfg": 7.5,
             "sampler.scheduler": "normal",
             "sampler.sampler_name": "dpmpp_sde",
+            "sampler.denoise": 1.0,
             "sampler.steps": 12,
             "prompt.text": (
                 "(masterpiece) HDR victorian portrait painting of (girl), "

@@ -15,7 +15,7 @@ class HordeImageOutput:
             "required": {
                 "images": ("IMAGE",),
             },
-            "hidden": {"prompt": "PROMPT"},
+            "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
 
     RETURN_TYPES = ()
@@ -25,7 +25,7 @@ class HordeImageOutput:
 
     CATEGORY = "image"
 
-    def get_image(self, images, prompt=None):
+    def get_image(self, images, prompt=None, extra_pnginfo=None):
 
         results = []
         for image in images:
@@ -36,6 +36,9 @@ class HordeImageOutput:
             # Save the full pipeline and variables into the PNG metadata
             if prompt is not None:
                 metadata.add_text("prompt", json.dumps(prompt))
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             byte_stream = BytesIO()
             img.save(byte_stream, format="PNG", pnginfo=metadata, compress_level=4)

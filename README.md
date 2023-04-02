@@ -6,21 +6,36 @@
 
 The goal here is to be able to design inference pipelines in the excellent ComfyUI, and then call those inference pipelines programmatically, in a manner ultimately suitable for use in stable horde.
 
-For example, if we designed a pipeline named "stable_diffusion" in the ComfyUI and saved the JSON within hordelib, it could be executed simply with:
+## Usage
+
+Horde payloads can be processed simply with (for example):
+
 ```python
-params = {
-    "sampler.seed": 12345,
-    "sampler.cfg": 7.5,
-    "sampler.scheduler": "karras",
-    "sampler.sampler_name": "dpmpp_2m",
-    "sampler.steps": 25,
-    "prompt.text": "a closeup photo of a confused dog",
-    "negative_prompt.text": "cat, black and white, deformed",
-    "model_loader.ckpt_name": "model.ckpt",
-    "empty_latent_image.width": 768,
-    "empty_latent_image.height": 768,
-}
-images = self.comfy.run_image_pipeline("stable_diffusion", params)
+    from hordelib.horde import HordeLib
+
+    generate = HordeLib()
+
+    data = {
+        "sampler_name": "k_dpmpp_2m",
+        "cfg_scale": 7.5,
+        "denoising_strength": 1.0,
+        "seed": 123456789,
+        "height": 512,
+        "width": 512,
+        "karras": True,
+        "tiling": False,
+        "hires_fix": False,
+        "clip_skip": 1,
+        "control_type": "canny",
+        "image_is_control": False,
+        "return_control_map": False,
+        "prompt": "an ancient llamia monster, seductive, greek",
+        "ddim_steps": 25,
+        "n_iter": 1,
+        "model": "model.ckpt",
+    }
+    pil_image = generate.text_to_image(data)
+    pil_image.save("horde_text_to_image_text.png")
 ```
 
 ## Development
