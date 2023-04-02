@@ -72,7 +72,7 @@ This will create the file `prompt.json` in the root of the ComfyUI project for t
 
 ### Build Configuration
 
-The config files for the project are: `pyproject.toml`, `tox.ini` and `requirements.txt`
+The main config files for the project are: `pyproject.toml`, `tox.ini` and `requirements.txt`
 
 ### PyPi Publishing
 

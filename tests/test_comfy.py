@@ -50,11 +50,13 @@ class TestSetup:
             "a.b": True,
             "c.d.e": True,
             "c.inputs.d.f": True,
+            "unknown.parameter": False,
         }
         self.comfy._set(test_dict, **params)
         assert test_dict["a"]["inputs"]["b"]
         assert test_dict["c"]["inputs"]["d"]["e"]
         assert test_dict["c"]["inputs"]["d"]["f"]
+        assert "unknown.parameter" not in test_dict
 
     def test_fix_pipeline_types(self):
         data = {
