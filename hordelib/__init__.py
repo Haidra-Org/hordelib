@@ -2,7 +2,7 @@ import os
 import sys
 
 VERSION = "0.0.2"
-COMFYUI_VERSION = "9a27030519c6e1e2024df50cdc547f6a05d714bc"
+COMFYUI_VERSION = "27fc64ad469c07d8f84b2c2791a593f1cf2c7b59"
 
 current_file_path = os.path.abspath(__file__)
 current_folder = os.path.dirname(current_file_path)
