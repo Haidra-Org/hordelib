@@ -112,4 +112,4 @@ class TestHordeInference:
             "model": "model.ckpt",
         }
         pil_image = self.horde.text_to_image(data)
-        pil_image.save("horde_text_to_image_text.png")
+        pil_image.save("horde_text_to_image.png")
