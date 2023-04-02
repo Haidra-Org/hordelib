@@ -1,7 +1,6 @@
 # test_horde.py
 import pytest
 from hordelib.horde import HordeLib
-import json
 
 
 class TestHordeInference:
@@ -49,8 +48,6 @@ class TestHordeInference:
 
         result = self.horde._parameter_remap(data)
         assert result == expected, f"Dictionaries don't match: {result} != {expected}"
-        with open("debug.json", "wt") as f:
-            f.write(json.dumps(result))
 
     def test_parameter_remap_variation(self):
         data = {
