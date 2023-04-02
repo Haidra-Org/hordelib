@@ -7,9 +7,12 @@ from loguru import logger
 
 
 class Installer:
+
+    def __init__(self):
+        self.ourdir = os.path.dirname(os.path.realpath(__file__))
+
     def get_commit_hash(self):
-        target_dir = os.path.dirname(os.path.realpath(__file__))
-        head_file = os.path.join(target_dir, "ComfyUI", ".git", "HEAD")
+        head_file = os.path.join(self.ourdir, "ComfyUI", ".git", "HEAD")
         if not os.path.exists(head_file):
             return "NOT FOUND"
         try:
@@ -31,17 +34,19 @@ class Installer:
     def install(self, comfy_version):
 
         commands = [
-            "git clone https://github.com/comfyanonymous/ComfyUI.git hordelib/ComfyUI",
-            f"cd hordelib/ComfyUI && git checkout {comfy_version}",
+            f"git clone https://github.com/comfyanonymous/ComfyUI.git {self.ourdir}/ComfyUI",
+            # f"cd {self.ourdir}/ComfyUI && git checkout {comfy_version}",
         ]
 
-        if os.path.exists("hordelib/ComfyUI"):
+        return  # FIXME call it good
+
+        if os.path.exists(f"{self.ourdir}/ComfyUI"):
             # Check ComfyUI is up to date
             version = self.get_commit_hash()
             if version == comfy_version:
                 return
             commands = [
-                f"cd hordelib/ComfyUI && git checkout {comfy_version}",
+                f"cd {self.ourdir}/ComfyUI && git checkout {comfy_version}",
             ]
             logger.info(
                 f"Current ComfyUI version {version[:8]} requires {comfy_version[:8]}"
@@ -50,6 +55,7 @@ class Installer:
         logger.info("Updating ComfyUI")
 
         for command in commands:
+            logger.warning(command)
             result = subprocess.run(command, shell=True, text=True, capture_output=True)
             if result.returncode:
                 print(result.stderr, file=sys.stderr)

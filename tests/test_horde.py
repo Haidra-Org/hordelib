@@ -103,7 +103,7 @@ class TestHordeInference:
             "control_type": "canny",
             "image_is_control": False,
             "return_control_map": False,
-            "prompt": "an ancient llamia monster, seductive, greek",
+            "prompt": "an ancient llamia monster, mythological, dreamlike",
             "ddim_steps": 25,
             "n_iter": 1,
             "model": "model.ckpt",
