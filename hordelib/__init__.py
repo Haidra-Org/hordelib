@@ -2,7 +2,7 @@ import os
 import sys
 from . import install
 
-VERSION = "0.0.6"
+VERSION = "0.0.7"
 COMFYUI_VERSION = "27fc64ad469c07d8f84b2c2791a593f1cf2c7b59"
 
 current_file_path = os.path.abspath(__file__)

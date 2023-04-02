@@ -17,6 +17,7 @@ classifiers = [
     "Operating System :: OS Independent",
     "Development Status :: 2 - Pre-Alpha",
 ]
+#dynamic=["version", "dependencies"]
 dynamic=["version"]
 
 [project.urls]
