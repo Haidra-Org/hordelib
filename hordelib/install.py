@@ -8,9 +8,10 @@ from loguru import logger
 
 
 def get_commit_hash():
-    head_file = os.path.join("hordelib", "CompfyUI", ".git", "HEAD")
+    target_dir = os.path.dirname(os.path.realpath(__file__))
+    head_file = os.path.join(target_dir, "ComfyUI", ".git", "HEAD")
     if not os.path.exists(head_file):
-        return ""
+        return "NOT FOUND"
     try:
         with open(head_file, "r") as f:
             head_contents = f.read().strip()
@@ -41,6 +42,7 @@ if os.path.exists("hordelib/ComfyUI"):
     commands = [
         f"cd hordelib/ComfyUI && git checkout {COMFYUI_VERSION}",
     ]
+    logger.info(f"Current ComfyUI version {version[:8]} requires {COMFYUI_VERSION[:8]}")
 
 logger.info("Updating ComfyUI")
 
