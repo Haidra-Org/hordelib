@@ -1,3 +1,4 @@
+# Add this in for tox, comment out for build
 --extra-index-url https://download.pytorch.org/whl/cu117
 torch==1.13.1
 torchvision

@@ -17,6 +17,8 @@ classifiers = [
     "Operating System :: OS Independent",
     "Development Status :: 2 - Pre-Alpha",
 ]
+
+# Don't specific dynamic deps for tox, only for build
 #dynamic=["version", "dependencies"]
 dynamic=["version"]
 
@@ -33,7 +35,7 @@ exclude = ["hordelib.ComfyUI"]
 namespaces = false
 
 [options.index-client]
-extra-index-urls = [    "https://download.pytorch.org/whl/cu117"]
+extra-index-urls = ["https://download.pytorch.org/whl/cu117"]
 
 [tool.pytest.ini_options]
 addopts = [

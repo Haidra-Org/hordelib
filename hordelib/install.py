@@ -1,7 +1,6 @@
 # install.py
 # Fetch a specific version of the upstream ComfyUI project
 import os
-import sys
 import subprocess
 from loguru import logger
 
@@ -30,32 +29,34 @@ class Installer:
         except Exception:
             return ""
 
+    def _run(self, command, subdir=None):
+        if not subdir:
+            directory = self.ourdir
+        else:
+            directory = os.path.join(self.ourdir, subdir)
+        result = subprocess.run(
+            command, shell=True, text=True, capture_output=True, cwd=directory
+        )
+        if result.returncode:
+            logger.error(result.stderr)
+            return
+
     def install(self, comfy_version):
 
-        commands = [
-            f"git clone https://github.com/comfyanonymous/ComfyUI.git {self.ourdir}/ComfyUI",
-            # f"cd {self.ourdir}/ComfyUI && git checkout {comfy_version}",
-        ]
+        # Install if ComfyUI is missing completely
+        if not os.path.exists(f"{self.ourdir}/ComfyUI"):
+            self._run("git clone https://github.com/comfyanonymous/ComfyUI.git")
+            self._run(f"git checkout {comfy_version}", "ComfyUI")
+            return
 
-        return  # FIXME call it good
+        # If it's installed, is it up to date?
+        version = self.get_commit_hash()
+        if version == comfy_version:
+            # Yes, all done
+            return
 
-        if os.path.exists(f"{self.ourdir}/ComfyUI"):
-            # Check ComfyUI is up to date
-            version = self.get_commit_hash()
-            if version == comfy_version:
-                return
-            commands = [
-                f"cd {self.ourdir}/ComfyUI && git checkout {comfy_version}",
-            ]
-            logger.info(
-                f"Current ComfyUI version {version[:8]} requires {comfy_version[:8]}"
-            )
-
-        logger.info("Updating ComfyUI")
-
-        for command in commands:
-            logger.warning(command)
-            result = subprocess.run(command, shell=True, text=True, capture_output=True)
-            if result.returncode:
-                print(result.stderr, file=sys.stderr)
-                raise Exception(result.returncode)
+        # Update comfyui
+        logger.info(
+            f"Current ComfyUI version {version[:8]} requires {comfy_version[:8]}"
+        )
+        self._run(f"git checkout {comfy_version}", "ComfyUI")

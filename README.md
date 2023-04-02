@@ -6,6 +6,16 @@
 
 The goal here is to be able to design inference pipelines in the excellent ComfyUI, and then call those inference pipelines programmatically, in a manner ultimately suitable for use in stable horde.
 
+## Installation
+
+If being installed from pypi, use a requirements file of the form:
+```
+--extra-index-url https://download.pytorch.org/whl/cu117
+hordelib
+
+...your other dependancies...
+```
+
 ## Usage
 
 Horde payloads can be processed simply with (for example):
