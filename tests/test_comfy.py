@@ -4,6 +4,9 @@ from hordelib.comfy import Comfy
 
 
 class TestSetup:
+
+    NUMBER_OF_PIPELINES = 2
+
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         self.comfy = Comfy()
@@ -12,9 +15,10 @@ class TestSetup:
 
     def test_load_pipelines(self):
         loaded = self.comfy._load_pipelines()
-        assert loaded == 1
+        assert loaded == TestSetup.NUMBER_OF_PIPELINES
         # Check the built in pipelines
         assert "stable_diffusion" in self.comfy.pipelines.keys()
+        assert "stable_diffusion_hires_fix" in self.comfy.pipelines.keys()
 
     def test_load_invalid_pipeline(self):
         loaded = self.comfy._load_pipeline("no-such-pipeline")

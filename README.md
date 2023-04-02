@@ -36,7 +36,7 @@ Simply execute: `tox`
 
 This will take a while the first time as it installs all the dependencies.
 
-If the tests run successfully an image will be produced named `image-test.png`
+If the tests run successfully images will be produced in the project with the name of each pipeline, for example, `pipeline_stable_diffusion.png`.
 
 ### Directory Structure
 
