@@ -32,7 +32,7 @@ Requirements:
 
 ### Running the Tests
 
-Simply execute: `tox`
+Simply execute: `tox` (or `tox -q` for less noisy output)
 
 This will take a while the first time as it installs all the dependencies.
 
