@@ -1,7 +1,7 @@
 import os
 import sys
 
-VERSION = "0.0.1"
+VERSION = "0.0.2"
 COMFYUI_VERSION = "9a27030519c6e1e2024df50cdc547f6a05d714bc"
 
 current_file_path = os.path.abspath(__file__)

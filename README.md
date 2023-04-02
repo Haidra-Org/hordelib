@@ -73,3 +73,10 @@ This will create the file `prompt.json` in the root of the ComfyUI project for t
 ### Build Configuration
 
 The config files for the project are: `pyproject.toml`, `tox.ini` and `requirements.txt`
+
+### PyPi Publishing
+
+Three steps:
+1. Bump the version in `hordelib/__init__.py`
+2. `python -m build`
+3. `twine upload -r pypi dist/*`
