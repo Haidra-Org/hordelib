@@ -21,5 +21,5 @@ jobs:
       - name: Install tox and any other packages
         run: pip install tox
       - name: Run tox
-        # Run tox using the version of Python in `PATH`
-        run: tox -e tests
+        # Don't run test until we can get a test runner with CUDA
+        # run: tox -e tests
