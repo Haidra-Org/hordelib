@@ -28,4 +28,3 @@ class HordeCheckpointLoader:
 
 
 NODE_CLASS_MAPPINGS = {"HordeCheckpointLoader": HordeCheckpointLoader}
-NODE_CLASS_MAPPINGS = {"HordeCheckpointLoader": HordeCheckpointLoader}

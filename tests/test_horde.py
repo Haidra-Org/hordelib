@@ -37,7 +37,7 @@ class TestHordeInference:
             "prompt": "a dog ### cat, mouse, lion",
             "ddim_steps": 30,
             "n_iter": 1,
-            "model": "Deliberate.ckpt",
+            "model": "Deliberate",
         }
 
         expected = {
@@ -49,7 +49,7 @@ class TestHordeInference:
             "empty_latent_image.width": 512,
             "sampler.steps": 30,
             "empty_latent_image.batch_size": 1,
-            "model_loader.ckpt_name": "Deliberate.ckpt",
+            "model_loader.ckpt_name": "Deliberate",
             "sampler.scheduler": "karras",
             "prompt.text": "a dog",
             "negative_prompt.text": "cat, mouse, lion",
@@ -76,7 +76,7 @@ class TestHordeInference:
             "prompt": "a dog",
             "ddim_steps": 30,
             "n_iter": 1,
-            "model": "Deliberate.ckpt",
+            "model": "Deliberate",
         }
 
         expected = {
@@ -88,7 +88,7 @@ class TestHordeInference:
             "empty_latent_image.width": 512,
             "sampler.steps": 30,
             "empty_latent_image.batch_size": 1,
-            "model_loader.ckpt_name": "Deliberate.ckpt",
+            "model_loader.ckpt_name": "Deliberate",
             "sampler.scheduler": "normal",
             "prompt.text": "a dog",
             "negative_prompt.text": "",
@@ -115,7 +115,7 @@ class TestHordeInference:
             "prompt": "an ancient llamia monster",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": "model.ckpt",
+            "model": "Deliberate",
         }
         pil_image = self.horde.text_to_image(data)
         pil_image.save("horde_text_to_image.png")

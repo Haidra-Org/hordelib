@@ -3,7 +3,7 @@ import sys
 from hordelib import install
 from hordelib.utils.switch import Switch
 
-VERSION = "0.0.9"
+VERSION = "0.0.10"
 COMFYUI_VERSION = "72f9235a491e7800b3a7686e4901729d371dabed"
 
 current_file_path = os.path.abspath(__file__)

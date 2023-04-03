@@ -17,3 +17,4 @@ pyyaml
 pillow
 loguru
 GitPython
+clip-anytorch
