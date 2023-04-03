@@ -4,6 +4,8 @@
 import os
 
 import comfy
+from hordelib import horde_model_manager
+from loguru import logger
 
 
 class HordeCheckpointLoader:
@@ -21,16 +23,8 @@ class HordeCheckpointLoader:
     CATEGORY = "loaders"
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
-        ckpt_path = os.getenv("HORDE_MODEL_DIR_CHECKPOINTS", "./")
-        embeddings_path = os.getenv("HORDE_MODEL_DIR_EMBEDDINGS", "./")
-        ckpt_path = os.path.join(ckpt_path, ckpt_name)
-        out = comfy.sd.load_checkpoint_guess_config(
-            ckpt_path,
-            output_vae=True,
-            output_clip=True,
-            embedding_directory=embeddings_path,
-        )
-        return out
-
+        logger.info(horde_model_manager)
+        logger.info(horde_model_manager.compvis)
+        return horde_model_manager.compvis.loaded_models[ckpt_name]
 
 NODE_CLASS_MAPPINGS = {"HordeCheckpointLoader": HordeCheckpointLoader}

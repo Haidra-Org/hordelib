@@ -93,3 +93,5 @@ class HordeLib:
         # XXX Assumes the horde only asks for and wants 1 image
         image = Image.open(images[0]["imagedata"])
         return image
+
+

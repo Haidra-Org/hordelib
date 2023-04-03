@@ -94,7 +94,7 @@ class Comfy:
     # Why?
     #
     # 1. We replace some nodes with our own hordelib nodes, for example "CheckpointLoaderSimple"
-    #    with "HordeModelLoader".
+    #    with "HordeCheckpointLoader".
     # 2. We replace unfriendly node names like "3" and "7" with friendly names taken from the
     #    "title" attribute in the webui so we can have nicer parameter names when we call the
     #    inference pipeline.
