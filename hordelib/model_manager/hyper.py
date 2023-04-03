@@ -1,6 +1,7 @@
 import torch
 
 from loguru import logger
+
 # from worker.util.voodoo import initialise_voodoo
 
 
@@ -207,25 +208,41 @@ class ModelManager:
             return self.controlnet.validate_model(model_name, skip_checksum)
 
     def taint_models(self, models):
-        if self.aitemplate is not None and any(model in self.aitemplate.models for model in models):
+        if self.aitemplate is not None and any(
+            model in self.aitemplate.models for model in models
+        ):
             self.aitemplate.taint_models(models)
         if self.blip is not None and any(model in self.blip.models for model in models):
             self.blip.taint_models(models)
         if self.clip is not None and any(model in self.clip.models for model in models):
             self.clip.taint_models(models)
-        if self.codeformer is not None and any(model in self.codeformer.models for model in models):
+        if self.codeformer is not None and any(
+            model in self.codeformer.models for model in models
+        ):
             self.codeformer.taint_models(models)
-        if self.compvis is not None and any(model in self.compvis.models for model in models):
+        if self.compvis is not None and any(
+            model in self.compvis.models for model in models
+        ):
             self.compvis.taint_models(models)
-        if self.diffusers is not None and any(model in self.diffusers.models for model in models):
+        if self.diffusers is not None and any(
+            model in self.diffusers.models for model in models
+        ):
             self.diffusers.taint_models(models)
-        if self.esrgan is not None and any(model in self.esrgan.models for model in models):
+        if self.esrgan is not None and any(
+            model in self.esrgan.models for model in models
+        ):
             self.esrgan.taint_models(models)
-        if self.gfpgan is not None and any(model in self.gfpgan.models for model in models):
+        if self.gfpgan is not None and any(
+            model in self.gfpgan.models for model in models
+        ):
             self.gfpgan.taint_models(models)
-        if self.safety_checker is not None and any(model in self.safety_checker.models for model in models):
+        if self.safety_checker is not None and any(
+            model in self.safety_checker.models for model in models
+        ):
             self.safety_checker.taint_models(models)
-        if self.controlnet is not None and any(model in self.controlnet.models for model in models):
+        if self.controlnet is not None and any(
+            model in self.controlnet.models for model in models
+        ):
             self.controlnet.taint_models(models)
 
     def unload_model(self, model_name):
@@ -291,7 +308,9 @@ class ModelManager:
             if model_type == "diffusers":
                 if self.diffusers is not None:
                     for model in self.diffusers.models:
-                        if self.diffusers.check_available(self.diffusers.get_model_files(model)):
+                        if self.diffusers.check_available(
+                            self.diffusers.get_model_files(model)
+                        ):
                             models_available.append(model)
         return models_available
 
@@ -325,57 +344,96 @@ class ModelManager:
             return self.aitemplate.load(model_name, gpu_id)
         if self.blip is not None and model_name in self.blip.models:
             success = self.blip.load(
-                model_name=model_name, half_precision=half_precision, gpu_id=gpu_id, cpu_only=cpu_only
+                model_name=model_name,
+                half_precision=half_precision,
+                gpu_id=gpu_id,
+                cpu_only=cpu_only,
             )
             if success:
-                self.loaded_models.update({model_name: self.blip.loaded_models[model_name]})
+                self.loaded_models.update(
+                    {model_name: self.blip.loaded_models[model_name]}
+                )
             return success
         if self.clip is not None and model_name in self.clip.models:
             success = self.clip.load(
-                model_name=model_name, half_precision=half_precision, gpu_id=gpu_id, cpu_only=cpu_only
+                model_name=model_name,
+                half_precision=half_precision,
+                gpu_id=gpu_id,
+                cpu_only=cpu_only,
             )
             if success:
-                self.loaded_models.update({model_name: self.clip.loaded_models[model_name]})
+                self.loaded_models.update(
+                    {model_name: self.clip.loaded_models[model_name]}
+                )
             return success
         if self.codeformer is not None and model_name in self.codeformer.models:
             success = self.codeformer.load(
-                model_name=model_name, half_precision=half_precision, gpu_id=gpu_id, cpu_only=cpu_only
+                model_name=model_name,
+                half_precision=half_precision,
+                gpu_id=gpu_id,
+                cpu_only=cpu_only,
             )
             if success:
-                self.loaded_models.update({model_name: self.codeformer.loaded_models[model_name]})
+                self.loaded_models.update(
+                    {model_name: self.codeformer.loaded_models[model_name]}
+                )
             return success
         if self.compvis is not None and model_name in self.compvis.models:
             success = self.compvis.load(
-                model_name=model_name, output_vae=True, output_clip=True,
+                model_name=model_name,
+                output_vae=True,
+                output_clip=True,
             )
             if success:
-                self.loaded_models.update({model_name: self.compvis.loaded_models[model_name]})
+                self.loaded_models.update(
+                    {model_name: self.compvis.loaded_models[model_name]}
+                )
             return success
         if self.diffusers is not None and model_name in self.diffusers.models:
             success = self.diffusers.load(
-                model_name=model_name, half_precision=half_precision, gpu_id=gpu_id, cpu_only=cpu_only, voodoo=voodoo
+                model_name=model_name,
+                half_precision=half_precision,
+                gpu_id=gpu_id,
+                cpu_only=cpu_only,
+                voodoo=voodoo,
             )
             if success:
-                self.loaded_models.update({model_name: self.diffusers.loaded_models[model_name]})
+                self.loaded_models.update(
+                    {model_name: self.diffusers.loaded_models[model_name]}
+                )
             return success
         if self.esrgan is not None and model_name in self.esrgan.models:
             success = self.esrgan.load(
-                model_name=model_name, half_precision=half_precision, gpu_id=gpu_id, cpu_only=cpu_only
+                model_name=model_name,
+                half_precision=half_precision,
+                gpu_id=gpu_id,
+                cpu_only=cpu_only,
             )
             if success:
-                self.loaded_models.update({model_name: self.esrgan.loaded_models[model_name]})
+                self.loaded_models.update(
+                    {model_name: self.esrgan.loaded_models[model_name]}
+                )
             return success
         if self.gfpgan is not None and model_name in self.gfpgan.models:
-            success = self.gfpgan.load(model_name=model_name, gpu_id=gpu_id, cpu_only=cpu_only)
+            success = self.gfpgan.load(
+                model_name=model_name, gpu_id=gpu_id, cpu_only=cpu_only
+            )
             if success:
-                self.loaded_models.update({model_name: self.gfpgan.loaded_models[model_name]})
+                self.loaded_models.update(
+                    {model_name: self.gfpgan.loaded_models[model_name]}
+                )
             return success
         if self.safety_checker is not None and model_name in self.safety_checker.models:
             success = self.safety_checker.load(
-                model_name=model_name, half_precision=half_precision, gpu_id=gpu_id, cpu_only=True  # for the horde
+                model_name=model_name,
+                half_precision=half_precision,
+                gpu_id=gpu_id,
+                cpu_only=True,  # for the horde
             )
             if success:
-                self.loaded_models.update({model_name: self.safety_checker.loaded_models[model_name]})
+                self.loaded_models.update(
+                    {model_name: self.safety_checker.loaded_models[model_name]}
+                )
             return success
         logger.error(f"{model_name} not found")
         return False

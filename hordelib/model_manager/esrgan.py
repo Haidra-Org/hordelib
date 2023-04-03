@@ -17,9 +17,7 @@ class EsrganModelManager(BaseModelManager):
         self.path = f"{get_cache_directory()}/esrgan"
         self.models_db_name = "esrgan"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = (
-            f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
-        )
+        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
         self.init()
 
     def load(
@@ -56,7 +54,9 @@ class EsrganModelManager(BaseModelManager):
             )
             logger.init_ok(f"Loading {model_name}", status="Success")
             toc = time.time()
-            logger.init_ok(f"Loading {model_name}: Took {toc-tic} seconds", status="Success")
+            logger.init_ok(
+                f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
+            )
             return True
 
     def load_esrgan(

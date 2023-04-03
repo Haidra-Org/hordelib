@@ -37,9 +37,7 @@ class BaseModelManager:
         self.models_path = self.pkg / f"{self.models_db_name}.json"
         self.cuda_available = torch.cuda.is_available()
         self.cuda_devices, self.recommended_gpu = self.get_cuda_devices()
-        self.remote_db = (
-            f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
-        )
+        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
         self.download_reference = download_reference
 
     def init(self, list_models=False):
@@ -104,7 +102,9 @@ class BaseModelManager:
             model_types = ["ckpt", "diffusers"]
         models_available = []
         for model in self.models:
-            if self.models[model]["type"] in model_types and self.check_available(self.get_model_files(model)):
+            if self.models[model]["type"] in model_types and self.check_available(
+                self.get_model_files(model)
+            ):
                 models_available.append(model)
         return models_available
 
@@ -370,7 +370,10 @@ class BaseModelManager:
         - delete file
         - unzip file
         """
-        if model_name in self.available_models and model_name not in self.tainted_models:
+        if (
+            model_name in self.available_models
+            and model_name not in self.tainted_models
+        ):
             logger.info(f"{model_name} is already available.")
             return True
         download = self.get_model_download(model_name)
@@ -401,13 +404,19 @@ class BaseModelManager:
                 file_content = download[i]["file_content"]
                 logger.info(f"writing {file_content} to {file_path}")
                 os.makedirs(os.path.join(self.path, download_path), exist_ok=True)
-                with open(os.path.join(self.path, os.path.join(download_path, download_name)), "w") as f:
+                with open(
+                    os.path.join(self.path, os.path.join(download_path, download_name)),
+                    "w",
+                ) as f:
                     f.write(file_content)
             elif "symlink" in download[i]:
                 logger.info(f"symlink {file_path} to {download[i]['symlink']}")
                 symlink = download[i]["symlink"]
                 os.makedirs(os.path.join(self.path, download_path), exist_ok=True)
-                os.symlink(symlink, os.path.join(self.path, os.path.join(download_path, download_name)))
+                os.symlink(
+                    symlink,
+                    os.path.join(self.path, os.path.join(download_path, download_name)),
+                )
             elif "git" in download[i]:
                 logger.info(f"git clone {download_url} to {file_path}")
                 os.makedirs(os.path.join(self.path, file_path), exist_ok=True)
@@ -427,7 +436,10 @@ class BaseModelManager:
                 logger.info(f"delete {temp_path}")
                 shutil.rmtree(temp_path)
             else:
-                if not self.check_file_available(file_path) or model_name in self.tainted_models:
+                if (
+                    not self.check_file_available(file_path)
+                    or model_name in self.tainted_models
+                ):
                     logger.debug(f"Downloading {download_url} to {file_path}")
                     self.download_file(download_url, file_path)
         if not self.validate_model(model_name):
@@ -474,7 +486,8 @@ class BaseModelManager:
                 cuda_device = {
                     "id": i,
                     "name": torch.cuda.get_device_name(i),
-                    "sm": torch.cuda.get_device_capability(i)[0] * 10 + torch.cuda.get_device_capability(i)[1],
+                    "sm": torch.cuda.get_device_capability(i)[0] * 10
+                    + torch.cuda.get_device_capability(i)[1],
                 }
                 cuda_arch.append(cuda_device)
             cuda_arch = sorted(cuda_arch, key=lambda k: k["sm"], reverse=True)

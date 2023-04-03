@@ -16,9 +16,7 @@ class NewModelManager(BaseModelManager):
         self.path = f"{get_cache_directory()}/new"
         self.models_db_name = "new"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = (
-            f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
-        )
+        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
         self.init()
 
     def load(
@@ -55,7 +53,9 @@ class NewModelManager(BaseModelManager):
             )
             logger.init_ok(f"Loading {model_name}", status="Success")
             toc = time.time()
-            logger.init_ok(f"Loading {model_name}: Took {toc-tic} seconds", status="Success")
+            logger.init_ok(
+                f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
+            )
             return True
 
     def load_new(

@@ -18,15 +18,13 @@ class CompVisModelManager(BaseModelManager):
         self.custom_path = custom_path
         self.models_db_name = "stable_diffusion"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = (
-            f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
-        )
+        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
         self.init()
 
     def load(
         self,
-        model_name: str,        
-        output_vae=True, 
+        model_name: str,
+        output_vae=True,
         output_clip=True,
     ):
         """

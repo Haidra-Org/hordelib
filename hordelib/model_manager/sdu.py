@@ -78,8 +78,14 @@ class CLIPEmbedder(nn.Module):
 
     def forward(self, tok_out):
         input_ids, cross_cond_padding = tok_out
-        clip_out = self.transformer(input_ids=input_ids.to(self.device), output_hidden_states=True)
-        return clip_out.hidden_states[-1], cross_cond_padding.to(self.device), clip_out.pooler_output
+        clip_out = self.transformer(
+            input_ids=input_ids.to(self.device), output_hidden_states=True
+        )
+        return (
+            clip_out.hidden_states[-1],
+            cross_cond_padding.to(self.device),
+            clip_out.pooler_output,
+        )
 
 
 class SDUModelManager(BaseModelManager):
@@ -89,9 +95,7 @@ class SDUModelManager(BaseModelManager):
         self.path = f"{Path.home()}/.cache/nataili/sdu"
         self.models_db_name = "sdu"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = (
-            f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
-        )
+        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
         self.init()
 
     def load(
@@ -126,9 +130,13 @@ class SDUModelManager(BaseModelManager):
             )
             logger.init_ok(f"Loading {model_name}", status="Success")
             toc = time.time()
-            logger.init_ok(f"Loading {model_name}: Took {toc-tic} seconds", status="Success")
+            logger.init_ok(
+                f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
+            )
 
-    def load_model_from_config(self, model_path="", config_path="", map_location="cpu", device="cpu"):
+    def load_model_from_config(
+        self, model_path="", config_path="", map_location="cpu", device="cpu"
+    ):
         config = OmegaConf.load(config_path)
         pl_sd = torch.load(model_path, map_location=map_location)
         if "global_step" in pl_sd:
@@ -180,8 +188,12 @@ class SDUModelManager(BaseModelManager):
             model = model.eval().requires_grad_(False)
         model = model.eval()
         model.to(device)
-        vae_model_840k = self.load_model_from_config(model_path=vae_840k_path, config_path=vae_config_path)
-        vae_model_560k = self.load_model_from_config(model_path=vae_560k_path, config_path=vae_config_path)
+        vae_model_840k = self.load_model_from_config(
+            model_path=vae_840k_path, config_path=vae_config_path
+        )
+        vae_model_560k = self.load_model_from_config(
+            model_path=vae_560k_path, config_path=vae_config_path
+        )
         vae_model_840k = vae_model_840k.to(device)
         vae_model_560k = vae_model_560k.to(device)
         tokenizer = CLIPTokenizerTransform()

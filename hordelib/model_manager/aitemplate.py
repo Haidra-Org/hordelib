@@ -1,4 +1,3 @@
-
 import time
 from pathlib import Path
 
@@ -10,6 +9,7 @@ from transformers import CLIPFeatureExtractor, CLIPTokenizer
 from hordelib.cache import get_cache_directory
 from hordelib.model_manager.base import BaseModelManager
 from loguru import logger
+
 # from nataili.util.voodoo import init_ait_module
 
 
@@ -20,15 +20,15 @@ class AITemplateModelManager(BaseModelManager):
         self.path = f"{get_cache_directory()}/aitemplate"
         self.models_db_name = "aitemplate"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = (
-            f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
-        )
+        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
         self.ait_workdir = None
         self.init()
 
     def init(self):
         if self.cuda_available:
-            logger.info(f"Highest CUDA Compute Capability: {self.cuda_devices[0]['sm']}")
+            logger.info(
+                f"Highest CUDA Compute Capability: {self.cuda_devices[0]['sm']}"
+            )
             logger.debug(f"Available CUDA Devices: {self.cuda_devices}")
             logger.info(f"Recommended GPU: {self.recommended_gpu}")
             sm = self.recommended_gpu[0]["sm"]
@@ -136,7 +136,9 @@ class AITemplateModelManager(BaseModelManager):
             )
             logger.init_ok(f"Loading {model_name}", status="Success")
             toc = time.time()
-            logger.init_ok(f"Loading {model_name}: Took {toc-tic} seconds", status="Success")
+            logger.init_ok(
+                f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
+            )
             return True
 
     def load_aitemplate(
@@ -158,9 +160,13 @@ class AITemplateModelManager(BaseModelManager):
             unet=None,
             text_encoder=None,
             tokenizer=CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14"),
-            scheduler=LMSDiscreteScheduler.from_pretrained("runwayml/stable-diffusion-v1-5"),
+            scheduler=LMSDiscreteScheduler.from_pretrained(
+                "runwayml/stable-diffusion-v1-5"
+            ),
             safety_checker=None,
-            feature_extractor=CLIPFeatureExtractor.from_pretrained("openai/clip-vit-large-patch14"),
+            feature_extractor=CLIPFeatureExtractor.from_pretrained(
+                "openai/clip-vit-large-patch14"
+            ),
             clip_ait_exe=self.loaded_models["ait"]["clip"],
             unet_ait_exe=self.loaded_models["ait"]["unet"],
             vae_ait_exe=self.loaded_models["ait"]["vae"],

@@ -2,11 +2,15 @@ import time
 from pathlib import Path
 
 import torch
-from diffusers.pipelines import StableDiffusionDepth2ImgPipeline, StableDiffusionInpaintPipeline
+from diffusers.pipelines import (
+    StableDiffusionDepth2ImgPipeline,
+    StableDiffusionInpaintPipeline,
+)
 
 from hordelib.cache import get_cache_directory
 from hordelib.model_manager.base import BaseModelManager
 from loguru import logger
+
 # from nataili.util.voodoo import push_diffusers_pipeline_to_plasma
 
 
@@ -17,9 +21,7 @@ class DiffusersModelManager(BaseModelManager):
         self.path = f"{get_cache_directory()}/diffusers"
         self.models_db_name = "diffusers"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = (
-            f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
-        )
+        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
         self.init()
 
     def load(
@@ -57,7 +59,9 @@ class DiffusersModelManager(BaseModelManager):
             )
             logger.init_ok(f"Loading {model_name}", status="Success")
             toc = time.time()
-            logger.init_ok(f"Loading {model_name}: Took {toc-tic} seconds", status="Success")
+            logger.init_ok(
+                f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
+            )
             return True
 
     def load_diffusers(

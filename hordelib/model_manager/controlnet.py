@@ -17,9 +17,7 @@ class ControlNetModelManager(BaseModelManager):
         self.path = f"{get_cache_directory()}/controlnet"
         self.models_db_name = "controlnet"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = (
-            f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
-        )
+        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
         self.control_nets = {}
         self.init()
 
@@ -92,7 +90,11 @@ class ControlNetModelManager(BaseModelManager):
         if half_precision:
             model.half()
         del final_state_dict, sd15_with_control_state_dict, input_state_dict
-        self.loaded_models[full_name] = {"model": model, "device": device, "half_precision": half_precision}
+        self.loaded_models[full_name] = {
+            "model": model,
+            "device": device,
+            "half_precision": half_precision,
+        }
 
     def load_controlnet(
         self,

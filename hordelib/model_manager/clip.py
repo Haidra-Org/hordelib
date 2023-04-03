@@ -1,15 +1,14 @@
 import time
-from pathlib import Path
 
 import clip
 import open_clip
 import torch
 
-from hordelib.cache import get_cache_directory
-from hordelib.model_manager.base import BaseModelManager
-
 # from nataili.util.load_list import load_list
 from loguru import logger
+
+from hordelib.cache import get_cache_directory
+from hordelib.model_manager.base import BaseModelManager
 
 
 class ClipModelManager(BaseModelManager):
@@ -19,20 +18,18 @@ class ClipModelManager(BaseModelManager):
         self.path = f"{get_cache_directory()}/clip"
         self.models_db_name = "clip"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = (
-            f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
-        )
+        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
         self.init(list_models=True)
 
     def load_data_lists(self):
         data_lists = {}
-        data_lists["artist"] = load_list(self.pkg / "artists.txt")
-        data_lists["flavors"] = load_list(self.pkg / "flavors.txt")
-        data_lists["medium"] = load_list(self.pkg / "mediums.txt")
-        data_lists["movement"] = load_list(self.pkg / "movements.txt")
-        data_lists["trending"] = load_list(self.pkg / "sites.txt")
-        data_lists["techniques"] = load_list(self.pkg / "techniques.txt")
-        data_lists["tags"] = load_list(self.pkg / "tags.txt")
+        # data_lists["artist"] = load_list(self.pkg / "artists.txt")
+        # data_lists["flavors"] = load_list(self.pkg / "flavors.txt")
+        # data_lists["medium"] = load_list(self.pkg / "mediums.txt")
+        # data_lists["movement"] = load_list(self.pkg / "movements.txt")
+        # data_lists["trending"] = load_list(self.pkg / "sites.txt")
+        # data_lists["techniques"] = load_list(self.pkg / "techniques.txt")
+        # data_lists["tags"] = load_list(self.pkg / "tags.txt")
         return data_lists
 
     def load_coca(self, model_name, half_precision=True, gpu_id=0, cpu_only=False):
@@ -95,7 +92,9 @@ class ClipModelManager(BaseModelManager):
             half_precision = False
         else:
             device = torch.device(f"cuda:{gpu_id}" if self.cuda_available else "cpu")
-        model, preprocess = clip.load(model_name, device=device, download_root=self.path)
+        model, preprocess = clip.load(
+            model_name, device=device, download_root=self.path
+        )
         model = model.eval()
         if half_precision:
             model = model.half()
@@ -130,15 +129,23 @@ class ClipModelManager(BaseModelManager):
             tic = time.time()
             logger.init(f"{model_name}", status="Loading")
             if self.models[model_name]["type"] == "open_clip":
-                self.loaded_models[model_name] = self.load_open_clip(model_name, half_precision, gpu_id, cpu_only)
+                self.loaded_models[model_name] = self.load_open_clip(
+                    model_name, half_precision, gpu_id, cpu_only
+                )
             elif self.models[model_name]["type"] == "clip":
-                self.loaded_models[model_name] = self.load_clip(model_name, half_precision, gpu_id, cpu_only)
+                self.loaded_models[model_name] = self.load_clip(
+                    model_name, half_precision, gpu_id, cpu_only
+                )
             elif self.models[model_name]["type"] == "coca":
-                self.loaded_models[model_name] = self.load_coca(model_name, half_precision, gpu_id, cpu_only)
+                self.loaded_models[model_name] = self.load_coca(
+                    model_name, half_precision, gpu_id, cpu_only
+                )
             else:
                 logger.error(f"Unknown model type: {self.models[model_name]['type']}")
                 return
             logger.init_ok(f"Loading {model_name}", status="Success")
             toc = time.time()
-            logger.init_ok(f"Loading {model_name}: Took {toc-tic} seconds", status="Success")
+            logger.init_ok(
+                f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
+            )
             return True

@@ -21,9 +21,7 @@ class CodeFormerModelManager(BaseModelManager):
         # self.gfpgan = GfpganModelManager()
         # self.esrgan = EsrganModelManager()
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = (
-            f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
-        )
+        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
         self.init()
 
     def load(
@@ -58,7 +56,9 @@ class CodeFormerModelManager(BaseModelManager):
             )
             logger.init_ok(f"Loading {model_name}", status="Success")
             toc = time.time()
-            logger.init_ok(f"Loading {model_name}: Took {toc-tic} seconds", status="Success")
+            logger.init_ok(
+                f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
+            )
             return True
 
     def load_codeformer(
@@ -79,5 +79,7 @@ class CodeFormerModelManager(BaseModelManager):
             device = torch.device(f"cuda:{gpu_id}" if self.cuda_available else "cpu")
         logger.info(f"Loading model {model_name} on {device}")
         logger.info(f"Model path: {model_path}")
-        model = CodeFormer(self.esrgan, self.gfpgan, self, device=device, upscale=1).to(device)
+        model = CodeFormer(self.esrgan, self.gfpgan, self, device=device, upscale=1).to(
+            device
+        )
         return {"model": model, "device": device, "half_precision": half_precision}

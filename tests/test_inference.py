@@ -2,6 +2,8 @@
 import pytest
 from hordelib.comfy import Comfy
 from PIL import Image
+from hordelib.model_manager.hyper import ModelManager
+from hordelib import set_horde_model_manager
 
 
 class TestInference:
@@ -10,6 +12,11 @@ class TestInference:
         self.comfy = Comfy()
         yield
         self.comfy = None
+        model_manager = ModelManager(
+            compvis=True,
+        )
+        model_manager.load("Deliberate")
+        set_horde_model_manager(model_manager)
 
     def test_unknown_pipeline(self):
         result = self.comfy.run_pipeline("non-existent-pipeline", {})
@@ -28,7 +35,7 @@ class TestInference:
             "sampler.steps": 25,
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
-            "model_loader.ckpt_name": "model.ckpt",
+            "model_loader.ckpt_name": "Deliberate",
         }
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
 
@@ -48,7 +55,7 @@ class TestInference:
                 "blonde hair, mountain nature, blue sky"
             ),
             "negative_prompt.text": "bad hands, text, watermark",
-            "model_loader.ckpt_name": "model.ckpt",
+            "model_loader.ckpt_name": "Deliberate",
             "empty_latent_image.width": 768,
             "empty_latent_image.height": 768,
             "latent_upscale.width": 1216,
