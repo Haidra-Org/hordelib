@@ -17,7 +17,7 @@ class TestHordeInference:
         set_horde_model_manager(model_manager)
         yield
         self.horde = None
-        del
+        del model_manager
 
     def test_parameter_remap_simple(self):
         data = {
