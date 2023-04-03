@@ -7,7 +7,7 @@ jobs:
 
     runs-on: ubuntu-latest
     env:
-      HORDELIB_TESTING: yes
+      HORDELIB_TESTING: "no-cuda"
     strategy:
       matrix:
         python: ["3.10"]
