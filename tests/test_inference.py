@@ -39,6 +39,7 @@ class TestInference:
             "negative_prompt.text": "cat, black and white, deformed",
             "model_loader.ckpt_name": "Deliberate",
         }
+        assert self.comfy is not None
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
 
         image = Image.open(images[0]["imagedata"])

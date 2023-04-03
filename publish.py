@@ -20,7 +20,7 @@ def patch_requirements(unpatch=False):
             newfile.append(f"{line[1:]}")
         else:
             newfile.append(line)
-    with open("requirements.txt", "wt") as outfile:
+    with open("requirements.txt", "w") as outfile:
         outfile.writelines(newfile)
 
 
@@ -39,7 +39,7 @@ def patch_toml(unpatch=False):
             newfile.append(f"#{line}")
         else:
             newfile.append(line)
-    with open("pyproject.toml", "wt") as outfile:
+    with open("pyproject.toml", "w") as outfile:
         outfile.writelines(newfile)
 
 

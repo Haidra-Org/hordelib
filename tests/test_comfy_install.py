@@ -1,7 +1,8 @@
 # test_comfy_install.py
 import os
-from hordelib.install import Installer
+
 from hordelib import COMFYUI_VERSION
+from hordelib.install import Installer
 
 
 class TestSetup:
@@ -42,7 +43,6 @@ class TestSetup:
         assert result is None
 
     def test_comfy_install(self):
-
         # Should cause an install
         install = Installer()
         comfydir = os.path.join(install.ourdir, "ComfyUI")

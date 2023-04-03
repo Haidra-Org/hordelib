@@ -1,10 +1,10 @@
 # test_setup.py
 import pytest
+
 from hordelib.comfy import Comfy
 
 
 class TestSetup:
-
     NUMBER_OF_PIPELINES = 2
 
     @pytest.fixture(autouse=True)
@@ -17,8 +17,8 @@ class TestSetup:
         loaded = self.comfy._load_pipelines()
         assert loaded == TestSetup.NUMBER_OF_PIPELINES
         # Check the built in pipelines
-        assert "stable_diffusion" in self.comfy.pipelines.keys()
-        assert "stable_diffusion_hires_fix" in self.comfy.pipelines.keys()
+        assert "stable_diffusion" in self.comfy.pipelines
+        assert "stable_diffusion_hires_fix" in self.comfy.pipelines
 
     def test_load_invalid_pipeline(self):
         loaded = self.comfy._load_pipeline("no-such-pipeline")
@@ -35,8 +35,8 @@ class TestSetup:
         # Look for our nodes in the ComfyUI nodes list
         from hordelib.ComfyUI import execution
 
-        assert "HordeCheckpointLoader" in execution.nodes.NODE_CLASS_MAPPINGS.keys()
-        assert "HordeImageOutput" in execution.nodes.NODE_CLASS_MAPPINGS.keys()
+        assert "HordeCheckpointLoader" in execution.nodes.NODE_CLASS_MAPPINGS
+        assert "HordeImageOutput" in execution.nodes.NODE_CLASS_MAPPINGS
 
     def test_parameter_injection(self):
         test_dict = {

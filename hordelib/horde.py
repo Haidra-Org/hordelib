@@ -1,12 +1,13 @@
 # horde.py
 # Main interface for the horde to this library.
-from hordelib.comfy import Comfy
-from PIL import Image
 import contextlib
+
+from PIL import Image
+
+from hordelib.comfy import Comfy
 
 
 class HordeLib:
-
     # Horde to comfy sampler mapping
     SAMPLERS_MAP = {
         "k_euler": "euler",
@@ -27,7 +28,7 @@ class HordeLib:
     }
 
     # Horde to tex2img parameter mapping
-    # FIXME Items mapped to None are ignored for now
+    # XXX Items mapped to None are ignored for now
     TEXT_TO_IMAGE_PARAMS = {
         "sampler_name": "sampler.sampler_name",
         "cfg_scale": "sampler.cfg",
@@ -48,10 +49,10 @@ class HordeLib:
         "model": "model_loader.ckpt_name",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
-    def _parameter_remap(self, payload):
+    def _parameter_remap(self, payload: dict[str, str | None]) -> dict[str, str | None]:
         params = {}
         # Extract from the payload things we understand
         for key, value in payload.items():
@@ -70,13 +71,18 @@ class HordeLib:
             params["sampler.scheduler"] = "normal"
 
         # We break prompt up on horde's "###"
-        prompts = [x.strip() for x in payload.get("prompt", "").split("###")][:2]
-        if len(prompts) == 1:
-            params["prompt.text"] = prompts[0]
+        promptsCombined = payload.get("prompt", "")
+
+        if promptsCombined is None:  # XXX
+            raise TypeError("`None` value encountered!")
+
+        promptsSplit = [x.strip() for x in promptsCombined.split("###")][:2]
+        if len(promptsSplit) == 1:
+            params["prompt.text"] = promptsSplit[0]
             params["negative_prompt.text"] = ""
-        elif len(prompts) == 2:
-            params["prompt.text"] = prompts[0]
-            params["negative_prompt.text"] = prompts[1]
+        elif len(promptsSplit) == 2:
+            params["prompt.text"] = promptsSplit[0]
+            params["negative_prompt.text"] = promptsSplit[1]
 
         # Sampler remap
         sampler = HordeLib.SAMPLERS_MAP.get(params["sampler.sampler_name"], "euler")
@@ -84,12 +90,12 @@ class HordeLib:
 
         return params
 
-    def text_to_image(self, payload):
-
+    def text_to_image(self, payload: dict[str, str | None]) -> Image.Image | None:
         generator = Comfy()
         images = generator.run_image_pipeline(
             "stable_diffusion", self._parameter_remap(payload)
         )
+        if images is None:
+            return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image
-        image = Image.open(images[0]["imagedata"])
-        return image
+        return Image.open(images[0]["imagedata"])

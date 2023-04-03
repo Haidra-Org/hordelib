@@ -54,7 +54,7 @@ class TestHordeInference:
             "prompt.text": "a dog",
             "negative_prompt.text": "cat, mouse, lion",
         }
-
+        assert self.horde is not None
         result = self.horde._parameter_remap(data)
         assert result == expected, f"Dictionaries don't match: {result} != {expected}"
 
@@ -93,7 +93,7 @@ class TestHordeInference:
             "prompt.text": "a dog",
             "negative_prompt.text": "",
         }
-
+        assert self.horde is not None
         result = self.horde._parameter_remap(data)
         assert result == expected, f"Dictionaries don't match: {result} != {expected}"
 
@@ -117,5 +117,6 @@ class TestHordeInference:
             "n_iter": 1,
             "model": "Deliberate",
         }
+        assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         pil_image.save("horde_text_to_image.png")

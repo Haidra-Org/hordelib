@@ -5,27 +5,26 @@ import glob
 import json
 import os
 import re
-from PIL import Image
 from io import BytesIO
 
 from loguru import logger
+from PIL import Image
 
 from hordelib.ComfyUI import execution
 
 
 class Comfy:
-
     # Lookup of ComfyUI standard nodes to hordelib custom nodes
     NODE_REPLACEMENTS = {
         "CheckpointLoaderSimple": "HordeCheckpointLoader",
         "SaveImage": "HordeImageOutput",
     }
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.pipelines = {}
         self.unit_testing = os.getenv("HORDELIB_TESTING", "")
 
-        # FIXME Temporary hack for model dir
+        # XXX Temporary hack for model dir
         model_dir = os.getenv("AIWORKER_CACHE_HOME", "")
         if not model_dir:
             os.environ["HORDE_MODEL_DIR_CHECKPOINTS"] = self._this_dir("../")
@@ -37,13 +36,13 @@ class Comfy:
         # Load our pipelines
         self._load_pipelines()
 
-    def _this_dir(self, filename, subdir=""):
+    def _this_dir(self, filename: str, subdir="") -> str:
         target_dir = os.path.dirname(os.path.realpath(__file__))
         if subdir:
             target_dir = os.path.join(target_dir, subdir)
         return os.path.join(target_dir, filename)
 
-    def _load_node(self, filename):
+    def _load_node(self, filename: str) -> None:
         try:
             execution.nodes.load_custom_node(self._this_dir(filename, subdir="nodes"))
         except Exception:
@@ -51,22 +50,23 @@ class Comfy:
             return
         logger.debug(f"Loaded custom pipeline node: {filename}")
 
-    def _load_custom_nodes(self):
+    def _load_custom_nodes(self) -> None:
         files = glob.glob(self._this_dir("node_*.py", subdir="nodes"))
         for file in files:
             self._load_node(os.path.basename(file))
 
-    def _fix_pipeline_types(self, data):
+    def _fix_pipeline_types(self, data: dict) -> dict:
         # We have a list of nodes and each node has a class type, which we may want to change
         for nodename, node in data.items():
-            if "class_type" in node:
-                if node["class_type"] in Comfy.NODE_REPLACEMENTS:
-                    data[nodename]["class_type"] = Comfy.NODE_REPLACEMENTS[
-                        node["class_type"]
-                    ]
+            if ("class_type" in node) and (
+                node["class_type"] in Comfy.NODE_REPLACEMENTS
+            ):
+                data[nodename]["class_type"] = Comfy.NODE_REPLACEMENTS[
+                    node["class_type"]
+                ]
         return data
 
-    def _fix_node_names(self, data, design):
+    def _fix_node_names(self, data: dict, design: dict) -> dict[str, str]:
         # We have a list of nodes, attempt to rename them to the "title" set
         # in the design file. These must be unique names.
         newnodes = {}
@@ -75,17 +75,16 @@ class Comfy:
         for nodename, oldnode in data.items():
             newname = nodename
             for node in nodes:
-                if str(node["id"]) == str(nodename):
-                    if "title" in node:
-                        newname = node["title"]
-                        break
+                if str(node["id"]) == str(nodename) and "title" in node:
+                    newname = node["title"]
+                    break
             renames[nodename] = newname
             newnodes[newname] = oldnode
         # Now we've renamed the node names, change any references to them also
-        for nodename, node in newnodes.items():
+        for node in newnodes.values():
             if "inputs" in node:
                 for _, input in node["inputs"].items():
-                    if type(input) is list:
+                    if type(input) is list:  # noqa: SIM102
                         if input and input[0] in renames:
                             input[0] = renames[input[0]]
         return newnodes
@@ -104,21 +103,26 @@ class Comfy:
     #
     # Note also that the format of the design files from web app is expected to change at a fast
     # pace. This is why the only thing that partially relies on that format, is in fact, optional.
-    def _patch_pipeline(self, data, design):
+    def _patch_pipeline(self, data: dict, design: dict) -> dict:
         # First replace comfyui standard types with hordelib node types
         data = self._fix_pipeline_types(data)
         # Now try to find better parameter names
         data = self._fix_node_names(data, design)
         return data
 
-    def _load_pipeline(self, filename):
+    def _load_pipeline(self, filename: str) -> bool | None:
         if not os.path.exists(filename):
             logger.error(f"No such inference pipeline file: {filename}")
-            return
+            return None
 
         try:
             with open(filename) as jsonfile:
-                pipeline_name = re.match(r".*pipeline_(.*)\.json", filename)[1]
+                pipeline_name_rematches = re.match(r".*pipeline_(.*)\.json", filename)
+                if pipeline_name_rematches is None:
+                    logger.error(f"Regex parsing failed for: {filename}")
+                    return None
+
+                pipeline_name = pipeline_name_rematches[1]
                 data = json.loads(jsonfile.read())
                 # Do we have a design file for this pipeline?
                 design = os.path.join(
@@ -138,7 +142,7 @@ class Comfy:
         except (OSError, ValueError):
             logger.error(f"Invalid inference pipeline file: {filename}")
 
-    def _load_pipelines(self):
+    def _load_pipelines(self) -> int:
         files = glob.glob(self._this_dir("pipeline_*.json", subdir="pipelines"))
         loaded_count = 0
         for file in files:
@@ -148,7 +152,7 @@ class Comfy:
 
     # Inject parameters into a pre-configured pipeline
     # We allow "inputs" to be missing from the key name, if it is we insert it.
-    def _set(self, dct, **kwargs):
+    def _set(self, dct, **kwargs) -> None:
         for key, value in kwargs.items():
             keys = key.split(".")
             if "inputs" not in keys:
@@ -159,19 +163,18 @@ class Comfy:
                 if k not in current:
                     logger.error(f"Attempt to set unknown pipeline parameter {key}")
                     break
-                else:
-                    current = current[k]
+
+                current = current[k]
 
             current[keys[-1]] = value
 
     # Execute the named pipeline and pass the pipeline the parameter provided.
     # For the horde we assume the pipeline returns an array of images.
-    def run_pipeline(self, pipeline_name, params):
-
+    def run_pipeline(self, pipeline_name: str, params: dict) -> dict | None:
         # Sanity
         if pipeline_name not in self.pipelines:
             logger.error(f"Unknown inference pipeline: {pipeline_name}")
-            return
+            return None
 
         # Grab a copy of the pipeline
         pipeline = copy.copy(self.pipelines[pipeline_name])
@@ -198,7 +201,7 @@ class Comfy:
         return inference.outputs
 
     # Run a pipeline that returns an image in pixel space
-    def run_image_pipeline(self, pipeline_name, params):
+    def run_image_pipeline(self, pipeline_name: str, params: dict) -> BytesIO | None:
         # From the horde point of view, let us assume the output we are interested in
         # is always in a HordeImageOutput node named "output_image". This is an array of
         # dicts of the form:
@@ -209,4 +212,8 @@ class Comfy:
         # ]
         # See node_image_output.py
         result = self.run_pipeline(pipeline_name, params)
-        return result["output_image"]["images"]
+
+        if result:
+            return result["output_image"]["images"]
+
+        return None

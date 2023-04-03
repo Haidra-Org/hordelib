@@ -2,6 +2,7 @@
 # Fetch a specific version of the upstream ComfyUI project
 import os
 import subprocess
+
 from loguru import logger
 
 
@@ -14,7 +15,7 @@ class Installer:
         if not os.path.exists(head_file):
             return "NOT FOUND"
         try:
-            with open(head_file, "r") as f:
+            with open(head_file) as f:
                 head_contents = f.read().strip()
 
             if not head_contents.startswith("ref:"):
@@ -22,32 +23,28 @@ class Installer:
 
             ref_path = os.path.join(".git", *head_contents[5:].split("/"))
 
-            with open(ref_path, "r") as f:
+            with open(ref_path) as f:
                 commit_hash = f.read().strip()
 
             return commit_hash
         except Exception:
             return ""
 
-    def _run(self, command, subdir=None):
-        if not subdir:
-            directory = self.ourdir
-        else:
-            directory = os.path.join(self.ourdir, subdir)
+    def _run(self, command, subdir=None) -> tuple[bool, str] | None:
+        directory = self.ourdir if not subdir else os.path.join(self.ourdir, subdir)
         try:
             result = subprocess.run(
                 command, shell=True, text=True, capture_output=True, cwd=directory
             )
         except Exception as Ex:
             logger.error(Ex)
-            return
+            return None
         if result.returncode:
             logger.error(result.stderr)
-            return
+            return None
         return (True, result.stdout)
 
-    def install(self, comfy_version):
-
+    def install(self, comfy_version) -> None:
         # Install if ComfyUI is missing completely
         if not os.path.exists(f"{self.ourdir}/ComfyUI"):
             self._run("git clone https://github.com/comfyanonymous/ComfyUI.git")
