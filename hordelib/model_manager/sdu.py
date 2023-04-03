@@ -4,12 +4,12 @@ from pathlib import Path
 import k_diffusion as K
 import torch
 import torch.nn.functional as F
+from loguru import logger
 from omegaconf import OmegaConf
 from torch import nn
 
 # from ldm.util import instantiate_from_config
 from hordelib.model_manager.base import BaseModelManager
-from loguru import logger
 
 
 class NoiseLevelAndTextConditionedUpscaler(nn.Module):
@@ -116,23 +116,27 @@ class SDUModelManager(BaseModelManager):
             return
         if model_name not in self.available_models:
             logger.error(f"{model_name} not available")
-            logger.init_ok(f"Downloading {model_name}", status="Downloading")
+            logger.info(
+                f"Downloading {model_name}", status="Downloading"
+            )  # logger.init_ok
             self.download_model(model_name)
-            logger.init_ok(f"{model_name} downloaded", status="Downloading")
+            logger.info(
+                f"{model_name} downloaded", status="Downloading"
+            )  # logger.init_ok
         if model_name not in self.loaded_models:
             tic = time.time()
-            logger.init(f"{model_name}", status="Loading")
+            logger.info(f"{model_name}", status="Loading")  # logger.init
             self.loaded_models[model_name] = self.load_sdu(
                 model_name,
                 half_precision=half_precision,
                 gpu_id=gpu_id,
                 cpu_only=cpu_only,
             )
-            logger.init_ok(f"Loading {model_name}", status="Success")
+            logger.info(f"Loading {model_name}", status="Success")  # logger.init_ok
             toc = time.time()
-            logger.init_ok(
+            logger.info(
                 f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
-            )
+            )  # logger.init_ok
 
     def load_model_from_config(
         self, model_path="", config_path="", map_location="cpu", device="cpu"

@@ -1,13 +1,11 @@
 import os
-import sys
 import time
+
 import comfy
-from pathlib import Path
+from loguru import logger
 
 from hordelib.cache import get_cache_directory
 from hordelib.model_manager.base import BaseModelManager
-
-from loguru import logger
 
 
 class CompVisModelManager(BaseModelManager):
@@ -36,10 +34,10 @@ class CompVisModelManager(BaseModelManager):
         if model_name not in self.available_models:
             logger.error(f"{model_name} not available")
             self.download_model(model_name)
-            logger.init_ok(f"{model_name}", status="Downloaded")
+            logger.info(f"{model_name}", status="Downloaded")  # logger.init_ok
         if model_name not in self.loaded_models:
             tic = time.time()
-            logger.init(f"{model_name}", status="Loading")
+            logger.info(f"{model_name}", status="Loading")  # logger.init
             embeddings_path = os.getenv("HORDE_MODEL_DIR_EMBEDDINGS", "./")
             ckpt_path = self.get_model_files(model_name)[0]["path"]
             ckpt_path = f"{self.path}/{ckpt_path}"
@@ -50,5 +48,7 @@ class CompVisModelManager(BaseModelManager):
                 embedding_directory=embeddings_path,
             )
             toc = time.time()
-            logger.init_ok(f"{model_name}: {round(toc-tic,2)} seconds", status="Loaded")
+            logger.info(
+                f"{model_name}: {round(toc-tic,2)} seconds", status="Loaded"
+            )  # logger.init_ok
             return True

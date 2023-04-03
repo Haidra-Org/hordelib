@@ -1,5 +1,4 @@
 import torch
-
 from loguru import logger
 
 # from worker.util.voodoo import initialise_voodoo
@@ -23,7 +22,7 @@ class ModelManager:
         codeformer: bool = False,
         controlnet: bool = False,
     ):
-        # initialise_voodoo()
+        # logger.initialise_voodoo()
         if aitemplate:
             from hordelib.model_manager.aitemplate import AITemplateModelManager
 

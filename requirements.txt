@@ -16,3 +16,4 @@ accelerate
 pyyaml
 pillow
 loguru
+GitPython

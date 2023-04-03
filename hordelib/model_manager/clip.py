@@ -120,14 +120,16 @@ class ClipModelManager(BaseModelManager):
             return False
         if model_name not in self.available_models:
             logger.error(f"{model_name} not available")
-            logger.init_ok(f"Downloading {model_name}", status="Downloading")
+            logger.info(f"Downloading {model_name}", status="Downloading")
             self.download_model(model_name)
-            logger.init_ok(f"{model_name} downloaded", status="Downloading")
+            logger.info(
+                f"{model_name} downloaded", status="Downloading"
+            )  # logger.init_ok
         if model_name not in self.loaded_models:
             if not self.cuda_available:
                 cpu_only = True
             tic = time.time()
-            logger.init(f"{model_name}", status="Loading")
+            logger.info(f"{model_name}", status="Loading")  # logger.init
             if self.models[model_name]["type"] == "open_clip":
                 self.loaded_models[model_name] = self.load_open_clip(
                     model_name, half_precision, gpu_id, cpu_only
@@ -143,9 +145,9 @@ class ClipModelManager(BaseModelManager):
             else:
                 logger.error(f"Unknown model type: {self.models[model_name]['type']}")
                 return
-            logger.init_ok(f"Loading {model_name}", status="Success")
+            logger.info(f"Loading {model_name}", status="Success")  # logger.init_ok
             toc = time.time()
-            logger.init_ok(
+            logger.info(
                 f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
-            )
+            )  # logger.init_ok
             return True

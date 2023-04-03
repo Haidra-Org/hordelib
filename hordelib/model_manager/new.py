@@ -1,12 +1,10 @@
 import time
-from pathlib import Path
 
 import torch
+from loguru import logger
 
 from hordelib.cache import get_cache_directory
 from hordelib.model_manager.base import BaseModelManager
-
-from loguru import logger
 
 
 class NewModelManager(BaseModelManager):
@@ -39,23 +37,27 @@ class NewModelManager(BaseModelManager):
             return False
         if model_name not in self.available_models:
             logger.error(f"{model_name} not available")
-            logger.init_ok(f"Downloading {model_name}", status="Downloading")
+            logger.info(
+                f"Downloading {model_name}", status="Downloading"
+            )  # logger.init_ok
             self.download_model(model_name)
-            logger.init_ok(f"{model_name} downloaded", status="Downloading")
+            logger.info(
+                f"{model_name} downloaded", status="Downloading"
+            )  # logger.init_ok
         if model_name not in self.loaded_models:
             tic = time.time()
-            logger.init(f"{model_name}", status="Loading")
+            logger.info(f"{model_name}", status="Loading")  # logger.init
             self.loaded_models[model_name] = self.load_new(
                 model_name,
                 half_precision=half_precision,
                 gpu_id=gpu_id,
                 cpu_only=cpu_only,
             )
-            logger.init_ok(f"Loading {model_name}", status="Success")
+            logger.info(f"Loading {model_name}", status="Success")  # logger.init_ok
             toc = time.time()
-            logger.init_ok(
+            logger.info(
                 f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
-            )
+            )  # logger.init_ok
             return True
 
     def load_new(

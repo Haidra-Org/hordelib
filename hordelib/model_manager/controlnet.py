@@ -1,13 +1,13 @@
 import safetensors.torch
 import torch
+
+# from nataili.model_manager.compvis import CompVisModelManager, DisableInitialization
+from loguru import logger
 from omegaconf import OmegaConf
 
 # from ldm.util import instantiate_from_config
 from hordelib.cache import get_cache_directory
 from hordelib.model_manager.base import BaseModelManager
-
-# from nataili.model_manager.compvis import CompVisModelManager, DisableInitialization
-from loguru import logger
 
 
 class ControlNetModelManager(BaseModelManager):
@@ -48,7 +48,7 @@ class ControlNetModelManager(BaseModelManager):
         try:
             with DisableInitialization(disable_clip=True):
                 model = instantiate_from_config(config.model)
-        except Exception as e:
+        except Exception:
             pass
         full_name = f"{model_name}_{target_name}"
         logger.info(f"Loaded {full_name} ControlLDM")
@@ -105,9 +105,13 @@ class ControlNetModelManager(BaseModelManager):
             return False
         if model_name not in self.available_models:
             logger.error(f"{model_name} not available")
-            logger.init_ok(f"Downloading {model_name}", status="Downloading")
+            logger.info(
+                f"Downloading {model_name}", status="Downloading"
+            )  # logger.init_ok
             self.download_model(model_name)
-            logger.init_ok(f"{model_name} downloaded", status="Downloading")
+            logger.info(
+                f"{model_name} downloaded", status="Downloading"
+            )  # logger.init_ok
         if model_name in self.control_nets:
             logger.info(f"{model_name} already loaded")
             return True

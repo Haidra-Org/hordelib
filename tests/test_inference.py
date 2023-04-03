@@ -1,22 +1,24 @@
 # test_inference.py
 import pytest
-from hordelib.comfy import Comfy
 from PIL import Image
-from hordelib.model_manager.hyper import ModelManager
+
 from hordelib import set_horde_model_manager
+from hordelib.comfy import Comfy
+from hordelib.model_manager.hyper import ModelManager
 
 
 class TestInference:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         self.comfy = Comfy()
-        yield
-        self.comfy = None
         model_manager = ModelManager(
             compvis=True,
         )
         model_manager.load("Deliberate")
         set_horde_model_manager(model_manager)
+        yield
+        self.comfy = None
+        del model_manager
 
     def test_unknown_pipeline(self):
         result = self.comfy.run_pipeline("non-existent-pipeline", {})

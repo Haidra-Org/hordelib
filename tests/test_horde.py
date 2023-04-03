@@ -1,14 +1,23 @@
 # test_horde.py
 import pytest
+
+from hordelib import set_horde_model_manager
 from hordelib.horde import HordeLib
+from hordelib.model_manager.hyper import ModelManager
 
 
 class TestHordeInference:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         self.horde = HordeLib()
+        model_manager = ModelManager(
+            compvis=True,
+        )
+        model_manager.load("Deliberate")
+        set_horde_model_manager(model_manager)
         yield
         self.horde = None
+        del
 
     def test_parameter_remap_simple(self):
         data = {

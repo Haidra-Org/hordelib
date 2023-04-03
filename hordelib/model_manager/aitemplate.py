@@ -1,14 +1,13 @@
 import time
-from pathlib import Path
 
 import torch
 from diffusers import LMSDiscreteScheduler
+from loguru import logger
 from transformers import CLIPFeatureExtractor, CLIPTokenizer
 
 # from nataili.aitemplate import StableDiffusionAITPipeline
 from hordelib.cache import get_cache_directory
 from hordelib.model_manager.base import BaseModelManager
-from loguru import logger
 
 # from nataili.util.voodoo import init_ait_module
 
@@ -124,21 +123,25 @@ class AITemplateModelManager(BaseModelManager):
         if len(self.available_models) == 0:
             logger.info("No available aitemplates")
             sm = self.recommended_gpu[0]["sm"]
-            logger.init_ok(f"Downloading AITemplate for {sm}", status="Downloading")
+            logger.info(
+                f"Downloading AITemplate for {sm}", status="Downloading"
+            )  # logger.init_ok
             self.download_ait()
-            logger.init_ok(f"AITemplate for {sm} downloaded", status="Downloading")
+            logger.info(
+                f"AITemplate for {sm} downloaded", status="Downloading"
+            )  # logger.init_ok
         if model_name not in self.loaded_models:
             tic = time.time()
-            logger.init(f"{model_name}", status="Loading")
+            logger.info(f"{model_name}", status="Loading")  # logger.init
             self.loaded_models["ait"] = self.load_aitemplate(
                 model_name,
                 gpu_id=gpu_id,
             )
-            logger.init_ok(f"Loading {model_name}", status="Success")
+            logger.info(f"Loading {model_name}", status="Success")  # logger.init_ok
             toc = time.time()
-            logger.init_ok(
+            logger.info(
                 f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
-            )
+            )  # logger.init_ok
             return True
 
     def load_aitemplate(

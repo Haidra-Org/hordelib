@@ -4,18 +4,18 @@ import os
 import shutil
 import sys
 import zipfile
-from pathlib import Path
 from uuid import uuid4
 
 import git
 import requests
 import torch
+from loguru import logger
 from tqdm import tqdm
 from transformers import logging
 
 # from nataili import disable_download_progress
+from hordelib import disable_download_progress
 from hordelib.cache import get_cache_directory
-from loguru import logger
 
 if sys.version_info < (3, 9):
     import importlib_resources
@@ -32,7 +32,7 @@ class BaseModelManager:
         self.available_models = []
         self.loaded_models = {}
         self.tainted_models = []
-        self.pkg = importlib_resources.files("nataili")
+        self.pkg = importlib_resources.files("hordelib")
         self.models_db_name = "models"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
         self.cuda_available = torch.cuda.is_available()
@@ -62,14 +62,16 @@ class BaseModelManager:
 
     def download_model_reference(self):
         try:
-            logger.init("Model Reference", status="Downloading")
+            logger.info("Model Reference", status="Downloading")  # logger.init
             response = requests.get(self.remote_db)
-            logger.init_ok("Model Reference", status="OK")
+            logger.info("Model Reference", status="OK")  # logger.init_ok
             models = response.json()
             return models
         except Exception as e:
-            logger.init_err("Model Reference", status=f"Download failed: {e}")
-            logger.init_warn("Model Reference", status="Local")
+            logger.info_err(
+                "Model Reference", status=f"Download failed: {e}"
+            )  # logger.init_err
+            logger.info_warn("Model Reference", status="Local")  # logger.init_warn
             return json.loads((self.models_path).read_text())
 
     def get_model(self, model_name):
@@ -453,7 +455,7 @@ class BaseModelManager:
         """
         for model in self.get_filtered_model_names(download_all=True):
             if not self.check_model_available(model):
-                logger.init(f"{model}", status="Downloading")
+                logger.info(f"{model}", status="Downloading")  # logger.init
                 self.download_model(model)
             else:
                 logger.info(f"{model} is already downloaded.")
