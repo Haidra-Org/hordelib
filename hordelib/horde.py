@@ -39,7 +39,7 @@ class HordeLib:
         # "karras": false,
         "tiling": None,
         "hires_fix": None,
-        "clip_skip": None,
+        "clip_skip": "clip_skip.stop_at_clip_layer",
         "control_type": None,
         "image_is_control": None,
         "return_control_map": None,
@@ -87,6 +87,10 @@ class HordeLib:
         # Sampler remap
         sampler = HordeLib.SAMPLERS_MAP.get(params["sampler.sampler_name"], "euler")
         params["sampler.sampler_name"] = sampler
+
+        # Clip skip inversion, comfy uses -1, -2, etc
+        if params.get("clip_skip.stop_at_clip_layer", 0) > 0:
+            params["clip_skip.stop_at_clip_layer"] = -params["clip_skip.stop_at_clip_layer"]
 
         return params
 

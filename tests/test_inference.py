@@ -38,12 +38,35 @@ class TestInference:
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
             "model_loader.ckpt_name": "Deliberate",
+            "clip_skip.stop_at_clip_layer": -1,
         }
         assert self.comfy is not None
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
 
         image = Image.open(images[0]["imagedata"])
         image.save("pipeline_stable_diffusion.png")
+
+    def test_stable_diffusion_pipeline_clip_skip(self):
+        params = {
+            "sampler.sampler_name": "dpmpp_2m",
+            "sampler.cfg": 7.5,
+            "sampler.denoise": 1.0,
+            "sampler.seed": 12345,
+            "empty_latent_image.width": 768,
+            "empty_latent_image.height": 768,
+            "empty_latent_image.batch_size": 1,
+            "sampler.scheduler": "karras",
+            "sampler.steps": 25,
+            "prompt.text": "a closeup photo of a confused dog",
+            "negative_prompt.text": "cat, black and white, deformed",
+            "model_loader.ckpt_name": "Deliberate",
+            "clip_skip.stop_at_clip_layer": -2,
+        }
+        assert self.comfy is not None
+        images = self.comfy.run_image_pipeline("stable_diffusion", params)
+
+        image = Image.open(images[0]["imagedata"])
+        image.save("pipeline_stable_diffusion_clip_skip_2.png")
 
     def test_stable_diffusion_hires_fix_pipeline(self):
         params = {

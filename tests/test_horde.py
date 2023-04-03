@@ -53,6 +53,7 @@ class TestHordeInference:
             "sampler.scheduler": "karras",
             "prompt.text": "a dog",
             "negative_prompt.text": "cat, mouse, lion",
+            "clip_skip.stop_at_clip_layer": -1,
         }
         assert self.horde is not None
         result = self.horde._parameter_remap(data)
@@ -92,6 +93,7 @@ class TestHordeInference:
             "sampler.scheduler": "normal",
             "prompt.text": "a dog",
             "negative_prompt.text": "",
+            "clip_skip.stop_at_clip_layer": -1,
         }
         assert self.horde is not None
         result = self.horde._parameter_remap(data)
@@ -120,3 +122,27 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         pil_image.save("horde_text_to_image.png")
+
+    def test_text_to_image_clip_skip_2(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": 512,
+            "width": 512,
+            "karras": True,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 2,
+            "control_type": "canny",
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "an ancient llamia monster",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": "Deliberate",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.text_to_image(data)
+        pil_image.save("horde_text_to_image_clip_skip_2.png")
