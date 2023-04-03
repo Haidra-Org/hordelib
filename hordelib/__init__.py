@@ -6,7 +6,7 @@ from hordelib.model_manager.hyper import ModelManager
 from hordelib.utils.switch import Switch
 
 VERSION = "0.0.10"
-COMFYUI_VERSION = "72f9235a491e7800b3a7686e4901729d371dabed"
+COMFYUI_VERSION = "1ed6cadf1292fa7607317a438777e6e37fe2709d"
 
 current_file_path = os.path.abspath(__file__)
 current_folder = os.path.dirname(current_file_path)
