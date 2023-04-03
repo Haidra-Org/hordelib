@@ -5,6 +5,8 @@ import glob
 import json
 import os
 import re
+from PIL import Image
+from io import BytesIO
 
 from loguru import logger
 
@@ -21,6 +23,7 @@ class Comfy:
 
     def __init__(self):
         self.pipelines = {}
+        self.unit_testing = os.getenv("HORDELIB_TESTING", "")
 
         # FIXME Temporary hack for model dir
         model_dir = os.getenv("AIWORKER_CACHE_HOME", "")
@@ -174,6 +177,18 @@ class Comfy:
         pipeline = copy.copy(self.pipelines[pipeline_name])
         # Set the pipeline parameters
         self._set(pipeline, **params)
+
+        # Fake it!
+        if self.unit_testing:
+            img = Image.new("RGB", (64, 64), (0, 0, 0))
+            byte_stream = BytesIO()
+            img.save(byte_stream, format="PNG", compress_level=4)
+            byte_stream.seek(0)
+
+            return {
+                "output_image": {"images": [{"imagedata": byte_stream, "type": "PNG"}]}
+            }
+
         # Run it!
         inference = execution.PromptExecutor(self)
         # Load our custom nodes
