@@ -121,6 +121,7 @@ class TestHordeInference:
         }
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
+        assert pil_image is not None
         pil_image.save("horde_text_to_image.png")
 
     def test_text_to_image_clip_skip_2(self):
@@ -145,4 +146,5 @@ class TestHordeInference:
         }
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
+        assert pil_image is not None
         pil_image.save("horde_text_to_image_clip_skip_2.png")
