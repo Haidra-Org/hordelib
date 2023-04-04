@@ -66,7 +66,7 @@ class Comfy:
                 ]
         return data
 
-    def _fix_node_names(self, data: dict, design: dict) -> dict[str, str]:
+    def _fix_node_names(self, data: dict, design: dict) -> dict:
         # We have a list of nodes, attempt to rename them to the "title" set
         # in the design file. These must be unique names.
         newnodes = {}
@@ -84,7 +84,7 @@ class Comfy:
         for node in newnodes.values():
             if "inputs" in node:
                 for _, input in node["inputs"].items():
-                    if type(input) is list:  # noqa: SIM102
+                    if type(input) is list:
                         if input and input[0] in renames:
                             input[0] = renames[input[0]]
         return newnodes
@@ -201,7 +201,7 @@ class Comfy:
         return inference.outputs
 
     # Run a pipeline that returns an image in pixel space
-    def run_image_pipeline(self, pipeline_name: str, params: dict) -> BytesIO | None:
+    def run_image_pipeline(self, pipeline_name: str, params: dict) -> list[dict] | None:
         # From the horde point of view, let us assume the output we are interested in
         # is always in a HordeImageOutput node named "output_image". This is an array of
         # dicts of the form:

@@ -8,6 +8,8 @@ from hordelib.model_manager.hyper import ModelManager
 
 
 class TestInference:
+    comfy: Comfy
+
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         self.comfy = Comfy()
@@ -17,7 +19,7 @@ class TestInference:
         model_manager.load("Deliberate")
         set_horde_model_manager(model_manager)
         yield
-        self.comfy = None
+        del self.comfy
         del model_manager
 
     def test_unknown_pipeline(self):
@@ -40,8 +42,8 @@ class TestInference:
             "model_loader.ckpt_name": "Deliberate",
             "clip_skip.stop_at_clip_layer": -1,
         }
-        assert self.comfy is not None
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
+        assert images is not None
 
         image = Image.open(images[0]["imagedata"])
         image.save("pipeline_stable_diffusion.png")
@@ -62,8 +64,8 @@ class TestInference:
             "model_loader.ckpt_name": "Deliberate",
             "clip_skip.stop_at_clip_layer": -2,
         }
-        assert self.comfy is not None
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
+        assert images is not None
 
         image = Image.open(images[0]["imagedata"])
         image.save("pipeline_stable_diffusion_clip_skip_2.png")
@@ -96,6 +98,7 @@ class TestInference:
             "upscale_sampler.denoise": 0.5,
         }
         images = self.comfy.run_image_pipeline("stable_diffusion_hires_fix", params)
+        assert images is not None
 
         image = Image.open(images[0]["imagedata"])
         image.save("pipeline_stable_diffusion_hires_fix.png")

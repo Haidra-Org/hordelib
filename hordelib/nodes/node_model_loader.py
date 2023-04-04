@@ -24,6 +24,10 @@ class HordeCheckpointLoader:
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
         logger.info(horde_model_manager)
         logger.info(horde_model_manager.compvis)
+        if horde_model_manager.compvis is None:
+            logger.error("horde_model_manager.compvis appears to be missing!")
+            raise RuntimeError()  # XXX
+
         return horde_model_manager.compvis.loaded_models[ckpt_name]
 
 

@@ -6,12 +6,13 @@ from hordelib.comfy import Comfy
 
 class TestSetup:
     NUMBER_OF_PIPELINES = 2
+    comfy: Comfy
 
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         self.comfy = Comfy()
         yield
-        self.comfy = None
+        del self.comfy
 
     def test_load_pipelines(self):
         loaded = self.comfy._load_pipelines()
