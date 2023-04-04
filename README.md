@@ -81,6 +81,12 @@ Contains the above pipeline JSON files converted to the format required by the b
 
 `hordelib/nodes/` These are the custom ComfyUI nodes we use for `hordelib` specific processing.
 
+### Running ComfyUI Web Application
+
+`tox -e comfyui`
+
+Then open a browser at: http://127.0.0.1:8188/
+
 ### Designing ComfyUI Pipelines
 
 Use the standard ComfyUI web app. Use the "title" attribute to name the nodes, these names become parameter names in the `hordelib`. For example, a KSampler with the "title" of "sampler2" would become a parameter `sampler2.seed`, `sampler2.cfg`, etc. Load the pipeline `hordelib/pipeline_designs/pipeline_stable_diffusion.json` in the ComfyUI web app for an example.
