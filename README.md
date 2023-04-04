@@ -59,7 +59,23 @@ pil_image.save("test.png")
 Requirements:
 - `git` (install git)
 - `tox` (`pip install tox`)
-- Copy _any_ checkpoint model into the project root named `model.ckpt`
+- Set the environmental variable `AIWORKER_CACHE_HOME` to point to a model directory.
+
+Note the model directory must currently be in the original AI Horde directory structure:
+```
+<AIWORKER_CACHE_HOME>\
+   nataili\
+        clip\
+        codeformer\
+        compvis\
+            Deliberate.ckpt
+            ...etc...
+        controlnet\
+        embeds\
+        esrgan\
+        gfpgan\
+        safety_checker\
+```
 
 ### Running the Tests
 
