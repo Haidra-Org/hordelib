@@ -1,10 +1,10 @@
 import os
 import time
 
-import comfy
 from loguru import logger
 
 from hordelib.cache import get_cache_directory
+from hordelib.ComfyUI.comfy.sd import load_checkpoint_guess_config
 from hordelib.model_manager.base import BaseModelManager
 
 
@@ -41,7 +41,7 @@ class CompVisModelManager(BaseModelManager):
             embeddings_path = os.getenv("HORDE_MODEL_DIR_EMBEDDINGS", "./")
             ckpt_path = self.get_model_files(model_name)[0]["path"]
             ckpt_path = f"{self.path}/{ckpt_path}"
-            self.loaded_models[model_name] = comfy.sd.load_checkpoint_guess_config(
+            self.loaded_models[model_name] = load_checkpoint_guess_config(
                 ckpt_path,
                 output_vae=True,
                 output_clip=True,

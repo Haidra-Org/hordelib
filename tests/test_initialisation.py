@@ -1,18 +1,22 @@
 # test_initialisation.py
-import importlib
+import importlib.machinery
+import os
+import sys
+import types
 
 
 def test_find_comfyui():
-    import hordelib.ComfyUI
+    from hordelib.ComfyUI import execution
 
-    assert hordelib.ComfyUI is not None
-
-    executionLoader = importlib.find_loader("hordelib.ComfyUI.execution")
-    assert executionLoader is not None
+    assert hasattr(execution, "get_input_data")
 
 
 def test_instantiation():
-    from hordelib.comfy import Comfy
+    from hordelib.config_path import set_system_path
 
-    _ = Comfy()
-    assert isinstance(_, Comfy)
+    set_system_path()
+
+    from hordelib.comfy_horde import Comfy_Horde
+
+    _ = Comfy_Horde()
+    assert isinstance(_, Comfy_Horde)

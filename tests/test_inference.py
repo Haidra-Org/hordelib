@@ -2,22 +2,20 @@
 import pytest
 from PIL import Image
 
-from hordelib import set_horde_model_manager
-from hordelib.comfy import Comfy
-from hordelib.model_manager.hyper import ModelManager
+from hordelib.comfy_horde import Comfy_Horde
+from hordelib.horde import SharedModelManager
 
 
 class TestInference:
-    comfy: Comfy
+    comfy: Comfy_Horde
 
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
-        self.comfy = Comfy()
-        model_manager = ModelManager(
-            compvis=True,
-        )
-        model_manager.load("Deliberate")
-        set_horde_model_manager(model_manager)
+        self.comfy = Comfy_Horde()
+        model_manager = SharedModelManager()
+        model_manager.loadModelManagers(compvis=True)
+        assert model_manager.manager is not None
+        model_manager.manager.load("Deliberate")
         yield
         del self.comfy
         del model_manager

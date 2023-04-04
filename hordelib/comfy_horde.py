@@ -13,7 +13,9 @@ from PIL import Image
 from hordelib.ComfyUI import execution
 
 
-class Comfy:
+class Comfy_Horde:
+    """Handles horde-specific behavior against ComfyUI."""
+
     # Lookup of ComfyUI standard nodes to hordelib custom nodes
     NODE_REPLACEMENTS = {
         "CheckpointLoaderSimple": "HordeCheckpointLoader",
@@ -59,9 +61,9 @@ class Comfy:
         # We have a list of nodes and each node has a class type, which we may want to change
         for nodename, node in data.items():
             if ("class_type" in node) and (
-                node["class_type"] in Comfy.NODE_REPLACEMENTS
+                node["class_type"] in Comfy_Horde.NODE_REPLACEMENTS
             ):
-                data[nodename]["class_type"] = Comfy.NODE_REPLACEMENTS[
+                data[nodename]["class_type"] = Comfy_Horde.NODE_REPLACEMENTS[
                     node["class_type"]
                 ]
         return data

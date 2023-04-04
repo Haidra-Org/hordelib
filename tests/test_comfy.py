@@ -1,16 +1,16 @@
 # test_setup.py
 import pytest
 
-from hordelib.comfy import Comfy
+from hordelib.comfy_horde import Comfy_Horde
 
 
 class TestSetup:
     NUMBER_OF_PIPELINES = 2
-    comfy: Comfy
+    comfy: Comfy_Horde
 
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
-        self.comfy = Comfy()
+        self.comfy = Comfy_Horde()
         yield
         del self.comfy
 

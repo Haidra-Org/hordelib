@@ -4,7 +4,7 @@
 
 from loguru import logger
 
-from hordelib import horde_model_manager
+from hordelib.horde import SharedModelManager
 
 
 class HordeCheckpointLoader:
@@ -22,13 +22,16 @@ class HordeCheckpointLoader:
     CATEGORY = "loaders"
 
     def load_checkpoint(self, ckpt_name, output_vae=True, output_clip=True):
-        logger.info(horde_model_manager)
-        logger.info(horde_model_manager.compvis)
-        if horde_model_manager.compvis is None:
-            logger.error("horde_model_manager.compvis appears to be missing!")
+        if SharedModelManager.manager is None:  # XXX
             raise RuntimeError()  # XXX
 
-        return horde_model_manager.compvis.loaded_models[ckpt_name]
+        logger.info(SharedModelManager.manager)
+        if SharedModelManager.manager.compvis is None:
+            logger.error("horde_model_manager.compvis appears to be missing!")
+            raise RuntimeError()  # XXX
+        logger.info(SharedModelManager.manager.compvis)
+
+        return SharedModelManager.manager.compvis.loaded_models[ckpt_name]
 
 
 NODE_CLASS_MAPPINGS = {"HordeCheckpointLoader": HordeCheckpointLoader}

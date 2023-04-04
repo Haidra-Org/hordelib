@@ -141,3 +141,5 @@ model.ckpt
 coverage.lcov
 *.png
 comfy-prompt.json
+
+.vscode

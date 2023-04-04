@@ -1,13 +1,15 @@
 import safetensors.torch
 import torch
-
-# from nataili.model_manager.compvis import CompVisModelManager, DisableInitialization
 from loguru import logger
 from omegaconf import OmegaConf
 
 # from ldm.util import instantiate_from_config
 from hordelib.cache import get_cache_directory
 from hordelib.model_manager.base import BaseModelManager
+from hordelib.model_manager.torch_hijack import (
+    DisableInitialization,
+    instantiate_from_config,
+)
 
 
 class ControlNetModelManager(BaseModelManager):
@@ -49,7 +51,7 @@ class ControlNetModelManager(BaseModelManager):
             with DisableInitialization(disable_clip=True):
                 model = instantiate_from_config(config.model)
         except Exception:
-            pass
+            pass  # XXX
         full_name = f"{model_name}_{target_name}"
         logger.info(f"Loaded {full_name} ControlLDM")
         sd15_with_control_state_dict = self.control_nets[model_name]["state_dict"]

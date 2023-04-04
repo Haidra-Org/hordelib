@@ -1,22 +1,88 @@
 # test_horde.py
 import pytest
 
-from hordelib import set_horde_model_manager
-from hordelib.horde import HordeLib
-from hordelib.model_manager.hyper import ModelManager
+from hordelib.horde import HordeLib, SharedModelManager
+
+
+class TestHordeInit:
+    horde = HordeLib()
+    model_manager: SharedModelManager
+    default_model_manager_args: dict
+
+    @pytest.fixture(autouse=True)
+    def setup_and_teardown(self):
+        self.horde = HordeLib()
+
+        self.model_manager = SharedModelManager()
+        self.default_model_manager_args = {
+            # aitemplate
+            "blip": True,
+            "clip": True,
+            "codeformer": True,
+            "compvis": True,
+            "controlnet": True,
+            "diffusers": True,
+            # "esrgan": True,
+            # "gfpgan": True,
+            "safety_checker": True,
+        }
+        self.model_manager.loadModelManagers(**self.default_model_manager_args)
+        assert self.model_manager.manager is not None
+        self.model_manager.manager.load("Deliberate")
+        yield
+        del self.horde
+        del self.model_manager
+
+    def test_compvis(self):
+        from hordelib.model_manager.compvis import CompVisModelManager
+
+        CompVisModelManager()
+
+    def test_horde_model_manager_init(self):
+        assert self.model_manager.manager is not None
+        assert self.model_manager.manager.blip is not None
+        assert self.model_manager.manager.clip is not None
+        assert self.model_manager.manager.codeformer is not None
+        assert self.model_manager.manager.compvis is not None
+        assert self.model_manager.manager.controlnet is not None
+        assert self.model_manager.manager.diffusers is not None
+        assert self.model_manager.manager.safety_checker is not None
+
+    def test_horde_model_manager_reload_db(self):
+        assert self.model_manager.manager is not None
+        self.model_manager.manager.reload_database()
+
+    def test_horde_model_manager_download_model(self):
+        assert self.model_manager.manager is not None
+        dlResult: bool | None = self.model_manager.manager.download_model("Deliberate")
+        assert dlResult is True
+
+    def test_horde_model_manager_validate(self):
+        assert self.model_manager.manager is not None
+        self.model_manager.manager.validate_model(
+            "Deliberate"
+        )  # XXX add a return value
+
+    # XXX add a test for model missing
+    def test_horde_model_manager_unload_model(self):
+        assert self.model_manager.manager is not None
+        model_unloaded = self.model_manager.manager.unload_model(
+            "Deliberate"
+        )  # XXX add a return value
+        assert model_unloaded is True
 
 
 class TestHordeInference:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         self.horde = HordeLib()
-        model_manager = ModelManager(
-            compvis=True,
-        )
-        model_manager.load("Deliberate")
-        set_horde_model_manager(model_manager)
+
+        model_manager = SharedModelManager()
+        model_manager.loadModelManagers(compvis=True)
+        assert model_manager.manager is not None
+        model_manager.manager.load("Deliberate")
         yield
-        self.horde = None
+        del self.horde
         del model_manager
 
     def test_parameter_remap_simple(self):

@@ -13,9 +13,10 @@ from loguru import logger
 from tqdm import tqdm
 from transformers import logging
 
-# from nataili import disable_download_progress
-from hordelib import disable_download_progress
 from hordelib.cache import get_cache_directory
+
+# from nataili import disable_download_progress
+from hordelib.settings import WorkerSettings
 
 if sys.version_info < (3, 9):
     import importlib_resources
@@ -348,7 +349,7 @@ class BaseModelManager:
                 miniters=1,
                 desc=pbar_desc,
                 total=int(r.headers.get("content-length", 0)),
-                disable=disable_download_progress.active,
+                disable=WorkerSettings.disable_download_progress.active,
             ) as pbar:
                 for chunk in r.iter_content(chunk_size=16 * 1024):
                     if chunk:

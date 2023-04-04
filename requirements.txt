@@ -18,3 +18,5 @@ pillow
 loguru
 GitPython
 clip-anytorch
+diffusers
+omegaconf
