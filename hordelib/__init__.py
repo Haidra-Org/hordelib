@@ -6,7 +6,7 @@ from hordelib.config_path import set_system_path
 from hordelib.settings import WorkerSettings
 
 VERSION = "0.0.10"
-COMFYUI_VERSION = "1ed6cadf1292fa7607317a438777e6e37fe2709d"
+COMFYUI_VERSION = "1718730e80549c35ce3c5d3fb7926ce5654a2fdd"
 
 set_system_path()
 
