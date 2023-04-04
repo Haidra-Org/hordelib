@@ -1,6 +1,6 @@
 # hordelib
 
-`hordelib` is a thin wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed in ComfyUI. `hordelib` and ComfyUI is are licensed under the terms of the GNU General Public License.
+`hordelib` is a thin wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed in ComfyUI. `hordelib` and ComfyUI are licensed under the terms of the GNU General Public License.
 
 The developers of this project can be found in the AI Horde Discord server: https://discord.gg/3DxrhksKznb
 
@@ -15,7 +15,7 @@ If being installed from pypi, use a requirements file of the form:
 --extra-index-url https://download.pytorch.org/whl/cu117
 hordelib
 
-...your other dependancies...
+...your other dependencies...
 ```
 
 ## Usage
