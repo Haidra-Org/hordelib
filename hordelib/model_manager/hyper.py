@@ -173,7 +173,7 @@ class ModelManager:
             if model_manager_type == "aitemplate":  # XXX
                 continue
             if model_name in model_manager.models:
-                model_manager.validate_model(model_name, skip_checksum)
+                return model_manager.validate_model(model_name, skip_checksum)
 
     def taint_models(self, models):
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP.keys():
