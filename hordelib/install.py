@@ -61,5 +61,6 @@ class Installer:
         logger.info(
             f"Current ComfyUI version {version[:8]} requires {comfy_version[:8]}"
         )
+        self._run("git reset --hard HEAD", "ComfyUI")
         self._run("git pull", "ComfyUI")
         self._run(f"git checkout {comfy_version}", "ComfyUI")

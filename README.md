@@ -99,15 +99,7 @@ That is all. This can then be called from `hordelib` using the `run_image_pipeli
 
 ### Converting ComfyUI pipelines
 
-The quickest way to get from a pipeline diagram in the ComfyUI web app to a usable JSON file is to simply patch the ComfyUI backend to save the JSON we require when the web app submits the inference pipeline for rendering.
-
-Patch `ComfyUI/execution.py:validate_prompt()` to include the following just before the final `return` statement:
-```python
-    with open("prompt.json", "wt", encoding="utf-8") as f:
-        f.write(json.dumps(prompt, indent=4))
-```
-
-This will create the file `prompt.json` in the root of the ComfyUI project for the submitted pipeline job.
+In addition to the design file saved from the UI, we need to save the pipeline file in the backend format. This file is created in the `hordelib` project root named `comfy-prompt.json` automatically if you run a pipeline through the ComfyUI version embedded in `hordelib`. Running ComfyUI with `tox -e comfyui` automatically patches ComfyUI so this JSON file is saved.
 
 ### Build Configuration
 

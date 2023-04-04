@@ -2,8 +2,14 @@ import os
 import sys
 
 
-def set_system_path():
+def get_hordelib_path():
     current_file_path = os.path.abspath(__file__)
-    current_folder = os.path.dirname(current_file_path)
-    comfypath = os.path.join(current_folder, "ComfyUI")
-    sys.path.append(comfypath)  # noqa: E402
+    return os.path.dirname(current_file_path)
+
+
+def get_comfyui_path():
+    return os.path.join(get_hordelib_path(), "ComfyUI")
+
+
+def set_system_path():
+    sys.path.append(get_comfyui_path())  # noqa: E402
