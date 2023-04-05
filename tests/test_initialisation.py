@@ -1,8 +1,4 @@
 # test_initialisation.py
-import importlib.machinery
-import os
-import sys
-import types
 
 
 def test_find_comfyui():
@@ -12,11 +8,13 @@ def test_find_comfyui():
 
 
 def test_instantiation():
-    from hordelib.config_path import set_system_path
-
-    set_system_path()
-
     from hordelib.comfy_horde import Comfy_Horde
 
     _ = Comfy_Horde()
     assert isinstance(_, Comfy_Horde)
+
+
+def test_path():  # XXX
+    from hordelib.config_path import set_system_path
+
+    set_system_path()

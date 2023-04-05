@@ -1,5 +1,4 @@
-from enum import Enum
-
+"""Home for the controller class ModelManager, and related meta information."""
 import torch
 from loguru import logger
 
@@ -39,12 +38,11 @@ MODEL_MANAGERS_TYPE_LOOKUP = {
     # "gfpgan": GfpganModelManager,
     "safety_checker": SafetyCheckerModelManager,
 }
+"""Keys are `str` which represent attrs in `ModelManger`. Values are the corresponding `type`."""
 
 
 class ModelManager:
-    """
-    Contains links to all the other MM classes
-    """
+    """Controller class for all managers which extend `BaseModelManager`."""
 
     aitemplate: AITemplateModelManager | None = None
     blip: BlipModelManager | None = None
@@ -57,9 +55,16 @@ class ModelManager:
     gfpgan: GfpganModelManager | None = None
     safety_checker: SafetyCheckerModelManager | None = None
 
+    models: dict  # XXX unclear as to purpose... unused in AI-Horde-Worker?
+    available_models: list
+    """All models for which information exists, and for which a download attempt could be made."""
+    loaded_models: dict
+    """All models for which have successfully loaded across all `BaseModelManager` types."""
+
     def __init__(
         self,
     ):
+        """Create a new instance of model manager."""
         # logger.initialise_voodoo()
         self.cuda_available = torch.cuda.is_available()
         self.models = {}
@@ -79,6 +84,7 @@ class ModelManager:
         # gfpgan: bool = False,
         safety_checker: bool = False,
     ):
+        """For each arg which is true, attempt to load that `BaseModelManager` type."""
         args_passed: dict = locals().copy()
         args_passed.pop("self")
 
@@ -92,19 +98,14 @@ class ModelManager:
                 continue
 
             modelmanager = MODEL_MANAGERS_TYPE_LOOKUP[argName]
-            # at runtime modelmanager() will be CompVisModelManager(), ClipModelManager(), etc
 
+            # at runtime modelmanager() will be CompVisModelManager(), ClipModelManager(), etc
             setattr(self, argName, modelmanager())
 
         self.refreshManagers()
 
-    def refreshManagers(self):
-        """
-        Initialize SuperModelManager's models and available_models from
-        the models and available_models of the model types.
-        Individual model types are already initialized in their own init() functions
-        which are called when the individual model manager is created in __init__.
-        """
+    def refreshManagers(self) -> None:  # XXX rename + docstring rewrite
+        """Called when one of the `BaseModelManager` changes, updating `available_models`."""
         model_types = [
             self.aitemplate,
             self.blip,
@@ -124,15 +125,9 @@ class ModelManager:
                 self.models.update(model_type.models)
                 self.available_models.extend(model_type.available_models)
 
-    def reload_database(self):
-        """
-        Horde-specific function to reload the database of available models.
-        Note: It is not appropriate to place `model_type.init()` in `init()`
-        because individual model types are already initialized after being created
-        i.e. if `model_type.init()` is placed in `self.init()`, the database will be
-        loaded twice. # XXX rewrite
-        """
-        model_managers = []
+    def reload_database(self) -> None:
+        """Completely resets the `BaseModelManager` classes, and forces each to re-init."""
+        model_managers: list[BaseModelManager] = []
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP.keys():
             model_managers.append(getattr(self, model_manager_type))
 
@@ -143,7 +138,15 @@ class ModelManager:
                 self.models.update(model_manager.models)
                 self.available_models.extend(model_manager.available_models)
 
-    def download_model(self, model_name) -> bool | None:
+    def download_model(self, model_name: str) -> bool | None:
+        """Looks across all `BaseModelManager` for the model_name and attempts to download it.
+
+        Args:
+            model_name (str): The name of the model to find and attempt to download.
+
+        Returns:
+            bool | None: The success of the download. If `None`, the model_name was not found.
+        """
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP.keys():
             model_manager: BaseModelManager = getattr(self, model_manager_type)
             if model_manager is None:
@@ -152,9 +155,11 @@ class ModelManager:
                 continue
 
             return model_manager.download_model(model_name)
+        logger.warning(f"Model '{model_name}' not found!")
         return None  # XXX
 
-    def download_all(self):
+    def download_all(self) -> None:
+        """Attempts to download all available models for all `BaseModelManager` types."""
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP.keys():
             model_manager: BaseModelManager = getattr(self, model_manager_type)
             if model_manager is None:
@@ -165,7 +170,18 @@ class ModelManager:
 
             model_manager.download_all_models()
 
-    def validate_model(self, model_name, skip_checksum=False):
+    def validate_model(
+        self, model_name: str, skip_checksum: bool = False
+    ) -> bool | None:
+        """Runs a integrity check against the model specified.
+
+        Args:
+            model_name (str): The model to check.
+            skip_checksum (bool, optional): Whether to skip the SHA/MD5 check. Defaults to False.
+
+        Returns:
+            bool | None: The result of the validation. If `None`, the model was not found.
+        """
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP.keys():
             model_manager: BaseModelManager = getattr(self, model_manager_type)
             if model_manager is None:
@@ -174,16 +190,31 @@ class ModelManager:
                 continue
             if model_name in model_manager.models:
                 return model_manager.validate_model(model_name, skip_checksum)
+        return None
 
-    def taint_models(self, models):
+    def taint_models(self, models: list[str]) -> None:
+        """Marks a list of models to be unavailable.
+
+        Args:
+            models (list[str]): The list of models to mark.
+        """
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP.keys():
             model_manager: BaseModelManager = getattr(self, model_manager_type)
             if model_manager is None:
                 continue
             if any(model in model_manager.models for model in models):
                 model_manager.taint_models(models)
+        self.refreshManagers()
 
-    def unload_model(self, model_name) -> bool:
+    def unload_model(self, model_name: str) -> bool | None:
+        """Unloads the target model.
+
+        Args:
+            model_name (str): The model name to remove.
+
+        Returns:
+            bool | None: The result of the unloading. If `None`, the model was not found.
+        """
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP.keys():
             model_manager: BaseModelManager = getattr(self, model_manager_type)
             if model_manager is None:
@@ -191,20 +222,19 @@ class ModelManager:
             if model_name not in model_manager.models:
                 continue
             model_unloaded = model_manager.unload_model(model_name)
+            del self.loaded_models[model_name]
             return model_unloaded
-        return False
+        return None
 
-    def get_loaded_models_names(self, string=False):
+    def get_loaded_models_names(self) -> list:
+        """Returns a list of all the currently loaded models.
+
+        Returns:
+            list: All currently loaded models.
         """
-        :param string: If True, returns concatenated string of model names
-        Returns a list of the loaded model names
-        """
-        # return ["Deliberate"] # Debug
-        if string:
-            return ", ".join(self.loaded_models.keys())
         return list(self.loaded_models.keys())
 
-    def get_available_models_by_types(self, model_types=None):
+    def get_available_models_by_types(self, model_types: list[str] | None = None):
         if not model_types:
             model_types = ["ckpt", "diffusers"]
         models_available = []
@@ -229,30 +259,43 @@ class ModelManager:
                             models_available.append(model)
         return models_available
 
-    def count_available_models_by_types(self, model_types=None):
+    def count_available_models_by_types(
+        self, model_types: list[str] | None = None
+    ) -> int:
         return len(self.get_available_models_by_types(model_types))
 
-    def get_available_models(self):
-        """
-        Returns the available models
+    def get_available_models(self) -> list:
+        """Returns a list of all available models.
+
+        Returns:
+            list: All available models.
         """
         return self.available_models
 
     def load(
         self,
-        model_name,
-        half_precision=True,
-        gpu_id=0,
-        cpu_only=False,
-        voodoo=False,
-    ):  # XXX # TODO
+        model_name: str,
+        half_precision: bool = True,
+        gpu_id: int = 0,
+        cpu_only: bool = False,
+        voodoo: bool = False,
+    ) -> bool | None:
+        """_summary_
+
+        Args:
+            model_name (str): Name of the model to load. See available_models for
+            a list of available models.
+            half_precision (bool, optional): If the model should be loaded in half precision.
+            Defaults to True.
+            gpu_id (int, optional): The id of the gpu to use. Defaults to 0.
+            cpu_only (bool, optional): If should be loaded on the cpu.
+            If True, half_precision will be set to False. Defaults to False.
+            voodoo (bool, optional): (compvis only) Voodoo ray. Defaults to False.
+
+        Returns:
+            bool | None: The success of the load. If `None`, the model was not found.
         """
-        model_name: str. Name of the model to load. See available_models for a list of available models.
-        half_precision: bool. If True, the model will be loaded in half precision.
-        gpu_id: int. The id of the gpu to use. If the gpu is not available, the model will be loaded on the cpu.
-        cpu_only: bool. If True, the model will be loaded on the cpu. If True, half_precision will be set to False.
-        voodoo: bool. (compvis only) Voodoo ray.
-        """
+
         if not self.cuda_available:
             cpu_only = True
         if self.aitemplate is not None and model_name in self.aitemplate.models:

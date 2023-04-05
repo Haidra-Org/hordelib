@@ -4,16 +4,14 @@ import pytest
 from hordelib.horde import HordeLib, SharedModelManager
 
 
-class TestHordeInit:
+class TestSharedModelManager:
     horde = HordeLib()
-    model_manager: SharedModelManager
     default_model_manager_args: dict
 
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         self.horde = HordeLib()
 
-        self.model_manager = SharedModelManager()
         self.default_model_manager_args = {
             # aitemplate
             "blip": True,
@@ -26,12 +24,12 @@ class TestHordeInit:
             # "gfpgan": True,
             "safety_checker": True,
         }
-        self.model_manager.loadModelManagers(**self.default_model_manager_args)
-        assert self.model_manager.manager is not None
-        self.model_manager.manager.load("Deliberate")
+        SharedModelManager.loadModelManagers(**self.default_model_manager_args)
+        assert SharedModelManager.manager is not None
         yield
         del self.horde
-        del self.model_manager
+        SharedModelManager._instance = None
+        SharedModelManager.manager = None
 
     def test_compvis(self):
         from hordelib.model_manager.compvis import CompVisModelManager
@@ -39,37 +37,45 @@ class TestHordeInit:
         CompVisModelManager()
 
     def test_horde_model_manager_init(self):
-        assert self.model_manager.manager is not None
-        assert self.model_manager.manager.blip is not None
-        assert self.model_manager.manager.clip is not None
-        assert self.model_manager.manager.codeformer is not None
-        assert self.model_manager.manager.compvis is not None
-        assert self.model_manager.manager.controlnet is not None
-        assert self.model_manager.manager.diffusers is not None
-        assert self.model_manager.manager.safety_checker is not None
+        assert SharedModelManager.manager is not None
+        # assert SharedModelManager.manager.aitemplate is not None
+        assert SharedModelManager.manager.blip is not None
+        assert SharedModelManager.manager.clip is not None
+        assert SharedModelManager.manager.codeformer is not None
+        assert SharedModelManager.manager.compvis is not None
+        assert SharedModelManager.manager.controlnet is not None
+        assert SharedModelManager.manager.diffusers is not None
+        assert SharedModelManager.manager.safety_checker is not None
 
     def test_horde_model_manager_reload_db(self):
-        assert self.model_manager.manager is not None
-        self.model_manager.manager.reload_database()
+        assert SharedModelManager.manager is not None
+        SharedModelManager.manager.reload_database()
 
     def test_horde_model_manager_download_model(self):
-        assert self.model_manager.manager is not None
-        dlResult: bool | None = self.model_manager.manager.download_model("Deliberate")
-        assert dlResult is True
+        assert SharedModelManager.manager is not None
+        result: bool | None = SharedModelManager.manager.download_model("Deliberate")
+        assert result is True
 
     def test_horde_model_manager_validate(self):
-        assert self.model_manager.manager is not None
-        self.model_manager.manager.validate_model(
-            "Deliberate"
-        )  # XXX add a return value
+        assert SharedModelManager.manager is not None
+        SharedModelManager.manager.load("Deliberate")
+        result: bool | None = SharedModelManager.manager.validate_model("Deliberate")
+        assert result is True
 
-    # XXX add a test for model missing
+    def test_taint_models(self):
+        assert SharedModelManager.manager is not None
+        SharedModelManager.manager.taint_models(["Deliberate"])
+        assert "Deliberate" not in SharedModelManager.manager.get_available_models()
+        assert "Deliberate" not in SharedModelManager.manager.get_loaded_models_names()
+
+    # XXX add a test for model missing?
     def test_horde_model_manager_unload_model(self):
-        assert self.model_manager.manager is not None
-        model_unloaded = self.model_manager.manager.unload_model(
-            "Deliberate"
-        )  # XXX add a return value
-        assert model_unloaded is True
+        assert SharedModelManager.manager is not None
+        SharedModelManager.manager.load("Deliberate")
+        assert "Deliberate" in SharedModelManager.manager.get_loaded_models_names()
+        result = SharedModelManager.manager.unload_model("Deliberate")
+        assert result is True
+        assert "Deliberate" not in SharedModelManager.manager.get_loaded_models_names()
 
 
 class TestHordeInference:
@@ -77,13 +83,25 @@ class TestHordeInference:
     def setup_and_teardown(self):
         self.horde = HordeLib()
 
-        model_manager = SharedModelManager()
-        model_manager.loadModelManagers(compvis=True)
-        assert model_manager.manager is not None
-        model_manager.manager.load("Deliberate")
+        self.default_model_manager_args = {
+            # aitemplate
+            "blip": True,
+            "clip": True,
+            "codeformer": True,
+            "compvis": True,
+            "controlnet": True,
+            "diffusers": True,
+            # "esrgan": True,
+            # "gfpgan": True,
+            "safety_checker": True,
+        }
+        SharedModelManager.loadModelManagers(**self.default_model_manager_args)
+        assert SharedModelManager.manager is not None
+        SharedModelManager.manager.load("Deliberate")
         yield
         del self.horde
-        del model_manager
+        SharedModelManager._instance = None
+        SharedModelManager.manager = None
 
     def test_parameter_remap_simple(self):
         data = {

@@ -168,7 +168,7 @@ class BaseModelManager:
             self.available_models.remove(model_name)
             self.tainted_models.append(model_name)
 
-    def taint_models(self, models):
+    def taint_models(self, models) -> None:
         for model in models:
             self.taint_model(model)
 
@@ -305,6 +305,8 @@ class BaseModelManager:
         # If no hashes available, return True for now
         # THIS IS A SECURITY RISK, EVENTUALLY WE SHOULD RETURN FALSE
         # But currently not all models specify hashes
+        # XXX
+
         return True
 
     def check_file_available(self, file_path):

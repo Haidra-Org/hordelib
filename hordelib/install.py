@@ -10,7 +10,7 @@ class Installer:
     def __init__(self):
         self.ourdir = os.path.dirname(os.path.realpath(__file__))
 
-    def get_commit_hash(self):
+    def get_commit_hash(self) -> str:
         head_file = os.path.join(self.ourdir, "ComfyUI", ".git", "HEAD")
         if not os.path.exists(head_file):
             return "NOT FOUND"
@@ -44,7 +44,7 @@ class Installer:
             return None
         return (True, result.stdout)
 
-    def install(self, comfy_version) -> None:
+    def install(self, comfy_version: str) -> None:
         # Install if ComfyUI is missing completely
         if not os.path.exists(f"{self.ourdir}/ComfyUI"):
             self._run("git clone https://github.com/comfyanonymous/ComfyUI.git")

@@ -12,13 +12,13 @@ class TestInference:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         self.comfy = Comfy_Horde()
-        model_manager = SharedModelManager()
-        model_manager.loadModelManagers(compvis=True)
-        assert model_manager.manager is not None
-        model_manager.manager.load("Deliberate")
+        SharedModelManager.loadModelManagers(compvis=True)
+        assert SharedModelManager.manager is not None
+        SharedModelManager.manager.load("Deliberate")
         yield
         del self.comfy
-        del model_manager
+        SharedModelManager._instance = None
+        SharedModelManager.manager = None
 
     def test_unknown_pipeline(self):
         result = self.comfy.run_pipeline("non-existent-pipeline", {})

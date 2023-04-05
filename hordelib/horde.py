@@ -8,31 +8,13 @@ from hordelib.comfy_horde import Comfy_Horde
 from hordelib.model_manager.hyper import ModelManager
 
 
-class SharedModelManager(ModelManager):
-    """Extends `hyper.ModelManager` to be a singleton. Call `.loadModelManagers() to init.`"""
-
+class SharedModelManager:
     _instance = None
     manager: ModelManager | None = None
 
-    def __new__(
-        cls,
-        # aitemplate: bool = False,
-        blip: bool = False,
-        clip: bool = False,
-        codeformer: bool = False,
-        compvis: bool = False,
-        controlnet: bool = False,
-        diffusers: bool = False,
-        # esrgan: bool = False,
-        # gfpgan: bool = False,
-        safety_checker: bool = False,
-    ):
+    def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-
-        if cls.manager is None:
-            cls.manager = ModelManager()
-
         return cls._instance
 
     @classmethod
@@ -50,7 +32,7 @@ class SharedModelManager(ModelManager):
         safety_checker: bool = False,
     ):
         if cls.manager is None:
-            raise Exception()  # XXX
+            cls.manager = ModelManager()
 
         args_passed = locals().copy()
         args_passed.pop("cls")

@@ -1,6 +1,3 @@
-import os
-import sys
-
 from hordelib import install
 from hordelib.config_path import set_system_path
 from hordelib.settings import WorkerSettings
