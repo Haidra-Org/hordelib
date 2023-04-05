@@ -8,13 +8,13 @@ import webbrowser
 import subprocess
 
 
-class ComfyWebAppLauncher():
+class ComfyWebAppLauncher:
 
     # I know what you're thinking. Feel free to replace this with a pure python
     # implementation applying a unified diff. Good luck.
     PATCH = [
         '    with open("../../comfy-prompt.json", "wt", encoding="utf-8") as f:',
-        '        f.write(json.dumps(prompt, indent=4))'
+        "        f.write(json.dumps(prompt, indent=4))",
     ]
 
     def run_comfyui(self):
@@ -43,7 +43,9 @@ class ComfyWebAppLauncher():
         for i, line in enumerate(source):
             if line.startswith("def validate_prompt(prompt):"):
                 j = i + 1
-                while j < len(source) and not source[j].startswith('    return (True, "")'):
+                while j < len(source) and not source[j].startswith(
+                    '    return (True, "")'
+                ):
                     # If we pass an already patched line, abort, we've already done this
                     if source[j].startswith(ComfyWebAppLauncher.PATCH[0]):
                         j = len(source)
