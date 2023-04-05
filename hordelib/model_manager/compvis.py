@@ -4,7 +4,7 @@ import time
 from loguru import logger
 
 from hordelib.cache import get_cache_directory
-from hordelib.comfy_horde import load_checkpoint_guess_config
+from hordelib.ComfyUI.comfy.sd import load_checkpoint_guess_config
 from hordelib.model_manager.base import BaseModelManager
 
 
