@@ -1,6 +1,6 @@
 [run]
 omit =
-    hordelib/ComfyUI/*
+    ComfyUI/*
 
 [report]
 show_missing = true

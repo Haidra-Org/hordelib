@@ -33,7 +33,7 @@ version = {attr = "hordelib.consts.VERSION"}
 dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.packages.find]
-exclude = ["hordelib.ComfyUI"]
+exclude = ["ComfyUI"]
 namespaces = false
 
 [options.index-client]
