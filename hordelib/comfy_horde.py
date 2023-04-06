@@ -14,6 +14,8 @@ from PIL import Image
 # fmt: off
 import execution
 from comfy.sd import load_checkpoint_guess_config
+from comfy.utils import load_torch_file
+from comfy_extras.chainner_models import model_loading
 # fmt: on
 
 

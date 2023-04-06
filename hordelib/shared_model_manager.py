@@ -22,8 +22,8 @@ class SharedModelManager:
         compvis: bool = False,
         controlnet: bool = False,
         diffusers: bool = False,
-        # esrgan: bool = False,
-        # gfpgan: bool = False,
+        esrgan: bool = False,
+        gfpgan: bool = False,
         safety_checker: bool = False,
     ):
         if cls.manager is None:

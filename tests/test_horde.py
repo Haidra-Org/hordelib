@@ -22,8 +22,8 @@ class TestSharedModelManager:
             "compvis": True,
             "controlnet": True,
             "diffusers": True,
-            # "esrgan": True,
-            # "gfpgan": True,
+            "esrgan": True,
+            "gfpgan": True,
             "safety_checker": True,
         }
         SharedModelManager.loadModelManagers(**self.default_model_manager_args)
@@ -47,6 +47,8 @@ class TestSharedModelManager:
         assert SharedModelManager.manager.compvis is not None
         assert SharedModelManager.manager.controlnet is not None
         assert SharedModelManager.manager.diffusers is not None
+        assert SharedModelManager.manager.esrgan is not None
+        assert SharedModelManager.manager.gfpgan is not None
         assert SharedModelManager.manager.safety_checker is not None
 
     def test_horde_model_manager_reload_db(self):
