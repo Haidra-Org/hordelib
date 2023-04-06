@@ -134,7 +134,7 @@ The main config files for the project are: `pyproject.toml`, `tox.ini` and `requ
 Three steps:
 1. Bump the version in `hordelib/cosnts.py`
 1. `tox` _make sure everything works_
-1. `python publish.py` _builds the dist files_
+1. `python build_helper.py` _builds the dist files_
 1. `twine upload -r pypi dist/*`
 
 ### Updating the embedded version of ComfyUI

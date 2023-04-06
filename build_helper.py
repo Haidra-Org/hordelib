@@ -1,4 +1,4 @@
-# build.py
+# build_helper.py
 # This is just a build helper script to build the pypi package.
 import subprocess
 

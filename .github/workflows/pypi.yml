@@ -50,7 +50,7 @@ jobs:
     - name: "🔧 Build a binary wheel and a source tarball"
       if: ${{ steps.release.outputs.version != '' }}
       run: >-
-        python publish.py
+        python build_helper.py
     - name: "📦 Publish distribution to PyPI"
       if: ${{ steps.release.outputs.version != '' }}
       uses: pypa/gh-action-pypi-publish@release/v1
