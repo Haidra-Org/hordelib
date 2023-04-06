@@ -1,14 +1,13 @@
+import os
 import time
 
-import torch
-
-# from worker.model_manager.esrgan import EsrganModelManager# XXX # FIXME
-# from worker.model_manager.gfpgan import GfpganModelManager # XXX # FIXME
-# from nataili.util.codeformer import CodeFormer # XXX # FIXME
 from loguru import logger
+
 
 from hordelib.cache import get_cache_directory
 from hordelib.model_manager.base import BaseModelManager
+from hordelib import comfy_horde
+
 
 
 class CodeFormerModelManager(BaseModelManager):
@@ -67,22 +66,9 @@ class CodeFormerModelManager(BaseModelManager):
     def load_codeformer(
         self,
         model_name,
-        half_precision=True,
-        gpu_id=0,
-        cpu_only=False,
     ):
         model_path = self.get_model_files(model_name)[0]["path"]
         model_path = f"{self.path}/{model_path}"
-        if not self.cuda_available:
-            cpu_only = True
-        if cpu_only:
-            device = torch.device("cpu")
-            half_precision = False
-        else:
-            device = torch.device(f"cuda:{gpu_id}" if self.cuda_available else "cpu")
-        logger.info(f"Loading model {model_name} on {device}")
-        logger.info(f"Model path: {model_path}")
-        model = CodeFormer(self.esrgan, self.gfpgan, self, device=device, upscale=1).to(
-            device
-        )  # XXX # FIXME
-        return {"model": model, "device": device, "half_precision": half_precision}
+        sd = comfy_horde.load_torch_file(model_path)
+        out = comfy_horde.model_loading.load_state_dict(sd).eval()
+        return (out, )

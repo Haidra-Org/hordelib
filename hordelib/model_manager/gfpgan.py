@@ -1,12 +1,12 @@
+import os
 import time
 
-import torch
-
-# from nataili.util.gfpgan import GFPGANer # XXX # FIXME
 from loguru import logger
 
 from hordelib.cache import get_cache_directory
 from hordelib.model_manager.base import BaseModelManager
+from hordelib import comfy_horde
+
 
 
 class GfpganModelManager(BaseModelManager):
@@ -22,16 +22,12 @@ class GfpganModelManager(BaseModelManager):
     def load(
         self,
         model_name: str,
-        gpu_id=0,
-        cpu_only=False,
     ):
         """
         model_name: str. Name of the model to load. See available_models for a list of available models.
-        gpu_id: int. The id of the gpu to use. If the gpu is not available, the model will be loaded on the cpu.
-        cpu_only: bool. If True, the model will be loaded on the cpu. If True, half_precision will be set to False.
         """
-        if not self.cuda_available:
-            cpu_only = True
+        # if not self.cuda_available:
+        #     cpu_only = True
         if model_name not in self.models:
             logger.error(f"{model_name} not found")
             return False
@@ -49,8 +45,7 @@ class GfpganModelManager(BaseModelManager):
             logger.info(f"{model_name}", status="Loading")  # logger.init
             self.loaded_models[model_name] = self.load_gfpgan(
                 model_name,
-                gpu_id=gpu_id,
-                cpu_only=cpu_only,
+
             )
             logger.info(f"Loading {model_name}", status="Success")
             toc = time.time()
@@ -62,24 +57,9 @@ class GfpganModelManager(BaseModelManager):
     def load_gfpgan(
         self,
         model_name,
-        gpu_id=0,
-        cpu_only=False,
     ):
         model_path = self.get_model_files(model_name)[0]["path"]
         model_path = f"{self.path}/{model_path}"
-        if cpu_only:
-            device = torch.device("cpu")
-        else:
-            device = torch.device(f"cuda:{gpu_id}" if self.cuda_available else "cpu")
-        logger.info(f"Loading model {model_name} on {device}")
-        logger.info(f"Model path: {model_path}")
-        model = GFPGANer(  # XXX # FIXME
-            model_path=model_path,
-            upscale=1,
-            arch="clean",
-            channel_multiplier=2,
-            bg_upsampler=None,
-            device=device,
-            cache_dir=self.path,
-        )
-        return {"model": model, "device": device}
+        sd = comfy_horde.load_torch_file(model_path)
+        out = comfy_horde.model_loading.load_state_dict(sd).eval()
+        return (out, )

@@ -11,19 +11,11 @@ from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.controlnet import ControlNetModelManager
 from hordelib.model_manager.diffusers import DiffusersModelManager
 
-# from hordelib.model_manager.esrgan import EsrganModelManager
-# from hordelib.model_manager.gfpgan import GfpganModelManager
+from hordelib.model_manager.esrgan import EsrganModelManager
+from hordelib.model_manager.gfpgan import GfpganModelManager
 from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
 
 # from worker.util.voodoo import initialise_voodoo
-
-
-class EsrganModelManager:  # XXX # FIXME
-    pass
-
-
-class GfpganModelManager:  # XXX # FIXME
-    pass
 
 
 MODEL_MANAGERS_TYPE_LOOKUP = {
@@ -34,8 +26,8 @@ MODEL_MANAGERS_TYPE_LOOKUP = {
     "compvis": CompVisModelManager,
     "controlnet": ControlNetModelManager,
     "diffusers": DiffusersModelManager,
-    # "esrgan": EsrganModelManager,
-    # "gfpgan": GfpganModelManager,
+    "esrgan": EsrganModelManager,
+    "gfpgan": GfpganModelManager,
     "safety_checker": SafetyCheckerModelManager,
 }
 """Keys are `str` which represent attrs in `ModelManger`. Values are the corresponding `type`."""
@@ -80,8 +72,8 @@ class ModelManager:
         compvis: bool = False,
         controlnet: bool = False,
         diffusers: bool = False,
-        # esrgan: bool = False,
-        # gfpgan: bool = False,
+        esrgan: bool = False,
+        gfpgan: bool = False,
         safety_checker: bool = False,
     ):  # XXX are we married to the name and/or the idea behind this function
         """For each arg which is true, attempt to load that `BaseModelManager` type."""
@@ -329,9 +321,6 @@ class ModelManager:
         if self.codeformer is not None and model_name in self.codeformer.models:
             success = self.codeformer.load(
                 model_name=model_name,
-                half_precision=half_precision,
-                gpu_id=gpu_id,
-                cpu_only=cpu_only,
             )
             if success:
                 self.loaded_models.update(
@@ -365,9 +354,6 @@ class ModelManager:
         if self.esrgan is not None and model_name in self.esrgan.models:
             success = self.esrgan.load(
                 model_name=model_name,
-                half_precision=half_precision,
-                gpu_id=gpu_id,
-                cpu_only=cpu_only,
             )
             if success:
                 self.loaded_models.update(
