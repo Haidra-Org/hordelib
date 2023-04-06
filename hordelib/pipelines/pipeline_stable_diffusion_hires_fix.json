@@ -1,7 +1,7 @@
 {
     "3": {
         "inputs": {
-            "seed": 222200787936635,
+            "seed": 774460615394010,
             "steps": 12,
             "cfg": 8.0,
             "sampler_name": "dpmpp_sde",
@@ -28,8 +28,8 @@
     },
     "5": {
         "inputs": {
-            "width": 768,
-            "height": 768,
+            "width": 256,
+            "height": 256,
             "batch_size": 1
         },
         "class_type": "EmptyLatentImage"
@@ -38,8 +38,8 @@
         "inputs": {
             "text": "(masterpiece) HDR victorian portrait painting of (girl), blonde hair, mountain nature, blue sky\n",
             "clip": [
-                "16",
-                1
+                "17",
+                0
             ]
         },
         "class_type": "CLIPTextEncode"
@@ -48,8 +48,8 @@
         "inputs": {
             "text": "bad hands, text, watermark\n",
             "clip": [
-                "16",
-                1
+                "17",
+                0
             ]
         },
         "class_type": "CLIPTextEncode"
@@ -57,8 +57,8 @@
     "10": {
         "inputs": {
             "upscale_method": "nearest-exact",
-            "width": 1152,
-            "height": 1152,
+            "width": 512,
+            "height": 512,
             "crop": "disabled",
             "samples": [
                 "3",
@@ -69,7 +69,7 @@
     },
     "11": {
         "inputs": {
-            "seed": 529934750990886,
+            "seed": 149841937873372,
             "steps": 14,
             "cfg": 8.0,
             "sampler_name": "dpmpp_2m",
@@ -122,5 +122,15 @@
             "ckpt_name": "Deliberate.ckpt"
         },
         "class_type": "CheckpointLoaderSimple"
+    },
+    "17": {
+        "inputs": {
+            "stop_at_clip_layer": -1,
+            "clip": [
+                "16",
+                1
+            ]
+        },
+        "class_type": "CLIPSetLastLayer"
     }
 }

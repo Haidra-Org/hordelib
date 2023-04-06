@@ -70,33 +70,73 @@ class TestInference:
 
     def test_stable_diffusion_hires_fix_pipeline(self):
         params = {
-            "sampler.seed": 12345,
+            "sampler.seed": 1003,
             "sampler.cfg": 7.5,
             "sampler.scheduler": "normal",
             "sampler.sampler_name": "dpmpp_sde",
             "sampler.denoise": 1.0,
-            "sampler.steps": 12,
+            "sampler.steps": 20,
             "prompt.text": (
-                "(masterpiece) HDR victorian portrait painting of (girl), "
-                "blonde hair, mountain nature, blue sky"
+                "photograph of medusa, reverence princesss, cinematic, realistic, "
+                "hyperrealistic, very realistic, extremely detailed, detailed, sharp focus, "
+                "establishing shot, 8k resolution, dramatic lighting, award winning "
+                "photograph, masterpiece, very detailed, sharp focus, very realistic lighting"
             ),
-            "negative_prompt.text": "bad hands, text, watermark",
+            "negative_prompt.text": "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes",
             "model_loader.ckpt_name": "Deliberate",
-            "empty_latent_image.width": 768,
-            "empty_latent_image.height": 768,
-            "latent_upscale.width": 1216,
-            "latent_upscale.height": 1216,
+            "empty_latent_image.width": 256,
+            "empty_latent_image.height": 256,
+            "latent_upscale.width": 512,
+            "latent_upscale.height": 512,
             "latent_upscale.crop": "disabled",
             "latent_upscale.upscale_method": "nearest-exact",
-            "upscale_sampler.seed": 45678,
-            "upscale_sampler.steps": 15,
+            "upscale_sampler.seed": 450089106307460,
+            "upscale_sampler.steps": 20,
             "upscale_sampler.cfg": 8.0,
             "upscale_sampler.sampler_name": "dpmpp_2m",
             "upscale_sampler.scheduler": "simple",
             "upscale_sampler.denoise": 0.5,
+            "clip_skip.stop_at_clip_layer": -1,
         }
         images = self.comfy.run_image_pipeline("stable_diffusion_hires_fix", params)
         assert images is not None
 
         image = Image.open(images[0]["imagedata"])
         image.save("pipeline_stable_diffusion_hires_fix.png")
+
+    def test_stable_diffusion_hires_fix_pipeline_clip_skip_2(self):
+        params = {
+            "sampler.seed": 1003,
+            "sampler.cfg": 7.5,
+            "sampler.scheduler": "normal",
+            "sampler.sampler_name": "dpmpp_sde",
+            "sampler.denoise": 1.0,
+            "sampler.steps": 20,
+            "prompt.text": (
+                "photograph of medusa, reverence princesss, cinematic, realistic, "
+                "hyperrealistic, very realistic, extremely detailed, detailed, sharp focus, "
+                "establishing shot, 8k resolution, dramatic lighting, award winning "
+                "photograph, masterpiece, very detailed, sharp focus, very realistic lighting"
+            ),
+            "negative_prompt.text": "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes",
+            "model_loader.ckpt_name": "Deliberate",
+            "empty_latent_image.width": 256,
+            "empty_latent_image.height": 256,
+            "latent_upscale.width": 512,
+            "latent_upscale.height": 512,
+            "latent_upscale.crop": "disabled",
+            "latent_upscale.upscale_method": "nearest-exact",
+            "upscale_sampler.seed": 450089106307460,
+            "upscale_sampler.steps": 20,
+            "upscale_sampler.cfg": 8.0,
+            "upscale_sampler.sampler_name": "dpmpp_2m",
+            "upscale_sampler.scheduler": "simple",
+            "upscale_sampler.denoise": 0.5,
+            "clip_skip.stop_at_clip_layer": -1,
+
+        }
+        images = self.comfy.run_image_pipeline("stable_diffusion_hires_fix", params)
+        assert images is not None
+
+        image = Image.open(images[0]["imagedata"])
+        image.save("pipeline_stable_diffusion_hires_fix_clip_skip_2.png")
