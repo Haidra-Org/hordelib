@@ -13,7 +13,7 @@ class ComfyWebAppLauncher:
     # I know what you're thinking. Feel free to replace this with a pure python
     # implementation applying a unified diff. Good luck.
     PATCH = [
-        '    with open("../../comfy-prompt.json", "wt", encoding="utf-8") as f:',
+        '    with open("../comfy-prompt.json", "wt", encoding="utf-8") as f:',
         "        f.write(json.dumps(prompt, indent=4))",
     ]
 
