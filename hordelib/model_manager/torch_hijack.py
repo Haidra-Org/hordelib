@@ -73,7 +73,7 @@ class DisableInitialization:
                         state_dict={},
                         **kwargs,
                     )
-                except Exception:  # XXX
+                except Exception:  # XXX should catch the actual exception intended
                     res = self.CLIPTextModel_from_pretrained(
                         None, *model_args, **kwargs
                     )
@@ -84,15 +84,16 @@ class DisableInitialization:
             return res
 
         def transformers_modeling_utils_load_pretrained_model(self, *args, **kwargs):
-            args = (
-                args[0:3] + ("/",) + args[4:]
-            )  # resolved_archive_file; must set it to something to prevent what seems to be a bug
+            args = args[0:3] + ("/",) + args[4:]
+            # resolved_archive_file; must set it to something to prevent what seems to be a bug
+            # XXX looks like some old hack
             return self.transformers_modeling_utils_load_pretrained_model(
                 *args, **kwargs
             )
 
         def transformers_utils_hub_get_file_from_cache(original, url, *args, **kwargs):
-            # this file is always 404, prevent making request # XXX
+            # this file is always 404, prevent making request
+            # XXX looks like some old hack
             bad_url = "https://huggingface.co/openai/clip-vit-large-patch14/resolve/main/added_tokens.json"
             if (
                 url == bad_url
@@ -101,12 +102,12 @@ class DisableInitialization:
             ):
                 return None
 
-            try:
+            try:  # XXX this is some weird, hard to follow behavior
                 res = original(url, *args, local_files_only=True, **kwargs)
                 if res is None:
                     res = original(url, *args, local_files_only=False, **kwargs)
                 return res
-            except Exception:  # XXX
+            except Exception:
                 return original(url, *args, local_files_only=False, **kwargs)
 
         def transformers_utils_hub_get_from_cache(

@@ -1,0 +1,4 @@
+tox
+black
+pytest
+coverage

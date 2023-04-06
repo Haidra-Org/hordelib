@@ -77,7 +77,7 @@ class NewModelManager(BaseModelManager):
         logger.info(f"Loading model {model_name} on {device}")
         logger.info(f"Model path: {model_path}")
 
-        model = model.eval()
+        model = model.eval()  # XXX # FIXME model can be unbound at this point...
         model.to(device)
         if half_precision:
             model = model.half()

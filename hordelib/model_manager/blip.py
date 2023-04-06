@@ -9,7 +9,7 @@ import time
 
 import torch
 
-# from nataili.util.blip import blip_decoder
+# from nataili.util.blip import blip_decoder # XXX # FIXME
 from loguru import logger
 
 from hordelib.cache import get_cache_directory
@@ -93,6 +93,7 @@ class BlipModelManager(BaseModelManager):
         with importlib_resources.as_file(self.pkg / "med_config.json") as med_config:
             logger.info(f"Med config path: {med_config}")
             model = blip_decoder(
+                # XXX # FIXME
                 pretrained=model_path,
                 med_config=med_config,
                 image_size=blip_image_eval_size,

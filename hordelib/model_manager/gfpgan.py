@@ -2,7 +2,7 @@ import time
 
 import torch
 
-# from nataili.util.gfpgan import GFPGANer
+# from nataili.util.gfpgan import GFPGANer # XXX # FIXME
 from loguru import logger
 
 from hordelib.cache import get_cache_directory
@@ -73,7 +73,7 @@ class GfpganModelManager(BaseModelManager):
             device = torch.device(f"cuda:{gpu_id}" if self.cuda_available else "cpu")
         logger.info(f"Loading model {model_name} on {device}")
         logger.info(f"Model path: {model_path}")
-        model = GFPGANer(
+        model = GFPGANer(  # XXX # FIXME
             model_path=model_path,
             upscale=1,
             arch="clean",

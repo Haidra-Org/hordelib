@@ -26,7 +26,6 @@ class HordeImageOutput:
     CATEGORY = "image"
 
     def get_image(self, images, prompt=None, extra_pnginfo=None):
-
         results = []
         for image in images:
             # Create a PNG

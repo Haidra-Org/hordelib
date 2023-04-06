@@ -1,5 +1,5 @@
 class Switch:
-    active = False
+    active: bool = False
 
     def activate(self):
         self.active = True
@@ -7,5 +7,5 @@ class Switch:
     def disable(self):
         self.active = False
 
-    def toggle(self, value):
+    def toggle(self, value: bool):
         self.active = value

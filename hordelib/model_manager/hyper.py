@@ -71,7 +71,7 @@ class ModelManager:
         self.available_models = []
         self.loaded_models = {}
 
-    def init_model_managers(  # XXX
+    def init_model_managers(
         self,
         aitemplate: bool = False,
         blip: bool = False,
@@ -83,7 +83,7 @@ class ModelManager:
         # esrgan: bool = False,
         # gfpgan: bool = False,
         safety_checker: bool = False,
-    ):
+    ):  # XXX are we married to the name and/or the idea behind this function
         """For each arg which is true, attempt to load that `BaseModelManager` type."""
         args_passed: dict = locals().copy()
         args_passed.pop("self")
@@ -93,7 +93,7 @@ class ModelManager:
 
         for argName, argValue in args_passed.items():
             if not (argName in allModelMangerTypeKeys and hasattr(self, argName)):
-                raise Exception()  # XXX
+                raise Exception()  # XXX better guarantees need to be made
             if not argValue:
                 continue
 
@@ -156,7 +156,7 @@ class ModelManager:
 
             return model_manager.download_model(model_name)
         logger.warning(f"Model '{model_name}' not found!")
-        return None  # XXX
+        return None  # XXX if the download fails, the file causes issues # FIXME
 
     def download_all(self) -> None:
         """Attempts to download all available models for all `BaseModelManager` types."""
@@ -165,7 +165,8 @@ class ModelManager:
             if model_manager is None:
                 continue
             if isinstance(model_manager, AITemplateModelManager):
-                model_manager.download_ait("cuda")  # XXX
+                model_manager.download_ait("cuda")
+                # XXX this special handling predates me (@tazlin)
                 continue
 
             model_manager.download_all_models()
@@ -186,8 +187,9 @@ class ModelManager:
             model_manager: BaseModelManager = getattr(self, model_manager_type)
             if model_manager is None:
                 continue
-            if model_manager_type == "aitemplate":  # XXX
+            if model_manager_type == "aitemplate":
                 continue
+                # XXX the special handling here predates me (@tazlin), unknown if needed
             if model_name in model_manager.models:
                 return model_manager.validate_model(model_name, skip_checksum)
         return None

@@ -158,7 +158,9 @@ class AITemplateModelManager(BaseModelManager):
         ait["unet"] = init_ait_module("unet.so", self.ait_workdir)
         ait["clip"] = init_ait_module("clip.so", self.ait_workdir)
         ait["vae"] = init_ait_module("vae.so", self.ait_workdir)
+        # XXX # FIXME (init_ait_module missing)
         ait["pipe"] = StableDiffusionAITPipeline(
+            # XXX # FIXME (StableDiffusionAITPipeline missing)
             vae=None,
             unet=None,
             text_encoder=None,

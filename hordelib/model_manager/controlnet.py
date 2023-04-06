@@ -51,7 +51,7 @@ class ControlNetModelManager(BaseModelManager):
             with DisableInitialization(disable_clip=True):
                 model = instantiate_from_config(config.model)
         except Exception:
-            pass  # XXX
+            pass  # XXX this strikes me as blatantly incorrect
         full_name = f"{model_name}_{target_name}"
         logger.info(f"Loaded {full_name} ControlLDM")
         sd15_with_control_state_dict = self.control_nets[model_name]["state_dict"]

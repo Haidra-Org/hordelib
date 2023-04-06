@@ -305,7 +305,7 @@ class BaseModelManager:
         # If no hashes available, return True for now
         # THIS IS A SECURITY RISK, EVENTUALLY WE SHOULD RETURN FALSE
         # But currently not all models specify hashes
-        # XXX
+        # XXX this warning preexists me (@tazlin), probably should look into it
 
         return True
 

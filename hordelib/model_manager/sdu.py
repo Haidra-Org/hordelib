@@ -146,7 +146,9 @@ class SDUModelManager(BaseModelManager):
         if "global_step" in pl_sd:
             logger.info(f"Global Step: {pl_sd['global_step']}")
         sd = pl_sd["state_dict"] if "state_dict" in pl_sd else pl_sd
-        model = instantiate_from_config(config.model)
+        model = instantiate_from_config(
+            config.model
+        )  # XXX # FIXME (instantiate_from_config missing)
         m, u = model.load_state_dict(sd, strict=False)
         model = model.eval().requires_grad_(False)
         del pl_sd, sd, m, u

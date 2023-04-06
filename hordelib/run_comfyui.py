@@ -3,13 +3,13 @@
 # This is not required for runtime use of hordelib.
 # Run this only with: tox -e comfyui
 import os
-from hordelib.config_path import get_comfyui_path
-import webbrowser
 import subprocess
+import webbrowser
+
+from hordelib.config_path import get_comfyui_path
 
 
 class ComfyWebAppLauncher:
-
     # I know what you're thinking. Feel free to replace this with a pure python
     # implementation applying a unified diff. Good luck.
     PATCH = [
@@ -31,7 +31,6 @@ class ComfyWebAppLauncher:
         subprocess.run(["python", "main.py"], text=True, cwd=get_comfyui_path())
 
     def patch(self):
-
         sourcefile = os.path.join(get_comfyui_path(), "execution.py")
 
         with open(sourcefile, encoding="utf-8") as infile:
@@ -66,4 +65,5 @@ class ComfyWebAppLauncher:
 
 if __name__ == "__main__":
     launcher = ComfyWebAppLauncher()
+    launcher.run_comfyui()
     launcher.run_comfyui()

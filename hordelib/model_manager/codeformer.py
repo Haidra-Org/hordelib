@@ -2,9 +2,9 @@ import time
 
 import torch
 
-# from worker.model_manager.esrgan import EsrganModelManager
-# from worker.model_manager.gfpgan import GfpganModelManager
-# from nataili.util.codeformer import CodeFormer
+# from worker.model_manager.esrgan import EsrganModelManager# XXX # FIXME
+# from worker.model_manager.gfpgan import GfpganModelManager # XXX # FIXME
+# from nataili.util.codeformer import CodeFormer # XXX # FIXME
 from loguru import logger
 
 from hordelib.cache import get_cache_directory
@@ -84,5 +84,5 @@ class CodeFormerModelManager(BaseModelManager):
         logger.info(f"Model path: {model_path}")
         model = CodeFormer(self.esrgan, self.gfpgan, self, device=device, upscale=1).to(
             device
-        )
+        )  # XXX # FIXME
         return {"model": model, "device": device, "half_precision": half_precision}

@@ -7,6 +7,8 @@ from loguru import logger
 
 
 class Installer:
+    """Handles the installation of ComfyUI."""
+
     def __init__(self):
         self.ourdir = os.path.dirname(os.path.realpath(__file__))
 

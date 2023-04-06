@@ -2,6 +2,8 @@ from hordelib.utils.switch import Switch
 
 
 class WorkerSettings:
+    """Container class for all worker settings."""
+
     disable_xformers = Switch()
     disable_voodoo = Switch()
     enable_local_ray_temp = Switch()

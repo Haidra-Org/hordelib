@@ -1,8 +1,9 @@
 """Simple proof of concept to return the similarities of text to the image to the worker"""
 # node_image_output.py
 
-from hordelib import horde_model_manager
+
 from hordelib.clip.interrogate import Interrogator
+from hordelib.horde import SharedModelManager
 
 
 class HordeClipSimilarities:
@@ -26,13 +27,14 @@ class HordeClipSimilarities:
     def get_similarities(self, clip_name, images, string_list=None):
         results = []
         for image in images:
-            model = horde_model_manager.clip.loaded_models[clip_name]
+            model = SharedModelManager.manager.clip.loaded_models[clip_name]
+            # XXX better guarantees need to be made
             interrogator = Interrogator(model)
             similarity_results = interrogator(
                 image=image, text_array=string_list, similarity=True
             )
             if similarity_results is None:
-                return None  # XXX
+                return None  # XXX better guarantees need to be made
 
             results.append(
                 {"similarity_results": similarity_results["default"], "type": "ARRAY"}
