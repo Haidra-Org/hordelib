@@ -176,10 +176,10 @@ class TestSetup:
                 "class_type": "EmptyLatentImage"
             },
         }
-        result = self.comfy._reconnect_input(data, "sampler.latent_image", "vae_encoder")
+        result = self.comfy.reconnect_input(data, "sampler.latent_image", "vae_encoder")
         # Should be ok
         assert result
         assert data["sampler"]["inputs"]["latent_image"][0] == "vae_encoder"
         # This is invalid
-        result = self.comfy._reconnect_input(data, "sampler.non-existant", "somewhere")
+        result = self.comfy.reconnect_input(data, "sampler.non-existant", "somewhere")
         assert not result
