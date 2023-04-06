@@ -10,8 +10,11 @@ from io import BytesIO
 from loguru import logger
 from PIL import Image
 
-from hordelib.ComfyUI import execution
-
+# Do not change the order of these imports
+# fmt: off
+import execution
+from comfy.sd import load_checkpoint_guess_config
+# fmt: on
 
 class Comfy_Horde:
     """Handles horde-specific behavior against ComfyUI."""
@@ -180,6 +183,12 @@ class Comfy_Horde:
 
         # Grab a copy of the pipeline
         pipeline = copy.copy(self.pipelines[pipeline_name])
+
+        # Inject our model manager if required
+        from hordelib.shared_model_manager import SharedModelManager
+        if "model_loader.model_manager" not in params:
+            params["model_loader.model_manager"] = SharedModelManager
+
         # Set the pipeline parameters
         self._set(pipeline, **params)
 

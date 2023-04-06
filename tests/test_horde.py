@@ -1,7 +1,8 @@
 # test_horde.py
 import pytest
 
-from hordelib.horde import HordeLib, SharedModelManager
+from hordelib.horde import HordeLib
+from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestSharedModelManager:
@@ -138,6 +139,7 @@ class TestHordeInference:
             "prompt.text": "a dog",
             "negative_prompt.text": "cat, mouse, lion",
             "clip_skip.stop_at_clip_layer": -1,
+            "model_loader.model_manager": SharedModelManager,
         }
         assert self.horde is not None
         result = self.horde._parameter_remap(data)
@@ -178,6 +180,7 @@ class TestHordeInference:
             "prompt.text": "a dog",
             "negative_prompt.text": "",
             "clip_skip.stop_at_clip_layer": -1,
+            "model_loader.model_manager": SharedModelManager,
         }
         assert self.horde is not None
         result = self.horde._parameter_remap(data)

@@ -3,7 +3,7 @@ import pytest
 from PIL import Image
 
 from hordelib.comfy_horde import Comfy_Horde
-from hordelib.horde import SharedModelManager
+from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestInference:

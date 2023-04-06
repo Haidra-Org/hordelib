@@ -10,7 +10,7 @@ def get_hordelib_path():
 
 def get_comfyui_path():
     """Returns the path to ComfyUI that hordelib installs and manages."""
-    return os.path.join(get_hordelib_path(), "ComfyUI")
+    return os.path.join(os.path.dirname(get_hordelib_path()), "ComfyUI")
 
 
 def set_system_path():

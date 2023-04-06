@@ -2,7 +2,7 @@
 
 
 def test_find_comfyui():
-    from hordelib.ComfyUI import execution
+    import execution
 
     assert hasattr(execution, "get_input_data")
 

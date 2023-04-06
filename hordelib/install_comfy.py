@@ -4,16 +4,15 @@ import os
 import subprocess
 
 from loguru import logger
+from hordelib.config_path import get_hordelib_path, get_comfyui_path
 
 
 class Installer:
     """Handles the installation of ComfyUI."""
 
-    def __init__(self):
-        self.ourdir = os.path.dirname(os.path.realpath(__file__))
-
-    def get_commit_hash(self) -> str:
-        head_file = os.path.join(self.ourdir, "ComfyUI", ".git", "HEAD")
+    @classmethod
+    def get_commit_hash(cls) -> str:
+        head_file = os.path.join(get_comfyui_path(), ".git", "HEAD")
         if not os.path.exists(head_file):
             return "NOT FOUND"
         try:
@@ -32,8 +31,8 @@ class Installer:
         except Exception:
             return ""
 
-    def _run(self, command, subdir=None) -> tuple[bool, str] | None:
-        directory = self.ourdir if not subdir else os.path.join(self.ourdir, subdir)
+    @classmethod
+    def _run(cls, command, directory=get_hordelib_path()) -> tuple[bool, str] | None:
         try:
             result = subprocess.run(
                 command, shell=True, text=True, capture_output=True, cwd=directory
@@ -46,15 +45,17 @@ class Installer:
             return None
         return (True, result.stdout)
 
-    def install(self, comfy_version: str) -> None:
+    @classmethod
+    def install(cls, comfy_version: str) -> None:
         # Install if ComfyUI is missing completely
-        if not os.path.exists(f"{self.ourdir}/ComfyUI"):
-            self._run("git clone https://github.com/comfyanonymous/ComfyUI.git")
-            self._run(f"git checkout {comfy_version}", "ComfyUI")
+        if not os.path.exists(get_comfyui_path()):
+            installdir = os.path.dirname(get_comfyui_path())
+            cls._run("git clone https://github.com/comfyanonymous/ComfyUI.git", installdir)
+            cls._run(f"git checkout {comfy_version}", get_comfyui_path())
             return
 
         # If it's installed, is it up to date?
-        version = self.get_commit_hash()
+        version = cls.get_commit_hash()
         if version == comfy_version:
             # Yes, all done
             return
@@ -63,6 +64,10 @@ class Installer:
         logger.info(
             f"Current ComfyUI version {version[:8]} requires {comfy_version[:8]}"
         )
-        self._run("git reset --hard HEAD", "ComfyUI")
-        self._run("git pull", "ComfyUI")
-        self._run(f"git checkout {comfy_version}", "ComfyUI")
+        # Try hard to ensure we reset everything even if we have been
+        # hacking on ComfyUI or are in a weird repo state
+        cls._run("git reset --hard", get_comfyui_path())
+        cls._run("git clean -fd", get_comfyui_path())
+        cls._run("git checkout master", get_comfyui_path())
+        cls._run("git pull", get_comfyui_path())
+        cls._run(f"git checkout {comfy_version}", get_comfyui_path())

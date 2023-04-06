@@ -34,7 +34,7 @@ class TestSetup:
         self.comfy._load_custom_nodes()
 
         # Look for our nodes in the ComfyUI nodes list
-        from hordelib.ComfyUI import execution
+        import execution
 
         assert "HordeCheckpointLoader" in execution.nodes.NODE_CLASS_MAPPINGS
         assert "HordeImageOutput" in execution.nodes.NODE_CLASS_MAPPINGS

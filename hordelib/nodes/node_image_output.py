@@ -33,11 +33,12 @@ class HordeImageOutput:
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = PngInfo()
             # Save the full pipeline and variables into the PNG metadata
-            if prompt is not None:
-                metadata.add_text("prompt", json.dumps(prompt))
-            if extra_pnginfo is not None:
-                for x in extra_pnginfo:
-                    metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+            # FIXME we don't have a model manager JSON serialiser
+            # if prompt is not None:
+            #     metadata.add_text("prompt", json.dumps(prompt))
+            # if extra_pnginfo is not None:
+            #     for x in extra_pnginfo:
+            #         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
 
             byte_stream = BytesIO()
             img.save(byte_stream, format="PNG", pnginfo=metadata, compress_level=4)

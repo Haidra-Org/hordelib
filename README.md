@@ -24,12 +24,18 @@ Horde payloads can be processed simply with (for example):
 
 ```python
 import os
+import hordelib
+hordelib.initialise()
+
 from hordelib.horde import HordeLib
+from hordelib.shared_model_manager import SharedModelManager
 
 # Wherever your models are
 os.environ["AIWORKER_CACHE_HOME"] = "f:/ai/models"
 
 generate = HordeLib()
+SharedModelManager.loadModelManagers(compvis=True)
+SharedModelManager.manager.load("Deliberate")
 
 data = {
     "sampler_name": "k_dpmpp_2m",
@@ -48,7 +54,7 @@ data = {
     "prompt": "an ancient llamia monster",
     "ddim_steps": 25,
     "n_iter": 1,
-    "model": "Deliberate.ckpt",
+    "model": "Deliberate",
 }
 pil_image = generate.text_to_image(data)
 pil_image.save("test.png")
@@ -126,14 +132,14 @@ The main config files for the project are: `pyproject.toml`, `tox.ini` and `requ
 ### PyPi Publishing
 
 Three steps:
-1. Bump the version in `hordelib/__init__.py`
+1. Bump the version in `hordelib/cosnts.py`
 1. `tox` _make sure everything works_
 1. `python publish.py` _builds the dist files_
 1. `twine upload -r pypi dist/*`
 
 ### Updating the embedded version of ComfyUI
 
-We use a ComfyUI version pinned to a specific commit, see `hordelib/__init__.py:COMFYUI_VERSION`
+We use a ComfyUI version pinned to a specific commit, see `hordelib/consts.py:COMFYUI_VERSION`
 
 To test if the latest version works and upgrade to it, from the project root simply:
 
@@ -144,6 +150,6 @@ To test if the latest version works and upgrade to it, from the project root sim
 1. `cd ../../` _Get back to the hordelib project root_
 1. `tox` _See if everything still works_
 
-If everything still works. Take the commit hash printed above and put it in `hordelib/__init__.py:COMFYUI_VERSION`
+If everything still works. Take the commit hash printed above and put it in `hordelib/consts.py:COMFYUI_VERSION`
 
 Now ComfyUI is pinned to a new version.

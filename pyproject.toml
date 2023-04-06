@@ -28,7 +28,7 @@ dynamic=["version"]
 "Bug Tracker" = "https://github.com/jug-dev/hordelib/issues"
 
 [tool.setuptools.dynamic]
-version = {attr = "hordelib.VERSION"}
+version = {attr = "hordelib.consts.VERSION"}
 dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.packages.find]

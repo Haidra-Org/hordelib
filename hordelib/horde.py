@@ -6,38 +6,9 @@ from PIL import Image
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.model_manager.hyper import ModelManager
-
-
-class SharedModelManager:
-    _instance = None
-    manager: ModelManager | None = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    @classmethod
-    def loadModelManagers(
-        cls,
-        # aitemplate: bool = False,
-        blip: bool = False,
-        clip: bool = False,
-        codeformer: bool = False,
-        compvis: bool = False,
-        controlnet: bool = False,
-        diffusers: bool = False,
-        # esrgan: bool = False,
-        # gfpgan: bool = False,
-        safety_checker: bool = False,
-    ):
-        if cls.manager is None:
-            cls.manager = ModelManager()
-
-        args_passed = locals().copy()
-        args_passed.pop("cls")
-
-        cls.manager.init_model_managers(**args_passed)
+from hordelib import install_comfy
+from hordelib.consts import COMFYUI_VERSION
+from hordelib.shared_model_manager import SharedModelManager
 
 
 class HordeLib:
@@ -82,9 +53,6 @@ class HordeLib:
         "model": "model_loader.ckpt_name",
     }
 
-    def __init__(self) -> None:
-        pass
-
     def _parameter_remap(self, payload: dict[str, str | None]) -> dict[str, str | None]:
         params = {}
         # Extract from the payload things we understand
@@ -125,6 +93,9 @@ class HordeLib:
         clip_skip_key = "clip_skip.stop_at_clip_layer"
         if params.get(clip_skip_key, 0) > 0:
             params[clip_skip_key] = -params[clip_skip_key]
+
+        # Inject model manager
+        params["model_loader.model_manager"] = SharedModelManager
 
         return params
 
