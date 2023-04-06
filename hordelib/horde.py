@@ -5,9 +5,6 @@ import contextlib
 from PIL import Image
 
 from hordelib.comfy_horde import Comfy_Horde
-from hordelib.model_manager.hyper import ModelManager
-from hordelib import install_comfy
-from hordelib.consts import COMFYUI_VERSION
 from hordelib.shared_model_manager import SharedModelManager
 
 
