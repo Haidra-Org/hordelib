@@ -42,7 +42,7 @@ class HordeLib:
         "width": "empty_latent_image.width",
         # "karras": false,
         "tiling": None,
-        "hires_fix": None,
+        #"hires_fix": None,
         "clip_skip": "clip_skip.stop_at_clip_layer",
         "control_type": None,
         "image_is_control": None,
@@ -94,6 +94,31 @@ class HordeLib:
         if params.get(clip_skip_key, 0) > 0:
             params[clip_skip_key] = -params[clip_skip_key]
 
+        # If hires fix is enabled, use the same parameters as the main
+        # sampler in our upscale sampler.
+        if payload.get("hires_fix"):
+            params["upscale_sampler.seed"] = params["sampler.seed"]
+            params["upscale_sampler.scheduler"] = params["sampler.scheduler"]
+            params["upscale_sampler.cfg"] = params["sampler.cfg"]
+            params["upscale_sampler.steps"] = params["sampler.steps"]
+            params["upscale_sampler.sampler_name"] = params["sampler.sampler_name"]
+            params["upscale_sampler.denoise"] = 0.6  # XXX is this ok for latent upscale denoise?
+            # Adjust image sizes
+            width = params.get("empty_latent_image.width", 0)
+            height = params.get("empty_latent_image.height", 0)
+            if width > 512 and height > 512:
+                final_width = width
+                final_height = height
+                params["latent_upscale.width"] = final_width
+                params["latent_upscale.height"] = final_height
+                first_pass_ratio = min(final_height / 512, final_width / 512)
+                width = (int(final_width / first_pass_ratio) // 64) * 64
+                height = (int(final_height / first_pass_ratio) // 64) * 64
+                params["empty_latent_image.width"] = width
+                params["empty_latent_image.height"] = height
+                # Finally mark that we are using hires fix
+                params["hires_fix"] = True
+
         # Inject model manager
         params["model_loader.model_manager"] = SharedModelManager
 
@@ -101,9 +126,16 @@ class HordeLib:
 
     def text_to_image(self, payload: dict[str, str | None]) -> Image.Image | None:
         generator = Comfy_Horde()
-        images = generator.run_image_pipeline(
-            "stable_diffusion", self._parameter_remap(payload)
-        )
+        # Determine our parameters
+        params = self._parameter_remap(payload)
+        # Determine the correct pipeline
+        if "hires_fix" in params:
+            del params["hires_fix"]
+            pipeline = "stable_diffusion_hires_fix"
+        else:
+            pipeline = "stable_diffusion"
+        # Run the pipeline
+        images = generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image

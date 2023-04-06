@@ -235,3 +235,28 @@ class TestHordeInference:
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
         pil_image.save("horde_text_to_image_clip_skip_2.png")
+
+    def test_text_to_image_hires_fix(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": 768,
+            "width": 768,
+            "karras": True,
+            "tiling": False,
+            "hires_fix": True,
+            "clip_skip": 1,
+            "control_type": "canny",
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "an ancient llamia monster",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": "Deliberate",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.text_to_image(data)
+        assert pil_image is not None
+        pil_image.save("horde_text_to_image_hires_fix.png")
