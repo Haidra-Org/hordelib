@@ -141,6 +141,6 @@ ComfyUI
 model.ckpt
 coverage.lcov
 *.png
-comfy-prompt.json
+comfy-prompt*.json
 
 .vscode
