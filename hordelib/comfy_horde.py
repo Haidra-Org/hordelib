@@ -29,15 +29,6 @@ class Comfy_Horde:
         self.pipelines = {}
         self.unit_testing = os.getenv("HORDELIB_TESTING", "")
 
-        # XXX Temporary hack for model dir
-        model_dir = os.getenv("AIWORKER_CACHE_HOME", "")
-        if not model_dir:
-            os.environ["HORDE_MODEL_DIR_CHECKPOINTS"] = self._this_dir("../")
-        else:
-            os.environ["HORDE_MODEL_DIR_CHECKPOINTS"] = os.path.join(
-                model_dir, "nataili", "compvis"
-            )
-
         # Load our pipelines
         self._load_pipelines()
 
