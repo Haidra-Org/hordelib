@@ -8,6 +8,7 @@ description = "A thin wrapper around ComfyUI to allow use by AI Horde."
 authors = [
     {name = "Jug", email = "jugdev@proton.me"},
     {name = "db0", email = "mail@dbzer0.com"},
+    {name = "tazlin", email = "demonsthene@gmail.com"},
 ]
 readme = "README.md"
 requires-python = ">=3.10,<3.11"
