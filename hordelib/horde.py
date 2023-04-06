@@ -37,17 +37,20 @@ class HordeLib:
         "seed": "sampler.seed",
         "height": "empty_latent_image.height",
         "width": "empty_latent_image.width",
-        # "karras": false,
+        # "karras": Handled below
         "tiling": None,
-        #"hires_fix": None,
+        # "hires_fix": Handled below
         "clip_skip": "clip_skip.stop_at_clip_layer",
         "control_type": None,
         "image_is_control": None,
         "return_control_map": None,
-        # "prompt": "string",
+        # "prompt": Handled below
         "ddim_steps": "sampler.steps",
         "n_iter": "empty_latent_image.batch_size",
         "model": "model_loader.ckpt_name",
+        "source_image": "image_loader.image",
+        "source_mask": None,
+        "source_processing": None,
     }
 
     def _parameter_remap(self, payload: dict[str, str | None]) -> dict[str, str | None]:

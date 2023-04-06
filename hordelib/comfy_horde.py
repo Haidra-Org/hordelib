@@ -16,6 +16,7 @@ import execution
 from comfy.sd import load_checkpoint_guess_config
 # fmt: on
 
+
 class Comfy_Horde:
     """Handles horde-specific behavior against ComfyUI."""
 
@@ -23,6 +24,7 @@ class Comfy_Horde:
     NODE_REPLACEMENTS = {
         "CheckpointLoaderSimple": "HordeCheckpointLoader",
         "SaveImage": "HordeImageOutput",
+        "LoadImage": "HordeImageLoader",
     }
 
     def __init__(self) -> None:
@@ -164,6 +166,24 @@ class Comfy_Horde:
 
             current[keys[-1]] = value
 
+    # Connect the named input to the named node (output).
+    # Used for dynamic switching of pipeline graphs
+    @classmethod
+    def reconnect_input(cls, dct, input, output):
+        keys = input.split(".")
+        if "inputs" not in keys:
+            keys.insert(1, "inputs")
+        current = dct
+        for k in keys:
+            if k not in current:
+                logger.error(f"Attempt to set reconnect unknown input {input}")
+                return
+
+            current = current[k]
+
+        current[0] = output
+        return True
+
     # Execute the named pipeline and pass the pipeline the parameter provided.
     # For the horde we assume the pipeline returns an array of images.
     def run_pipeline(self, pipeline_name: str, params: dict) -> dict | None:
@@ -179,6 +199,11 @@ class Comfy_Horde:
         from hordelib.shared_model_manager import SharedModelManager
         if "model_loader.model_manager" not in params:
             params["model_loader.model_manager"] = SharedModelManager
+
+        # If we have a source image, use that rather than noise (i.e. img2img)
+        # XXX This probably shouldn't be here. But for the moment, it works.
+        if "image_loader.image" in params:
+            self.reconnect_input(pipeline, "sampler.latent_image", "vae_encode")
 
         # Set the pipeline parameters
         self._set(pipeline, **params)

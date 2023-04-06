@@ -1,7 +1,7 @@
 {
     "3": {
         "inputs": {
-            "seed": 449976276651529,
+            "seed": 760767020359210,
             "steps": 20,
             "cfg": 8.0,
             "sampler_name": "euler",
@@ -42,7 +42,7 @@
     },
     "6": {
         "inputs": {
-            "text": "masterpiece best quality girl",
+            "text": "dinosaur ",
             "clip": [
                 "10",
                 0
@@ -52,7 +52,7 @@
     },
     "7": {
         "inputs": {
-            "text": "bad hands",
+            "text": "painting, drawing, artwork",
             "clip": [
                 "10",
                 0
@@ -92,5 +92,25 @@
             ]
         },
         "class_type": "CLIPSetLastLayer"
+    },
+    "11": {
+        "inputs": {
+            "image": "horde_text_to_image.png",
+            "choose file to upload": "image"
+        },
+        "class_type": "LoadImage"
+    },
+    "12": {
+        "inputs": {
+            "pixels": [
+                "11",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        },
+        "class_type": "VAEEncode"
     }
 }

@@ -38,6 +38,7 @@ class TestSetup:
 
         assert "HordeCheckpointLoader" in execution.nodes.NODE_CLASS_MAPPINGS
         assert "HordeImageOutput" in execution.nodes.NODE_CLASS_MAPPINGS
+        assert "HordeImageLoader" in execution.nodes.NODE_CLASS_MAPPINGS
 
     def test_parameter_injection(self):
         test_dict = {
@@ -120,3 +121,65 @@ class TestSetup:
         assert "3" in data
         assert data["3"]["inputs"]["input1"][0] == "Node2"
         assert data["3"]["inputs"]["input2"][0] == "Node1"
+
+    def test_input_reconnection(self):
+        # Can we reconnect the latent_image input of the sampler from the
+        # empty_latent_image to the vae_encoder? And in the process
+        # disconnect any existing connection that is already there?
+        data = {
+            "sampler": {
+                "inputs": {
+                    "seed": 760767020359210,
+                    "steps": 20,
+                    "cfg": 8.0,
+                    "sampler_name": "euler",
+                    "scheduler": "normal",
+                    "denoise": 1.0,
+                    "model": [
+                        "model_loader",
+                        0
+                    ],
+                    "positive": [
+                        "prompt",
+                        0
+                    ],
+                    "negative": [
+                        "negative_prompt",
+                        0
+                    ],
+                    "latent_image": [
+                        "empty_latent_image",
+                        0
+                    ]
+                },
+                "class_type": "KSampler"
+            },
+            "vae_encoder": {
+                "inputs": {
+                    "pixels": [
+                        "image_loader",
+                        0
+                    ],
+                    "vae": [
+                        "model_loader",
+                        2
+                    ]
+                },
+                "class_type": "VAEEncode"
+            },
+            "empty_latent_image": {
+                "inputs": {
+                    "width": 512,
+                    "height": 512,
+                    "batch_size": 1
+                },
+                "class_type": "EmptyLatentImage"
+            },
+        }
+        result = self.comfy._reconnect_input(data, "sampler.latent_image", "vae_encoder")
+        # Should be ok
+        assert result
+        assert data["sampler"]["inputs"]["latent_image"][0] == "vae_encoder"
+        # This is invalid
+        result = self.comfy._reconnect_input(data, "sampler.non-existant", "somewhere")
+        assert not result

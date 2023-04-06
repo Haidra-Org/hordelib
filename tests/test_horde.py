@@ -1,5 +1,6 @@
 # test_horde.py
 import pytest
+from PIL import Image
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
@@ -260,3 +261,29 @@ class TestHordeInference:
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
         pil_image.save("horde_text_to_image_hires_fix.png")
+
+    def test_image_to_image(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.4,
+            "seed": 250636385744582,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": "canny",
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a dinosaur",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("horde_text_to_image.png"),
+        }
+        assert self.horde is not None
+        pil_image = self.horde.text_to_image(data)
+        assert pil_image is not None
+        pil_image.save("horde_image_to_image.png")
