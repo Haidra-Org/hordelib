@@ -66,4 +66,3 @@ class ComfyWebAppLauncher:
 if __name__ == "__main__":
     launcher = ComfyWebAppLauncher()
     launcher.run_comfyui()
-    launcher.run_comfyui()

@@ -141,4 +141,3 @@ class EsrganModelManager(BaseModelManager):
             model.eval()
             model.to(device)
         return {"model": model, "device": device, "half_precision": half_precision}
-        return {"model": model, "device": device, "half_precision": half_precision}
