@@ -81,7 +81,9 @@ class Comfy_Horde:
             if ("class_type" in node) and (
                 node["class_type"] in Comfy_Horde.NODE_REPLACEMENTS
             ):
-                logger.debug(f"Changed type {data[nodename]['class_type']} to {Comfy_Horde.NODE_REPLACEMENTS[node['class_type']]}")
+                logger.debug(
+                    f"Changed type {data[nodename]['class_type']} to {Comfy_Horde.NODE_REPLACEMENTS[node['class_type']]}",
+                )
                 data[nodename]["class_type"] = Comfy_Horde.NODE_REPLACEMENTS[
                     node["class_type"]
                 ]
@@ -105,9 +107,8 @@ class Comfy_Horde:
         for node in newnodes.values():
             if "inputs" in node:
                 for _, input in node["inputs"].items():
-                    if type(input) is list:
-                        if input and input[0] in renames:
-                            input[0] = renames[input[0]]
+                    if type(input) is list and input and input[0] in renames:
+                        input[0] = renames[input[0]]
         return newnodes
 
     # We are passed a valid comfy pipeline and a design file from the comfyui web app.
@@ -200,7 +201,7 @@ class Comfy_Horde:
         for k in keys:
             if k not in current:
                 logger.error(f"Attempt to reconnect unknown input {input}")
-                return
+                return None
 
             current = current[k]
 
@@ -226,6 +227,7 @@ class Comfy_Horde:
 
         # Inject our model manager if required
         from hordelib.shared_model_manager import SharedModelManager
+
         if "model_loader.model_manager" not in params:
             logger.debug("Injecting model manager")
             params["model_loader.model_manager"] = SharedModelManager
@@ -246,7 +248,7 @@ class Comfy_Horde:
             byte_stream.seek(0)
 
             return {
-                "output_image": {"images": [{"imagedata": byte_stream, "type": "PNG"}]}
+                "output_image": {"images": [{"imagedata": byte_stream, "type": "PNG"}]},
             }
 
         # Run it!

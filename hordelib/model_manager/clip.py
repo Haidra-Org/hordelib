@@ -93,7 +93,9 @@ class ClipModelManager(BaseModelManager):
         else:
             device = torch.device(f"cuda:{gpu_id}" if self.cuda_available else "cpu")
         model, preprocess = clip.load(
-            model_name, device=device, download_root=self.path
+            model_name,
+            device=device,
+            download_root=self.path,
         )
         model = model.eval()
         if half_precision:
@@ -123,7 +125,8 @@ class ClipModelManager(BaseModelManager):
             logger.info(f"Downloading {model_name}", status="Downloading")
             self.download_model(model_name)
             logger.info(
-                f"{model_name} downloaded", status="Downloading"
+                f"{model_name} downloaded",
+                status="Downloading",
             )  # logger.init_ok
         if model_name not in self.loaded_models:
             if not self.cuda_available:
@@ -132,22 +135,33 @@ class ClipModelManager(BaseModelManager):
             logger.info(f"{model_name}", status="Loading")  # logger.init
             if self.models[model_name]["type"] == "open_clip":
                 self.loaded_models[model_name] = self.load_open_clip(
-                    model_name, half_precision, gpu_id, cpu_only
+                    model_name,
+                    half_precision,
+                    gpu_id,
+                    cpu_only,
                 )
             elif self.models[model_name]["type"] == "clip":
                 self.loaded_models[model_name] = self.load_clip(
-                    model_name, half_precision, gpu_id, cpu_only
+                    model_name,
+                    half_precision,
+                    gpu_id,
+                    cpu_only,
                 )
             elif self.models[model_name]["type"] == "coca":
                 self.loaded_models[model_name] = self.load_coca(
-                    model_name, half_precision, gpu_id, cpu_only
+                    model_name,
+                    half_precision,
+                    gpu_id,
+                    cpu_only,
                 )
             else:
                 logger.error(f"Unknown model type: {self.models[model_name]['type']}")
-                return
+                return None
             logger.info(f"Loading {model_name}", status="Success")  # logger.init_ok
             toc = time.time()
             logger.info(
-                f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
+                f"Loading {model_name}: Took {toc-tic} seconds",
+                status="Success",
             )  # logger.init_ok
             return True
+        return None

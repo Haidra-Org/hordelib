@@ -13,7 +13,7 @@ def instantiate_from_config(config):
         elif config == "__is_unconditional__":
             return None
         raise KeyError("Expected key `target` to instantiate.")
-    return get_obj_from_str(config["target"])(**config.get("params", dict()))
+    return get_obj_from_str(config["target"])(**config.get("params", {}))
 
 
 def get_obj_from_str(string, reload=False):
@@ -57,12 +57,18 @@ class DisableInitialization:
             pass
 
         def create_model_and_transforms_without_pretrained(
-            self, *args, pretrained=None, **kwargs
+            self,
+            *args,
+            pretrained=None,
+            **kwargs,
         ):
             return self.create_model_and_transforms(*args, pretrained=None, **kwargs)
 
         def CLIPTextModel_from_pretrained(
-            self, pretrained_model_name_or_path, *model_args, **kwargs
+            self,
+            pretrained_model_name_or_path,
+            *model_args,
+            **kwargs,
         ):
             if sys.version_info != (3, 8, 10):
                 try:
@@ -75,7 +81,9 @@ class DisableInitialization:
                     )
                 except Exception:  # XXX should catch the actual exception intended
                     res = self.CLIPTextModel_from_pretrained(
-                        None, *model_args, **kwargs
+                        None,
+                        *model_args,
+                        **kwargs,
                     )
             else:
                 res = self.CLIPTextModel_from_pretrained(None, *model_args, **kwargs)
@@ -88,7 +96,8 @@ class DisableInitialization:
             # resolved_archive_file; must set it to something to prevent what seems to be a bug
             # XXX looks like some old hack
             return self.transformers_modeling_utils_load_pretrained_model(
-                *args, **kwargs
+                *args,
+                **kwargs,
             )
 
         def transformers_utils_hub_get_file_from_cache(original, url, *args, **kwargs):
@@ -111,14 +120,23 @@ class DisableInitialization:
                 return original(url, *args, local_files_only=False, **kwargs)
 
         def transformers_utils_hub_get_from_cache(
-            url, *args, local_files_only=False, **kwargs
+            url,
+            *args,
+            local_files_only=False,
+            **kwargs,
         ):
             return transformers_utils_hub_get_file_from_cache(
-                self.transformers_utils_hub_get_from_cache, url, *args, **kwargs
+                self.transformers_utils_hub_get_from_cache,
+                url,
+                *args,
+                **kwargs,
             )
 
         def transformers_tokenization_utils_base_cached_file(
-            url, *args, local_files_only=False, **kwargs
+            url,
+            *args,
+            local_files_only=False,
+            **kwargs,
         ):
             return transformers_utils_hub_get_file_from_cache(
                 self.transformers_tokenization_utils_base_cached_file,
@@ -128,10 +146,16 @@ class DisableInitialization:
             )
 
         def transformers_configuration_utils_cached_file(
-            url, *args, local_files_only=False, **kwargs
+            url,
+            *args,
+            local_files_only=False,
+            **kwargs,
         ):
             return transformers_utils_hub_get_file_from_cache(
-                self.transformers_configuration_utils_cached_file, url, *args, **kwargs
+                self.transformers_configuration_utils_cached_file,
+                url,
+                *args,
+                **kwargs,
             )
 
         self.replace(torch.nn.init, "kaiming_uniform_", do_nothing)

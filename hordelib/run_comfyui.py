@@ -30,7 +30,12 @@ class ComfyWebAppLauncher:
 
         # Now launch the comfyui process and replace our current process
         os.chdir(get_comfyui_path())
-        subprocess.run(["python", "main.py"], shell=True, text=True, cwd=get_comfyui_path())
+        subprocess.run(
+            ["python", "main.py"],
+            shell=True,
+            text=True,
+            cwd=get_comfyui_path(),
+        )
 
     @classmethod
     def patch(cls):
@@ -46,7 +51,7 @@ class ComfyWebAppLauncher:
             if line.startswith("def validate_prompt(prompt):"):
                 j = i + 1
                 while j < len(source) and not source[j].startswith(
-                    '    return (True, "")'
+                    '    return (True, "")',
                 ):
                     # If we pass an already patched line, abort, we've already done this
                     if source[j].startswith(ComfyWebAppLauncher.PATCH[0]):

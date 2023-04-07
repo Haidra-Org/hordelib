@@ -79,7 +79,8 @@ class CLIPEmbedder(nn.Module):
     def forward(self, tok_out):
         input_ids, cross_cond_padding = tok_out
         clip_out = self.transformer(
-            input_ids=input_ids.to(self.device), output_hidden_states=True
+            input_ids=input_ids.to(self.device),
+            output_hidden_states=True,
         )
         return (
             clip_out.hidden_states[-1],
@@ -117,11 +118,13 @@ class SDUModelManager(BaseModelManager):
         if model_name not in self.available_models:
             logger.error(f"{model_name} not available")
             logger.info(
-                f"Downloading {model_name}", status="Downloading"
+                f"Downloading {model_name}",
+                status="Downloading",
             )  # logger.init_ok
             self.download_model(model_name)
             logger.info(
-                f"{model_name} downloaded", status="Downloading"
+                f"{model_name} downloaded",
+                status="Downloading",
             )  # logger.init_ok
         if model_name not in self.loaded_models:
             tic = time.time()
@@ -135,11 +138,16 @@ class SDUModelManager(BaseModelManager):
             logger.info(f"Loading {model_name}", status="Success")  # logger.init_ok
             toc = time.time()
             logger.info(
-                f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
+                f"Loading {model_name}: Took {toc-tic} seconds",
+                status="Success",
             )  # logger.init_ok
 
     def load_model_from_config(
-        self, model_path="", config_path="", map_location="cpu", device="cpu"
+        self,
+        model_path="",
+        config_path="",
+        map_location="cpu",
+        device="cpu",
     ):
         config = OmegaConf.load(config_path)
         pl_sd = torch.load(model_path, map_location=map_location)
@@ -147,7 +155,7 @@ class SDUModelManager(BaseModelManager):
             logger.info(f"Global Step: {pl_sd['global_step']}")
         sd = pl_sd["state_dict"] if "state_dict" in pl_sd else pl_sd
         model = instantiate_from_config(
-            config.model
+            config.model,
         )  # XXX # FIXME (instantiate_from_config missing)
         m, u = model.load_state_dict(sd, strict=False)
         model = model.eval().requires_grad_(False)
@@ -195,10 +203,12 @@ class SDUModelManager(BaseModelManager):
         model = model.eval()
         model.to(device)
         vae_model_840k = self.load_model_from_config(
-            model_path=vae_840k_path, config_path=vae_config_path
+            model_path=vae_840k_path,
+            config_path=vae_config_path,
         )
         vae_model_560k = self.load_model_from_config(
-            model_path=vae_560k_path, config_path=vae_config_path
+            model_path=vae_560k_path,
+            config_path=vae_config_path,
         )
         vae_model_840k = vae_model_840k.to(device)
         vae_model_560k = vae_model_560k.to(device)

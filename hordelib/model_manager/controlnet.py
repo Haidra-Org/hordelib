@@ -64,7 +64,7 @@ class ControlNetModelManager(BaseModelManager):
                     continue
                 p = sd15_with_control_state_dict[key]
                 key_name = f'model.diffusion_model.{key.replace("control_model.", "")}'
-                if key_name in input_state_dict.keys():
+                if key_name in input_state_dict:
                     # logger.info(f"merging {key_name} from input {key} from control")
                     p_new = p + input_state_dict[key_name].clone().cpu()
                 else:
@@ -75,7 +75,7 @@ class ControlNetModelManager(BaseModelManager):
             for key in keys:
                 p = sd15_with_control_state_dict[key]
                 key_name = f'model.diffusion_model.{key.replace("control_model.", "")}'
-                if key in input_state_dict.keys():
+                if key in input_state_dict:
                     # logger.info(f"merging {key_name} from input {key} from control")
                     p_new = p + input_state_dict[key_name].clone().cpu()
                 else:
@@ -83,7 +83,7 @@ class ControlNetModelManager(BaseModelManager):
                     p_new = p
                 final_state_dict[f"control_model.{key}"] = p_new
         # remove key "lvlb_weights"
-        if "lvlb_weights" in final_state_dict.keys():
+        if "lvlb_weights" in final_state_dict:
             final_state_dict.pop("lvlb_weights")
         logger.info("Finished merging control net state dict into target state dict")
         logger.info(f"Loading {full_name} state dict")
@@ -97,6 +97,7 @@ class ControlNetModelManager(BaseModelManager):
             "device": device,
             "half_precision": half_precision,
         }
+        return None
 
     def load_controlnet(
         self,
@@ -108,11 +109,13 @@ class ControlNetModelManager(BaseModelManager):
         if model_name not in self.available_models:
             logger.error(f"{model_name} not available")
             logger.info(
-                f"Downloading {model_name}", status="Downloading"
+                f"Downloading {model_name}",
+                status="Downloading",
             )  # logger.init_ok
             self.download_model(model_name)
             logger.info(
-                f"{model_name} downloaded", status="Downloading"
+                f"{model_name} downloaded",
+                status="Downloading",
             )  # logger.init_ok
         if model_name in self.control_nets:
             logger.info(f"{model_name} already loaded")

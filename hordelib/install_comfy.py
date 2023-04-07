@@ -4,7 +4,8 @@ import os
 import subprocess
 
 from loguru import logger
-from hordelib.config_path import get_hordelib_path, get_comfyui_path
+
+from hordelib.config_path import get_comfyui_path, get_hordelib_path
 
 
 class Installer:
@@ -35,7 +36,11 @@ class Installer:
     def _run(cls, command, directory=get_hordelib_path()) -> tuple[bool, str] | None:
         try:
             result = subprocess.run(
-                command, shell=True, text=True, capture_output=True, cwd=directory
+                command,
+                shell=True,
+                text=True,
+                capture_output=True,
+                cwd=directory,
             )
         except Exception as Ex:
             logger.error(Ex)
@@ -50,7 +55,10 @@ class Installer:
         # Install if ComfyUI is missing completely
         if not os.path.exists(get_comfyui_path()):
             installdir = os.path.dirname(get_comfyui_path())
-            cls._run("git clone https://github.com/comfyanonymous/ComfyUI.git", installdir)
+            cls._run(
+                "git clone https://github.com/comfyanonymous/ComfyUI.git",
+                installdir,
+            )
             cls._run(f"git checkout {comfy_version}", get_comfyui_path())
             return
 
@@ -62,7 +70,7 @@ class Installer:
 
         # Update comfyui
         logger.info(
-            f"Current ComfyUI version {version[:8]} requires {comfy_version[:8]}"
+            f"Current ComfyUI version {version[:8]} requires {comfy_version[:8]}",
         )
         # Try hard to ensure we reset everything even if we have been
         # hacking on ComfyUI or are in a weird repo state

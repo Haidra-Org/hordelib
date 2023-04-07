@@ -70,7 +70,8 @@ class BaseModelManager:
             return models
         except Exception as e:
             logger.info_err(
-                "Model Reference", status=f"Download failed: {e}"
+                "Model Reference",
+                status=f"Download failed: {e}",
             )  # logger.init_err
             logger.info_warn("Model Reference", status="Local")  # logger.init_warn
             return json.loads((self.models_path).read_text())
@@ -106,7 +107,7 @@ class BaseModelManager:
         models_available = []
         for model in self.models:
             if self.models[model]["type"] in model_types and self.check_available(
-                self.get_model_files(model)
+                self.get_model_files(model),
             ):
                 models_available.append(model)
         return models_available
@@ -197,16 +198,13 @@ class BaseModelManager:
     def get_file_md5sum_hash(file_name):
         # Bail out if the source file doesn't exist
         if not os.path.isfile(file_name):
-            return
+            return None
 
         # Check if we have a cached md5 hash for the source file
         # and use that unless our source file is newer than our hash
         md5_file = f"{os.path.splitext(file_name)[0]}.md5"
         source_timestamp = os.path.getmtime(file_name)
-        if os.path.isfile(md5_file):
-            hash_timestamp = os.path.getmtime(md5_file)
-        else:
-            hash_timestamp = 0
+        hash_timestamp = os.path.getmtime(md5_file) if os.path.isfile(md5_file) else 0
         if hash_timestamp > source_timestamp:
             # Use our cached hash
             with open(md5_file, "rt") as handle:
@@ -242,10 +240,9 @@ class BaseModelManager:
         # and use that unless our source file is newer than our hash
         sha256_file = f"{os.path.splitext(file_name)[0]}.sha256"
         source_timestamp = os.path.getmtime(file_name)
-        if os.path.isfile(sha256_file):
-            hash_timestamp = os.path.getmtime(sha256_file)
-        else:
-            hash_timestamp = 0
+        hash_timestamp = (
+            os.path.getmtime(sha256_file) if os.path.isfile(sha256_file) else 0
+        )
         if hash_timestamp > source_timestamp:
             # Use our cached hash
             with open(sha256_file, "rt") as handle:
@@ -342,21 +339,20 @@ class BaseModelManager:
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
         pbar_desc = full_path.split("/")[-1]
         r = requests.get(url, stream=True, allow_redirects=True)
-        with open(full_path, "wb") as f:
-            with tqdm(
-                # all optional kwargs
-                unit="B",
-                unit_scale=True,
-                unit_divisor=1024,
-                miniters=1,
-                desc=pbar_desc,
-                total=int(r.headers.get("content-length", 0)),
-                disable=WorkerSettings.disable_download_progress.active,
-            ) as pbar:
-                for chunk in r.iter_content(chunk_size=16 * 1024):
-                    if chunk:
-                        f.write(chunk)
-                        pbar.update(len(chunk))
+        with open(full_path, "wb") as f, tqdm(
+            # all optional kwargs
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+            miniters=1,
+            desc=pbar_desc,
+            total=int(r.headers.get("content-length", 0)),
+            disable=WorkerSettings.disable_download_progress.active,
+        ) as pbar:
+            for chunk in r.iter_content(chunk_size=16 * 1024):
+                if chunk:
+                    f.write(chunk)
+                    pbar.update(len(chunk))
 
     def download_model(self, model_name):
         """
@@ -400,7 +396,7 @@ class BaseModelManager:
             if "manual" in download[i]:
                 logger.warning(
                     f"The model {model_name} requires manual download from {download_url}. "
-                    f"Please place it in {download_path}/{download_name} then press ENTER to continue..."
+                    f"Please place it in {download_path}/{download_name} then press ENTER to continue...",
                 )
                 input("")
                 continue

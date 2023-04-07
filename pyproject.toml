@@ -8,7 +8,7 @@ description = "A thin wrapper around ComfyUI to allow use by AI Horde."
 authors = [
     {name = "Jug", email = "jugdev@proton.me"},
     {name = "db0", email = "mail@dbzer0.com"},
-    {name = "tazlin", email = "demonsthene@gmail.com"},
+    {name = "tazlin", email = "tazlin.on.github@gmail.com"},
 ]
 readme = "README.md"
 requires-python = ">=3.10,<3.11"
@@ -51,3 +51,40 @@ exclude = '''
   | \.tox
 )/
 '''
+
+[tool.ruff] # XXX this isn't part of CI yet 
+line-length=100 # XXX is this length settled on?
+ignore=[
+    "E501", # XXX line too long (comments are the big offender right now)
+    "F401", # imported but unused
+] 
+select = [
+    "A",    # flake8-builtins
+    "I",    # isort 
+    # "S",    # Bandit
+    "F",    # pyflakes
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+
+
+    "YTT",  # flake8-2020
+    # "BLE",    # flake8-blind-except
+    # "B",    # flake8-bugbear
+    "COM",  # flake8-commas
+    "C4",   # flake8-comprehensions
+    # "G",    # flake8-logging-format
+    "INP",  # flake8-no-pep420
+    "PIE",  # flake8-pie
+    # "T20",  # flake8-print
+    # "UP",   # pyupgrade
+    "RSE",  # flake8-raise 
+    "RET",  # flake8-return
+    # "SLF",  # flake8-self
+    "SIM",  # flake8-simplify
+    "ARG",  # flake8-unused-arguments
+    # "TRY",  # tryceratops 
+    "RUF100"
+]
+
+[tool.ruff.per-file-ignores]
+"comfy_horde.py" = ["I001", "F401"]

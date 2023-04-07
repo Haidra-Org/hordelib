@@ -49,6 +49,8 @@ class CompVisModelManager(BaseModelManager):
             )
             toc = time.time()
             logger.info(
-                f"{model_name}: {round(toc-tic,2)} seconds", status="Loaded"
+                f"{model_name}: {round(toc-tic,2)} seconds",
+                status="Loaded",
             )  # logger.init_ok
             return True
+        return None

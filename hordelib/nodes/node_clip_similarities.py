@@ -31,13 +31,15 @@ class HordeClipSimilarities:
             # XXX better guarantees need to be made
             interrogator = Interrogator(model)
             similarity_results = interrogator(
-                image=image, text_array=string_list, similarity=True
+                image=image,
+                text_array=string_list,
+                similarity=True,
             )
             if similarity_results is None:
                 return None  # XXX better guarantees need to be made
 
             results.append(
-                {"similarity_results": similarity_results["default"], "type": "ARRAY"}
+                {"similarity_results": similarity_results["default"], "type": "ARRAY"},
             )
 
         return {"similarities": results}

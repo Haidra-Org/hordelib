@@ -1,6 +1,6 @@
 import numpy as np
-
 from transformers import CLIPFeatureExtractor
+
 from hordelib.shared_model_manager import SharedModelManager
 
 

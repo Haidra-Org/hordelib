@@ -3,11 +3,9 @@ import time
 
 from loguru import logger
 
-
+from hordelib import comfy_horde
 from hordelib.cache import get_cache_directory
 from hordelib.model_manager.base import BaseModelManager
-from hordelib import comfy_horde
-
 
 
 class CodeFormerModelManager(BaseModelManager):
@@ -41,11 +39,13 @@ class CodeFormerModelManager(BaseModelManager):
         if model_name not in self.available_models:
             logger.error(f"{model_name} not available")
             logger.info(
-                f"Downloading {model_name}", status="Downloading"
+                f"Downloading {model_name}",
+                status="Downloading",
             )  # logger.init_ok
             self.download_model(model_name)
             logger.info(
-                f"{model_name} downloaded", status="Downloading"
+                f"{model_name} downloaded",
+                status="Downloading",
             )  # logger.init_ok
         if model_name not in self.loaded_models:
             tic = time.time()
@@ -59,9 +59,11 @@ class CodeFormerModelManager(BaseModelManager):
             logger.info(f"Loading {model_name}", status="Success")  # logger.init_ok
             toc = time.time()
             logger.info(
-                f"Loading {model_name}: Took {toc-tic} seconds", status="Success"
+                f"Loading {model_name}: Took {toc-tic} seconds",
+                status="Success",
             )  # logger.init_ok
             return True
+        return None
 
     def load_codeformer(
         self,
@@ -71,4 +73,4 @@ class CodeFormerModelManager(BaseModelManager):
         model_path = f"{self.path}/{model_path}"
         sd = comfy_horde.load_torch_file(model_path)
         out = comfy_horde.model_loading.load_state_dict(sd).eval()
-        return (out, )
+        return (out,)

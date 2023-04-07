@@ -67,7 +67,10 @@ class HordeLib:
 
         return params
 
-    def _parameter_remap_text_to_image(self, payload: dict[str, str | None]) -> dict[str, str | None]:
+    def _parameter_remap_text_to_image(
+        self,
+        payload: dict[str, str | None],
+    ) -> dict[str, str | None]:
         params = self._parameter_remap(payload)
 
         # XXX I think we need seed as an integer
@@ -111,7 +114,9 @@ class HordeLib:
             params["upscale_sampler.cfg"] = params["sampler.cfg"]
             params["upscale_sampler.steps"] = params["sampler.steps"]
             params["upscale_sampler.sampler_name"] = params["sampler.sampler_name"]
-            params["upscale_sampler.denoise"] = 0.6  # XXX is this ok for latent upscale denoise?
+            params[
+                "upscale_sampler.denoise"
+            ] = 0.6  # XXX is this ok for latent upscale denoise?
             # Adjust image sizes
             width = params.get("empty_latent_image.width", 0)
             height = params.get("empty_latent_image.height", 0)

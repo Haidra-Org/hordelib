@@ -31,4 +31,7 @@ class TestHordePostProcessing:
         SharedModelManager.manager = None
 
     def test_load(self):
-        assert SharedModelManager.manager.esrgan.is_model_loaded("RealESRGAN_x4plus") is True
+        assert (
+            SharedModelManager.manager.esrgan.is_model_loaded("RealESRGAN_x4plus")
+            is True
+        )

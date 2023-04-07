@@ -4,10 +4,13 @@ from loguru import logger
 class HordeUpscaleModelLoader:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": {
-            "model_name": ("<model name>", ),
-            "model_manager": ("<model manager instance>",),
-        }}
+        return {
+            "required": {
+                "model_name": ("<model name>",),
+                "model_manager": ("<model manager instance>",),
+            },
+        }
+
     RETURN_TYPES = ("UPSCALE_MODEL",)
     FUNCTION = "load_model"
 
@@ -19,11 +22,11 @@ class HordeUpscaleModelLoader:
 
         if model_manager.manager is None:
             logger.error("horde_model_manager appears to be missing!")
-            raise RuntimeError()  # XXX better guarantees need to be made
+            raise RuntimeError  # XXX better guarantees need to be made
 
         if model_name not in model_manager.manager.loaded_models:
             logger.error(f"Model {model_name} is not loaded")
-            raise RuntimeError()  # XXX better guarantees need to be made
+            raise RuntimeError  # XXX better guarantees need to be made
 
         return model_manager.manager.loaded_models[model_name]
 

@@ -133,7 +133,6 @@ class TestInference:
             "upscale_sampler.scheduler": "simple",
             "upscale_sampler.denoise": 0.5,
             "clip_skip.stop_at_clip_layer": -1,
-
         }
         images = self.comfy.run_image_pipeline("stable_diffusion_hires_fix", params)
         assert images is not None
