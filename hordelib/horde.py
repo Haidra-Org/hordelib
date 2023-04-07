@@ -135,8 +135,18 @@ class HordeLib:
 
         return params
 
+    # Fix any nonsensical requests
+    def _validate_text_to_image_params(self, payload):
+        # Turn off hires fix if we're not generating a hires image
+        if "hires_fix" in payload and (
+            payload["width"] <= 512 or payload["height"] <= 512
+        ):
+            payload["hires_fix"] = False
+
     def text_to_image(self, payload: dict[str, str | None]) -> Image.Image | None:
         generator = Comfy_Horde()
+        # Validate our payload parameters
+        params = self._validate_text_to_image_params(payload)
         # Determine our parameters
         params = self._parameter_remap_text_to_image(payload)
         # Determine the correct pipeline
