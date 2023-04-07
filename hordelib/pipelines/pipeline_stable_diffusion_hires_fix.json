@@ -1,7 +1,7 @@
 {
     "3": {
         "inputs": {
-            "seed": 774460615394010,
+            "seed": 1094518095629290,
             "steps": 12,
             "cfg": 8.0,
             "sampler_name": "dpmpp_sde",
@@ -69,7 +69,7 @@
     },
     "11": {
         "inputs": {
-            "seed": 149841937873372,
+            "seed": 1016912243210385,
             "steps": 14,
             "cfg": 8.0,
             "sampler_name": "dpmpp_2m",
@@ -119,7 +119,7 @@
     },
     "16": {
         "inputs": {
-            "model_name": "Deliberate.ckpt"
+            "ckpt_name": "Deliberate.ckpt"
         },
         "class_type": "CheckpointLoaderSimple"
     },
@@ -132,5 +132,25 @@
             ]
         },
         "class_type": "CLIPSetLastLayer"
+    },
+    "18": {
+        "inputs": {
+            "image": "example.png",
+            "choose file to upload": "image"
+        },
+        "class_type": "LoadImage"
+    },
+    "19": {
+        "inputs": {
+            "pixels": [
+                "18",
+                0
+            ],
+            "vae": [
+                "16",
+                2
+            ]
+        },
+        "class_type": "VAEEncode"
     }
 }
