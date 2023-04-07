@@ -1,6 +1,6 @@
 # consts.py
 VERSION = "0.1.0"
-COMFYUI_VERSION = "0bb5f93b9291f088de8eee44cd98db86b44b1e6d"
+COMFYUI_VERSION = "44fea050649347ca4b4e7317a83d11c3b4b87f87"
 DEFAULT_MODEL_MANAGERS = {
     "blip": True,
     "clip": True,
