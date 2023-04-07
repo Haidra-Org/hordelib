@@ -1,7 +1,7 @@
 {
     "3": {
         "inputs": {
-            "seed": 760767020359210,
+            "seed": 549947196061527,
             "steps": 20,
             "cfg": 8.0,
             "sampler_name": "euler",
@@ -28,7 +28,7 @@
     },
     "4": {
         "inputs": {
-            "model_name": "Deliberate.ckpt"
+            "ckpt_name": "Deliberate.ckpt"
         },
         "class_type": "CheckpointLoaderSimple"
     },
@@ -95,7 +95,7 @@
     },
     "11": {
         "inputs": {
-            "image": "horde_text_to_image.png",
+            "image": "example.png",
             "choose file to upload": "image"
         },
         "class_type": "LoadImage"

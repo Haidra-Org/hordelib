@@ -24,12 +24,25 @@ from comfy_extras.chainner_models import model_loading
 class Comfy_Horde:
     """Handles horde-specific behavior against ComfyUI."""
 
-    # Lookup of ComfyUI standard nodes to hordelib custom nodes
+    # We save pipelines from the ComfyUI GUI. This is very convenient as it
+    # makes it super easy to load and edit them in the future. However standard
+    # ComfyUI's GUI doesn't know about our custom nodes, so we allow the pipeline
+    # design with standard nodes, then at runtime we dynamically replace these
+    # node types with our own where we need to.
     NODE_REPLACEMENTS = {
         "CheckpointLoaderSimple": "HordeCheckpointLoader",
         "UpscaleModelLoader": "HordeUpscaleModelLoader",
         "SaveImage": "HordeImageOutput",
         "LoadImage": "HordeImageLoader",
+    }
+
+    # We may wish some ComfyUI standard nodes had different names for consistency. Here
+    # we can dynamically rename some node input parameter names.
+    NODE_PARAMETER_REPLACEMENTS = {
+        "HordeCheckpointLoader": {
+            # We name this "model_name" as then we can use the same generic code in our model loaders
+            "ckpt_name": "model_name"
+        }
     }
 
     def __init__(self) -> None:
@@ -87,6 +100,19 @@ class Comfy_Horde:
                 data[nodename]["class_type"] = Comfy_Horde.NODE_REPLACEMENTS[
                     node["class_type"]
                 ]
+        # Now we've fixed up node types, check for any node input parameter rename needed
+        for nodename, node in data.items():
+            if ("class_type" in node) and (
+                node["class_type"] in Comfy_Horde.NODE_PARAMETER_REPLACEMENTS
+            ):
+                for oldname, newname in Comfy_Horde.NODE_PARAMETER_REPLACEMENTS[
+                    node["class_type"]
+                ].items():
+                    if "inputs" in node and oldname in node["inputs"]:
+                        node["inputs"][newname] = node["inputs"][oldname]
+                        del node["inputs"][oldname]
+                logger.debug(f"Renamed node input {nodename}.{oldname} to {newname}")
+
         return data
 
     def _fix_node_names(self, data: dict, design: dict) -> dict:
