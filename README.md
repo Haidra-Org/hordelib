@@ -146,10 +146,8 @@ To test if the latest version works and upgrade to it, from the project root sim
 1. `cd ComfyUI` _Change CWD to the embedded comfy_
 1. `git checkout master` _Switch to master branch_
 1. `git pull` _Get the latest comfyui code_
-1. `git rev-parse HEAD` _Print the commit hash we'll need this_
+1. `git rev-parse HEAD` _Update the hash in `hordelib.consts:COMFYUI_VERSION`_
 1. `cd ..` _Get back to the hordelib project root_
 1. `tox` _See if everything still works_
-
-If everything still works. Take the commit hash printed above and put it in `hordelib/consts.py:COMFYUI_VERSION`
 
 Now ComfyUI is pinned to a new version.
