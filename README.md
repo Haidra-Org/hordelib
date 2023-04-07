@@ -151,3 +151,14 @@ To test if the latest version works and upgrade to it, from the project root sim
 1. `tox` _See if everything still works_
 
 Now ComfyUI is pinned to a new version.
+
+### ComfyUI Patching
+
+It may be that we need to patch the ComfyUI source code. Currently this optional and only used for development helpers. However, the mechanisms to patch ComfyUI source code at runtime are also already in place.
+
+To create a patch file:
+- Make the required changes to a clean install of ComfyUI and then run `git diff > yourfile.patch` then move the patch file to wherever you want to save it.
+
+Note that the patch file _really_ needs to be in UTF-8 format and some common terminals, e.g. Powershell, won't do this by default. In Powershell to create a patch file use: `git diff | Set-Content -Encoding utf8 -Path yourfile.patch`
+
+Patches can be applied with the `hordelib.install_comfyui.Installer` classes `apply_patch()` method.

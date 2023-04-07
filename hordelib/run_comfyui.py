@@ -6,27 +6,24 @@ import os
 import subprocess
 import webbrowser
 
-from hordelib.config_path import get_comfyui_path
+from loguru import logger
+
+from hordelib.config_path import get_comfyui_path, get_hordelib_path
+from hordelib.install_comfy import Installer
 
 
 class ComfyWebAppLauncher:
-    # I know what you're thinking. Feel free to replace this with a pure python
-    # implementation applying a unified diff. Good luck.
-    PATCH = [
-        '    with open("../comfy-prompt.json", "wt", encoding="utf-8") as f:',
-        "        f.write(json.dumps(prompt, indent=4))",
-    ]
-
     @classmethod
     def run_comfyui(cls):
-        # If we're running the embedded version, it's likely we want
-        # to create or edit pipelines for hordelib, so patch comfyui
-        # to save it's backend pipelines as JSON when they are run, into
-        # the project root as "comfy-prompt.json"
-        cls.patch()
+        # Apply patches to comfyui that we may find useful for development.
+        # This patch file is not applied during normal use of hordelib.
+        Installer.apply_patch(os.path.join(get_hordelib_path(), "run_comfyui.patch"))
 
         # Launch a browser
         webbrowser.open("http://127.0.0.1:8188/")
+        logger.warning(
+            "Wait a moment and then refresh your browser. It takes a while to load the backend."
+        )
 
         # Now launch the comfyui process and replace our current process
         os.chdir(get_comfyui_path())
@@ -36,39 +33,6 @@ class ComfyWebAppLauncher:
             text=True,
             cwd=get_comfyui_path(),
         )
-
-    @classmethod
-    def patch(cls):
-        sourcefile = os.path.join(get_comfyui_path(), "execution.py")
-
-        with open(sourcefile, encoding="utf-8") as infile:
-            source = infile.readlines()
-
-        # We just want to inject a couple of lines at the end of the
-        # validate_prompt method.
-        patched = False
-        for i, line in enumerate(source):
-            if line.startswith("def validate_prompt(prompt):"):
-                j = i + 1
-                while j < len(source) and not source[j].startswith(
-                    '    return (True, "")',
-                ):
-                    # If we pass an already patched line, abort, we've already done this
-                    if source[j].startswith(ComfyWebAppLauncher.PATCH[0]):
-                        j = len(source)
-                        break
-                    j += 1
-                if j >= len(source):
-                    break
-                for patchline in ComfyWebAppLauncher.PATCH:
-                    source.insert(j, f"{patchline}\n")
-                    j += 1
-                patched = True
-                break
-
-        if patched:
-            with open(sourcefile, "wt") as outfile:
-                outfile.writelines(source)
 
 
 if __name__ == "__main__":

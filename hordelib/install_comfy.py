@@ -33,15 +33,20 @@ class Installer:
             return ""
 
     @classmethod
+    def _run_get_result(cls, command, directory=get_hordelib_path()):
+        result = subprocess.run(
+            command,
+            shell=True,
+            text=True,
+            capture_output=True,
+            cwd=directory,
+        )
+        return result
+
+    @classmethod
     def _run(cls, command, directory=get_hordelib_path()) -> tuple[bool, str] | None:
         try:
-            result = subprocess.run(
-                command,
-                shell=True,
-                text=True,
-                capture_output=True,
-                cwd=directory,
-            )
+            result = cls._run_get_result(command, directory)
         except Exception as Ex:
             logger.error(Ex)
             return None
@@ -79,3 +84,25 @@ class Installer:
         cls._run("git checkout master", get_comfyui_path())
         cls._run("git pull", get_comfyui_path())
         cls._run(f"git checkout {comfy_version}", get_comfyui_path())
+
+    @classmethod
+    def apply_patch(cls, patchfile):
+        # Check if the patch has already been applied
+        result = cls._run_get_result(
+            f"git apply --check {patchfile}", get_comfyui_path()
+        )
+        could_apply = not result.returncode
+        result = cls._run_get_result(
+            f"git apply --reverse --check {patchfile}", get_comfyui_path()
+        )
+        could_reverse = not result.returncode
+        if could_apply:
+            # Apply the patch
+            logger.debug(f"Applying patch {patchfile}")
+            cls._run_get_result(f"git apply {patchfile}", get_comfyui_path())
+        elif could_reverse:
+            # Patch is already applied, all is well
+            logger.debug(f"Already applied patch {patchfile}")
+        else:
+            # Couldn't apply or reverse? That's not so good
+            logger.error(f"Could not apply patch {patchfile}")
