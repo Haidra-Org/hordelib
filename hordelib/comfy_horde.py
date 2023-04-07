@@ -27,11 +27,13 @@ class Comfy_Horde:
     # Lookup of ComfyUI standard nodes to hordelib custom nodes
     NODE_REPLACEMENTS = {
         "CheckpointLoaderSimple": "HordeCheckpointLoader",
+        "UpscaleModelLoader": "HordeUpscaleModelLoader",
         "SaveImage": "HordeImageOutput",
         "LoadImage": "HordeImageLoader",
     }
 
     def __init__(self) -> None:
+        self.client_id = None  # used for receiving comfyUI async events
         self.pipelines = {}
         self.unit_testing = os.getenv("HORDELIB_TESTING", "")
 
@@ -79,6 +81,7 @@ class Comfy_Horde:
             if ("class_type" in node) and (
                 node["class_type"] in Comfy_Horde.NODE_REPLACEMENTS
             ):
+                logger.debug(f"Changed type {data[nodename]['class_type']} to {Comfy_Horde.NODE_REPLACEMENTS[node['class_type']]}")
                 data[nodename]["class_type"] = Comfy_Horde.NODE_REPLACEMENTS[
                     node["class_type"]
                 ]
@@ -196,13 +199,17 @@ class Comfy_Horde:
         current = dct
         for k in keys:
             if k not in current:
-                logger.error(f"Attempt to set reconnect unknown input {input}")
+                logger.error(f"Attempt to reconnect unknown input {input}")
                 return
 
             current = current[k]
 
         current[0] = output
         return True
+
+    # This is the callback handler for comfy async events. We only use it for debugging.
+    def send_sync(self, p1, p2, p3):
+        logger.debug(f"{p1}, {p2}, {p3}")
 
     # Execute the named pipeline and pass the pipeline the parameter provided.
     # For the horde we assume the pipeline returns an array of images.
@@ -212,12 +219,15 @@ class Comfy_Horde:
             logger.error(f"Unknown inference pipeline: {pipeline_name}")
             return None
 
+        logger.debug(f"Running pipeline {pipeline_name}")
+
         # Grab a copy of the pipeline
         pipeline = copy.copy(self.pipelines[pipeline_name])
 
         # Inject our model manager if required
         from hordelib.shared_model_manager import SharedModelManager
         if "model_loader.model_manager" not in params:
+            logger.debug("Injecting model manager")
             params["model_loader.model_manager"] = SharedModelManager
 
         # If we have a source image, use that rather than noise (i.e. img2img)
@@ -243,7 +253,9 @@ class Comfy_Horde:
         inference = execution.PromptExecutor(self)
         # Load our custom nodes
         self._load_custom_nodes()
-        inference.execute(pipeline)
+        # The client_id parameter here is just so we receive comfy callbacks for debugging.
+        # We essential pretend we are a web client and want async callbacks.
+        inference.execute(pipeline, extra_data={"client_id": 1})
 
         return inference.outputs
 

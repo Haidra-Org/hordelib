@@ -37,7 +37,7 @@ class TestInference:
             "sampler.steps": 25,
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
-            "model_loader.ckpt_name": "Deliberate",
+            "model_loader.model_name": "Deliberate",
             "clip_skip.stop_at_clip_layer": -1,
         }
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
@@ -59,7 +59,7 @@ class TestInference:
             "sampler.steps": 25,
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
-            "model_loader.ckpt_name": "Deliberate",
+            "model_loader.model_name": "Deliberate",
             "clip_skip.stop_at_clip_layer": -2,
         }
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
@@ -83,7 +83,7 @@ class TestInference:
                 "photograph, masterpiece, very detailed, sharp focus, very realistic lighting"
             ),
             "negative_prompt.text": "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes",
-            "model_loader.ckpt_name": "Deliberate",
+            "model_loader.model_name": "Deliberate",
             "empty_latent_image.width": 256,
             "empty_latent_image.height": 256,
             "latent_upscale.width": 512,
@@ -119,7 +119,7 @@ class TestInference:
                 "photograph, masterpiece, very detailed, sharp focus, very realistic lighting"
             ),
             "negative_prompt.text": "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes",
-            "model_loader.ckpt_name": "Deliberate",
+            "model_loader.model_name": "Deliberate",
             "empty_latent_image.width": 256,
             "empty_latent_image.height": 256,
             "latent_upscale.width": 512,

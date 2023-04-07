@@ -47,7 +47,7 @@ class HordeLib:
         # "prompt": Handled below
         "ddim_steps": "sampler.steps",
         "n_iter": "empty_latent_image.batch_size",
-        "model": "model_loader.ckpt_name",
+        "model": "model_loader.model_name",
         "source_image": "image_loader.image",
         "source_mask": None,
         "source_processing": None,

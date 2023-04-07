@@ -8,7 +8,7 @@ DEFAULT_MODEL_MANAGERS = {
     "compvis": True,
     "controlnet": True,
     "diffusers": True,
-    # "esrgan": True,
-    # "gfpgan": True,
+    "esrgan": True,
+    "gfpgan": True,
     "safety_checker": True,
 }

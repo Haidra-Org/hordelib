@@ -28,7 +28,7 @@
     },
     "4": {
         "inputs": {
-            "ckpt_name": "Deliberate.ckpt"
+            "model_name": "Deliberate.ckpt"
         },
         "class_type": "CheckpointLoaderSimple"
     },
