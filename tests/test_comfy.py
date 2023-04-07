@@ -5,7 +5,7 @@ from hordelib.comfy_horde import Comfy_Horde
 
 
 class TestSetup:
-    NUMBER_OF_PIPELINES = 2
+    NUMBER_OF_PIPELINES = 3
     comfy: Comfy_Horde
 
     @pytest.fixture(autouse=True)
@@ -20,6 +20,7 @@ class TestSetup:
         # Check the built in pipelines
         assert "stable_diffusion" in self.comfy.pipelines
         assert "stable_diffusion_hires_fix" in self.comfy.pipelines
+        assert "image_upscale" in self.comfy.pipelines
 
     def test_load_invalid_pipeline(self):
         loaded = self.comfy._load_pipeline("no-such-pipeline")
