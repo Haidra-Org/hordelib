@@ -7,6 +7,7 @@ from transformers import CLIPFeatureExtractor, CLIPTokenizer
 
 # from nataili.aitemplate import StableDiffusionAITPipeline
 from hordelib.cache import get_cache_directory
+from hordelib.consts import REMOTE_MODEL_DB
 from hordelib.model_manager.base import BaseModelManager
 
 # from nataili.util.voodoo import init_ait_module
@@ -19,7 +20,7 @@ class AITemplateModelManager(BaseModelManager):
         self.path = f"{get_cache_directory()}/aitemplate"
         self.models_db_name = "aitemplate"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
+        self.remote_db = f"{REMOTE_MODEL_DB}{self.models_db_name}.json"
         self.ait_workdir = None
         self.init()
 

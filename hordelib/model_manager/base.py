@@ -14,6 +14,7 @@ from tqdm import tqdm
 from transformers import logging
 
 from hordelib.cache import get_cache_directory
+from hordelib.consts import REMOTE_MODEL_DB
 
 # from nataili import disable_download_progress
 from hordelib.settings import WorkerSettings
@@ -38,7 +39,7 @@ class BaseModelManager:
         self.models_path = self.pkg / f"{self.models_db_name}.json"
         self.cuda_available = torch.cuda.is_available()
         self.cuda_devices, self.recommended_gpu = self.get_cuda_devices()
-        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
+        self.remote_db = f"{REMOTE_MODEL_DB}{self.models_db_name}.json"
         self.download_reference = download_reference
 
     def init(self, list_models=False):

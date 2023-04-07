@@ -5,6 +5,7 @@ from loguru import logger
 
 from hordelib.cache import get_cache_directory
 from hordelib.comfy_horde import load_checkpoint_guess_config
+from hordelib.consts import REMOTE_MODEL_DB
 from hordelib.model_manager.base import BaseModelManager
 
 
@@ -16,7 +17,7 @@ class CompVisModelManager(BaseModelManager):
         self.custom_path = custom_path
         self.models_db_name = "stable_diffusion"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
+        self.remote_db = f"{REMOTE_MODEL_DB}{self.models_db_name}.json"
         self.init()
 
     def load(

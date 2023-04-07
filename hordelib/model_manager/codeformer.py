@@ -5,6 +5,7 @@ from loguru import logger
 
 from hordelib import comfy_horde
 from hordelib.cache import get_cache_directory
+from hordelib.consts import REMOTE_MODEL_DB
 from hordelib.model_manager.base import BaseModelManager
 
 
@@ -17,7 +18,7 @@ class CodeFormerModelManager(BaseModelManager):
         # self.gfpgan = GfpganModelManager()
         # self.esrgan = EsrganModelManager()
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
+        self.remote_db = f"{REMOTE_MODEL_DB}{self.models_db_name}.json"
         self.init()
 
     def load(

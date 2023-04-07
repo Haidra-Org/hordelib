@@ -10,6 +10,7 @@ from torch import nn
 
 # from ldm.util import instantiate_from_config
 from hordelib.model_manager.base import BaseModelManager
+from hordelib.consts import REMOTE_MODEL_DB
 
 
 class NoiseLevelAndTextConditionedUpscaler(nn.Module):
@@ -96,7 +97,7 @@ class SDUModelManager(BaseModelManager):
         self.path = f"{Path.home()}/.cache/nataili/sdu"
         self.models_db_name = "sdu"
         self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = f"https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/{self.models_db_name}.json"
+        self.remote_db = f"{REMOTE_MODEL_DB}{self.models_db_name}.json"
         self.init()
 
     def load(
