@@ -102,12 +102,13 @@ class TestHordeInference:
         SharedModelManager.loadModelManagers(**self.default_model_manager_args)
         assert SharedModelManager.manager is not None
         SharedModelManager.manager.load("Deliberate")
+        SharedModelManager.manager.load("RealESRGAN_x4plus")
         yield
         del self.horde
         SharedModelManager._instance = None
         SharedModelManager.manager = None
 
-    def test_parameter_remap_simple(self):
+    def test_parameter_remap_text_to_image_simple(self):
         data = {
             "sampler_name": "k_lms",
             "cfg_scale": 5,
@@ -145,7 +146,7 @@ class TestHordeInference:
             "model_loader.model_manager": SharedModelManager,
         }
         assert self.horde is not None
-        result = self.horde._parameter_remap(data)
+        result = self.horde._parameter_remap_text_to_image(data)
         assert result == expected, f"Dictionaries don't match: {result} != {expected}"
 
     def test_parameter_remap_variation(self):
@@ -186,7 +187,7 @@ class TestHordeInference:
             "model_loader.model_manager": SharedModelManager,
         }
         assert self.horde is not None
-        result = self.horde._parameter_remap(data)
+        result = self.horde._parameter_remap_text_to_image(data)
         assert result == expected, f"Dictionaries don't match: {result} != {expected}"
 
     def test_text_to_image(self):
@@ -213,6 +214,31 @@ class TestHordeInference:
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
         pil_image.save("horde_text_to_image.png")
+
+    def test_text_to_image_small(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": 256,
+            "width": 256,
+            "karras": True,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": "canny",
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "dinosaur ### painting, drawing, artwork",
+            "ddim_steps": 12,
+            "n_iter": 1,
+            "model": "Deliberate",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.text_to_image(data)
+        assert pil_image is not None
+        pil_image.save("horde_text_to_image_small.png")
 
     def test_text_to_image_clip_skip_2(self):
         data = {
@@ -289,3 +315,13 @@ class TestHordeInference:
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
         pil_image.save("horde_image_to_image.png")
+
+    def test_image_upscale(self):
+        data = {
+            "model": "RealESRGAN_x4plus",
+            "source_image": Image.open("horde_text_to_image_small.png"),
+        }
+        assert self.horde is not None
+        pil_image = self.horde.image_upscale(data)
+        assert pil_image is not None
+        pil_image.save("horde_image_upscale.png")

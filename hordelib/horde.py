@@ -61,6 +61,15 @@ class HordeLib:
             if newkey:
                 params[newkey] = value
 
+        # Inject model manager if needed
+        if "model_loader.model_manager" not in params:
+            params["model_loader.model_manager"] = SharedModelManager
+
+        return params
+
+    def _parameter_remap_text_to_image(self, payload: dict[str, str | None]) -> dict[str, str | None]:
+        params = self._parameter_remap(payload)
+
         # XXX I think we need seed as an integer
         with contextlib.suppress(ValueError):
             params["sampler.seed"] = int(params["sampler.seed"])
@@ -119,21 +128,31 @@ class HordeLib:
                 # Finally mark that we are using hires fix
                 params["hires_fix"] = True
 
-        # Inject model manager
-        params["model_loader.model_manager"] = SharedModelManager
-
         return params
 
     def text_to_image(self, payload: dict[str, str | None]) -> Image.Image | None:
         generator = Comfy_Horde()
         # Determine our parameters
-        params = self._parameter_remap(payload)
+        params = self._parameter_remap_text_to_image(payload)
         # Determine the correct pipeline
         if "hires_fix" in params:
             del params["hires_fix"]
             pipeline = "stable_diffusion_hires_fix"
         else:
             pipeline = "stable_diffusion"
+        # Run the pipeline
+        images = generator.run_image_pipeline(pipeline, params)
+        if images is None:
+            return None  # XXX Log error and/or raise Exception here
+        # XXX Assumes the horde only asks for and wants 1 image
+        return Image.open(images[0]["imagedata"])
+
+    def image_upscale(self, payload: dict[str, str | None]) -> Image.Image | None:
+        generator = Comfy_Horde()
+        # Determine our parameters
+        params = self._parameter_remap(payload)
+        # Determine the correct pipeline
+        pipeline = "image_upscale"
         # Run the pipeline
         images = generator.run_image_pipeline(pipeline, params)
         if images is None:

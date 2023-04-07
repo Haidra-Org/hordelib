@@ -1,0 +1,38 @@
+{
+    "1": {
+        "inputs": {
+            "image": "ComfyUI_00010_.png",
+            "choose file to upload": "image"
+        },
+        "class_type": "LoadImage"
+    },
+    "3": {
+        "inputs": {
+            "upscale_model": [
+                "4",
+                0
+            ],
+            "image": [
+                "1",
+                0
+            ]
+        },
+        "class_type": "ImageUpscaleWithModel"
+    },
+    "4": {
+        "inputs": {
+            "model_name": "NMKD_Siax.pth"
+        },
+        "class_type": "UpscaleModelLoader"
+    },
+    "6": {
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "3",
+                0
+            ]
+        },
+        "class_type": "SaveImage"
+    }
+}

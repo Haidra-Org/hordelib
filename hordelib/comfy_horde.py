@@ -10,6 +10,8 @@ from io import BytesIO
 from loguru import logger
 from PIL import Image
 
+from hordelib.config_path import get_comfyui_path
+
 # Do not change the order of these imports
 # fmt: off
 import execution
@@ -51,9 +53,25 @@ class Comfy_Horde:
         logger.debug(f"Loaded custom pipeline node: {filename}")
 
     def _load_custom_nodes(self) -> None:
+        # Load standard nodes stored in odd locations first
+        self._load_extra_nodes()
+        # Now load our own nodes
         files = glob.glob(self._this_dir("node_*.py", subdir="nodes"))
         for file in files:
             self._load_node(os.path.basename(file))
+
+    def _load_comfy_node(self, filename: str) -> None:
+        try:
+            pathname = os.path.join(get_comfyui_path(), "comfy_extras", filename)
+            execution.nodes.load_custom_node(pathname)
+        except Exception:
+            logger.error(f"Failed to load comfy extra node: {filename}")
+            return
+        logger.debug(f"Loaded comfy extra node: {filename}")
+
+    # Load the comfy nodes that comfy stores in a different location from it's other nodes...
+    def _load_extra_nodes(self) -> None:
+        self._load_comfy_node("nodes_upscale_model.py")
 
     def _fix_pipeline_types(self, data: dict) -> dict:
         # We have a list of nodes and each node has a class type, which we may want to change
