@@ -8,9 +8,10 @@ from loguru import logger
 from omegaconf import OmegaConf
 from torch import nn
 
+from hordelib.consts import REMOTE_MODEL_DB
+
 # from ldm.util import instantiate_from_config
 from hordelib.model_manager.base import BaseModelManager
-from hordelib.consts import REMOTE_MODEL_DB
 
 
 class NoiseLevelAndTextConditionedUpscaler(nn.Module):
