@@ -24,7 +24,7 @@ class TestHordePostProcessing:
             # "gfpgan": True,
             # "safety_checker": True,
         }
-        self.image = Image.open("db0.jpg")
+        self.image = Image.open("images/db0.jpg")
         SharedModelManager.loadModelManagers(**self.default_model_manager_args)
         assert SharedModelManager.manager is not None
         SharedModelManager.manager.load("ViT-L/14")

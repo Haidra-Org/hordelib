@@ -137,7 +137,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("horde_text_to_image.png")
+        pil_image.save("images/horde_text_to_image.png")
 
     def test_text_to_image_small(self):
         data = {
@@ -162,7 +162,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("horde_text_to_image_small.png")
+        pil_image.save("images/horde_text_to_image_small.png")
 
     def test_text_to_image_clip_skip_2(self):
         data = {
@@ -187,7 +187,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("horde_text_to_image_clip_skip_2.png")
+        pil_image.save("images/horde_text_to_image_clip_skip_2.png")
 
     def test_text_to_image_hires_fix(self):
         data = {
@@ -212,7 +212,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("horde_text_to_image_hires_fix.png")
+        pil_image.save("images/horde_text_to_image_hires_fix.png")
 
     def test_image_to_image(self):
         data = {
@@ -233,19 +233,19 @@ class TestHordeInference:
             "ddim_steps": 25,
             "n_iter": 1,
             "model": "Deliberate",
-            "source_image": Image.open("horde_text_to_image.png"),
+            "source_image": Image.open("images/horde_text_to_image.png"),
         }
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("horde_image_to_image.png")
+        pil_image.save("images/horde_image_to_image.png")
 
     def test_image_upscale(self):
         data = {
             "model": "RealESRGAN_x4plus",
-            "source_image": Image.open("horde_text_to_image_small.png"),
+            "source_image": Image.open("images/horde_text_to_image_small.png"),
         }
         assert self.horde is not None
         pil_image = self.horde.image_upscale(data)
         assert pil_image is not None
-        pil_image.save("horde_image_upscale.png")
+        pil_image.save("images/horde_image_upscale.png")
