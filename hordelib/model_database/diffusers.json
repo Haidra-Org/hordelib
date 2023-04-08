@@ -1,0 +1,31 @@
+{
+	"stable_diffusion_inpainting": {
+		"name": "stable_diffusion_inpainting",
+		"baseline": "stable diffusion inpainting",
+		"type": "ckpt",
+		"description": "Generalist model specialized for modifying areas of existing images",
+		"showcases": [],
+		"version": "1.5",
+		"style": "diffusers",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "sd-v1-5-inpainting.ckpt"
+				},
+				{
+					"path": "v1-inpainting-inference.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "sd-v1-5-inpainting.ckpt",
+					"file_path": "",
+					"file_url": "https://huggingface.co/runwayml/stable-diffusion-inpainting/resolve/main/sd-v1-5-inpainting.ckpt"
+				}
+			]
+		},
+		"available": false
+	}
+}

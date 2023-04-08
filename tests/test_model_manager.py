@@ -32,6 +32,13 @@ class TestSharedModelManager:
         SharedModelManager._instance = None
         SharedModelManager.manager = None
 
+    def test_diffusers(self):
+        from hordelib.model_manager.diffusers import DiffusersModelManager
+
+        difusersMM = DiffusersModelManager()
+        difusersMM.load("stable_diffusion_inpainting")
+        pass
+
     def test_compvis(self):
         from hordelib.model_manager.compvis import CompVisModelManager
 

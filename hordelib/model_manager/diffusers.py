@@ -1,3 +1,4 @@
+from pathlib import Path
 import time
 
 import torch
@@ -8,6 +9,8 @@ from diffusers.pipelines import (
 from loguru import logger
 
 from hordelib.cache import get_cache_directory
+from hordelib.comfy_horde import load_checkpoint_guess_config
+from hordelib.config_path import get_hordelib_path
 from hordelib.consts import REMOTE_MODEL_DB
 from hordelib.model_manager.base import BaseModelManager
 
@@ -15,12 +18,15 @@ from hordelib.model_manager.base import BaseModelManager
 
 
 class DiffusersModelManager(BaseModelManager):
-    def __init__(self, download_reference=True):
+    def __init__(self, download_reference=False):  # XXX # Hack (download_reference)
         super().__init__()
         self.download_reference = download_reference
         self.path = f"{get_cache_directory()}/diffusers"
         self.models_db_name = "diffusers"
-        self.models_path = self.pkg / f"{self.models_db_name}.json"
+        self.models_path = Path(get_hordelib_path()).joinpath(
+            "model_database/",
+            f"{self.models_db_name}.json",
+        )
         self.remote_db = f"{REMOTE_MODEL_DB}{self.models_db_name}.json"
         self.init()
 
@@ -56,12 +62,12 @@ class DiffusersModelManager(BaseModelManager):
         if model_name not in self.loaded_models:
             tic = time.time()
             logger.info(f"{model_name}", status="Loading")  # logger.init
-            self.loaded_models[model_name] = self.load_diffusers(
-                model_name,
-                half_precision=half_precision,
-                gpu_id=gpu_id,
-                cpu_only=cpu_only,
-                voodoo=voodoo,
+            ckpt_path = self.get_model_files(model_name)[0]["path"]
+            ckpt_path = f"{self.path}/{ckpt_path}"
+            self.loaded_models[model_name] = load_checkpoint_guess_config(
+                ckpt_path,
+                output_vae=True,
+                output_clip=True,
             )
             logger.info(f"Loading {model_name}", status="Success")  # logger.init_ok
             toc = time.time()
@@ -71,51 +77,3 @@ class DiffusersModelManager(BaseModelManager):
             )  # logger.init_ok
             return True
         return None
-
-    def load_diffusers(
-        self,
-        model_name,
-        half_precision=True,
-        gpu_id=0,
-        cpu_only=False,
-        voodoo=False,
-    ):
-        if not self.cuda_available:
-            cpu_only = True
-        model_path = self.models[model_name]["hf_path"]
-        if cpu_only:
-            device = torch.device("cpu")
-            half_precision = False
-        else:
-            device = torch.device(f"cuda:{gpu_id}" if self.cuda_available else "cpu")
-        logger.info(f"Loading model {model_name} on {device}")
-        logger.info(f"Model path: {model_path}")
-        if model_name == "Stable Diffusion 2 Depth":
-            pipe = StableDiffusionDepth2ImgPipeline.from_pretrained(
-                model_path,
-                revision="fp16" if half_precision else None,
-                torch_dtype=torch.float16 if half_precision else None,
-                use_auth_token=self.models[model_name]["hf_auth"],
-            )
-        elif self.models[model_name]["hf_branch"] == "fp16":
-            pipe = StableDiffusionInpaintPipeline.from_pretrained(
-                model_path,
-                revision="fp16",
-                torch_dtype=torch.float16 if half_precision else None,
-                use_auth_token=self.models[model_name]["hf_auth"],
-            )
-        else:
-            pipe = StableDiffusionInpaintPipeline.from_pretrained(
-                model_path,
-                revision=None,
-                torch_dtype=torch.float16 if half_precision else None,
-                use_auth_token=self.models[model_name]["hf_auth"],
-            )
-        pipe.enable_attention_slicing()
-
-        if voodoo:
-            logger.debug(f"Doing voodoo on {model_name}")
-            pipe = push_diffusers_pipeline_to_plasma(pipe)
-        else:
-            pipe.to(device)
-        return {"model": pipe, "device": device, "half_precision": half_precision}

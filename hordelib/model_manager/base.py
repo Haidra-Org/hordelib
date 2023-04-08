@@ -85,8 +85,6 @@ class BaseModelManager:
         :param model_name: Name of the model
         Returns the files for a model
         """
-        if self.models[model_name]["type"] == "diffusers":
-            return []
         return self.models[model_name]["config"]["files"]
 
     def get_model_download(self, model_name):
