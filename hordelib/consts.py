@@ -1,10 +1,10 @@
 # consts.py
 
 # hordelib version
-VERSION = "v0.0.2"
+VERSION = "v0.2.0"
 
 # ComfyUI exact version we need
-COMFYUI_VERSION = "v0.0.2"
+COMFYUI_VERSION = "ebd7f9bf80213a44a8e2cadc75875a4b980991e5"
 
 # Default model managers to load
 DEFAULT_MODEL_MANAGERS = {
