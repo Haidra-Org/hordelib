@@ -1,12 +1,14 @@
 # hordelib
 
-`hordelib` is a thin wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed in ComfyUI. `hordelib` and ComfyUI are licensed under the terms of the GNU General Public License.
+`hordelib` is a thin wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed visually in the ComfyUI GUI.
 
 The developers of this project can be found in the AI Horde Discord server: https://discord.gg/3DxrhksKznb
 
+NOTE: This project is in early development and is not yet in use by Stable Horde.
+
 ## Purpose
 
-The goal here is to be able to design inference pipelines in the excellent ComfyUI, and then call those inference pipelines programmatically, in a manner ultimately suitable for use in stable horde.
+The goal here is to be able to design inference pipelines in the excellent ComfyUI, and then call those inference pipelines programmatically. Whilst providing features that maintain compatibility with the existing horde implementation.
 
 ## Installation
 
@@ -62,6 +64,8 @@ pil_image.save("test.png")
 
 Note that `hordelib.initialise()` will erase all command line arguments from argv. So make sure you parse them before you call that.
 
+See `tests/run_*.py` for more standalone examples.
+
 ## Development
 
 Requirements:
@@ -91,7 +95,7 @@ Simply execute: `tox` (or `tox -q` for less noisy output)
 
 This will take a while the first time as it installs all the dependencies.
 
-If the tests run successfully images will be produced in the project with the name of each pipeline, for example, `pipeline_stable_diffusion.png` and likely some other .png files too.
+If the tests run successfully images will be produced in the `images/` folder.
 
 #### Running a specific test file
 
