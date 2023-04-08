@@ -36,5 +36,5 @@ data = {
     "model": "Deliberate",
     "source_image": Image.open("images/horde_text_to_image.png"),
 }
-pil_image = generate.text_to_image(data)
+pil_image = generate.basic_inference(data)
 pil_image.save("images/test.png")

@@ -37,5 +37,5 @@ data = {
     "source_image": Image.open("images/test_outpaint.png"),
     "source_processing": "outpainting",
 }
-pil_image = generate.text_to_image(data)
+pil_image = generate.basic_inference(data)
 pil_image.save("images/test.png")

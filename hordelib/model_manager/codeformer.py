@@ -53,9 +53,6 @@ class CodeFormerModelManager(BaseModelManager):
             logger.info(f"{model_name}", status="Loading")  # logger.init
             self.loaded_models[model_name] = self.load_codeformer(
                 model_name,
-                half_precision=half_precision,
-                gpu_id=gpu_id,
-                cpu_only=cpu_only,
             )
             logger.info(f"Loading {model_name}", status="Success")  # logger.init_ok
             toc = time.time()

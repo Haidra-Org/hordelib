@@ -363,8 +363,6 @@ class ModelManager:
         if self.gfpgan is not None and model_name in self.gfpgan.models:
             success = self.gfpgan.load(
                 model_name=model_name,
-                gpu_id=gpu_id,
-                cpu_only=cpu_only,
             )
             if success:
                 self.loaded_models.update(

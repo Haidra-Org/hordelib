@@ -30,7 +30,7 @@ class HordeLib:
 
     # Horde to tex2img parameter mapping
     # XXX Items mapped to None are ignored for now
-    TEXT_TO_IMAGE_PARAMS = {
+    BASIC_INFERENCE_PARAMS = {
         "sampler_name": "sampler.sampler_name",
         "cfg_scale": "sampler.cfg",
         "denoising_strength": "sampler.denoise",
@@ -59,7 +59,7 @@ class HordeLib:
         params = {}
         # Extract from the payload things we understand
         for key, value in payload.items():
-            newkey = HordeLib.TEXT_TO_IMAGE_PARAMS.get(key, None)
+            newkey = HordeLib.BASIC_INFERENCE_PARAMS.get(key, None)
             if newkey:
                 params[newkey] = value
 
@@ -69,7 +69,7 @@ class HordeLib:
 
         return params
 
-    def _parameter_remap_text_to_image(
+    def _parameter_remap_basic_inference(
         self,
         payload: dict[str, str | None],
     ) -> dict[str, str | None]:
@@ -138,7 +138,7 @@ class HordeLib:
         return params
 
     # Fix any nonsensical requests
-    def _validate_text_to_image_params(self, payload):
+    def _validate_BASIC_INFERENCE_PARAMS(self, payload):
         # Turn off hires fix if we're not generating a hires image
         if "hires_fix" in payload and (
             payload["width"] <= 512 or payload["height"] <= 512
@@ -184,12 +184,12 @@ class HordeLib:
 
         return pipeline
 
-    def text_to_image(self, payload: dict[str, str | None]) -> Image.Image | None:
+    def basic_inference(self, payload: dict[str, str | None]) -> Image.Image | None:
         generator = Comfy_Horde()
         # Validate our payload parameters
-        params = self._validate_text_to_image_params(payload)
+        params = self._validate_BASIC_INFERENCE_PARAMS(payload)
         # Determine our parameters
-        params = self._parameter_remap_text_to_image(payload)
+        params = self._parameter_remap_basic_inference(payload)
         # Determine the correct pipeline
         pipeline = self._get_appropriate_pipeline(params)
         # Run the pipeline

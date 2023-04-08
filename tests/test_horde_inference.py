@@ -31,7 +31,7 @@ class TestHordeInference:
         SharedModelManager._instance = None
         SharedModelManager.manager = None
 
-    def test_parameter_remap_text_to_image_simple(self):
+    def test_parameter_remap_basic_inference_simple(self):
         data = {
             "sampler_name": "k_lms",
             "cfg_scale": 5,
@@ -69,7 +69,7 @@ class TestHordeInference:
             "model_loader.model_manager": SharedModelManager,
         }
         assert self.horde is not None
-        result = self.horde._parameter_remap_text_to_image(data)
+        result = self.horde._parameter_remap_basic_inference(data)
         assert result == expected, f"Dictionaries don't match: {result} != {expected}"
 
     def test_parameter_remap_variation(self):
@@ -110,7 +110,7 @@ class TestHordeInference:
             "model_loader.model_manager": SharedModelManager,
         }
         assert self.horde is not None
-        result = self.horde._parameter_remap_text_to_image(data)
+        result = self.horde._parameter_remap_basic_inference(data)
         assert result == expected, f"Dictionaries don't match: {result} != {expected}"
 
     def test_text_to_image(self):
@@ -134,7 +134,7 @@ class TestHordeInference:
             "model": "Deliberate",
         }
         assert self.horde is not None
-        pil_image = self.horde.text_to_image(data)
+        pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         pil_image.save("images/horde_text_to_image.webp", quality=90)
 
@@ -159,7 +159,7 @@ class TestHordeInference:
             "model": "Deliberate",
         }
         assert self.horde is not None
-        pil_image = self.horde.text_to_image(data)
+        pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         pil_image.save("images/horde_text_to_image_small.webp", quality=90)
 
@@ -184,7 +184,7 @@ class TestHordeInference:
             "model": "Deliberate",
         }
         assert self.horde is not None
-        pil_image = self.horde.text_to_image(data)
+        pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         pil_image.save("images/horde_text_to_image_clip_skip_2.webp", quality=90)
 
@@ -209,7 +209,7 @@ class TestHordeInference:
             "model": "Deliberate",
         }
         assert self.horde is not None
-        pil_image = self.horde.text_to_image(data)
+        pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         pil_image.save("images/horde_text_to_image_hires_fix.webp", quality=90)
 
@@ -236,7 +236,7 @@ class TestHordeInference:
             "source_processing": "img2img",
         }
         assert self.horde is not None
-        pil_image = self.horde.text_to_image(data)
+        pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         pil_image.save("images/horde_image_to_image.webp", quality=90)
 
@@ -263,7 +263,7 @@ class TestHordeInference:
             "source_processing": "img2img",
         }
         assert self.horde is not None
-        pil_image = self.horde.text_to_image(data)
+        pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         pil_image.save("images/horde_image_to_image_hires_fix_small.webp", quality=90)
 
@@ -290,7 +290,7 @@ class TestHordeInference:
             "source_processing": "img2img",
         }
         assert self.horde is not None
-        pil_image = self.horde.text_to_image(data)
+        pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         pil_image.save("images/horde_image_to_image_hires_fix_large.webp", quality=90)
 
@@ -317,7 +317,7 @@ class TestHordeInference:
             "source_processing": "inpainting",
         }
         assert self.horde is not None
-        pil_image = self.horde.text_to_image(data)
+        pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         pil_image.save("images/horde_image_to_image_mask_in.webp", quality=90)
 
@@ -344,6 +344,6 @@ class TestHordeInference:
             "source_processing": "outpainting",
         }
         assert self.horde is not None
-        pil_image = self.horde.text_to_image(data)
+        pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         pil_image.save("images/horde_image_to_image_mask_out.webp", quality=90)

@@ -56,7 +56,7 @@ data = {
     "n_iter": 1,
     "model": "Deliberate",
 }
-pil_image = generate.text_to_image(data)
+pil_image = generate.basic_inference(data)
 pil_image.save("test.png")
 ```
 

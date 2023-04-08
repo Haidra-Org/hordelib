@@ -26,6 +26,7 @@ class TestHordeUpscaling:
         SharedModelManager.loadModelManagers(**self.default_model_manager_args)
         assert SharedModelManager.manager is not None
         self.image = Image.open("images/test_db0.jpg")
+        self.width, self.height = self.image.size
         yield
         del self.horde
         SharedModelManager._instance = None
@@ -44,6 +45,9 @@ class TestHordeUpscaling:
         assert self.horde is not None
         pil_image = self.horde.image_upscale(data)
         assert pil_image is not None
+        width, height = pil_image.size
+        assert width == self.width * 4
+        assert height == self.height * 4
         pil_image.save("images/horde_image_upscale_RealESRGAN_x4plus.webp", quality=90)
 
     def test_image_upscale_RealESRGAN_x2plus(self):
@@ -58,6 +62,9 @@ class TestHordeUpscaling:
         }
         pil_image = self.horde.image_upscale(data)
         assert pil_image is not None
+        width, height = pil_image.size
+        assert width == self.width * 2
+        assert height == self.height * 2
         pil_image.save("images/horde_image_upscale_RealESRGAN_x2plus.webp", quality=90)
 
     def test_image_upscale_NMKD_Siax(self):
@@ -69,6 +76,9 @@ class TestHordeUpscaling:
         }
         pil_image = self.horde.image_upscale(data)
         assert pil_image is not None
+        width, height = pil_image.size
+        assert width == self.width * 4
+        assert height == self.height * 4
         pil_image.save("images/horde_image_upscale_NMKD_Siax.webp", quality=90)
 
     def test_image_upscale_RealESRGAN_x4plus_anime_6B(self):
@@ -85,6 +95,9 @@ class TestHordeUpscaling:
         }
         pil_image = self.horde.image_upscale(data)
         assert pil_image is not None
+        width, height = pil_image.size
+        assert width == self.width * 4
+        assert height == self.height * 4
         pil_image.save(
             "images/horde_image_upscale_RealESRGAN_x4plus_anime_6B.webp", quality=90
         )
@@ -100,4 +113,7 @@ class TestHordeUpscaling:
         }
         pil_image = self.horde.image_upscale(data)
         assert pil_image is not None
+        width, height = pil_image.size
+        assert width == self.width * 4
+        assert height == self.height * 4
         pil_image.save("images/horde_image_upscale_4x_AnimeSharp.webp", quality=90)
