@@ -4,7 +4,7 @@
 VERSION = "0.1.0"
 
 # ComfyUI exact version we need
-COMFYUI_VERSION = "f4e359cce1fe0e929bde617083a414961dd871b3"
+COMFYUI_VERSION = "ebd7f9bf80213a44a8e2cadc75875a4b980991e5"
 
 # Default model managers to load
 DEFAULT_MODEL_MANAGERS = {
