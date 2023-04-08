@@ -1,7 +1,7 @@
 # consts.py
 
 # hordelib version
-VERSION = "0.1.0"
+VERSION = "0.2.0"
 
 # ComfyUI exact version we need
 COMFYUI_VERSION = "ebd7f9bf80213a44a8e2cadc75875a4b980991e5"
