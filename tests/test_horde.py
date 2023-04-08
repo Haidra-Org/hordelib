@@ -331,3 +331,30 @@ class TestHordeInference:
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
         pil_image.save("images/horde_image_to_image_inpainting.png")
+
+    def test_image_to_image_outpainting(self):
+        data = {
+            "sampler_name": "euler",
+            "cfg_scale": 8.0,
+            "denoising_strength": 1.0,
+            "seed": 836913938046008,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": "canny",
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a river through the mountains, blue sky with clouds.",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_outpaint.png"),
+            "source_processing": "outpainting",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.text_to_image(data)
+        assert pil_image is not None
+        pil_image.save("images/horde_image_to_image_outpainting.png")

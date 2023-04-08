@@ -140,8 +140,8 @@ hordelib/ComfyUI
 ComfyUI
 model.ckpt
 coverage.lcov
-images/*.png
-*.png
+images/pip*.png
+images/hor*.png
 comfy-prompt*.json
 
 .vscode
