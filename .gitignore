@@ -141,6 +141,7 @@ ComfyUI
 model.ckpt
 coverage.lcov
 images/pip*.png
+images/test.png
 images/hor*.png
 comfy-prompt*.json
 
