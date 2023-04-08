@@ -50,8 +50,10 @@ class HordeLib:
         "model": "model_loader.model_name",
         "source_image": "image_loader.image",
         "source_mask": None,
-        "source_processing": None,
+        "source_processing": "source_processing",
     }
+
+    SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting"]
 
     def _parameter_remap(self, payload: dict[str, str | None]) -> dict[str, str | None]:
         params = {}
@@ -143,6 +145,46 @@ class HordeLib:
         ):
             payload["hires_fix"] = False
 
+        # Remove source_processing if it's not valid
+        if (
+            payload.get("source_processing")
+            and payload.get("source_processing")
+            not in HordeLib.SOURCE_IMAGE_PROCESSING_OPTIONS
+        ):
+            del payload["source_processing"]
+
+        # Remove source image if we don't need it
+        if payload.get("source_image"):
+            if (
+                "source_processing" not in payload
+                or payload["source_processing"]
+                not in HordeLib.SOURCE_IMAGE_PROCESSING_OPTIONS
+            ):
+                del payload["source_image"]
+
+    def _get_appropriate_pipeline(self, params):
+        # Determine the correct pipeline based on the parameters we have
+
+        # Hires fix
+        if "hires_fix" in params:
+            del params["hires_fix"]
+            pipeline = "stable_diffusion_hires_fix"
+        else:
+            pipeline = "stable_diffusion"
+
+        # Source processing modes
+        source_proc = params.get("source_processing")
+        if source_proc:
+            del params["source_processing"]
+        if source_proc == "img2img":
+            pass  # doesn't impact pipeline
+        elif source_proc == "inpainting":
+            pipeline = "stable_diffusion_paint"
+        elif source_proc == "outpainting":
+            pipeline = "stable_diffusion_paint"
+
+        return pipeline
+
     def text_to_image(self, payload: dict[str, str | None]) -> Image.Image | None:
         generator = Comfy_Horde()
         # Validate our payload parameters
@@ -150,11 +192,7 @@ class HordeLib:
         # Determine our parameters
         params = self._parameter_remap_text_to_image(payload)
         # Determine the correct pipeline
-        if "hires_fix" in params:
-            del params["hires_fix"]
-            pipeline = "stable_diffusion_hires_fix"
-        else:
-            pipeline = "stable_diffusion"
+        pipeline = self._get_appropriate_pipeline(params)
         # Run the pipeline
         images = generator.run_image_pipeline(pipeline, params)
         if images is None:

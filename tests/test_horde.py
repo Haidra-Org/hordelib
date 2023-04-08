@@ -234,6 +234,7 @@ class TestHordeInference:
             "n_iter": 1,
             "model": "Deliberate",
             "source_image": Image.open("images/horde_text_to_image.png"),
+            "source_processing": "img2img",
         }
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
@@ -270,6 +271,7 @@ class TestHordeInference:
             "n_iter": 1,
             "model": "Deliberate",
             "source_image": Image.open("images/horde_text_to_image.png"),
+            "source_processing": "img2img",
         }
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
@@ -296,8 +298,36 @@ class TestHordeInference:
             "n_iter": 1,
             "model": "Deliberate",
             "source_image": Image.open("images/horde_text_to_image.png"),
+            "source_processing": "img2img",
         }
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
         pil_image.save("images/horde_image_to_image_hires_fix_large.png")
+
+    def test_image_to_image_inpainting(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.72,
+            "seed": 836913938046008,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": "canny",
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a river through the mountains",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_inpaint.png"),
+            "source_processing": "inpainting",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.text_to_image(data)
+        assert pil_image is not None
+        pil_image.save("images/horde_image_to_image_inpainting.png")

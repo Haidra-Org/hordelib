@@ -220,6 +220,7 @@ class Comfy_Horde:
     # Used for dynamic switching of pipeline graphs
     @classmethod
     def reconnect_input(cls, dct, input, output):
+        logger.debug(f"Request to reconnect input {input} to output {output}")
         keys = input.split(".")
         if "inputs" not in keys:
             keys.insert(1, "inputs")
@@ -246,7 +247,7 @@ class Comfy_Horde:
             logger.error(f"Unknown inference pipeline: {pipeline_name}")
             return None
 
-        logger.debug(f"Running pipeline {pipeline_name}")
+        logger.info(f"Running pipeline {pipeline_name}")
 
         # Grab a copy of the pipeline
         pipeline = copy.copy(self.pipelines[pipeline_name])
