@@ -60,6 +60,8 @@ pil_image = generate.basic_inference(data)
 pil_image.save("test.png")
 ```
 
+Note that `hordelib.initialise()` will erase all command line arguments from argv. So make sure you parse them before you call that.
+
 ## Development
 
 Requirements:
