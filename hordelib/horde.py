@@ -146,21 +146,20 @@ class HordeLib:
             payload["hires_fix"] = False
 
         # Remove source_processing if it's not valid
-        if (
-            payload.get("source_processing")
-            and payload.get("source_processing")
-            not in HordeLib.SOURCE_IMAGE_PROCESSING_OPTIONS
-        ):
+        img_proc = payload.get("source_processing")
+        if img_proc and img_proc not in HordeLib.SOURCE_IMAGE_PROCESSING_OPTIONS:
             del payload["source_processing"]
 
         # Remove source image if we don't need it
         if payload.get("source_image"):
-            if (
-                "source_processing" not in payload
-                or payload["source_processing"]
-                not in HordeLib.SOURCE_IMAGE_PROCESSING_OPTIONS
-            ):
+            if not img_proc or img_proc not in HordeLib.SOURCE_IMAGE_PROCESSING_OPTIONS:
                 del payload["source_image"]
+
+        # Turn off hires fix if we're painting as the dimensions are from the image
+        if "hires_fix" in payload and (
+            img_proc == "inpainting" or img_proc == "outpainting"
+        ):
+            payload["hires_fix"] = False
 
     def _get_appropriate_pipeline(self, params):
         # Determine the correct pipeline based on the parameters we have
