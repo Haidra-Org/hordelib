@@ -17,7 +17,6 @@ class HordeUpscaleModelLoader:
     CATEGORY = "loaders"
 
     def load_model(self, model_name, model_manager):
-
         logger.debug(f"Loading model {model_name} through our custom node")
 
         if model_manager.manager is None:

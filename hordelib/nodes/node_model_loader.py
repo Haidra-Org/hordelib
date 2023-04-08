@@ -26,7 +26,6 @@ class HordeCheckpointLoader:
         output_vae=True,
         output_clip=True,
     ):
-
         logger.debug(f"Loading model {model_name} through our custom node")
 
         if model_manager.manager is None:

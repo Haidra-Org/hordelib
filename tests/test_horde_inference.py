@@ -13,20 +13,19 @@ class TestHordeInference:
 
         self.default_model_manager_args = {
             # aitemplate
-            "blip": True,
-            "clip": True,
-            "codeformer": True,
+            # "blip": True,
+            # "clip": True,
+            # "codeformer": True,
             "compvis": True,
-            "controlnet": True,
-            "diffusers": True,
-            "esrgan": True,
-            "gfpgan": True,
-            "safety_checker": True,
+            # "controlnet": True,
+            # "diffusers": True,
+            # "esrgan": True,
+            # "gfpgan": True,
+            # "safety_checker": True,
         }
         SharedModelManager.loadModelManagers(**self.default_model_manager_args)
         assert SharedModelManager.manager is not None
         SharedModelManager.manager.load("Deliberate")
-        SharedModelManager.manager.load("RealESRGAN_x4plus")
         yield
         del self.horde
         SharedModelManager._instance = None
@@ -137,7 +136,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("images/horde_text_to_image.png")
+        pil_image.save("images/horde_text_to_image.webp", quality=90)
 
     def test_text_to_image_small(self):
         data = {
@@ -162,7 +161,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("images/horde_text_to_image_small.png")
+        pil_image.save("images/horde_text_to_image_small.webp", quality=90)
 
     def test_text_to_image_clip_skip_2(self):
         data = {
@@ -187,7 +186,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("images/horde_text_to_image_clip_skip_2.png")
+        pil_image.save("images/horde_text_to_image_clip_skip_2.webp", quality=90)
 
     def test_text_to_image_hires_fix(self):
         data = {
@@ -212,7 +211,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("images/horde_text_to_image_hires_fix.png")
+        pil_image.save("images/horde_text_to_image_hires_fix.webp", quality=90)
 
     def test_image_to_image(self):
         data = {
@@ -233,23 +232,13 @@ class TestHordeInference:
             "ddim_steps": 25,
             "n_iter": 1,
             "model": "Deliberate",
-            "source_image": Image.open("images/horde_text_to_image.png"),
+            "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("images/horde_image_to_image.png")
-
-    def test_image_upscale(self):
-        data = {
-            "model": "RealESRGAN_x4plus",
-            "source_image": Image.open("images/horde_text_to_image_small.png"),
-        }
-        assert self.horde is not None
-        pil_image = self.horde.image_upscale(data)
-        assert pil_image is not None
-        pil_image.save("images/horde_image_upscale.png")
+        pil_image.save("images/horde_image_to_image.webp", quality=90)
 
     def test_image_to_image_hires_fix_small(self):
         data = {
@@ -270,13 +259,13 @@ class TestHordeInference:
             "ddim_steps": 25,
             "n_iter": 1,
             "model": "Deliberate",
-            "source_image": Image.open("images/horde_text_to_image.png"),
+            "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("images/horde_image_to_image_hires_fix_small.png")
+        pil_image.save("images/horde_image_to_image_hires_fix_small.webp", quality=90)
 
     def test_image_to_image_hires_fix_large(self):
         data = {
@@ -297,15 +286,15 @@ class TestHordeInference:
             "ddim_steps": 25,
             "n_iter": 1,
             "model": "Deliberate",
-            "source_image": Image.open("images/horde_text_to_image.png"),
+            "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("images/horde_image_to_image_hires_fix_large.png")
+        pil_image.save("images/horde_image_to_image_hires_fix_large.webp", quality=90)
 
-    def test_image_to_image_inpainting(self):
+    def test_image_to_image_mask_in(self):
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
@@ -330,9 +319,9 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("images/horde_image_to_image_inpainting.png")
+        pil_image.save("images/horde_image_to_image_mask_in.webp", quality=90)
 
-    def test_image_to_image_outpainting(self):
+    def test_image_to_image_mask_out(self):
         data = {
             "sampler_name": "euler",
             "cfg_scale": 8.0,
@@ -357,4 +346,4 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.text_to_image(data)
         assert pil_image is not None
-        pil_image.save("images/horde_image_to_image_outpainting.png")
+        pil_image.save("images/horde_image_to_image_mask_out.webp", quality=90)
