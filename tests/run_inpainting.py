@@ -13,8 +13,8 @@ from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
 generate = HordeLib()
-SharedModelManager.loadModelManagers(compvis=True)
-SharedModelManager.manager.load("Deliberate")
+SharedModelManager.loadModelManagers(diffusers=True)
+SharedModelManager.manager.load("stable_diffusion_inpainting")
 
 data = {
     "sampler_name": "euler",
@@ -33,9 +33,9 @@ data = {
     "prompt": "a dinosaur",
     "ddim_steps": 20,
     "n_iter": 1,
-    "model": "Deliberate",
+    "model": "stable_diffusion_inpainting",
     "source_image": Image.open("images/test_inpaint.png"),
     "source_processing": "inpainting",
 }
 pil_image = generate.basic_inference(data)
-pil_image.save("images/test.png")
+pil_image.save("images/test_run_inpainting.png")
