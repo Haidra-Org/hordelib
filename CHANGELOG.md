@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.2.2](https://github.com/jug-dev/hordelib/tree/v0.2.2) (2023-04-09)
+
+[Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.2.1...v0.2.2)
+
+**Merged pull requests:**
+
+- ci: inpainting tests [\#47](https://github.com/jug-dev/hordelib/pull/47) ([db0](https://github.com/db0))
+
 ## [v0.2.1](https://github.com/jug-dev/hordelib/tree/v0.2.1) (2023-04-09)
 
 [Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.2.0...v0.2.1)
