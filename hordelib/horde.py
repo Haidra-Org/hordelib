@@ -176,18 +176,21 @@ class HordeLib:
         if source_proc:
             del params["source_processing"]
         if source_proc == "img2img":
-            pass  # doesn't impact pipeline
+            # FIXME: Probably will have a different name from BASIC_INFERENCE_PARAMS
+            if params.get("source_mask"):
+                pipeline = "stable_diffusion_paint"
+            elif len(params.get("image_loader.image").split()) == 4:
+                pipeline = "stable_diffusion_paint"
         elif source_proc == "inpainting":
             pipeline = "stable_diffusion_paint"
         elif source_proc == "outpainting":
             pipeline = "stable_diffusion_paint"
-
         return pipeline
 
     def basic_inference(self, payload: dict[str, str | None]) -> Image.Image | None:
         generator = Comfy_Horde()
         # Validate our payload parameters
-        params = self._validate_BASIC_INFERENCE_PARAMS(payload)
+        self._validate_BASIC_INFERENCE_PARAMS(payload)
         # Determine our parameters
         params = self._parameter_remap_basic_inference(payload)
         # Determine the correct pipeline
