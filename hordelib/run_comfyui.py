@@ -15,15 +15,14 @@ from hordelib.install_comfy import Installer
 class ComfyWebAppLauncher:
     @classmethod
     def run_comfyui(cls):
-        # Apply patches to comfyui that we may find useful for development.
-        # This patch file is not applied during normal use of hordelib.
-        Installer.apply_patch(os.path.join(get_hordelib_path(), "run_comfyui.patch"))
-
         # Launch a browser
         webbrowser.open("http://127.0.0.1:8188/")
         logger.warning(
             "Wait a moment and then refresh your browser. It takes a while to load the backend."
         )
+
+        # Tell comfyui where are custom nodes are
+        os.environ["AIWORKER_CUSTOM_NODES"] = os.path.join(get_hordelib_path(), "nodes")
 
         # Now launch the comfyui process and replace our current process
         os.chdir(get_comfyui_path())

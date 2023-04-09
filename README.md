@@ -165,7 +165,10 @@ Now ComfyUI is pinned to a new version.
 
 ### ComfyUI Patching
 
-It may be that we need to patch the ComfyUI source code. Currently this optional and only used for development helpers. However, the mechanisms to patch ComfyUI source code at runtime are also already in place.
+We need to patch the ComfyUI source code. It's only a small patch to:
+
+1. Allow ComfyUI to find our custom nodes without copying files and folder around.
+2. Allow make ComfyUI output some handy JSON we need for development purposes.
 
 To create a patch file:
 - Make the required changes to a clean install of ComfyUI and then run `git diff > yourfile.patch` then move the patch file to wherever you want to save it.

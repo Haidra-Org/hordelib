@@ -65,6 +65,8 @@ class Installer:
                 installdir,
             )
             cls._run(f"git checkout {comfy_version}", get_comfyui_path())
+            # Apply our patches to comfyui
+            cls.apply_patch(os.path.join(get_hordelib_path(), "install_comfy.patch"))
             return
 
         # If it's installed, is it up to date?
@@ -77,10 +79,20 @@ class Installer:
         logger.info(
             f"Current ComfyUI version {version[:8]} requires {comfy_version[:8]}",
         )
-        # Try hard to ensure we reset everything even if we have been
-        # hacking on ComfyUI or are in a weird repo state
+        cls.reset_comfyui_to_version(comfy_version)
+        # Apply our patches to comfyui
+        cls.apply_patch(os.path.join(get_hordelib_path(), "install_comfy.patch"))
+
+    @classmethod
+    def remove_local_comfyui_changes(cls):
         cls._run("git reset --hard", get_comfyui_path())
         cls._run("git clean -fd", get_comfyui_path())
+
+    @classmethod
+    def reset_comfyui_to_version(cls, comfy_version):
+        # Try hard to ensure we reset everything even if we have been
+        # hacking on ComfyUI or are in a weird repo state
+        cls.remove_local_comfyui_changes()
         cls._run("git checkout master", get_comfyui_path())
         cls._run("git pull", get_comfyui_path())
         cls._run(f"git checkout {comfy_version}", get_comfyui_path())
@@ -98,11 +110,19 @@ class Installer:
         could_reverse = not result.returncode
         if could_apply:
             # Apply the patch
-            logger.debug(f"Applying patch {patchfile}")
-            cls._run_get_result(f"git apply {patchfile}", get_comfyui_path())
+            logger.info(f"Applying patch {patchfile}")
+            result = cls._run_get_result(f"git apply {patchfile}", get_comfyui_path())
+            logger.debug(f"{result}")
         elif could_reverse:
             # Patch is already applied, all is well
-            logger.debug(f"Already applied patch {patchfile}")
+            logger.info(f"Already applied patch {patchfile}")
         else:
-            # Couldn't apply or reverse? That's not so good
-            logger.error(f"Could not apply patch {patchfile}")
+            # Couldn't apply or reverse? That's not so good, but maybe we are partially applied?
+            # Reset local changes
+            cls.remove_local_comfyui_changes()
+            # Try to apply the patch
+            logger.info(f"Applying patch {patchfile}")
+            result = cls._run_get_result(f"git apply {patchfile}", get_comfyui_path())
+            logger.debug(f"{result}")
+            if result.returncode:
+                logger.error(f"Could not apply patch {patchfile}")

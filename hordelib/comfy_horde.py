@@ -59,34 +59,9 @@ class Comfy_Horde:
             target_dir = os.path.join(target_dir, subdir)
         return os.path.join(target_dir, filename)
 
-    def _load_node(self, filename: str) -> None:
-        try:
-            execution.nodes.load_custom_node(self._this_dir(filename, subdir="nodes"))
-        except Exception:
-            logger.error(f"Failed to load custom pipeline node: {filename}")
-            return
-        logger.debug(f"Loaded custom pipeline node: {filename}")
-
     def _load_custom_nodes(self) -> None:
-        # Load standard nodes stored in odd locations first
-        self._load_extra_nodes()
-        # Now load our own nodes
-        files = glob.glob(self._this_dir("node_*.py", subdir="nodes"))
-        for file in files:
-            self._load_node(os.path.basename(file))
-
-    def _load_comfy_node(self, filename: str) -> None:
-        try:
-            pathname = os.path.join(get_comfyui_path(), "comfy_extras", filename)
-            execution.nodes.load_custom_node(pathname)
-        except Exception:
-            logger.error(f"Failed to load comfy extra node: {filename}")
-            return
-        logger.debug(f"Loaded comfy extra node: {filename}")
-
-    # Load the comfy nodes that comfy stores in a different location from it's other nodes...
-    def _load_extra_nodes(self) -> None:
-        self._load_comfy_node("nodes_upscale_model.py")
+        execution.nodes.init_custom_nodes()
+        execution.nodes.load_custom_nodes(self._this_dir("nodes"))
 
     def _fix_pipeline_types(self, data: dict) -> dict:
         # We have a list of nodes and each node has a class type, which we may want to change

@@ -1,0 +1,51 @@
+﻿diff --git a/execution.py b/execution.py
+index 79c9a3a..fec1ff1 100644
+--- a/execution.py
++++ b/execution.py
+@@ -289,6 +289,8 @@ def validate_prompt(prompt):
+         errors_list = "\n".join(set(map(lambda a: "{}".format(a[1]), errors)))
+         return (False, "Prompt has no properly connected outputs\n {}".format(errors_list))
+ 
++    with open("../comfy-prompt.json", "wt", encoding="utf-8") as f:
++        f.write(json.dumps(prompt, indent=4))
+     return (True, "")
+ 
+ 
+diff --git a/main.py b/main.py
+index 9c0a3d8..1e786bf 100644
+--- a/main.py
++++ b/main.py
+@@ -25,7 +25,7 @@ import yaml
+ import execution
+ import folder_paths
+ import server
+-from nodes import init_custom_nodes
++from nodes import init_custom_nodes, load_custom_nodes
+ 
+ 
+ def prompt_worker(q, server):
+@@ -82,6 +82,7 @@ if __name__ == "__main__":
+     q = execution.PromptQueue(server)
+ 
+     init_custom_nodes()
++    load_custom_nodes(os.getenv("AIWORKER_CUSTOM_NODES"))
+     server.add_routes()
+     hijack_progress(server)
+ 
+diff --git a/nodes.py b/nodes.py
+index 5c3b3a4..05795c0 100644
+--- a/nodes.py
++++ b/nodes.py
+@@ -1125,8 +1125,10 @@ def load_custom_node(module_path):
+         print(traceback.format_exc())
+         print(f"Cannot import {module_path} module for custom nodes:", e)
+ 
+-def load_custom_nodes():
+-    CUSTOM_NODE_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")
++def load_custom_nodes(path=os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")):
++    if not path:
++        return
++    CUSTOM_NODE_PATH = path
+     possible_modules = os.listdir(CUSTOM_NODE_PATH)
+     if "__pycache__" in possible_modules:
+         possible_modules.remove("__pycache__")

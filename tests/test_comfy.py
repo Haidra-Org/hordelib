@@ -27,11 +27,6 @@ class TestSetup:
         loaded = self.comfy._load_pipeline("no-such-pipeline")
         assert loaded is None
 
-    def test_load_invalid_node(self, capsys):
-        self.comfy._load_node("no-such-node")
-        captured = capsys.readouterr()
-        assert "No such file or directory" in str(captured)
-
     def test_load_custom_nodes(self):
         self.comfy._load_custom_nodes()
 

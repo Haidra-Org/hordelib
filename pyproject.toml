@@ -45,22 +45,24 @@ addopts = [
 ]
 
 [tool.black]
+# Exclude ComfyUI and any packages we have installed in nodes/
 exclude = '''
 /(
     ComfyUI
   | \.tox
+  | nodes[\\/].*
 )/
 '''
 
-[tool.ruff] # XXX this isn't part of CI yet 
+[tool.ruff] # XXX this isn't part of CI yet
 line-length=100 # XXX is this length settled on?
 ignore=[
     "E501", # XXX line too long (comments are the big offender right now)
     "F401", # imported but unused
-] 
+]
 select = [
     "A",    # flake8-builtins
-    "I",    # isort 
+    "I",    # isort
     # "S",    # Bandit
     "F",    # pyflakes
     "E",    # pycodestyle errors
@@ -77,12 +79,12 @@ select = [
     "PIE",  # flake8-pie
     # "T20",  # flake8-print
     # "UP",   # pyupgrade
-    "RSE",  # flake8-raise 
+    "RSE",  # flake8-raise
     "RET",  # flake8-return
     # "SLF",  # flake8-self
     "SIM",  # flake8-simplify
     "ARG",  # flake8-unused-arguments
-    # "TRY",  # tryceratops 
+    # "TRY",  # tryceratops
     "RUF100"
 ]
 
