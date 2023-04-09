@@ -1,5 +1,10 @@
 # hordelib
 
+[![PyPI version](https://badge.fury.io/py/hordelib.svg)](https://badge.fury.io/py/hordelib)
+[![Downloads](https://pepy.tech/badge/hordelib)](https://pepy.tech/project/hordelib)
+
+![GitHub license](https://img.shields.io/github/license/jug-dev/hordelib)
+
 `hordelib` is a thin wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed visually in the ComfyUI GUI.
 
 The developers of this project can be found in the AI Horde Discord server: https://discord.gg/3DxrhksKznb
