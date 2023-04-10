@@ -33,7 +33,7 @@ jobs:
           sed -i 's/^VERSION = ".*"/VERSION = "${{ steps.release.outputs.version }}"/g' ./hordelib/consts.py
           git config user.email github-actions@github.com
           git config user.name github-actions
-          git commit -am 'version incremented'
+          git commit -am 'build: version bump'
           git push
     ## FIXME: Disabled because build_helper.py is not working as expected yet
     # - name: "🐍 Set up Python 3.10"
