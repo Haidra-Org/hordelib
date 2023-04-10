@@ -16,22 +16,28 @@ class TestHordeInference:
             # "blip": True,
             # "clip": True,
             # "codeformer": True,
-            "compvis": True,
+            # "compvis": True,
             # "controlnet": True,
-            # "diffusers": True,
+            "diffusers": True,
             # "esrgan": True,
             # "gfpgan": True,
             # "safety_checker": True,
         }
         SharedModelManager.loadModelManagers(**self.default_model_manager_args)
         assert SharedModelManager.manager is not None
-        SharedModelManager.manager.load("stable_diffusion_inpainting")
         yield
         del self.horde
         SharedModelManager._instance = None
         SharedModelManager.manager = None
 
     def test_inpainting_alpha_mask(self):
+        SharedModelManager.manager.load("stable_diffusion_inpainting")
+        assert (
+            SharedModelManager.manager.diffusers.is_model_loaded(
+                "stable_diffusion_inpainting"
+            )
+            is True
+        )
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
