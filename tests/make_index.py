@@ -59,7 +59,7 @@ TEMPLATE = """
 </head>
 <body>
   <h1>Latest Build Results</h1>
-  <h2>[timestamp]</h2>
+  <h2>[timestamp] (UTC)</h2>
   <div class="gallery">
     [images]
   </div>
