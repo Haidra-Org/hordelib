@@ -149,6 +149,34 @@ Three steps:
 1. `python build_helper.py` _builds the dist files_
 1. `twine upload -r pypi dist/*`
 
+### Standalone "clean" environment test from Pypi
+
+Here's an example:
+
+Start in a new empty directory. Create requirements.txt:
+```
+--extra-index-url https://download.pytorch.org/whl/cu117
+hordelib
+```
+
+Create the directory `images/` and copy the `test_db0.jpg` into it.
+
+Copy `run_controlnet.py` from the `hordelib/tests/` directory.
+
+Build a venv:
+```
+python -m venv venv
+.\venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+Run the test we copied:
+```
+python run_controlnet.py
+
+The `images/` directory should have our test images.
+```
+
 ### Updating the embedded version of ComfyUI
 
 We use a ComfyUI version pinned to a specific commit, see `hordelib/consts.py:COMFYUI_VERSION`
