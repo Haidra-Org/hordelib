@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.3.0](https://github.com/jug-dev/hordelib/tree/v0.3.0) (2023-04-10)
+
+[Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.2.2...v0.3.0)
+
+**Closed issues:**
+
+- Add support for inpainting models [\#36](https://github.com/jug-dev/hordelib/issues/36)
+
+**Merged pull requests:**
+
+- feat: add controlnet support [\#46](https://github.com/jug-dev/hordelib/pull/46) ([jug-dev](https://github.com/jug-dev))
+
 ## [v0.2.2](https://github.com/jug-dev/hordelib/tree/v0.2.2) (2023-04-09)
 
 [Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.2.1...v0.2.2)
