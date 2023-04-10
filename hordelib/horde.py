@@ -74,18 +74,6 @@ class HordeLib:
         # "<unused>": "PiDiNetPreprocessor",
     }
 
-    CONTROLNET_MODEL_MAP = {
-        "canny": "diff_control_sd15_canny_fp16.safetensors",
-        "hed": "diff_control_sd15_hed_fp16.safetensors",
-        "depth": "diff_control_sd15_depth_fp16.safetensors",
-        "normal": "control_normal_fp16.safetensors",
-        "openpose": "control_openpose_fp16.safetensors",
-        "seg": "control_seg_fp16.safetensors",
-        "scribble": "control_scribble_fp16.safetensors",
-        "fakescribbles": "control_scribble_fp16.safetensors",
-        "hough": "control_mlsd_fp16.safetensors",
-    }
-
     SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting"]
 
     def _parameter_remap(self, payload: dict[str, str | None]) -> dict[str, str | None]:
@@ -173,11 +161,9 @@ class HordeLib:
             # Determine the pre-processor that was requested
             pre_processor = HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(cnet)
 
-            # Determine the appropriate controlnet model
-            cnet_model = HordeLib.CONTROLNET_MODEL_MAP.get(cnet)
-
-            # The controlnet model can become a direct parameter to the pipeline
-            params["controlnet_model_loader.control_net_name"] = cnet_model
+            # The controlnet type becomes a direct parameter to the pipeline
+            # It is tranlated to its model as required my ComfyUI from the CN ModelManager
+            params["controlnet_model_loader.control_net_name"] = cnet
 
             # For the pre-processor we dynamically reroute nodes in the pipeline later
             params["control_type"] = pre_processor

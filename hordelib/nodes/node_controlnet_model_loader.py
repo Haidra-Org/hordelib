@@ -31,19 +31,11 @@ class HordeDiffControlNetLoader:
             logger.error("controlnet model_manager appears to be missing!")
             raise RuntimeError  # XXX better guarantees need to be made
 
-        # FIXME We're not using the model manager here
-        # if control_net_name not in model_manager.manager.loaded_models:
-        #     logger.error(f"Controlnet {control_net_name} is not loaded")
-        #     raise RuntimeError  # XXX better guarantees need to be made
-
-        # XXX This isn't how the model manager is supposed to be used
-        controlnet_path = os.path.join(
-            model_manager.manager.controlnet.path, control_net_name
+        merged_model = model_manager.manager.controlnet.merge_controlnet(
+            control_net_name, model
         )
-        controlnet = comfy.sd.load_controlnet(controlnet_path, model)
-        logger.warning(f"{controlnet_path}")
-        logger.warning(f"{controlnet}")
-        return (controlnet,)
+
+        return merged_model
 
 
 NODE_CLASS_MAPPINGS = {"HordeDiffControlNetLoader": HordeDiffControlNetLoader}

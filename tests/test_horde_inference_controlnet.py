@@ -26,12 +26,14 @@ class TestHordeInference:
         SharedModelManager.loadModelManagers(**self.default_model_manager_args)
         assert SharedModelManager.manager is not None
         SharedModelManager.manager.load("Deliberate")
+        for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
+            SharedModelManager.manager.controlnet.download_control_type(preproc)
         yield
         del self.horde
         SharedModelManager._instance = None
         SharedModelManager.manager = None
 
-    def test_controlnet(self):
+    def test_controlnet_sd1(self):
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
@@ -59,7 +61,14 @@ class TestHordeInference:
             if preproc == "scribble":
                 # Not valid for normal image input test
                 continue
+            assert (
+                SharedModelManager.manager.controlnet.check_control_type_available(
+                    preproc, "stable diffusion 1"
+                )
+                is True
+            )
             data["control_type"] = preproc
             pil_image = self.horde.basic_inference(data)
+            print(preproc)
             assert pil_image is not None
             pil_image.save(f"images/horde_controlnet_{preproc}.webp", quality=90)
