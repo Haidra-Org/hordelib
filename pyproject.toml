@@ -40,9 +40,19 @@ namespaces = false
 extra-index-urls = ["https://download.pytorch.org/whl/cu117"]
 
 [tool.pytest.ini_options]
+minversion = "7.0"
 addopts = [
-    "--import-mode=importlib",
+    "--import-mode=prepend",
+    "--ignore=nodes"
 ]
+filterwarnings = [
+    "ignore:::.*",
+    "default:::hordelib.*"
+]
+testpaths = [
+    "tests"
+]
+
 
 [tool.black]
 # Exclude ComfyUI and any packages we have installed in nodes/

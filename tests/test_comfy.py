@@ -1,11 +1,12 @@
 # test_setup.py
+import glob
 import pytest
 
 from hordelib.comfy_horde import Comfy_Horde
 
 
 class TestSetup:
-    NUMBER_OF_PIPELINES = 4
+    NUMBER_OF_PIPELINES = len(glob.glob("hordelib/pipelines/*.json"))
     comfy: Comfy_Horde
 
     @pytest.fixture(autouse=True)
@@ -22,6 +23,7 @@ class TestSetup:
         assert "stable_diffusion_hires_fix" in self.comfy.pipelines
         assert "image_upscale" in self.comfy.pipelines
         assert "stable_diffusion_paint" in self.comfy.pipelines
+        assert "controlnet" in self.comfy.pipelines
 
     def test_load_invalid_pipeline(self):
         loaded = self.comfy._load_pipeline("no-such-pipeline")

@@ -1,0 +1,212 @@
+{
+    "3": {
+        "inputs": {
+            "seed": 123456789,
+            "steps": 25,
+            "cfg": 7.5,
+            "sampler_name": "dpmpp_2m",
+            "scheduler": "karras",
+            "denoise": 1.0,
+            "model": [
+                "47",
+                0
+            ],
+            "positive": [
+                "23",
+                0
+            ],
+            "negative": [
+                "7",
+                0
+            ],
+            "latent_image": [
+                "5",
+                0
+            ]
+        },
+        "class_type": "KSampler"
+    },
+    "5": {
+        "inputs": {
+            "width": 512,
+            "height": 512,
+            "batch_size": 1
+        },
+        "class_type": "EmptyLatentImage"
+    },
+    "7": {
+        "inputs": {
+            "text": "",
+            "clip": [
+                "47",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode"
+    },
+    "8": {
+        "inputs": {
+            "samples": [
+                "3",
+                0
+            ],
+            "vae": [
+                "47",
+                2
+            ]
+        },
+        "class_type": "VAEDecode"
+    },
+    "9": {
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "SaveImage"
+    },
+    "20": {
+        "inputs": {
+            "image": "test_db0 (1).jpg",
+            "choose file to upload": "image"
+        },
+        "class_type": "LoadImage"
+    },
+    "23": {
+        "inputs": {
+            "strength": 0.8500000000000003,
+            "conditioning": [
+                "24",
+                0
+            ],
+            "control_net": [
+                "33",
+                0
+            ],
+            "image": [
+                "45",
+                0
+            ]
+        },
+        "class_type": "ControlNetApply"
+    },
+    "24": {
+        "inputs": {
+            "text": "a man walking in the snow\n\n\n",
+            "clip": [
+                "47",
+                1
+            ]
+        },
+        "class_type": "CLIPTextEncode"
+    },
+    "33": {
+        "inputs": {
+            "control_net_name": "control_scribble_fp16.safetensors",
+            "model": [
+                "47",
+                0
+            ]
+        },
+        "class_type": "DiffControlNetLoader"
+    },
+    "34": {
+        "inputs": {
+            "low_threshold": 100,
+            "high_threshold": 200,
+            "l2gradient": "disable",
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "CannyEdgePreprocessor"
+    },
+    "37": {
+        "inputs": {
+            "rm_nearest": 0,
+            "rm_background": 0,
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "LeReS-DepthMapPreprocessor"
+    },
+    "39": {
+        "inputs": {
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "HEDPreprocessor"
+    },
+    "40": {
+        "inputs": {
+            "a": 6.283185307179586,
+            "bg_threshold": 0.05,
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "MiDaS-NormalMapPreprocessor"
+    },
+    "42": {
+        "inputs": {
+            "detect_hand": "disable",
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "OpenposePreprocessor"
+    },
+    "43": {
+        "inputs": {
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "SemSegPreprocessor"
+    },
+    "44": {
+        "inputs": {
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "ScribblePreprocessor"
+    },
+    "45": {
+        "inputs": {
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "FakeScribblePreprocessor"
+    },
+    "46": {
+        "inputs": {
+            "score_threshold": 6.283185307179586,
+            "dist_threshold": 0.05,
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "M-LSDPreprocessor"
+    },
+    "47": {
+        "inputs": {
+            "ckpt_name": "Deliberate.ckpt"
+        },
+        "class_type": "CheckpointLoaderSimple"
+    }
+}

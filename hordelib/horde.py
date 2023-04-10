@@ -25,7 +25,7 @@ class HordeLib:
         "ddim": "ddim",
         "uni_pc": "uni_pc",
         "uni_pc_bh2": "uni_pc_bh2",
-        "plms": "<not supported>",
+        "plms": "euler",
     }
 
     # Horde to tex2img parameter mapping
@@ -41,7 +41,7 @@ class HordeLib:
         "tiling": None,
         # "hires_fix": Handled below
         "clip_skip": "clip_skip.stop_at_clip_layer",
-        "control_type": None,
+        # "control_type": Handled below
         "image_is_control": None,
         "return_control_map": None,
         # "prompt": Handled below
@@ -51,6 +51,39 @@ class HordeLib:
         "source_image": "image_loader.image",
         "source_mask": None,
         "source_processing": "source_processing",
+    }
+
+    # Horde names on the left, our node names on the right
+    # We use this to dynamically route the image through the
+    # right node by reconnect inputs.
+    CONTROLNET_IMAGE_PREPROCESSOR_MAP = {
+        "canny": "canny",
+        "hed": "hed",
+        "depth": "depth",
+        "normal": "normal",
+        "openpose": "openpose",
+        "seg": "seg",
+        "scribble": "scribble",
+        "fakescribbles": "fakescribble",
+        "hough": "mlsd",
+        # "<unused>": "MiDaS-DepthMapPreprocessor",
+        # "<unused>": "MediaPipe-HandPosePreprocessor",
+        # "<unused>": "MediaPipe-FaceMeshPreprocessor",
+        # "<unused>": "BinaryPreprocessor",
+        # "<unused>": "ColorPreprocessor",
+        # "<unused>": "PiDiNetPreprocessor",
+    }
+
+    CONTROLNET_MODEL_MAP = {
+        "canny": "diff_control_sd15_canny_fp16.safetensors",
+        "hed": "diff_control_sd15_hed_fp16.safetensors",
+        "depth": "diff_control_sd15_depth_fp16.safetensors",
+        "normal": "control_normal_fp16.safetensors",
+        "openpose": "control_openpose_fp16.safetensors",
+        "seg": "control_seg_fp16.safetensors",
+        "scribble": "control_scribble_fp16.safetensors",
+        "fakescribbles": "control_scribble_fp16.safetensors",
+        "hough": "control_mlsd_fp16.safetensors",
     }
 
     SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting"]
@@ -135,6 +168,24 @@ class HordeLib:
                 # Finally mark that we are using hires fix
                 params["hires_fix"] = True
 
+        # ControlNet?
+        if cnet := payload.get("control_type"):
+            # Determine the pre-processor that was requested
+            pre_processor = HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(cnet)
+
+            # Determine the appropriate controlnet model
+            cnet_model = HordeLib.CONTROLNET_MODEL_MAP.get(cnet)
+
+            # The controlnet model can become a direct parameter to the pipeline
+            params["controlnet_model_loader.control_net_name"] = cnet_model
+
+            # For the pre-processor we dynamically reroute nodes in the pipeline later
+            params["control_type"] = pre_processor
+
+            # Remove the source_processing settings in case they conflict later
+            if "source_processing" in params:
+                del params["source_processing"]
+
         return params
 
     # Fix any nonsensical requests
@@ -163,6 +214,7 @@ class HordeLib:
 
     def _get_appropriate_pipeline(self, params):
         # Determine the correct pipeline based on the parameters we have
+        pipeline = None
 
         # Hires fix
         if "hires_fix" in params:
@@ -185,6 +237,11 @@ class HordeLib:
             pipeline = "stable_diffusion_paint"
         elif source_proc == "outpainting":
             pipeline = "stable_diffusion_paint"
+
+        # ControlNet
+        if params.get("control_type"):
+            pipeline = "controlnet"
+
         return pipeline
 
     def basic_inference(self, payload: dict[str, str | None]) -> Image.Image | None:

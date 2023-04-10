@@ -144,6 +144,9 @@ images/pip*.png
 images/test.png
 images/hor*.png
 images/hor*.webp
+images/run_*
 comfy-prompt*.json
 
 .vscode
+*.ckpt
+*.pth

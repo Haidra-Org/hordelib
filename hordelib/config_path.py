@@ -16,3 +16,4 @@ def get_comfyui_path():
 def set_system_path():
     """Adds ComfyUI to the python path, as it is not a proper library."""
     sys.path.append(get_comfyui_path())
+    sys.path.append(os.path.join(get_hordelib_path(), "nodes"))

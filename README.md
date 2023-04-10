@@ -56,7 +56,7 @@ data = {
     "tiling": False,
     "hires_fix": False,
     "clip_skip": 1,
-    "control_type": "canny",
+    "control_type": None,
     "image_is_control": False,
     "return_control_map": False,
     "prompt": "an ancient llamia monster",

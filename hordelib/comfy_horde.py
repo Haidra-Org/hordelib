@@ -6,6 +6,7 @@ import json
 import os
 import re
 from io import BytesIO
+from pprint import pformat
 
 from loguru import logger
 from PIL import Image
@@ -13,27 +14,29 @@ from PIL import Image
 from hordelib.config_path import get_comfyui_path
 
 # Do not change the order of these imports
-# fmt: off
+# isort: off
 import execution
 from comfy.sd import load_checkpoint_guess_config
 from comfy.utils import load_torch_file
 from comfy_extras.chainner_models import model_loading
-# fmt: on
+
+# isort: on
 
 
 class Comfy_Horde:
     """Handles horde-specific behavior against ComfyUI."""
 
     # We save pipelines from the ComfyUI GUI. This is very convenient as it
-    # makes it super easy to load and edit them in the future. However standard
-    # ComfyUI's GUI doesn't know about our custom nodes, so we allow the pipeline
+    # makes it super easy to load and edit them in the future. We allow the pipeline
     # design with standard nodes, then at runtime we dynamically replace these
-    # node types with our own where we need to.
+    # node types with our own where we need to. This allows easy previewing in ComfyUI
+    # which our custom nodes don't allow.
     NODE_REPLACEMENTS = {
         "CheckpointLoaderSimple": "HordeCheckpointLoader",
         "UpscaleModelLoader": "HordeUpscaleModelLoader",
         "SaveImage": "HordeImageOutput",
         "LoadImage": "HordeImageLoader",
+        "DiffControlNetLoader": "HordeDiffControlNetLoader",
     }
 
     # We may wish some ComfyUI standard nodes had different names for consistency. Here
@@ -178,24 +181,39 @@ class Comfy_Horde:
     def _set(self, dct, **kwargs) -> None:
         for key, value in kwargs.items():
             keys = key.split(".")
+            skip = False
             if "inputs" not in keys:
                 keys.insert(1, "inputs")
             current = dct
 
             for k in keys[:-1]:
                 if k not in current:
-                    logger.error(f"Attempt to set unknown pipeline parameter {key}")
+                    logger.warning(f"Attempt to set unknown pipeline parameter {key}")
+                    skip = True
                     break
 
                 current = current[k]
 
-            current[keys[-1]] = value
+            if not skip:
+                if not current.get(keys[-1]):
+                    logger.warning(
+                        f"Attempt to set parameter CREATED parameter '{key}'"
+                    )
+                current[keys[-1]] = value
 
     # Connect the named input to the named node (output).
     # Used for dynamic switching of pipeline graphs
     @classmethod
     def reconnect_input(cls, dct, input, output):
         logger.debug(f"Request to reconnect input {input} to output {output}")
+
+        # First check the output even exists
+        if output not in dct.keys():
+            logger.error(
+                f"Can not reconnect input {input} to {output} as {output} does not exist"
+            )
+            return None
+
         keys = input.split(".")
         if "inputs" not in keys:
             keys.insert(1, "inputs")
@@ -207,6 +225,7 @@ class Comfy_Horde:
 
             current = current[k]
 
+        logger.debug(f"Request completed to reconnect input {input} to output {output}")
         current[0] = output
         return True
 
@@ -239,6 +258,19 @@ class Comfy_Horde:
         if "image_loader.image" in params:
             self.reconnect_input(pipeline, "sampler.latent_image", "vae_encode")
 
+        # XXX This shouldn't be here either, but it's not clear to me yet where the
+        # XXX correct place for dynamic connection of nodes is. Need to do a few more
+        # XXX pipelines to see.
+        if "control_type" in params:
+            # Inject control net model manager
+            if "controlnet_model_loader.model_manager" not in params:
+                logger.debug("Injecting controlnet model manager")
+                params["controlnet_model_loader.model_manager"] = SharedModelManager
+            # Connect to the correct pre-processor node
+            self.reconnect_input(
+                pipeline, "controlnet_apply.image", params["control_type"]
+            )
+
         # Set the pipeline parameters
         self._set(pipeline, **params)
 
@@ -257,8 +289,16 @@ class Comfy_Horde:
         inference = execution.PromptExecutor(self)
         # Load our custom nodes
         self._load_custom_nodes()
+
+        # This is useful for dumping the entire pipeline to the terminal when
+        # developing and debugging new pipelines. A badly structured pipeline
+        # file just results in a cryptic error from comfy
+        pretty_pipeline = pformat(pipeline)
+        if False:  # This isn't here Tazlin :)
+            logger.error(pretty_pipeline)
+
         # The client_id parameter here is just so we receive comfy callbacks for debugging.
-        # We essential pretend we are a web client and want async callbacks.
+        # We pretend we are a web client and want async callbacks.
         inference.execute(pipeline, extra_data={"client_id": 1})
 
         return inference.outputs

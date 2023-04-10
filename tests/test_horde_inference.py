@@ -17,7 +17,7 @@ class TestHordeInference:
             # "clip": True,
             # "codeformer": True,
             "compvis": True,
-            # "controlnet": True,
+            "controlnet": True,
             # "diffusers": True,
             # "esrgan": True,
             # "gfpgan": True,
@@ -43,7 +43,7 @@ class TestHordeInference:
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
-            "control_type": "canny",
+            "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "a dog ### cat, mouse, lion",
@@ -84,7 +84,7 @@ class TestHordeInference:
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
-            "control_type": "canny",
+            "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "a dog",
@@ -125,7 +125,7 @@ class TestHordeInference:
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
-            "control_type": "canny",
+            "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "an ancient llamia monster",
@@ -150,7 +150,7 @@ class TestHordeInference:
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
-            "control_type": "canny",
+            "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "dinosaur ### painting, drawing, artwork",
@@ -175,7 +175,7 @@ class TestHordeInference:
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 2,
-            "control_type": "canny",
+            "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "an ancient llamia monster",
@@ -200,7 +200,7 @@ class TestHordeInference:
             "tiling": False,
             "hires_fix": True,
             "clip_skip": 1,
-            "control_type": "canny",
+            "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "an ancient llamia monster",
@@ -212,3 +212,138 @@ class TestHordeInference:
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         pil_image.save("images/horde_text_to_image_hires_fix.webp", quality=90)
+
+    def test_image_to_image(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.4,
+            "seed": 250636385744582,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a dinosaur",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        pil_image.save("images/horde_image_to_image.webp", quality=90)
+
+    def test_image_to_image_hires_fix_small(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.4,
+            "seed": 250636385744582,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": True,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a dinosaur",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        pil_image.save("images/horde_image_to_image_hires_fix_small.webp", quality=90)
+
+    def test_image_to_image_hires_fix_large(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.4,
+            "seed": 250636385744582,
+            "height": 768,
+            "width": 768,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": True,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a dinosaur",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        pil_image.save("images/horde_image_to_image_hires_fix_large.webp", quality=90)
+
+    def test_image_to_image_mask_in(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.72,
+            "seed": 836913938046008,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a river through the mountains",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_inpaint.png"),
+            "source_processing": "inpainting",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        pil_image.save("images/horde_image_to_image_mask_in.webp", quality=90)
+
+    def test_image_to_image_mask_out(self):
+        data = {
+            "sampler_name": "euler",
+            "cfg_scale": 8.0,
+            "denoising_strength": 1.0,
+            "seed": 836913938046008,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a river through the mountains, blue sky with clouds.",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_outpaint.png"),
+            "source_processing": "outpainting",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        pil_image.save("images/horde_image_to_image_mask_out.webp", quality=90)
