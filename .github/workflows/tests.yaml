@@ -2,11 +2,15 @@ name: Test Runner
 
 on:
   pull_request_target:
-    types: [opened, synchronize]
+    types:
+      - opened
+      - synchronize
     branches:
       - 'main/**'
     paths:
       - '**.py'
+      - '**.yaml'
+      - '**.json'
 
 jobs:
   build:
