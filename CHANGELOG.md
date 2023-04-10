@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.3.1](https://github.com/jug-dev/hordelib/tree/v0.3.1) (2023-04-10)
+
+[Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.3.0...v0.3.1)
+
+**Merged pull requests:**
+
+- test: change all tests to webp [\#49](https://github.com/jug-dev/hordelib/pull/49) ([jug-dev](https://github.com/jug-dev))
+
 ## [v0.3.0](https://github.com/jug-dev/hordelib/tree/v0.3.0) (2023-04-10)
 
 [Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.2.2...v0.3.0)
