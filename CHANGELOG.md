@@ -1,5 +1,19 @@
 # Changelog
 
+## [v0.4.0](https://github.com/jug-dev/hordelib/tree/v0.4.0) (2023-04-10)
+
+[Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.3.1...v0.4.0)
+
+**Closed issues:**
+
+- Add support for Depth2Img [\#37](https://github.com/jug-dev/hordelib/issues/37)
+- Add face fixers [\#33](https://github.com/jug-dev/hordelib/issues/33)
+- Add support for controlnet [\#5](https://github.com/jug-dev/hordelib/issues/5)
+
+**Merged pull requests:**
+
+- feat: add face fixing support [\#50](https://github.com/jug-dev/hordelib/pull/50) ([jug-dev](https://github.com/jug-dev))
+
 ## [v0.3.1](https://github.com/jug-dev/hordelib/tree/v0.3.1) (2023-04-10)
 
 [Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.3.0...v0.3.1)
