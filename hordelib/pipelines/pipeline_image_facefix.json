@@ -1,0 +1,39 @@
+{
+    "1": {
+        "inputs": {
+            "image": "test_facefix.png",
+            "choose file to upload": "image"
+        },
+        "class_type": "LoadImage"
+    },
+    "4": {
+        "inputs": {
+            "model_name": "CodeFormers.pth"
+        },
+        "class_type": "UpscaleModelLoader"
+    },
+    "6": {
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "8",
+                0
+            ]
+        },
+        "class_type": "SaveImage"
+    },
+    "8": {
+        "inputs": {
+            "facedetection": "retinaface_resnet50",
+            "upscale_model": [
+                "4",
+                0
+            ],
+            "image": [
+                "1",
+                0
+            ]
+        },
+        "class_type": "FaceRestoreWithModel"
+    }
+}

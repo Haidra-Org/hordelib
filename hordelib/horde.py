@@ -271,3 +271,16 @@ class HordeLib:
             return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image
         return Image.open(images[0]["imagedata"])
+
+    def image_facefix(self, payload: dict[str, str | None]) -> Image.Image | None:
+        generator = Comfy_Horde()
+        # Determine our parameters
+        params = self._parameter_remap(payload)
+        # Determine the correct pipeline
+        pipeline = "image_facefix"
+        # Run the pipeline
+        images = generator.run_image_pipeline(pipeline, params)
+        if images is None:
+            return None  # XXX Log error and/or raise Exception here
+        # XXX Assumes the horde only asks for and wants 1 image
+        return Image.open(images[0]["imagedata"])

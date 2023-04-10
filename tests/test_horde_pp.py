@@ -15,12 +15,12 @@ class TestHordeUpscaling:
             # aitemplate
             # "blip": True,
             # "clip": True,
-            # "codeformer": True,
+            "codeformer": True,
             # "compvis": True,
             # "controlnet": True,
             # "diffusers": True,
             "esrgan": True,
-            # "gfpgan": True,
+            "gfpgan": True,
             # "safety_checker": True,
         }
         SharedModelManager.loadModelManagers(**self.default_model_manager_args)
@@ -117,3 +117,19 @@ class TestHordeUpscaling:
         # assert width == self.width * 4
         # assert height == self.height * 4
         pil_image.save("images/horde_image_upscale_4x_AnimeSharp.webp", quality=90)
+
+    def test_image_facefix_codeformers(self):
+        SharedModelManager.manager.load("CodeFormers")
+        assert (
+            SharedModelManager.manager.codeformer.is_model_loaded("CodeFormers") is True
+        )
+        data = {
+            "model": "CodeFormers",
+            "source_image": Image.open("images/test_facefix.png"),
+        }
+        pil_image = self.horde.image_facefix(data)
+        assert pil_image is not None
+        width, height = pil_image.size
+        # assert width == self.width * 4
+        # assert height == self.height * 4
+        pil_image.save("images/horde_image_facefix_codeformers.webp", quality=90)
