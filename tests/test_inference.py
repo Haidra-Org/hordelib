@@ -44,7 +44,7 @@ class TestInference:
         assert images is not None
 
         image = Image.open(images[0]["imagedata"])
-        image.save("images/pipeline_stable_diffusion.png")
+        image.save("images/pipeline_stable_diffusion.webp", quality=90)
 
     def test_stable_diffusion_pipeline_clip_skip(self):
         params = {
@@ -66,7 +66,7 @@ class TestInference:
         assert images is not None
 
         image = Image.open(images[0]["imagedata"])
-        image.save("images/pipeline_stable_diffusion_clip_skip_2.png")
+        image.save("images/pipeline_stable_diffusion_clip_skip_2.webp", quality=90)
 
     def test_stable_diffusion_hires_fix_pipeline(self):
         params = {
@@ -102,7 +102,7 @@ class TestInference:
         assert images is not None
 
         image = Image.open(images[0]["imagedata"])
-        image.save("images/pipeline_stable_diffusion_hires_fix.png")
+        image.save("images/pipeline_stable_diffusion_hires_fix.webp", quality=90)
 
     def test_stable_diffusion_hires_fix_pipeline_clip_skip_2(self):
         params = {
@@ -138,4 +138,6 @@ class TestInference:
         assert images is not None
 
         image = Image.open(images[0]["imagedata"])
-        image.save("images/pipeline_stable_diffusion_hires_fix_clip_skip_2.png")
+        image.save(
+            "images/pipeline_stable_diffusion_hires_fix_clip_skip_2.webp", quality=90
+        )

@@ -38,4 +38,4 @@ data = {
     "source_processing": "outpainting",
 }
 pil_image = generate.basic_inference(data)
-pil_image.save("images/test.png")
+pil_image.save("images/run_img2img_outpaint.webp", quality=90)

@@ -38,4 +38,4 @@ data = {
     "source_processing": "inpainting",
 }
 pil_image = generate.basic_inference(data)
-pil_image.save("images/test_run_inpainting.png")
+pil_image.save("images/run_inpainting.webp", quality=90)

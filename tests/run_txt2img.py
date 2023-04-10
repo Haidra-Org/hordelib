@@ -34,4 +34,4 @@ data = {
     "model": "Deliberate",
 }
 pil_image = generate.basic_inference(data)
-pil_image.save("images/test.png")
+pil_image.save("images/run_txt2img.webp", quality=90)

@@ -34,7 +34,7 @@ data = {
     "ddim_steps": 25,
     "n_iter": 1,
     "model": "Deliberate",
-    "source_image": Image.open("images/horde_text_to_image.png"),
+    "source_image": Image.open("images/test_db0.jpg"),
 }
 pil_image = generate.basic_inference(data)
-pil_image.save("images/test.png")
+pil_image.save("images/run_img2img.webp", quality=90)

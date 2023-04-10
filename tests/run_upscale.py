@@ -34,4 +34,4 @@ data = {
     "source_image": Image.open("images/test_db0.jpg"),
 }
 pil_image = generate.image_upscale(data)
-pil_image.save("images/test.png")
+pil_image.save("images/run_upscale.webp", quality=90)
