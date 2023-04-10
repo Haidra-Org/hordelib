@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.4.1](https://github.com/jug-dev/hordelib/tree/v0.4.1) (2023-04-10)
+
+[Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.4.0...v0.4.1)
+
+**Merged pull requests:**
+
+- test: fix test with red border around it [\#58](https://github.com/jug-dev/hordelib/pull/58) ([jug-dev](https://github.com/jug-dev))
+- build: activate build results website [\#57](https://github.com/jug-dev/hordelib/pull/57) ([jug-dev](https://github.com/jug-dev))
+- build: make a webpage of test result images [\#55](https://github.com/jug-dev/hordelib/pull/55) ([jug-dev](https://github.com/jug-dev))
+- test: fix black 64x64 image tests [\#54](https://github.com/jug-dev/hordelib/pull/54) ([jug-dev](https://github.com/jug-dev))
+- ref: Make use of the ControlNet ModelManager [\#53](https://github.com/jug-dev/hordelib/pull/53) ([db0](https://github.com/db0))
+
 ## [v0.4.0](https://github.com/jug-dev/hordelib/tree/v0.4.0) (2023-04-10)
 
 [Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.3.1...v0.4.0)
