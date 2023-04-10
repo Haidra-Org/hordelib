@@ -51,7 +51,6 @@ class Comfy_Horde:
     def __init__(self) -> None:
         self.client_id = None  # used for receiving comfyUI async events
         self.pipelines = {}
-        self.unit_testing = os.getenv("HORDELIB_TESTING", "")
 
         # Load our pipelines
         self._load_pipelines()
@@ -273,17 +272,6 @@ class Comfy_Horde:
 
         # Set the pipeline parameters
         self._set(pipeline, **params)
-
-        # Fake it!
-        if self.unit_testing:
-            img = Image.new("RGB", (64, 64), (0, 0, 0))
-            byte_stream = BytesIO()
-            img.save(byte_stream, format="PNG", compress_level=4)
-            byte_stream.seek(0)
-
-            return {
-                "output_image": {"images": [{"imagedata": byte_stream, "type": "PNG"}]},
-            }
 
         # Run it!
         inference = execution.PromptExecutor(self)
