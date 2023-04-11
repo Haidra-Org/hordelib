@@ -1,9 +1,7 @@
 # consts.py
+import os
+from hordelib.config_path import get_hordelib_path
 from enum import Enum, auto
-
-# hordelib version
-VERSION = "v0.4.1"
-"""The version of the hordelib library."""
 
 COMFYUI_VERSION = "c767e9426ae81bed4f52c7be0625f0efc4cbe16b"
 """The exact version of ComfyUI version to load."""
@@ -12,6 +10,9 @@ REMOTE_MODEL_DB = (
     "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/"
 )
 """The default base endpoint where to find model databases. See MODEL_DB_NAMES for valid database names."""
+
+RELEASE_VERSION = os.path.exists(os.path.join(get_hordelib_path(), "_version.py"))
+"""A flag for if this is a pypi release or a git dev mode"""
 
 
 class HordeSupportedBackends(Enum):
