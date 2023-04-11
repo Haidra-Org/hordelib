@@ -19,7 +19,8 @@ jobs:
     # Version bumps the project and creates a tag by creating
     # a github release. The github release itself is not so
     # interesting, as it's incomplete because we haven't finished
-    # the build. The important goal here is a pypi release.
+    # the build. The important goal here is a pypi release and this
+    # get us our version number.
     - name: "📣 Release on push"
       id: release
       uses: rymndhng/release-on-push-action@master
@@ -29,48 +30,37 @@ jobs:
         bump_version_scheme: norelease
         use_github_release_notes: true
 
-    # XXX Don't do this yet. It creates a new commit which
-    # XXX means we're now not on our tag anymore, which makes
-    # XXX automating as build off tags tricky
-    #
-    # - name: "✏️ Generate release changelog"
-    #   if: ${{ steps.release.outputs.version != '' }}
-    #   uses: heinrichreimer/github-changelog-generator-action@v2.3
-    #   with:
-    #     token: ${{ secrets.GITHUB_TOKEN }}
-
-    # - name: "💾 Commit new version"
-    #   if: ${{ steps.release.outputs.version != '' }}
-    #   run: |
-    #       git config user.email github-actions@github.com
-    #       git config user.name github-actions
-    #       git commit -am 'build: version bump'
-    #       git push
-
+    # Pass the version number in an env var to the below steps
     - name: Set build version env var
       run: echo "SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.release.outputs.version }}" >> $GITHUB_ENV
 
+    # We need python...
     - name: "🐍 Set up Python 3.10"
       if: ${{ steps.release.outputs.version != '' }}
       uses: actions/setup-python@v3
       with:
         python-version: "3.10"
 
+    # Install build deps
     - name: "🛠 Install pypa/build"
       if: ${{ steps.release.outputs.version != '' }}
       run: >-
         python -m pip install build --user
 
+    # Patches our requirements.txt and pyproject.toml
+    # Build a changelog
     - name: "🔧 Prepare our build for release"
       if: ${{ steps.release.outputs.version != '' }}
       run: >-
         python build_helper.py
 
+    # Build a pypi distribution using the env var version number
     - name: "🔧 Build a binary wheel and a source tarball"
       if: ${{ steps.release.outputs.version != '' }}
       run: >-
         python -m build --sdist --wheel --outdir dist/ .
 
+    # Publish the package
     - name: "📦 Publish distribution to PyPI"
       if: ${{ steps.release.outputs.version != '' }}
       uses: pypa/gh-action-pypi-publish@release/v1
