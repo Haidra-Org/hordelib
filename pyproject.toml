@@ -28,6 +28,9 @@ dynamic=["version"]
 "Homepage" = "https://github.com/jug-dev/hordelib"
 "Bug Tracker" = "https://github.com/jug-dev/hordelib/issues"
 
+[tool.setuptools]
+license-files = ["LICENSE", "CHANGELOG*"]
+
 [tool.setuptools_scm]
 write_to = "hordelib/_version.py"
 
@@ -54,7 +57,6 @@ filterwarnings = [
 testpaths = [
     "tests"
 ]
-
 
 [tool.black]
 # Exclude ComfyUI and any packages we have installed in nodes/
