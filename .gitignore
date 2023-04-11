@@ -149,7 +149,9 @@ images/test.webp
 images/run_*
 comfy-prompt*.json
 images/index.html
+_version.py
 
 .vscode
 *.ckpt
 *.pth
+.gitignore
