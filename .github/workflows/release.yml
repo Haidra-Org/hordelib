@@ -58,7 +58,7 @@ jobs:
     - name: Write changelog
       uses: "DamianReeves/write-file-action@master"
       with:
-        path: CHANGELOG.md
+        path: ${{ github.workspace }}/CHANGELOG.md
         write-mode: overwrite
         contents: |
           ${{ steps.changelog.outputs.changelog }}
