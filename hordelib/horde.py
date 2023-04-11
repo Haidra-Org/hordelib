@@ -239,7 +239,11 @@ class HordeLib:
         if not source_image:
             return
         try:
-            if source_image.size != (payload["width"], payload["height"]):
+            # We must not resize during hires_fix as it causes the final image to come out blurry
+            if source_image.size != (
+                payload["width"],
+                payload["height"],
+            ) and not payload.get("hires_fix"):
                 payload["source_image"] = source_image.resize(
                     (payload["width"], payload["height"])
                 )
@@ -265,8 +269,8 @@ class HordeLib:
     def basic_inference(self, payload: dict[str, str | None]) -> Image.Image | None:
         generator = Comfy_Horde()
         # Validate our payload parameters
-        self._resize_sources_to_request(payload)
         self._validate_BASIC_INFERENCE_PARAMS(payload)
+        self._resize_sources_to_request(payload)
         # Determine our parameters
         params = self._parameter_remap_basic_inference(payload)
         # Determine the correct pipeline
