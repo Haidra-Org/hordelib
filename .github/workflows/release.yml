@@ -10,10 +10,12 @@ jobs:
     name: hordelib build and publish
     runs-on: ubuntu-latest
     steps:
+
     - name: "✔️ Checkout"
       uses: actions/checkout@v3
       with:
         fetch-depth: 0
+
     - name: "📣 Release on push"
       id: release
       uses: rymndhng/release-on-push-action@master
@@ -21,19 +23,23 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         bump_version_scheme: norelease
-        use_github_release_notes: true
+        use_github_release_notes: false
+
     - name: "✏️ Generate release changelog"
       if: ${{ steps.release.outputs.version != '' }}
       uses: heinrichreimer/github-changelog-generator-action@v2.3
       with:
+        unreleased: false
         token: ${{ secrets.GITHUB_TOKEN }}
+
     - name: "💾 Commit new version"
       if: ${{ steps.release.outputs.version != '' }}
       run: |
           git config user.email github-actions@github.com
           git config user.name github-actions
-          git commit -am 'build: version bump'
+          git commit -am 'build: update changelog'
           git push
+
     ## FIXME: Disabled because build_helper.py is not working as expected yet
     # - name: "🐍 Set up Python 3.10"
     #   if: ${{ steps.release.outputs.version != '' }}
