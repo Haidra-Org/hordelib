@@ -47,6 +47,9 @@ jobs:
     #       git commit -am 'build: version bump'
     #       git push
 
+    - name: Set build version env var
+      run: echo "SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.release.outputs.version }}" >> $GITHUB_ENV
+
     - name: "🐍 Set up Python 3.10"
       if: ${{ steps.release.outputs.version != '' }}
       uses: actions/setup-python@v3
@@ -56,10 +59,7 @@ jobs:
     - name: "🛠 Install pypa/build"
       if: ${{ steps.release.outputs.version != '' }}
       run: >-
-        python -m
-        pip install
-        build
-        --user
+        python -m pip install build --user
 
     - name: "🔧 Prepare our build for release"
       if: ${{ steps.release.outputs.version != '' }}
@@ -69,12 +69,7 @@ jobs:
     - name: "🔧 Build a binary wheel and a source tarball"
       if: ${{ steps.release.outputs.version != '' }}
       run: >-
-        python -m
-        build
-        --sdist
-        --wheel
-        --outdir dist/
-        .
+        python -m build --sdist --wheel --outdir dist/ .
 
     - name: "📦 Publish distribution to PyPI"
       if: ${{ steps.release.outputs.version != '' }}
