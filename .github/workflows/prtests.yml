@@ -9,6 +9,7 @@ on:
       - synchronize
     paths:
       - '**.py'
+      - '**.json'
 jobs:
   build:
 
