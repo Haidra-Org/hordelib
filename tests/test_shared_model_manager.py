@@ -13,7 +13,7 @@ class TestSharedModelManager:
     def setup_and_teardown(self):
         self.horde = HordeLib()
 
-        self.default_model_manager_args = {
+        self.default_model_manager_args = {  # XXX # TODO
             # aitemplate
             "blip": True,
             "clip": True,
@@ -32,22 +32,15 @@ class TestSharedModelManager:
         SharedModelManager._instance = None
         SharedModelManager.manager = None
 
-    def test_diffusers(self):
-        from hordelib.model_manager.diffusers import DiffusersModelManager
-
-        difusersMM = DiffusersModelManager()
-        difusersMM.load("stable_diffusion_inpainting")
-        pass
-
-    def test_compvis(self):
-        from hordelib.model_manager.compvis import CompVisModelManager
-
-        CompVisModelManager()
+    def test_singleton(self):
+        a = SharedModelManager()
+        b = SharedModelManager()
+        assert a.manager is b.manager
 
     def test_horde_model_manager_init(self):
         assert SharedModelManager.manager is not None
-        # assert SharedModelManager.manager.aitemplate is not None
-        assert SharedModelManager.manager.blip is not None
+        # assert SharedModelManager.manager.aitemplate is not None # XXX # FIXME
+        assert SharedModelManager.manager.blip is not None  # XXX
         assert SharedModelManager.manager.clip is not None
         assert SharedModelManager.manager.codeformer is not None
         assert SharedModelManager.manager.compvis is not None

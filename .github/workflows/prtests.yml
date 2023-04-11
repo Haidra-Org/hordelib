@@ -2,10 +2,14 @@ name: Unstable Tests
 
 on:
   pull_request_target:
+    branches:
+      - main
     types:
       - opened
       - synchronize
-
+    paths:
+      - '**.py'
+      - '**.json'
 jobs:
   build:
 

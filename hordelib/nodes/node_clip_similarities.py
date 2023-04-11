@@ -27,9 +27,9 @@ class HordeClipSimilarities:
     def get_similarities(self, clip_name, images, string_list=None):
         results = []
         for image in images:
-            model = SharedModelManager.manager.clip.loaded_models[clip_name]
+            model_info = SharedModelManager.manager.clip.loaded_models[clip_name]
             # XXX better guarantees need to be made
-            interrogator = Interrogator(model)
+            interrogator = Interrogator(model_info)
             similarity_results = interrogator(
                 image=image,
                 text_array=string_list,

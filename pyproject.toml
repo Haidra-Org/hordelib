@@ -68,6 +68,7 @@ exclude = '''
 
 [tool.ruff] # XXX this isn't part of CI yet
 line-length=100 # XXX is this length settled on?
+exclude=["comfy_controlnet_preprocessors", "facerestore"]
 ignore=[
     "E501", # XXX line too long (comments are the big offender right now)
     "F401", # imported but unused

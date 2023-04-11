@@ -1,0 +1,43 @@
+{
+	"bad_prompt": {
+		"EmbedName": "Bad Prompt",
+		"EmbedType": "Textual Inversion",
+		"DownloadPath": "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/embeddings/ti/bad_prompt.ti.pt",
+		"Description": "Trains a negative prompt into an embedding - works well on hands",
+		"baseline": "stable diffusion 1",
+		"showcase": ""
+	},
+	"EasyNegative": {
+		"EmbedName": "Easy Negative",
+		"EmbedType": "Textual Inversion",
+		"DownloadPath": "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/embeddings/ti/EasyNegative.ti.pt",
+		"Description": "A simple negative embedding for the creation of better images - trained for Counterfeit but has success in other models",
+		"baseline": "stable diffusion 1",
+		"showcase": ""
+	},
+	"nfixer": {
+		"EmbedName": "nfixer",
+		"EmbedType": "Textual Inversion",
+		"DownloadPath": "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/embeddings/ti/nfixer.ti.pt",
+		"Description": "This negative embedding is intended for use with Illuminati Diffusion v1.1, feel free to use it elsewhere but I can't guarantee your success.",
+		"baseline": "stable diffusion 1",
+		"showcase": ""
+	},
+	"epiNoiseOffset_v2": {
+		"EmbedName": "epiNoiseOffset_v2",
+		"EmbedType": "LoRA",
+		"DownloadPath": "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/embeddings/lora/epiNoiseoffset_v2.lora.safetensors",
+		"Description": "LORA based on the Noise Offset post for better contrast and darker images.",
+		"baseline": "stable diffusion 1",
+		"showcase": ""
+	},
+	"HyperSmoke": {
+		"EmbedName": "HyperSmoke",
+		"EmbedType": "Textual Inversion",
+		"DownloadPath": "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/embeddings/ti/HyperSmoke.ti.pt",
+		"Description": "HyperSmoke is a supplementive embedding that, just like HyperFluid, simply adds smoke to your scene. Whether that is a bust made out of smoke or a smoke bomb in a street, HyperSmoke is there for you",
+		"baseline": "stable diffusion 2",
+		"showcase": ""
+	}
+	
+}

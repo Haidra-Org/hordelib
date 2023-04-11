@@ -1,23 +1,24 @@
 import os
+
 from loguru import logger
 
-# from ldm.util import instantiate_from_config
-from hordelib.cache import get_cache_directory
-from hordelib.consts import REMOTE_MODEL_DB
+from hordelib.comfy_horde import horde_load_controlnet
+from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES
 from hordelib.model_manager.base import BaseModelManager
-from hordelib.comfy_horde import load_controlnet
 
 
 class ControlNetModelManager(BaseModelManager):
-    def __init__(self, download_reference=True, compvis=None):
-        super().__init__()
-        self.download_reference = download_reference
-        self.path = f"{get_cache_directory()}/controlnet"
-        self.models_db_name = "controlnet"
-        self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = f"{REMOTE_MODEL_DB}{self.models_db_name}.json"
+    def __init__(self, download_reference=False):
+        super().__init__(
+            models_db_name=MODEL_DB_NAMES[MODEL_CATEGORY_NAMES.controlnet],
+            download_reference=download_reference,
+        )
         self.control_nets = {}
-        self.init()
+
+    def modelToRam(self, model_name: str):
+        raise NotImplementedError(
+            "Controlnet requires special handling. Use `ControlNetModelManager.merge_controlnet(...)` instead of `load()`."
+        )  # XXX # TODO There might be way to avoid this.
 
     def merge_controlnet(
         self,
@@ -26,7 +27,7 @@ class ControlNetModelManager(BaseModelManager):
         model_baseline="stable diffusion 1",
     ):
         controlnet_name = self.get_controlnet_name(control_type, model_baseline)
-        if controlnet_name not in self.models:
+        if controlnet_name not in self.model_reference:
             logger.error(f"{controlnet_name} not found")
             return False
         if controlnet_name not in self.available_models:
@@ -43,9 +44,12 @@ class ControlNetModelManager(BaseModelManager):
 
         logger.info(f"{control_type}", status="Merging")  # logger.init
         controlnet_path = os.path.join(
-            self.path, self.get_controlnet_filename(controlnet_name)
+            self.modelFolderPath, self.get_controlnet_filename(controlnet_name)
         )
-        controlnet = load_controlnet(controlnet_path, model)
+        controlnet = horde_load_controlnet(
+            controlnet_path=controlnet_path,
+            target_model=model,
+        )
         return (controlnet,)
 
     def download_control_type(
@@ -54,7 +58,7 @@ class ControlNetModelManager(BaseModelManager):
         # We need to do a rename, as they're named differently in the model reference
         for bl in sd_baselines:
             controlnet_name = self.get_controlnet_name(control_type, bl)
-            if controlnet_name not in self.models:
+            if controlnet_name not in self.model_reference:
                 logger.warning(
                     f"Could not find {controlnet_name} reference to download"
                 )
@@ -79,10 +83,11 @@ class ControlNetModelManager(BaseModelManager):
         controlnet_name = self.get_controlnet_name(control_type, sd_baseline)
         return self.check_model_available(controlnet_name)
 
-    def get_controlnet_filename(self, controlnet_name):
+    def get_controlnet_filename(self, controlnet_name) -> str | None:
         """Gets the `.safetensors` filename for the model
         so that it can be located on disk
         """
         for f in self.get_model_files(controlnet_name):
             if f["path"].endswith("safetensors"):
                 return f["path"]
+        return None

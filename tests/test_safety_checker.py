@@ -6,8 +6,10 @@ from hordelib.horde import HordeLib
 from hordelib.safety_checker import is_image_nsfw
 from hordelib.shared_model_manager import SharedModelManager
 
+# XXX Should find a way to test for a positive NSFW result without something in the repo?
 
-class TestHordePostProcessing:
+
+class TestHordeSaftyChecker:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         self.horde = HordeLib()

@@ -79,7 +79,7 @@
       "id": 37,
       "type": "LeReS-DepthMapPreprocessor",
       "pos": [
-        30,
+        31,
         250
       ],
       "size": {
@@ -326,8 +326,8 @@
         "Node name for S&R": "M-LSDPreprocessor"
       },
       "widgets_values": [
-        6.283185307179586,
-        0.05
+        0.150,
+        1.00
       ]
     },
     {

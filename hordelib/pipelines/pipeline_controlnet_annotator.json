@@ -98,8 +98,8 @@
     },
     "46": {
         "inputs": {
-            "score_threshold": 6.283185307179586,
-            "dist_threshold": 0.05,
+            "score_threshold": 0.150,
+            "dist_threshold": 1.0,
             "image": [
                 "20",
                 0

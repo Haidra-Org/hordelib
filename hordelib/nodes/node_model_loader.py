@@ -23,8 +23,6 @@ class HordeCheckpointLoader:
         self,
         model_manager,
         model_name,
-        output_vae=True,
-        output_clip=True,
     ):
         logger.debug(f"Loading model {model_name} through our custom node")
 
@@ -36,7 +34,11 @@ class HordeCheckpointLoader:
             logger.error(f"Model {model_name} is not loaded")
             raise RuntimeError  # XXX better guarantees need to be made
 
-        return model_manager.manager.loaded_models[model_name]
+        model = model_manager.manager.loaded_models[model_name]["model"]
+        clip = model_manager.manager.loaded_models[model_name]["clip"]
+        vae = model_manager.manager.loaded_models[model_name]["vae"]
+        # XXX # TODO I would like to revisit this dict->tuple conversion at some point soon
+        return (model, clip, vae)
 
 
 NODE_CLASS_MAPPINGS = {"HordeCheckpointLoader": HordeCheckpointLoader}

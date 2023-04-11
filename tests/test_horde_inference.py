@@ -145,7 +145,7 @@ class TestHordeInference:
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
             "denoising_strength": 1.0,
-            "seed": 123456789,
+            "seed": 32323,
             "height": 320,
             "width": 320,
             "karras": True,

@@ -29,7 +29,7 @@ class SharedModelManager:
         if cls.manager is None:
             cls.manager = ModelManager()
 
-        args_passed = locals().copy()
-        args_passed.pop("cls")
+        args_passed = locals().copy()  # XXX This is temporary
+        args_passed.pop("cls")  # XXX This is temporary
 
         cls.manager.init_model_managers(**args_passed)
