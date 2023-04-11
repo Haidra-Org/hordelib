@@ -45,8 +45,19 @@ def patch_toml(unpatch=False):
 
 
 def dump_changelog():
-    with open("CHANGELOG.md", "wt") as outfile:
-        outfile.write(os.getenv("CHANGELOG", "coming soon"))
+    if os.path.exists("CHANGELOG.md"):
+        print(os.listdir())
+    else:
+        print("NO CHANGELOG.md")
+    try:
+        with open("CHANGELOG.md") as infile:
+            contents = infile.read()
+        print(contents)
+    except IOError:
+        pass
+
+    # with open("CHANGELOG.md", "wt") as outfile:
+    #     outfile.write(os.getenv("CHANGELOG", "coming soon"))
 
 
 patch_requirements()
