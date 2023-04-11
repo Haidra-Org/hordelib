@@ -208,7 +208,7 @@ class Comfy_Horde:
 
         # First check the output even exists
         if output not in dct.keys():
-            logger.error(
+            logger.warning(
                 f"Can not reconnect input {input} to {output} as {output} does not exist"
             )
             return None
@@ -219,7 +219,7 @@ class Comfy_Horde:
         current = dct
         for k in keys:
             if k not in current:
-                logger.error(f"Attempt to reconnect unknown input {input}")
+                logger.warning(f"Attempt to reconnect unknown input {input}")
                 return None
 
             current = current[k]
@@ -266,9 +266,16 @@ class Comfy_Horde:
                 logger.debug("Injecting controlnet model manager")
                 params["controlnet_model_loader.model_manager"] = SharedModelManager
             # Connect to the correct pre-processor node
-            self.reconnect_input(
-                pipeline, "controlnet_apply.image", params["control_type"]
-            )
+            if params.get("return_control_map", False):
+                # Connect annotator to output image directly
+                self.reconnect_input(
+                    pipeline, "output_image.images", params["control_type"]
+                )
+            else:
+                # Connect annotator to controlnet apply node
+                self.reconnect_input(
+                    pipeline, "controlnet_apply.image", params["control_type"]
+                )
 
         # Set the pipeline parameters
         self._set(pipeline, **params)

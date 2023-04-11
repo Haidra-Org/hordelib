@@ -1,0 +1,110 @@
+{
+    "9": {
+        "inputs": {
+            "filename_prefix": "ComfyUI",
+            "images": [
+                "45",
+                0
+            ]
+        },
+        "class_type": "SaveImage"
+    },
+    "20": {
+        "inputs": {
+            "image": "horde_image_facefix_codeformers.webp",
+            "choose file to upload": "image"
+        },
+        "class_type": "LoadImage"
+    },
+    "34": {
+        "inputs": {
+            "low_threshold": 100,
+            "high_threshold": 200,
+            "l2gradient": "disable",
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "CannyEdgePreprocessor"
+    },
+    "37": {
+        "inputs": {
+            "rm_nearest": 0,
+            "rm_background": 0,
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "LeReS-DepthMapPreprocessor"
+    },
+    "39": {
+        "inputs": {
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "HEDPreprocessor"
+    },
+    "40": {
+        "inputs": {
+            "a": 6.283185307179586,
+            "bg_threshold": 0.05,
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "MiDaS-NormalMapPreprocessor"
+    },
+    "42": {
+        "inputs": {
+            "detect_hand": "disable",
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "OpenposePreprocessor"
+    },
+    "43": {
+        "inputs": {
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "SemSegPreprocessor"
+    },
+    "44": {
+        "inputs": {
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "ScribblePreprocessor"
+    },
+    "45": {
+        "inputs": {
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "FakeScribblePreprocessor"
+    },
+    "46": {
+        "inputs": {
+            "score_threshold": 6.283185307179586,
+            "dist_threshold": 0.05,
+            "image": [
+                "20",
+                0
+            ]
+        },
+        "class_type": "M-LSDPreprocessor"
+    }
+}

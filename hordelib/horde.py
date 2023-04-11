@@ -44,7 +44,7 @@ class HordeLib:
         "clip_skip": "clip_skip.stop_at_clip_layer",
         # "control_type": Handled below
         "image_is_control": None,
-        "return_control_map": None,
+        "return_control_map": "return_control_map",
         # "prompt": Handled below
         "ddim_steps": "sampler.steps",
         "n_iter": "empty_latent_image.batch_size",
@@ -226,7 +226,11 @@ class HordeLib:
 
         # ControlNet
         if params.get("control_type"):
-            pipeline = "controlnet"
+            if params.get("return_control_map", False):
+                pipeline = "controlnet_annotator"
+            else:
+                pipeline = "controlnet"
+
         return pipeline
 
     def _resize_sources_to_request(self, payload):
