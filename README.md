@@ -1,6 +1,6 @@
 # hordelib
 
-[![PyPI version](https://badge.fury.io/py/hordelib.svg)](https://badge.fury.io/py/hordelib)
+[![PyPI version](https://badge.fury.io/py/hordelib.svg?branch=main&nocache=1)](https://badge.fury.io/py/hordelib)
 [![Downloads](https://pepy.tech/badge/hordelib)](https://pepy.tech/project/hordelib)
 ![GitHub license](https://img.shields.io/github/license/jug-dev/hordelib)
 
