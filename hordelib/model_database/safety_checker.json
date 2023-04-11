@@ -1,0 +1,39 @@
+{
+	"safety_checker": {
+		"name": "safety_checker",
+		"type": "safety_checker",
+		"description": "Safety checker",
+		"config": {
+			"files": [
+				{
+					"path": "pytorch_model.bin",
+					"md5sum": "dbbcb50d4df4572a720b104fae1e8187"
+				},
+				{
+					"path": "config.json"
+				},
+				{
+					"path": "preprocessor_config.json"
+				}
+			],
+			"download": [
+				{
+					"file_name": "pytorch_model.bin",
+					"file_path": "",
+					"file_url": "https://huggingface.co/CompVis/stable-diffusion-safety-checker/resolve/main/pytorch_model.bin"
+				},
+				{
+					"file_name": "config.json",
+					"file_path": "",
+					"file_url": "https://huggingface.co/CompVis/stable-diffusion-safety-checker/resolve/main/config.json"
+				},
+				{
+					"file_name": "preprocessor_config.json",
+					"file_path": "",
+					"file_url": "https://huggingface.co/CompVis/stable-diffusion-safety-checker/resolve/main/preprocessor_config.json"
+				}
+			]
+		},
+		"available": false
+	}
+}

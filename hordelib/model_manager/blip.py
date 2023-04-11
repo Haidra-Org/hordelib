@@ -1,31 +1,19 @@
-import sys
-
-if sys.version_info < (3, 9):
-    import importlib_resources
-else:
-    import importlib.resources as importlib_resources
-
+import importlib.resources as importlib_resources
 import time
 
 import torch
-
-# from nataili.util.blip import blip_decoder # XXX # FIXME
 from loguru import logger
 
-from hordelib.cache import get_cache_directory
-from hordelib.consts import REMOTE_MODEL_DB
+from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES
 from hordelib.model_manager.base import BaseModelManager
 
 
 class BlipModelManager(BaseModelManager):
-    def __init__(self, download_reference=True):
-        super().__init__()
-        self.download_reference = download_reference
-        self.path = f"{get_cache_directory()}/blip"
-        self.models_db_name = "blip"
-        self.models_path = self.pkg / f"{self.models_db_name}.json"
-        self.remote_db = f"{REMOTE_MODEL_DB}{self.models_db_name}.json"
-        self.init()
+    def __init__(self, download_reference=False):
+        super().__init__(
+            models_db_name=MODEL_DB_NAMES[MODEL_CATEGORY_NAMES.blip],
+            download_reference=download_reference,
+        )
 
     def load(
         self,
@@ -42,7 +30,7 @@ class BlipModelManager(BaseModelManager):
         cpu_only: bool. If True, the model will be loaded on the cpu. If True, half_precision will be set to False.
         blip_image_eval_size: int. The size of the image to use for the blip model.
         """
-        if model_name not in self.models:
+        if model_name not in self.model_reference:
             logger.error(f"{model_name} not found")
             return False
         if model_name not in self.available_models:
@@ -59,7 +47,7 @@ class BlipModelManager(BaseModelManager):
         if model_name not in self.loaded_models:
             tic = time.time()
             logger.info(f"{model_name}", status="Loading")  # logger.init
-            self.loaded_models[model_name] = self.load_blip(
+            self.loaded_models[model_name] = self.load_blip(  # XXX # FIXME
                 model_name,
                 half_precision=half_precision,
                 gpu_id=gpu_id,
@@ -75,7 +63,7 @@ class BlipModelManager(BaseModelManager):
             return True
         return None
 
-    def load_blip(
+    def modelToRam(
         self,
         model_name,
         half_precision=True,
@@ -83,11 +71,12 @@ class BlipModelManager(BaseModelManager):
         cpu_only=False,
         blip_image_eval_size=512,
     ):
+        raise NotImplementedError("BLIP is not currently implemented!")
         if not self.cuda_available:
             cpu_only = True
         vit = "base" if model_name == "BLIP" else "large"
         model_path = self.get_model_files(model_name)[0]["path"]
-        model_path = f"{self.path}/{model_path}"
+        model_path = f"{self.modelFolderPath}/{model_path}"
         if cpu_only:
             device = torch.device("cpu")
             half_precision = False

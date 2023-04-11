@@ -32,7 +32,8 @@ class HordeDiffControlNetLoader:
             raise RuntimeError  # XXX better guarantees need to be made
 
         merged_model = model_manager.manager.controlnet.merge_controlnet(
-            control_net_name, model
+            control_net_name,
+            model,
         )
 
         return merged_model

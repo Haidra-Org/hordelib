@@ -1,0 +1,434 @@
+{
+	"control_canny_sd2": {
+		"name": "control_canny_sd2",
+		"type": "control_canny",
+		"description": "control_canny for sd2.x",
+		"version": "0.1.0",
+		"style": "control_canny",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "diff_control_sd21_canny_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v21.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "diff_control_sd21_canny_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/thibaud/controlnet-sd21/resolve/main/canny-sd21-safe.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_depth_sd2": {
+		"name": "control_depth_sd2",
+		"type": "control_depth",
+		"description": "control_depth for sd2.x",
+		"version": "0.1.0",
+		"style": "control_depth",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "diff_control_sd21_depth_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v21.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "diff_control_sd21_depth_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/thibaud/controlnet-sd21/resolve/main/depth-sd21-safe.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_hed_sd2": {
+		"name": "control_hed_sd2",
+		"type": "control_hed",
+		"description": "control_hed for sd2.x",
+		"version": "0.1.0",
+		"style": "control_hed",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "diff_control_sd21_hed_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v21.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "diff_control_sd21_hed_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/thibaud/controlnet-sd21/resolve/main/hed-sd21-safe.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_openpose_sd2": {
+		"name": "control_openpose_sd2",
+		"type": "control_openpose",
+		"description": "control_openpose for sd2.x",
+		"version": "0.1.0",
+		"style": "control_openpose",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "control_openpose_fp21.safetensors"
+				},
+				{
+					"path": "cldm_v21.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "control_openpose_fp21.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/thibaud/controlnet-sd21/resolve/main/openpose-sd21-safe.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_fakescribbles_sd2": {
+		"name": "control_fakescribbles_sd2",
+		"type": "control_fakescribbles",
+		"description": "control_fakescribbles",
+		"version": "0.1.0",
+		"style": "control_fakescribbles",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "control_scribble_fp21.safetensors"
+				},
+				{
+					"path": "cldm_v21.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "control_scribble_fp21.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/thibaud/controlnet-sd21/resolve/main/scribble-sd21-safe.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_scribble_sd2": {
+		"name": "control_scribble_sd2",
+		"type": "control_scribble",
+		"description": "control_scribble for sd2.x",
+		"version": "0.1.0",
+		"style": "control_scribble",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "control_scribble_fp21.safetensors"
+				},
+				{
+					"path": "cldm_v21.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "control_scribble_fp21.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/thibaud/controlnet-sd21/resolve/main/scribble-sd21-safe.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+	"control_canny": {
+		"name": "control_canny",
+		"type": "control_canny",
+		"description": "control_canny",
+		"version": "0.1.0",
+		"style": "control_canny",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "diff_control_sd15_canny_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v15.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "diff_control_sd15_canny_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/kohya-ss/ControlNet-diff-modules/resolve/main/diff_control_sd15_canny_fp16.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_depth": {
+		"name": "control_depth",
+		"type": "control_depth",
+		"description": "control_depth",
+		"version": "0.1.0",
+		"style": "control_depth",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "diff_control_sd15_depth_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v15.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "diff_control_sd15_depth_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/kohya-ss/ControlNet-diff-modules/resolve/main/diff_control_sd15_depth_fp16.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_hed": {
+		"name": "control_hed",
+		"type": "control_hed",
+		"description": "control_hed",
+		"version": "0.1.0",
+		"style": "control_hed",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "diff_control_sd15_hed_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v15.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "diff_control_sd15_hed_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/kohya-ss/ControlNet-diff-modules/resolve/main/diff_control_sd15_hed_fp16.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_hough": {
+		"name": "control_hough",
+		"type": "control_hough",
+		"description": "control_hough",
+		"version": "0.1.0",
+		"style": "control_hough",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "control_mlsd_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v15.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "control_mlsd_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/kohya-ss/ControlNet-diff-modules/resolve/main/diff_control_sd15_mlsd_fp16.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_mlsd": {
+		"name": "control_mlsd",
+		"type": "control_mlsd",
+		"description": "control_mlsd",
+		"version": "0.1.0",
+		"style": "control_mlsd",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "control_mlsd_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v15.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "control_mlsd_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/kohya-ss/ControlNet-diff-modules/resolve/main/diff_control_sd15_mlsd_fp16.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_normal": {
+		"name": "control_normal",
+		"type": "control_normal",
+		"description": "control_normal",
+		"version": "0.1.0",
+		"style": "control_normal",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "control_normal_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v15.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "control_normal_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/kohya-ss/ControlNet-diff-modules/resolve/main/diff_control_sd15_normal_fp16.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_openpose": {
+		"name": "control_openpose",
+		"type": "control_openpose",
+		"description": "control_openpose",
+		"version": "0.1.0",
+		"style": "control_openpose",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "control_openpose_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v15.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "control_openpose_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/kohya-ss/ControlNet-diff-modules/resolve/main/diff_control_sd15_openpose_fp16.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_fakescribbles": {
+		"name": "control_fakescribbles",
+		"type": "control_fakescribbles",
+		"description": "control_fakescribbles",
+		"version": "0.1.0",
+		"style": "control_fakescribbles",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "control_scribble_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v15.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "control_scribble_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/kohya-ss/ControlNet-diff-modules/resolve/main/diff_control_sd15_scribble_fp16.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_scribble": {
+		"name": "control_scribble",
+		"type": "control_scribble",
+		"description": "control_scribble",
+		"version": "0.1.0",
+		"style": "control_scribble",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "control_scribble_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v15.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "control_scribble_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/kohya-ss/ControlNet-diff-modules/resolve/main/diff_control_sd15_scribble_fp16.safetensors"
+				}
+			]
+		},
+		"available": false
+	},
+    "control_seg": {
+		"name": "control_seg",
+		"type": "control_seg",
+		"description": "control_seg",
+		"version": "0.1.0",
+		"style": "control_seg",
+		"nsfw": false,
+		"download_all": true,
+		"config": {
+			"files": [
+				{
+					"path": "control_seg_fp16.safetensors"
+				},
+				{
+					"path": "cldm_v15.yaml"
+				}
+			],
+			"download": [
+				{
+					"file_name": "control_seg_fp16.safetensors",
+					"file_path": "",
+					"file_url": "https://huggingface.co/kohya-ss/ControlNet-diff-modules/resolve/main/diff_control_sd15_seg_fp16.safetensors"
+				}
+			]
+		},
+		"available": false
+	}
+}

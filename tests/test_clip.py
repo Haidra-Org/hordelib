@@ -36,9 +36,8 @@ class TestHordePostProcessing:
     def test_clip_similarities(self):
         assert SharedModelManager.manager.clip.is_model_loaded("ViT-L/14") is True
         word_list = ["outlaw", "explosion", "underwater"]
-        interrogator = Interrogator(
-            SharedModelManager.manager.loaded_models["ViT-L/14"],
-        )
+        model_info = SharedModelManager.manager.loaded_models["ViT-L/14"]
+        interrogator = Interrogator(model_info)
         similarity_result = interrogator(
             image=self.image,
             text_array=word_list,
