@@ -1,7 +1,8 @@
 # consts.py
 import os
-from hordelib.config_path import get_hordelib_path
 from enum import Enum, auto
+
+from hordelib.config_path import get_hordelib_path
 
 COMFYUI_VERSION = "c767e9426ae81bed4f52c7be0625f0efc4cbe16b"
 """The exact version of ComfyUI version to load."""

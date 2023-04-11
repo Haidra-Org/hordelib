@@ -219,5 +219,6 @@ class TestHordeInference:
         }
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
         assert "source_image" not in data
         assert "source_processing" not in data

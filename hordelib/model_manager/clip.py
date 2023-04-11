@@ -17,7 +17,7 @@ class ClipModelManager(BaseModelManager):
         )
 
     def load_data_lists(self):
-        data_lists = {}
+        # data_lists = {}
         # data_lists["artist"] = load_list(self.pkg / "artists.txt")
         # data_lists["flavors"] = load_list(self.pkg / "flavors.txt")
         # data_lists["medium"] = load_list(self.pkg / "mediums.txt")
@@ -25,7 +25,8 @@ class ClipModelManager(BaseModelManager):
         # data_lists["trending"] = load_list(self.pkg / "sites.txt")
         # data_lists["techniques"] = load_list(self.pkg / "techniques.txt")
         # data_lists["tags"] = load_list(self.pkg / "tags.txt")
-        return data_lists
+        # return data_list
+        return {}
 
     def load_coca(self, model_name, half_precision=True, gpu_id=0, cpu_only=False):
         model_path = self.get_model_files(model_name)[0]["path"]
@@ -149,7 +150,7 @@ class ClipModelManager(BaseModelManager):
             self.loaded_models[model_name] = loaded_model_info
         else:
             logger.error(
-                f"Unknown model type: {self.model_reference[model_name]['type']}"
+                f"Unknown model type: {self.model_reference[model_name]['type']}",
             )
             return None
         if not loaded_model_info:

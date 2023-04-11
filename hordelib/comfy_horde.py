@@ -83,8 +83,8 @@ class Comfy_Horde:
     NODE_PARAMETER_REPLACEMENTS = {
         "HordeCheckpointLoader": {
             # We name this "model_name" as then we can use the same generic code in our model loaders
-            "ckpt_name": "model_name"
-        }
+            "ckpt_name": "model_name",
+        },
     }
 
     def __init__(self) -> None:
@@ -235,7 +235,7 @@ class Comfy_Horde:
             if not skip:
                 if not current.get(keys[-1]):
                     logger.warning(
-                        f"Attempt to set parameter CREATED parameter '{key}'"
+                        f"Attempt to set parameter CREATED parameter '{key}'",
                     )
                 current[keys[-1]] = value
 
@@ -248,7 +248,7 @@ class Comfy_Horde:
         # First check the output even exists
         if output not in dct.keys():
             logger.warning(
-                f"Can not reconnect input {input} to {output} as {output} does not exist"
+                f"Can not reconnect input {input} to {output} as {output} does not exist",
             )
             return None
 
@@ -308,12 +308,16 @@ class Comfy_Horde:
             if params.get("return_control_map", False):
                 # Connect annotator to output image directly
                 self.reconnect_input(
-                    pipeline, "output_image.images", params["control_type"]
+                    pipeline,
+                    "output_image.images",
+                    params["control_type"],
                 )
             else:
                 # Connect annotator to controlnet apply node
                 self.reconnect_input(
-                    pipeline, "controlnet_apply.image", params["control_type"]
+                    pipeline,
+                    "controlnet_apply.image",
+                    params["control_type"],
                 )
 
         # Set the pipeline parameters

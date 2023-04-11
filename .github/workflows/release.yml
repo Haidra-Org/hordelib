@@ -55,14 +55,12 @@ jobs:
         unreleased: false
         token: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Write changelog
-      if: ${{ steps.release.outputs.version != '' }}
-      run: echo "${{ steps.changelog.outputs.changelog }}" > CHANGELOG.md
-
     # Patches our requirements.txt and pyproject.toml
     # Build a changelog
     - name: "🔧 Prepare our build for release"
       if: ${{ steps.release.outputs.version != '' }}
+      env:
+        CHANGELOG: ${{ steps.changelog.outputs.changelog }}
       run: >-
         python build_helper.py
 

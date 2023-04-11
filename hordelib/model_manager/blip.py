@@ -72,29 +72,29 @@ class BlipModelManager(BaseModelManager):
         blip_image_eval_size=512,
     ):
         raise NotImplementedError("BLIP is not currently implemented!")
-        if not self.cuda_available:
-            cpu_only = True
-        vit = "base" if model_name == "BLIP" else "large"
-        model_path = self.get_model_files(model_name)[0]["path"]
-        model_path = f"{self.modelFolderPath}/{model_path}"
-        if cpu_only:
-            device = torch.device("cpu")
-            half_precision = False
-        else:
-            device = torch.device(f"cuda:{gpu_id}" if self.cuda_available else "cpu")
-        logger.info(f"Loading model {model_name} on {device}")
-        logger.info(f"Model path: {model_path}")
-        with importlib_resources.as_file(self.pkg / "med_config.json") as med_config:
-            logger.info(f"Med config path: {med_config}")
-            model = blip_decoder(
-                # XXX # FIXME
-                pretrained=model_path,
-                med_config=med_config,
-                image_size=blip_image_eval_size,
-                vit=vit,
-            )
-        model = model.eval()
-        model.to(device)
-        if half_precision:
-            model = model.half()
-        return {"model": model, "device": device, "half_precision": half_precision}
+        # if not self.cuda_available:
+        #     cpu_only = True
+        # vit = "base" if model_name == "BLIP" else "large"
+        # model_path = self.get_model_files(model_name)[0]["path"]
+        # model_path = f"{self.modelFolderPath}/{model_path}"
+        # if cpu_only:
+        #     device = torch.device("cpu")
+        #     half_precision = False
+        # else:
+        #     device = torch.device(f"cuda:{gpu_id}" if self.cuda_available else "cpu")
+        # logger.info(f"Loading model {model_name} on {device}")
+        # logger.info(f"Model path: {model_path}")
+        # with importlib_resources.as_file(self.pkg / "med_config.json") as med_config:
+        #     logger.info(f"Med config path: {med_config}")
+        #     model = blip_decoder(
+        #         # XXX # FIXME
+        #         pretrained=model_path,
+        #         med_config=med_config,
+        #         image_size=blip_image_eval_size,
+        #         vit=vit,
+        #     )
+        # model = model.eval()
+        # model.to(device)
+        # if half_precision:
+        #     model = model.half()
+        # return {"model": model, "device": device, "half_precision": half_precision}

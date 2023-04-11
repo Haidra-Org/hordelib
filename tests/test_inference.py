@@ -139,5 +139,6 @@ class TestInference:
 
         image = Image.open(images[0]["imagedata"])
         image.save(
-            "images/pipeline_stable_diffusion_hires_fix_clip_skip_2.webp", quality=90
+            "images/pipeline_stable_diffusion_hires_fix_clip_skip_2.webp",
+            quality=90,
         )

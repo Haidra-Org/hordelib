@@ -1,5 +1,6 @@
 # test_setup.py
 import glob
+
 import pytest
 
 from hordelib.comfy_horde import Comfy_Horde

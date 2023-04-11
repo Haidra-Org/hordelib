@@ -72,6 +72,10 @@ exclude=["comfy_controlnet_preprocessors", "facerestore"]
 ignore=[
     "E501", # XXX line too long (comments are the big offender right now)
     "F401", # imported but unused
+    "E402", # Module level import not at top of file
+    "A002", # Argument `x` is shadowing a python builtin
+    "A001", # Variable `x` is shadowing a python builtin
+    "INP001", # ... is part of an implicit namespace package. Add an `__init__.py`.
 ]
 select = [
     "A",    # flake8-builtins
@@ -95,8 +99,8 @@ select = [
     "RSE",  # flake8-raise
     "RET",  # flake8-return
     # "SLF",  # flake8-self
-    "SIM",  # flake8-simplify
-    "ARG",  # flake8-unused-arguments
+    # "SIM",  # flake8-simplify
+    # "ARG",  # flake8-unused-arguments
     # "TRY",  # tryceratops
     "RUF100"
 ]

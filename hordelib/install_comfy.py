@@ -34,14 +34,13 @@ class Installer:
 
     @classmethod
     def _run_get_result(cls, command, directory=get_hordelib_path()):
-        result = subprocess.run(
+        return subprocess.run(
             command,
             shell=True,
             text=True,
             capture_output=True,
             cwd=directory,
         )
-        return result
 
     @classmethod
     def _run(cls, command, directory=get_hordelib_path()) -> tuple[bool, str] | None:
@@ -101,11 +100,13 @@ class Installer:
     def apply_patch(cls, patchfile):
         # Check if the patch has already been applied
         result = cls._run_get_result(
-            f"git apply --check {patchfile}", get_comfyui_path()
+            f"git apply --check {patchfile}",
+            get_comfyui_path(),
         )
         could_apply = not result.returncode
         result = cls._run_get_result(
-            f"git apply --reverse --check {patchfile}", get_comfyui_path()
+            f"git apply --reverse --check {patchfile}",
+            get_comfyui_path(),
         )
         could_reverse = not result.returncode
         if could_apply:
