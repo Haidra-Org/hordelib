@@ -9,14 +9,14 @@ from hordelib.shared_model_manager import SharedModelManager
 class TestInference:
     comfy: Comfy_Horde
 
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(autouse=True, scope="class")
     def setup_and_teardown(self):
-        self.comfy = Comfy_Horde()
+        TestInference.comfy = Comfy_Horde()
         SharedModelManager.loadModelManagers(compvis=True)
         assert SharedModelManager.manager is not None
         SharedModelManager.manager.load("Deliberate")
         yield
-        del self.comfy
+        del TestInference.comfy
         SharedModelManager._instance = None
         SharedModelManager.manager = None
 
