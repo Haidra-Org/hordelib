@@ -34,6 +34,13 @@ jobs:
     - name: Set build version env var
       run: echo "SETUPTOOLS_SCM_PRETEND_VERSION=${{ steps.release.outputs.version }}" >> $GITHUB_ENV
 
+    - name: "✏️ Generate release changelog"
+      if: ${{ steps.release.outputs.version != '' }}
+      uses: heinrichreimer/github-changelog-generator-action@v2.3
+      with:
+        unreleased: false
+        token: ${{ secrets.GITHUB_TOKEN }}
+
     # We need python...
     - name: "🐍 Set up Python 3.10"
       if: ${{ steps.release.outputs.version != '' }}
