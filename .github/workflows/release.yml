@@ -56,13 +56,8 @@ jobs:
         token: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Write changelog
-      uses: "DamianReeves/write-file-action@master"
-      with:
-        path: ${{ github.workspace }}/CHANGELOG.md
-        write-mode: overwrite
-        token: ${{ secrets.GITHUB_TOKEN }}
-        contents: |
-          ${{ steps.changelog.outputs.changelog }}
+      if: ${{ steps.release.outputs.version != '' }}
+      run: echo "${{ steps.changelog.outputs.changelog }}" > CHANGELOG.md
 
     # Patches our requirements.txt and pyproject.toml
     # Build a changelog
