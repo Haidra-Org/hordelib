@@ -1,9 +1,9 @@
 # Add this in for tox, comment out for build
 --extra-index-url https://download.pytorch.org/whl/cu117
-torch==1.13.1
+torch>=2.0.0
+xformers>=0.0.18
 torchvision
 torchaudio
-xformers
 torchdiffeq
 torchsde
 einops

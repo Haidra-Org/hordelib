@@ -82,10 +82,10 @@ class TestSharedModelManager:
     def test_horde_model_manager_unload_model(self):
         assert SharedModelManager.manager is not None
         SharedModelManager.manager.load("Deliberate")
-        assert SharedModelManager.manager.is_model_loaded("Deliberate") is False
+        assert SharedModelManager.manager.is_model_loaded("Deliberate") is True
         result = SharedModelManager.manager.unload_model("Deliberate")
         assert result is True
-        assert SharedModelManager.manager.is_model_loaded("Deliberate") is True
+        assert SharedModelManager.manager.is_model_loaded("Deliberate") is False
 
     def test_model_load_checking(self):
         assert SharedModelManager.manager is not None
