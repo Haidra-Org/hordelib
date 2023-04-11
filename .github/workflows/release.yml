@@ -59,8 +59,6 @@ jobs:
     # Build a changelog
     - name: "🔧 Prepare our build for release"
       if: ${{ steps.release.outputs.version != '' }}
-      env:
-        CHANGELOG: ${{ steps.changelog.outputs.changelog }}
       run: >-
         python build_helper.py
 
