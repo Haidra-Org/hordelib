@@ -96,7 +96,9 @@ class ModelManager:
 
             # at runtime modelmanager() will be CompVisModelManager(), ClipModelManager(), etc
             setattr(
-                self, argName, modelmanager(download_reference=False)
+                self,
+                argName,
+                modelmanager(download_reference=False),
             )  # XXX # FIXME # HACK
 
         self.refreshManagers()

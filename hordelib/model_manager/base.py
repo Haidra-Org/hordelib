@@ -156,7 +156,9 @@ class BaseModelManager(ABC):
 
     @abstractmethod
     def modelToRam(
-        self, model_name: str, **kwargs
+        self,
+        model_name: str,
+        **kwargs,
     ) -> dict[str, typing.Any]:  # XXX Flesh out signature
         """"""  # XXX # FIXME These functions need something resembling error detection/logging.
 
@@ -371,10 +373,7 @@ class BaseModelManager(ABC):
             sha256_file_hash = self.get_file_sha256_hash(full_path)
             logger.debug(f"sha256sum: {sha256_file_hash}")
             logger.debug(f"Expected: {file_details['sha256sum']}")
-            if file_details["sha256sum"] != sha256_file_hash:
-                return False
-            else:
-                return True
+            return file_details["sha256sum"] == sha256_file_hash
 
         # If sha256 is not available, fall back to md5
         if "md5sum" in file_details:
@@ -382,10 +381,7 @@ class BaseModelManager(ABC):
             md5_file_hash = self.get_file_md5sum_hash(full_path)
             logger.debug(f"md5sum: {md5_file_hash}")
             logger.debug(f"Expected: {file_details['md5sum']}")
-            if file_details["md5sum"] != md5_file_hash:
-                return False
-            else:
-                return True
+            return file_details["md5sum"] != md5_file_hash
 
         # If no hashes available, return True for now
         # THIS IS A SECURITY RISK, EVENTUALLY WE SHOULD RETURN FALSE
@@ -495,11 +491,13 @@ class BaseModelManager(ABC):
                 file_content = download[i]["file_content"]
                 logger.info(f"writing {file_content} to {file_path}")
                 os.makedirs(
-                    os.path.join(self.modelFolderPath, download_path), exist_ok=True
+                    os.path.join(self.modelFolderPath, download_path),
+                    exist_ok=True,
                 )
                 with open(
                     os.path.join(
-                        self.modelFolderPath, os.path.join(download_path, download_name)
+                        self.modelFolderPath,
+                        os.path.join(download_path, download_name),
                     ),
                     "w",
                 ) as f:
@@ -508,21 +506,24 @@ class BaseModelManager(ABC):
                 logger.info(f"symlink {file_path} to {download[i]['symlink']}")
                 symlink = download[i]["symlink"]
                 os.makedirs(
-                    os.path.join(self.modelFolderPath, download_path), exist_ok=True
+                    os.path.join(self.modelFolderPath, download_path),
+                    exist_ok=True,
                 )
                 os.symlink(
                     symlink,
                     os.path.join(
-                        self.modelFolderPath, os.path.join(download_path, download_name)
+                        self.modelFolderPath,
+                        os.path.join(download_path, download_name),
                     ),
                 )
             elif "git" in download[i]:
                 logger.info(f"git clone {download_url} to {file_path}")
                 os.makedirs(
-                    os.path.join(self.modelFolderPath, file_path), exist_ok=True
+                    os.path.join(self.modelFolderPath, file_path),
+                    exist_ok=True,
                 )
                 git.Git(os.path.join(self.modelFolderPath, file_path)).clone(
-                    download_url
+                    download_url,
                 )
             elif "unzip" in download[i]:
                 zip_path = f"{self.modelFolderPath}/{download_name}.zip"
@@ -534,7 +535,8 @@ class BaseModelManager(ABC):
                     zip_ref.extractall(temp_path)
                 logger.info(f"moving {temp_path} to {download_path}")
                 shutil.move(
-                    temp_path, os.path.join(self.modelFolderPath, download_path)
+                    temp_path,
+                    os.path.join(self.modelFolderPath, download_path),
                 )
                 logger.info(f"delete {zip_path}")
                 os.remove(zip_path)
@@ -599,8 +601,8 @@ class BaseModelManager(ABC):
             cuda_arch = sorted(cuda_arch, key=lambda k: k["sm"], reverse=True)
             recommended_gpu = [x for x in cuda_arch if x["sm"] == cuda_arch[0]["sm"]]
             return cuda_arch, recommended_gpu
-        else:
-            return None, None
+
+        return None, None
 
     def get_filtered_models(self, **kwargs):
         """
