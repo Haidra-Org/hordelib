@@ -326,8 +326,8 @@
         "Node name for S&R": "M-LSDPreprocessor"
       },
       "widgets_values": [
-        6.283185307179586,
-        0.05
+        0.150,
+        1.00
       ]
     },
     {
