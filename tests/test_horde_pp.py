@@ -89,7 +89,7 @@ class TestHordeUpscaling:
         SharedModelManager.manager.load("RealESRGAN_x4plus_anime_6B")
         assert (
             SharedModelManager.manager.esrgan.is_model_loaded(
-                "RealESRGAN_x4plus_anime_6B"
+                "RealESRGAN_x4plus_anime_6B",
             )
             is True
         )
@@ -103,7 +103,8 @@ class TestHordeUpscaling:
         assert width == self.width * 4
         assert height == self.height * 4
         pil_image.save(
-            "images/horde_image_upscale_RealESRGAN_x4plus_anime_6B.webp", quality=90
+            "images/horde_image_upscale_RealESRGAN_x4plus_anime_6B.webp",
+            quality=90,
         )
 
     @pytest.mark.mm_model("esrgan")

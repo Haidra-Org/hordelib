@@ -36,7 +36,7 @@ class HordeDiffControlNetLoader:
             model,
         )
 
-        return merged_model
+        return merged_model  # noqa: RET504
 
 
 NODE_CLASS_MAPPINGS = {"HordeDiffControlNetLoader": HordeDiffControlNetLoader}

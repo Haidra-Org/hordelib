@@ -18,7 +18,7 @@ class ComfyWebAppLauncher:
         # Launch a browser
         webbrowser.open("http://127.0.0.1:8188/")
         logger.warning(
-            "Wait a moment and then refresh your browser. It takes a while to load the backend."
+            "Wait a moment and then refresh your browser. It takes a while to load the backend.",
         )
 
         # Tell comfyui where are custom nodes are

@@ -34,7 +34,7 @@ class TestHordeInference:
         SharedModelManager.manager.load("stable_diffusion_inpainting")
         assert (
             SharedModelManager.manager.diffusers.is_model_loaded(
-                "stable_diffusion_inpainting"
+                "stable_diffusion_inpainting",
             )
             is True
         )

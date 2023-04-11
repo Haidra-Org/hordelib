@@ -6,7 +6,7 @@ from loguru import logger
 
 import hordelib.utils.logger
 from hordelib import install_comfy
-from hordelib.config_path import set_system_path, get_hordelib_path
+from hordelib.config_path import get_hordelib_path, set_system_path
 from hordelib.consts import (
     COMFYUI_VERSION,
     DEFAULT_MODEL_MANAGERS,
@@ -25,7 +25,7 @@ def initialise(
         # Our runtime patching can't handle this
         raise Exception(
             "Do not run this project in developer mode from a path that "
-            "contains spaces in directory names."
+            "contains spaces in directory names.",
         )
 
     # Ensure we have ComfyUI
