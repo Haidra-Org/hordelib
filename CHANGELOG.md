@@ -1,5 +1,18 @@
 # Changelog
 
+## [v0.5.2](https://github.com/jug-dev/hordelib/tree/v0.5.2) (2023-04-11)
+
+[Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.5.1...v0.5.2)
+
+**Closed issues:**
+
+- Can't distribute a worker as a zip file [\#69](https://github.com/jug-dev/hordelib/issues/69)
+- support return\_control\_map: True [\#60](https://github.com/jug-dev/hordelib/issues/60)
+
+**Merged pull requests:**
+
+- build: upgrade to torch 2, xformers 18 and latest comfyui [\#68](https://github.com/jug-dev/hordelib/pull/68) ([jug-dev](https://github.com/jug-dev))
+
 ## [v0.5.1](https://github.com/jug-dev/hordelib/tree/v0.5.1) (2023-04-11)
 
 [Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.5.0...v0.5.1)
