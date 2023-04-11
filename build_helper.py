@@ -1,5 +1,6 @@
 # build_helper.py
 # This is just a build helper script to build the pypi package.
+import os
 import subprocess
 
 
@@ -43,8 +44,14 @@ def patch_toml(unpatch=False):
         outfile.writelines(newfile)
 
 
+def dump_changelog():
+    with open("CHANGELOG.md", "wt") as outfile:
+        outfile.write(os.getenv("CHANGELOG", "coming soon"))
+
+
 patch_requirements()
 patch_toml()
+dump_changelog()
 
 # try:
 #     run(["python", "-m", "build"])
