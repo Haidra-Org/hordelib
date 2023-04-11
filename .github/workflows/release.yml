@@ -3,7 +3,7 @@ name: hordelib build and publish
 on:
   push:
     branches:
-      - main
+      - releases
 
 jobs:
   build-n-publish:
@@ -30,7 +30,6 @@ jobs:
     - name: "💾 Commit new version"
       if: ${{ steps.release.outputs.version != '' }}
       run: |
-          sed -i 's/^VERSION = ".*"/VERSION = "${{ steps.release.outputs.version }}"/g' ./hordelib/consts.py
           git config user.email github-actions@github.com
           git config user.name github-actions
           git commit -am 'build: version bump'

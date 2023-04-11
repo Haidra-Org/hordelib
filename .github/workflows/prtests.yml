@@ -1,4 +1,4 @@
-name: Test Runner
+name: Unstable Tests
 
 on:
   pull_request_target:
@@ -30,10 +30,6 @@ jobs:
         run: python -m tests.run_upscale
       - name: Create CI webpage of results
         run: python -m tests.make_index
-      - uses: actions/upload-artifact@v3
-        with:
-          name: test-images
-          path: images/
       - name: Upload to S3
         uses: shallwefootball/s3-upload-action@master
         id: S3
@@ -42,4 +38,4 @@ jobs:
           aws_secret_access_key: ${{secrets.S3_BUILD_ARTIFACTS_SECRET_ACCESS_KEY}}
           aws_bucket: hordelib
           source_dir: images/
-          destination_dir: ''
+          destination_dir: 'unstable/'
