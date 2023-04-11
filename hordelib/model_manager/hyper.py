@@ -229,6 +229,9 @@ class ModelManager:
         """
         return list(self.loaded_models.keys())
 
+    def is_model_loaded(self, model_name) -> bool:
+        return model_name in self.get_loaded_models_names()
+
     def get_available_models_by_types(self, model_types: list[str] | None = None):
         if not model_types:
             model_types = ["ckpt", "diffusers"]

@@ -76,13 +76,25 @@ class TestSharedModelManager:
         assert SharedModelManager.manager is not None
         SharedModelManager.manager.taint_models(["Deliberate"])
         assert "Deliberate" not in SharedModelManager.manager.get_available_models()
-        assert "Deliberate" not in SharedModelManager.manager.get_loaded_models_names()
+        assert SharedModelManager.manager.is_model_loaded("Deliberate") is False
 
     # XXX add a test for model missing?
     def test_horde_model_manager_unload_model(self):
         assert SharedModelManager.manager is not None
         SharedModelManager.manager.load("Deliberate")
-        assert "Deliberate" in SharedModelManager.manager.get_loaded_models_names()
+        assert SharedModelManager.manager.is_model_loaded("Deliberate") is False
         result = SharedModelManager.manager.unload_model("Deliberate")
         assert result is True
-        assert "Deliberate" not in SharedModelManager.manager.get_loaded_models_names()
+        assert SharedModelManager.manager.is_model_loaded("Deliberate") is True
+
+    def test_model_load_checking(self):
+        assert SharedModelManager.manager is not None
+        assert SharedModelManager.manager.is_model_loaded("Deliberate") is False
+        assert SharedModelManager.manager.is_model_loaded("GFPGAN") is False
+        assert SharedModelManager.manager.is_model_loaded("RealESRGAN_x4plus") is False
+        SharedModelManager.manager.load("Deliberate")
+        SharedModelManager.manager.load("GFPGAN")
+        SharedModelManager.manager.load("RealESRGAN_x4plus")
+        assert SharedModelManager.manager.is_model_loaded("Deliberate") is True
+        assert SharedModelManager.manager.is_model_loaded("GFPGAN") is True
+        assert SharedModelManager.manager.is_model_loaded("RealESRGAN_x4plus") is True
