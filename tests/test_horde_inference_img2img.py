@@ -7,11 +7,11 @@ from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestHordeInference:
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(autouse=True, scope="class")
     def setup_and_teardown(self):
-        self.horde = HordeLib()
+        TestHordeInference.horde = HordeLib()
 
-        self.default_model_manager_args = {
+        TestHordeInference.default_model_manager_args = {
             # aitemplate
             # "blip": True,
             # "clip": True,
@@ -27,7 +27,7 @@ class TestHordeInference:
         assert SharedModelManager.manager is not None
         SharedModelManager.manager.load("Deliberate")
         yield
-        del self.horde
+        del TestHordeInference.horde
         SharedModelManager._instance = None
         SharedModelManager.manager = None
 
@@ -36,7 +36,7 @@ class TestHordeInference:
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
             "denoising_strength": 0.4,
-            "seed": 250636385744582,
+            "seed": 666,
             "height": 512,
             "width": 512,
             "karras": False,
@@ -65,7 +65,7 @@ class TestHordeInference:
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
             "denoising_strength": 0.4,
-            "seed": 250636385744582,
+            "seed": 666,
             "height": 512,
             "width": 512,
             "karras": False,
@@ -92,8 +92,8 @@ class TestHordeInference:
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
-            "denoising_strength": 0.4,
-            "seed": 250636385744582,
+            "denoising_strength": 0.75,
+            "seed": 666,
             "height": 768,
             "width": 768,
             "karras": False,
@@ -121,7 +121,7 @@ class TestHordeInference:
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
             "denoising_strength": 0.72,
-            "seed": 836913938046008,
+            "seed": 666,
             "height": 512,
             "width": 512,
             "karras": False,

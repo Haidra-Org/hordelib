@@ -7,31 +7,32 @@ from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestHordeUpscaling:
-    @pytest.fixture(autouse=True)
+    @pytest.fixture(autouse=True, scope="class")
     def setup_and_teardown(self):
-        self.horde = HordeLib()
+        TestHordeUpscaling.horde = HordeLib()
 
+        TestHordeUpscaling.image = Image.open("images/test_db0.jpg")
+        (
+            TestHordeUpscaling.width,
+            TestHordeUpscaling.height,
+        ) = TestHordeUpscaling.image.size
+        yield
+        del TestHordeUpscaling.horde
+
+    @pytest.fixture(autouse=True)
+    def setup_model(self, request):
+        mm_type = request.node.get_closest_marker("mm_model").args[0]
+        print(mm_type)
         self.default_model_manager_args = {
-            # aitemplate
-            # "blip": True,
-            # "clip": True,
-            "codeformer": True,
-            # "compvis": True,
-            # "controlnet": True,
-            # "diffusers": True,
-            "esrgan": True,
-            "gfpgan": True,
-            # "safety_checker": True,
+            mm_type: True,
         }
         SharedModelManager.loadModelManagers(**self.default_model_manager_args)
         assert SharedModelManager.manager is not None
-        self.image = Image.open("images/test_db0.jpg")
-        self.width, self.height = self.image.size
         yield
-        del self.horde
         SharedModelManager._instance = None
         SharedModelManager.manager = None
 
+    @pytest.mark.mm_model("esrgan")
     def test_image_upscale_RealESRGAN_x4plus(self):
         SharedModelManager.manager.load("RealESRGAN_x4plus")
         assert (
@@ -50,6 +51,7 @@ class TestHordeUpscaling:
         assert height == self.height * 4
         pil_image.save("images/horde_image_upscale_RealESRGAN_x4plus.webp", quality=90)
 
+    @pytest.mark.mm_model("esrgan")
     def test_image_upscale_RealESRGAN_x2plus(self):
         SharedModelManager.manager.load("RealESRGAN_x2plus")
         assert (
@@ -67,6 +69,7 @@ class TestHordeUpscaling:
         assert height == self.height * 2
         pil_image.save("images/horde_image_upscale_RealESRGAN_x2plus.webp", quality=90)
 
+    @pytest.mark.mm_model("esrgan")
     def test_image_upscale_NMKD_Siax(self):
         SharedModelManager.manager.load("NMKD_Siax")
         assert SharedModelManager.manager.esrgan.is_model_loaded("NMKD_Siax") is True
@@ -81,6 +84,7 @@ class TestHordeUpscaling:
         assert height == self.height * 4
         pil_image.save("images/horde_image_upscale_NMKD_Siax.webp", quality=90)
 
+    @pytest.mark.mm_model("esrgan")
     def test_image_upscale_RealESRGAN_x4plus_anime_6B(self):
         SharedModelManager.manager.load("RealESRGAN_x4plus_anime_6B")
         assert (
@@ -102,6 +106,7 @@ class TestHordeUpscaling:
             "images/horde_image_upscale_RealESRGAN_x4plus_anime_6B.webp", quality=90
         )
 
+    @pytest.mark.mm_model("esrgan")
     def test_image_upscale_4x_AnimeSharp(self):
         SharedModelManager.manager.load("4x_AnimeSharp")
         assert (
@@ -118,6 +123,7 @@ class TestHordeUpscaling:
         assert height == self.height * 4
         pil_image.save("images/horde_image_upscale_4x_AnimeSharp.webp", quality=90)
 
+    @pytest.mark.mm_model("codeformer")
     def test_image_facefix_codeformers(self):
         SharedModelManager.manager.load("CodeFormers")
         assert (
@@ -132,6 +138,7 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         pil_image.save("images/horde_image_facefix_codeformers.webp", quality=90)
 
+    @pytest.mark.mm_model("gfpgan")
     def test_image_facefix_gfpgan(self):
         SharedModelManager.manager.load("GFPGAN")
         assert SharedModelManager.manager.gfpgan.is_model_loaded("GFPGAN") is True
