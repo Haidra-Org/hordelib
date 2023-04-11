@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.5.0](https://github.com/jug-dev/hordelib/tree/v0.5.0) (2023-04-11)
+
+[Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.4.2...v0.5.0)
+
+**Merged pull requests:**
+
+- feat: add support for return\_control\_map [\#66](https://github.com/jug-dev/hordelib/pull/66) ([jug-dev](https://github.com/jug-dev))
+
 ## [v0.4.2](https://github.com/jug-dev/hordelib/tree/v0.4.2) (2023-04-11)
 
 [Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.4.1...v0.4.2)
