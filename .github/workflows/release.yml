@@ -60,6 +60,7 @@ jobs:
       with:
         path: ${{ github.workspace }}/CHANGELOG.md
         write-mode: overwrite
+        token: ${{ secrets.GITHUB_TOKEN }}
         contents: |
           ${{ steps.changelog.outputs.changelog }}
 
