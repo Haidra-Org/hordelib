@@ -61,10 +61,20 @@ jobs:
         build
         --user
 
-    - name: "🔧 Build a binary wheel and a source tarball"
+    - name: "🔧 Prepare our build for release"
       if: ${{ steps.release.outputs.version != '' }}
       run: >-
         python build_helper.py
+
+    - name: "🔧 Build a binary wheel and a source tarball"
+      if: ${{ steps.release.outputs.version != '' }}
+      run: >-
+        python -m
+        build
+        --sdist
+        --wheel
+        --outdir dist/
+        .
 
     - name: "📦 Publish distribution to PyPI"
       if: ${{ steps.release.outputs.version != '' }}

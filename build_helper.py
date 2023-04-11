@@ -46,8 +46,8 @@ def patch_toml(unpatch=False):
 patch_requirements()
 patch_toml()
 
-try:
-    run(["python", "-m", "build"])
-finally:
-    patch_requirements(unpatch=True)
-    patch_toml(unpatch=True)
+# try:
+#     run(["python", "-m", "build"])
+# finally:
+#     patch_requirements(unpatch=True)
+#     patch_toml(unpatch=True)
