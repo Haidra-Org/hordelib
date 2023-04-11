@@ -145,8 +145,11 @@ The main config files for the project are: `pyproject.toml`, `tox.ini` and `requ
 
 ### PyPi Publishing
 
-Three steps:
-1. Bump the version in `hordelib/cosnts.py`
+_Will be automatic from the `releases` branch_
+
+But currently:
+
+1. checkout the `releases` branch
 1. `tox` _make sure everything works_
 1. `python build_helper.py` _builds the dist files_
 1. `twine upload -r pypi dist/*`
