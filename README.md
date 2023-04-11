@@ -10,7 +10,7 @@
 
 `hordelib` is a thin wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed visually in the ComfyUI GUI.
 
-The developers of this project can be found in the AI Horde Discord server: https://discord.gg/3DxrhksKznb
+The developers of this project can be found in the AI Horde Discord server: [https://discord.gg/3DxrhksKzn](https://discord.gg/3DxrhksKzn)
 
 NOTE: This project is in early development and is not yet in use by Stable Horde.
 
