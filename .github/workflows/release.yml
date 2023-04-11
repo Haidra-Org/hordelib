@@ -48,11 +48,20 @@ jobs:
         python -m pip install build --user
 
     - name: "✏️ Generate release changelog"
+      id: changelog
       if: ${{ steps.release.outputs.version != '' }}
       uses: heinrichreimer/github-changelog-generator-action@v2.3
       with:
         unreleased: false
         token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Write changelog
+      uses: "DamianReeves/write-file-action@master"
+      with:
+        path: CHANGELOG.md
+        write-mode: overwrite
+        contents: |
+          ${{ steps.changelog.outputs.changelog }}
 
     # Patches our requirements.txt and pyproject.toml
     # Build a changelog
