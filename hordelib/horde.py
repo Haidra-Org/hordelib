@@ -2,7 +2,8 @@
 # Main interface for the horde to this library.
 import contextlib
 
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
+from loguru import logger
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
@@ -186,7 +187,6 @@ class HordeLib:
         img_proc = payload.get("source_processing")
         if img_proc and img_proc not in HordeLib.SOURCE_IMAGE_PROCESSING_OPTIONS:
             del payload["source_processing"]
-
         # Remove source image if we don't need it
         if payload.get("source_image"):
             if not img_proc or img_proc not in HordeLib.SOURCE_IMAGE_PROCESSING_OPTIONS:
@@ -227,12 +227,41 @@ class HordeLib:
         # ControlNet
         if params.get("control_type"):
             pipeline = "controlnet"
-
         return pipeline
+
+    def _resize_sources_to_request(self, payload):
+        """Ensures the source_image and source_mask are at the size requested by the client"""
+        source_image = payload.get("source_image")
+        if not source_image:
+            return
+        try:
+            if source_image.size != (payload["width"], payload["height"]):
+                payload["source_image"] = source_image.resize(
+                    (payload["width"], payload["height"])
+                )
+        except (UnidentifiedImageError, AttributeError):
+            logger.warning("Source image could not be parsed. Falling back to text2img")
+            del payload["source_image"]
+            del payload["source_processing"]
+            return
+        source_mask = payload.get("source_mask")
+        if not source_mask:
+            return
+        try:
+            if source_mask.size != (payload["width"], payload["height"]):
+                payload["source_mask"] = source_mask.resize(
+                    (payload["width"], payload["height"])
+                )
+        except (UnidentifiedImageError, AttributeError):
+            logger.warning(
+                "Source mask could not be parsed. Falling back to img2img without mask"
+            )
+            del payload["source_mask"]
 
     def basic_inference(self, payload: dict[str, str | None]) -> Image.Image | None:
         generator = Comfy_Horde()
         # Validate our payload parameters
+        self._resize_sources_to_request(payload)
         self._validate_BASIC_INFERENCE_PARAMS(payload)
         # Determine our parameters
         params = self._parameter_remap_basic_inference(payload)

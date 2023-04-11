@@ -56,6 +56,8 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
+        assert pil_image.size == (512, 512)
+        assert data["source_image"].size == (512, 512)
         pil_image.save("images/horde_image_to_image.webp", quality=90)
 
     def test_image_to_image_hires_fix_small(self):
@@ -83,6 +85,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
+        assert pil_image.size == (512, 512)
         pil_image.save("images/horde_image_to_image_hires_fix_small.webp", quality=90)
 
     def test_image_to_image_hires_fix_large(self):
@@ -110,6 +113,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
+        assert pil_image.size == (768, 768)
         pil_image.save("images/horde_image_to_image_hires_fix_large.webp", quality=90)
 
     def test_image_to_image_mask_in(self):
@@ -137,6 +141,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
+        assert pil_image.size == (512, 512)
         pil_image.save("images/horde_image_to_image_mask_in.webp", quality=90)
 
     def test_image_to_image_mask_out(self):
@@ -164,6 +169,7 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
+        assert pil_image.size == (512, 512)
         pil_image.save("images/horde_image_to_image_mask_out.webp", quality=90)
 
     def test_img2img_alpha_to_inpainting_convert(self):
@@ -186,4 +192,32 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
+        assert pil_image.size == (512, 512)
         pil_image.save("images/horde_img2img_to_inpainting.webp", quality=90)
+
+    def test_image_to_faulty_source_image(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.4,
+            "seed": 250636385744582,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a dinosaur",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": "THIS SHOULD FAILOVER TO TEXT2IMG",
+            "source_processing": "img2img",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert "source_image" not in data
+        assert "source_processing" not in data
