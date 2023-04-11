@@ -17,7 +17,7 @@ class ControlNetModelManager(BaseModelManager):
 
     def modelToRam(self, model_name: str):
         raise NotImplementedError(
-            "Controlnet requires special handling. Use `ControlNetModelManager.merge_controlnet(...)` instead of `load()`."
+            "Controlnet requires special handling. Use `ControlNetModelManager.merge_controlnet(...)` instead of `load()`.",
         )  # XXX # TODO There might be way to avoid this.
 
     def merge_controlnet(
@@ -44,7 +44,8 @@ class ControlNetModelManager(BaseModelManager):
 
         logger.info(f"{control_type}", status="Merging")  # logger.init
         controlnet_path = os.path.join(
-            self.modelFolderPath, self.get_controlnet_filename(controlnet_name)
+            self.modelFolderPath,
+            self.get_controlnet_filename(controlnet_name),
         )
         controlnet = horde_load_controlnet(
             controlnet_path=controlnet_path,
@@ -53,14 +54,16 @@ class ControlNetModelManager(BaseModelManager):
         return (controlnet,)
 
     def download_control_type(
-        self, control_type, sd_baselines=["stable diffusion 1", "stable diffusion 2"]
+        self,
+        control_type,
+        sd_baselines=["stable diffusion 1", "stable diffusion 2"],
     ):
         # We need to do a rename, as they're named differently in the model reference
         for bl in sd_baselines:
             controlnet_name = self.get_controlnet_name(control_type, bl)
             if controlnet_name not in self.model_reference:
                 logger.warning(
-                    f"Could not find {controlnet_name} reference to download"
+                    f"Could not find {controlnet_name} reference to download",
                 )
                 continue
             self.download_model(controlnet_name)
@@ -77,7 +80,9 @@ class ControlNetModelManager(BaseModelManager):
         return f"control_{control_type}{baseline_appends[sd_baseline]}"
 
     def check_control_type_available(
-        self, control_type, sd_baseline="stable diffusion 1"
+        self,
+        control_type,
+        sd_baseline="stable diffusion 1",
     ):
         # We need to do a rename, as they're named differently in the model reference
         controlnet_name = self.get_controlnet_name(control_type, sd_baseline)

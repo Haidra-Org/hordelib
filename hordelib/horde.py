@@ -2,8 +2,8 @@
 # Main interface for the horde to this library.
 import contextlib
 
-from PIL import Image, UnidentifiedImageError
 from loguru import logger
+from PIL import Image, UnidentifiedImageError
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
@@ -245,7 +245,7 @@ class HordeLib:
                 payload["height"],
             ) and not payload.get("hires_fix"):
                 payload["source_image"] = source_image.resize(
-                    (payload["width"], payload["height"])
+                    (payload["width"], payload["height"]),
                 )
         except (UnidentifiedImageError, AttributeError):
             logger.warning("Source image could not be parsed. Falling back to text2img")
@@ -258,11 +258,11 @@ class HordeLib:
         try:
             if source_mask.size != (payload["width"], payload["height"]):
                 payload["source_mask"] = source_mask.resize(
-                    (payload["width"], payload["height"])
+                    (payload["width"], payload["height"]),
                 )
         except (UnidentifiedImageError, AttributeError):
             logger.warning(
-                "Source mask could not be parsed. Falling back to img2img without mask"
+                "Source mask could not be parsed. Falling back to img2img without mask",
             )
             del payload["source_mask"]
 

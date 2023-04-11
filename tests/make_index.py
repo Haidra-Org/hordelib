@@ -1,10 +1,9 @@
 # make_index.py
 # This isn't a test.
 # It's a 30 second hack to create an index.html that shows all our tests results.
-import os
-import glob
 import datetime
-
+import glob
+import os
 
 TEMPLATE = """
 <!DOCTYPE html>
@@ -94,7 +93,8 @@ def create_index():
     indexhtml = TEMPLATE.replace("[images]", "".join(refs))
     indexhtml = indexhtml.replace("[input_images]", "".join(in_refs))
     indexhtml = indexhtml.replace(
-        "[timestamp]", datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        "[timestamp]",
+        datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
     )
 
     # Output results

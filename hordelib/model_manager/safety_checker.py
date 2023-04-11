@@ -1,4 +1,5 @@
 import typing
+
 import torch
 from diffusers.pipelines.stable_diffusion.safety_checker import (
     StableDiffusionSafetyChecker,

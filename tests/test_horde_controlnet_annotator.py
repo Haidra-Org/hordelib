@@ -64,7 +64,8 @@ class TestHordeInference:
                 continue
             assert (
                 SharedModelManager.manager.controlnet.check_control_type_available(
-                    preproc, "stable diffusion 1"
+                    preproc,
+                    "stable diffusion 1",
                 )
                 is True
             )
