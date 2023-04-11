@@ -1,5 +1,13 @@
 # Changelog
 
+## [v0.5.1](https://github.com/jug-dev/hordelib/tree/v0.5.1) (2023-04-11)
+
+[Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.5.0...v0.5.1)
+
+**Merged pull requests:**
+
+- feat: Added is\_model\_loaded\(\) to HyperMM [\#67](https://github.com/jug-dev/hordelib/pull/67) ([db0](https://github.com/db0))
+
 ## [v0.5.0](https://github.com/jug-dev/hordelib/tree/v0.5.0) (2023-04-11)
 
 [Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.4.2...v0.5.0)
