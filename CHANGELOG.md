@@ -1,5 +1,15 @@
 # Changelog
 
+## [v0.4.2](https://github.com/jug-dev/hordelib/tree/v0.4.2) (2023-04-11)
+
+[Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.4.1...v0.4.2)
+
+**Merged pull requests:**
+
+- fix: resize img2img before inference [\#63](https://github.com/jug-dev/hordelib/pull/63) ([db0](https://github.com/db0))
+- tests: gfpgan test and size assets [\#62](https://github.com/jug-dev/hordelib/pull/62) ([db0](https://github.com/db0))
+- fix: add timezone to build results [\#61](https://github.com/jug-dev/hordelib/pull/61) ([jug-dev](https://github.com/jug-dev))
+
 ## [v0.4.1](https://github.com/jug-dev/hordelib/tree/v0.4.1) (2023-04-10)
 
 [Full Changelog](https://github.com/jug-dev/hordelib/compare/v0.4.0...v0.4.1)
