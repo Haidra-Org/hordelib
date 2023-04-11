@@ -10,10 +10,16 @@ jobs:
     name: hordelib build and publish
     runs-on: ubuntu-latest
     steps:
+
     - name: "✔️ Checkout"
       uses: actions/checkout@v3
       with:
         fetch-depth: 0
+
+    # Version bumps the project and creates a tag by creating
+    # a github release. The github release itself is not so
+    # interesting, as it's incomplete because we haven't finished
+    # the build. The important goal here is a pypi release.
     - name: "📣 Release on push"
       id: release
       uses: rymndhng/release-on-push-action@master
@@ -22,41 +28,51 @@ jobs:
       with:
         bump_version_scheme: norelease
         use_github_release_notes: true
-    - name: "✏️ Generate release changelog"
+
+    # XXX Don't do this yet. It creates a new commit which
+    # XXX means we're now not on our tag anymore, which makes
+    # XXX automating as build off tags tricky
+    #
+    # - name: "✏️ Generate release changelog"
+    #   if: ${{ steps.release.outputs.version != '' }}
+    #   uses: heinrichreimer/github-changelog-generator-action@v2.3
+    #   with:
+    #     token: ${{ secrets.GITHUB_TOKEN }}
+
+    # - name: "💾 Commit new version"
+    #   if: ${{ steps.release.outputs.version != '' }}
+    #   run: |
+    #       git config user.email github-actions@github.com
+    #       git config user.name github-actions
+    #       git commit -am 'build: version bump'
+    #       git push
+
+    - name: "🐍 Set up Python 3.10"
       if: ${{ steps.release.outputs.version != '' }}
-      uses: heinrichreimer/github-changelog-generator-action@v2.3
+      uses: actions/setup-python@v3
       with:
-        token: ${{ secrets.GITHUB_TOKEN }}
-    - name: "💾 Commit new version"
+        python-version: "3.10"
+
+    - name: "🛠 Install pypa/build"
       if: ${{ steps.release.outputs.version != '' }}
-      run: |
-          git config user.email github-actions@github.com
-          git config user.name github-actions
-          git commit -am 'build: version bump'
-          git push
-    ## FIXME: Disabled because build_helper.py is not working as expected yet
-    # - name: "🐍 Set up Python 3.10"
-    #   if: ${{ steps.release.outputs.version != '' }}
-    #   uses: actions/setup-python@v3
-    #   with:
-    #     python-version: "3.10"
-    # - name: "🛠 Install pypa/build"
-    #   if: ${{ steps.release.outputs.version != '' }}
-    #   run: >-
-    #     python -m
-    #     pip install
-    #     build
-    #     --user
-    # - name: "🔧 Build a binary wheel and a source tarball"
-    #   if: ${{ steps.release.outputs.version != '' }}
-    #   run: >-
-    #     python build_helper.py
-    # - name: "📦 Publish distribution to PyPI"
-    #   if: ${{ steps.release.outputs.version != '' }}
-    #   uses: pypa/gh-action-pypi-publish@release/v1
-    #   with:
-    #     password: ${{ secrets.PYPI_API_TOKEN }}
-    ## TODO: Once we make it official
+      run: >-
+        python -m
+        pip install
+        build
+        --user
+
+    - name: "🔧 Build a binary wheel and a source tarball"
+      if: ${{ steps.release.outputs.version != '' }}
+      run: >-
+        python build_helper.py
+
+    - name: "📦 Publish distribution to PyPI"
+      if: ${{ steps.release.outputs.version != '' }}
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+
+    # # TODO: Once we make it official
     # - name: "Inform with Discord Webhook"
     #   if: ${{ steps.release.outputs.version != '' }}
     #   uses: tsickert/discord-webhook@v5.3.0
