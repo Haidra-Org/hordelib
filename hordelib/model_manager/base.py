@@ -381,7 +381,7 @@ class BaseModelManager(ABC):
             md5_file_hash = self.get_file_md5sum_hash(full_path)
             logger.debug(f"md5sum: {md5_file_hash}")
             logger.debug(f"Expected: {file_details['md5sum']}")
-            return file_details["md5sum"] != md5_file_hash
+            return file_details["md5sum"] == md5_file_hash
 
         # If no hashes available, return True for now
         # THIS IS A SECURITY RISK, EVENTUALLY WE SHOULD RETURN FALSE
