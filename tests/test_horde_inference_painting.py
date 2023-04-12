@@ -58,3 +58,38 @@ class TestHordeInference:
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         pil_image.save("images/horde_inpainting_alpha_mask.webp", quality=90)
+
+    def test_inpainting_separate_mask(self):
+        SharedModelManager.manager.load("stable_diffusion_inpainting")
+        assert (
+            SharedModelManager.manager.diffusers.is_model_loaded(
+                "stable_diffusion_inpainting",
+            )
+            is True
+        )
+        data = {
+            "sampler_name": "euler",
+            "cfg_scale": 8,
+            "denoising_strength": 1,
+            "seed": 836138046008,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a dinosaur",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "stable_diffusion_inpainting",
+            "source_image": Image.open("images/test_inpaint_original.png"),
+            "source_mask": Image.open("images/test_inpaint_mask.png"),
+            "source_processing": "inpainting",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        pil_image.save("images/horde_inpainting_separate_mask.webp", quality=90)

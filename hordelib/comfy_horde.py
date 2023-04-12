@@ -1,17 +1,19 @@
 # comfy.py
 # Wrapper around comfy to allow usage by the horde worker.
+import contextlib
 import copy
 import glob
 import json
 import os
 import re
+import typing
 from io import BytesIO
 from pprint import pformat
-import typing
 
 from loguru import logger
 from PIL import Image
 
+from hordelib.utils.ioredirect import OutputCollector
 
 # Do not change the order of these imports
 # isort: off
@@ -35,17 +37,21 @@ def horde_load_checkpoint(
     # XXX # This can remain a comfy call, but the rest of the code should be able
     # XXX # to pretend it isn't
 
-    (
-        modelPatcher,
-        clipModel,
-        vae,
-        clipVisionModel,
-    ) = comfy.sd.load_checkpoint_guess_config(
-        ckpt_path=ckpt_path,
-        output_vae=output_vae,
-        output_clip=output_clip,
-        embedding_directory=embeddings_path,
-    )
+    # Redirect IO
+    stdio = OutputCollector()
+    with contextlib.redirect_stdout(stdio):
+        (
+            modelPatcher,
+            clipModel,
+            vae,
+            clipVisionModel,
+        ) = comfy.sd.load_checkpoint_guess_config(
+            ckpt_path=ckpt_path,
+            output_vae=output_vae,
+            output_clip=output_clip,
+            embedding_directory=embeddings_path,
+        )
+    stdio.replay()
 
     return {
         "model": modelPatcher,
@@ -59,7 +65,14 @@ def horde_load_controlnet(  # XXX Needs docstring
     controlnet_path: str,
     target_model,
 ) -> comfy.sd.ControlNet | comfy.sd.T2IAdapter | None:
-    return comfy.sd.load_controlnet(ckpt_path=controlnet_path, model=target_model)
+    # Redirect IO
+    stdio = OutputCollector()
+    with contextlib.redirect_stdout(stdio):
+        controlnet = comfy.sd.load_controlnet(
+            ckpt_path=controlnet_path, model=target_model
+        )
+    stdio.replay()
+    return controlnet
 
 
 class Comfy_Horde:
@@ -226,7 +239,7 @@ class Comfy_Horde:
 
             for k in keys[:-1]:
                 if k not in current:
-                    logger.warning(f"Attempt to set unknown pipeline parameter {key}")
+                    logger.debug(f"Attempt to set unknown pipeline parameter {key}")
                     skip = True
                     break
 
@@ -234,7 +247,7 @@ class Comfy_Horde:
 
             if not skip:
                 if not current.get(keys[-1]):
-                    logger.warning(
+                    logger.debug(
                         f"Attempt to set parameter CREATED parameter '{key}'",
                     )
                 current[keys[-1]] = value
@@ -247,7 +260,7 @@ class Comfy_Horde:
 
         # First check the output even exists
         if output not in dct.keys():
-            logger.warning(
+            logger.debug(
                 f"Can not reconnect input {input} to {output} as {output} does not exist",
             )
             return None
@@ -258,7 +271,7 @@ class Comfy_Horde:
         current = dct
         for k in keys:
             if k not in current:
-                logger.warning(f"Attempt to reconnect unknown input {input}")
+                logger.debug(f"Attempt to reconnect unknown input {input}")
                 return None
 
             current = current[k]
@@ -280,6 +293,7 @@ class Comfy_Horde:
             return None
 
         logger.info(f"Running pipeline {pipeline_name}")
+        logger.debug(f"Ug oh  {pipeline_name}")
 
         # Grab a copy of the pipeline
         pipeline = copy.copy(self.pipelines[pipeline_name])
@@ -323,10 +337,13 @@ class Comfy_Horde:
         # Set the pipeline parameters
         self._set(pipeline, **params)
 
-        # Run it!
+        # Create our prompt executive
         inference = execution.PromptExecutor(self)
-        # Load our custom nodes
-        self._load_custom_nodes()
+        stdio = OutputCollector()
+        with contextlib.redirect_stdout(stdio):
+            # Load our custom nodes
+            self._load_custom_nodes()
+        stdio.replay()
 
         # This is useful for dumping the entire pipeline to the terminal when
         # developing and debugging new pipelines. A badly structured pipeline
@@ -337,7 +354,11 @@ class Comfy_Horde:
 
         # The client_id parameter here is just so we receive comfy callbacks for debugging.
         # We pretend we are a web client and want async callbacks.
-        inference.execute(pipeline, extra_data={"client_id": 1})
+        stdio = OutputCollector()
+        with contextlib.redirect_stdout(stdio):
+            with contextlib.redirect_stderr(stdio):
+                inference.execute(pipeline, extra_data={"client_id": 1})
+        stdio.replay()
 
         return inference.outputs
 

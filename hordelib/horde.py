@@ -3,7 +3,7 @@
 import contextlib
 
 from loguru import logger
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
@@ -233,6 +233,19 @@ class HordeLib:
 
         return pipeline
 
+    def _add_image_alpha_channel(self, source_image, alpha_image):
+        # Convert images to RGBA mode
+        source_image = source_image.convert("RGBA")
+        # Convert alpha image to greyscale
+        alpha_image = alpha_image.convert("L")
+        # Create a new alpha channel from the second image
+        alpha_image = ImageOps.invert(alpha_image)
+        alpha_data = alpha_image.split()[0]
+        source_image.putalpha(alpha_data)
+
+        # Return the resulting image
+        return source_image
+
     def _resize_sources_to_request(self, payload):
         """Ensures the source_image and source_mask are at the size requested by the client"""
         source_image = payload.get("source_image")
@@ -252,6 +265,7 @@ class HordeLib:
             del payload["source_image"]
             del payload["source_processing"]
             return
+
         source_mask = payload.get("source_mask")
         if not source_mask:
             return
@@ -265,6 +279,11 @@ class HordeLib:
                 "Source mask could not be parsed. Falling back to img2img without mask",
             )
             del payload["source_mask"]
+
+        if payload.get("source_mask"):
+            payload["source_image"] = self._add_image_alpha_channel(
+                payload["source_image"], payload["source_mask"]
+            )
 
     def basic_inference(self, payload: dict[str, str | None]) -> Image.Image | None:
         generator = Comfy_Horde()
