@@ -50,10 +50,9 @@ jobs:
     - name: "✏️ Generate release changelog"
       id: changelog
       if: ${{ steps.release.outputs.version != '' }}
-      uses: heinrichreimer/github-changelog-generator-action@v2.3
-      with:
-        unreleased: false
-        token: ${{ secrets.GITHUB_TOKEN }}
+      uses: actions/setup-node@v3
+      run: npm -g install auto-changelog
+      run: auto-changelog
 
     # Patches our requirements.txt and pyproject.toml
     # Build a changelog
