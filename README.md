@@ -11,9 +11,9 @@
 
 `hordelib` is a thin wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed visually in the ComfyUI GUI.
 
-The developers of this project can be found in the AI Horde Discord server: [https://discord.gg/3DxrhksKzn](https://discord.gg/3DxrhksKzn)
+The developers of `hordelib` can be found in the AI Horde Discord server: [https://discord.gg/3DxrhksKzn](https://discord.gg/3DxrhksKzn)
 
-NOTE: This project is in early development and is not yet in use by Stable Horde.
+NOTE: This project is in development and is not yet in use by Stable Horde.
 
 ## Purpose
 
@@ -83,6 +83,22 @@ If you don't want `hordelib` to setup and control the logging configuration init
 import hordelib
 hordelib.initialise(setup_logging=False)
 ```
+
+## Acknowledgments
+
+`hordelib` depends on a large number of open source projects, and most of these dependencies are automatically downloaded and installed when you install `hordelib`. Due to the nature and purpose of `hordelib` some dependencies are bundled directly _inside_ `hordelib` itself.
+
+### [ComfyUI](https://github.com/comfyanonymous/ComfyUI)
+A powerful and modular stable diffusion GUI with a graph/nodes interface. Licensed under the terms of the GNU General Public License v3.0.
+
+The entire purpose of `hordelib` is to access the power of ComfyUI.
+
+### [Controlnet Preprocessors for ComfyUI](https://github.com/Fannovel16/comfy_controlnet_preprocessors)
+Custom nodes for ComfyUI providing Controlnet preprocessing capability. Licened under the terms of the Apache License 2.0.
+
+### [ComfyUI Face Restore Node](https://civitai.com/models/24690/comfyui-facerestore-node)
+
+Custom nodes for ComfyUI providing face restoration.
 
 ## Development
 
@@ -155,14 +171,12 @@ The main config files for the project are: `pyproject.toml`, `tox.ini` and `requ
 
 ### PyPi Publishing
 
-_Will be automatic from the `releases` branch_
+Pypi publishing is automatic all from the GitHub website.
 
-But currently:
+1. Create a PR from `main` to `releases`
+1. Label the PR with "release:patch" (0.0.1) or "release:minor" (0.1.0)
+1. Merge the PR with a standard merge commit (not squash)
 
-1. checkout the `releases` branch
-1. `tox` _make sure everything works_
-1. `python build_helper.py` _builds the dist files_
-1. `twine upload -r pypi dist/*`
 
 ### Standalone "clean" environment test from Pypi
 

@@ -1,0 +1,7 @@
+# Although it looks like these files don't exist, they are created
+# by the build_helper just prior to pypi packaging.
+graft hordelib/_comfyui
+prune hordelib/_comfyui/.git
+prune hordelib/_comfyui/.github
+prune hordelib/_comfyui/.ci
+exclude tests/test_comfy_install.py
