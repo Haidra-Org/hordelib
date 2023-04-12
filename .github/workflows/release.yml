@@ -55,7 +55,7 @@ jobs:
       if: ${{ steps.release.outputs.version != '' }}
       run: |
         npm -g install auto-changelog
-        auto-changelog
+        auto-changelog --template=.changelog
 
     # Try to add the changelog back to the releases branch
     - uses: EndBug/add-and-commit@v9
