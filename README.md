@@ -75,6 +75,15 @@ Note that `hordelib.initialise()` will erase all command line arguments from arg
 
 See `tests/run_*.py` for more standalone examples.
 
+### Logging
+
+If you don't want `hordelib` to setup and control the logging configuration initialise with:
+
+```python
+import hordelib
+hordelib.initialise(setup_logging=False)
+```
+
 ## Development
 
 Requirements:

@@ -4,7 +4,7 @@ import sys
 
 from loguru import logger
 
-import hordelib.utils.logger
+from hordelib.utils.logger import HordeLog
 from hordelib import install_comfy
 from hordelib.config_path import get_hordelib_path, set_system_path
 from hordelib.consts import (
@@ -17,7 +17,12 @@ from hordelib.consts import (
 
 def initialise(
     model_managers_to_load: dict[MODEL_CATEGORY_NAMES, bool] = DEFAULT_MODEL_MANAGERS,
+    setup_logging=True,
 ):
+    # Setup logging if requested
+    if setup_logging:
+        HordeLog.initialise()
+
     logger.level("DEBUG")  # XXX # FIXME
 
     # If developer mode, don't permit some things
