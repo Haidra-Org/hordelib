@@ -1,11 +1,16 @@
 ## hordelib Changelog
 
+## [v0.5.24](https://github.com/jug-dev/hordelib/compare/v0.5.23...v0.5.24)
+
+12 April 2023
+
+- ci: include changelog link on pypi page [`#101`](https://github.com/jug-dev/hordelib/pull/101) (Jug)
+
 ## [v0.5.23](https://github.com/jug-dev/hordelib/compare/v0.5.22...v0.5.23)
 
 12 April 2023
 
 - ci: customise the changelog format [`#100`](https://github.com/jug-dev/hordelib/pull/100) (Jug)
-- ci: update changelog [`3f2d6c7`](https://github.com/jug-dev/hordelib/commit/3f2d6c7cab87547971b2f93860f543c227f37512)  (jug-dev)
 
 ## [v0.5.22](https://github.com/jug-dev/hordelib/compare/v0.5.21...v0.5.22)
 
@@ -238,7 +243,6 @@
 - feat: Re-adds diffusers model manager [`#41`](https://github.com/jug-dev/hordelib/pull/41) (tazlin)
 - test: add diffusers inpainting run example [`#40`](https://github.com/jug-dev/hordelib/pull/40) (Jug)
 - docs: update readme [`#39`](https://github.com/jug-dev/hordelib/pull/39) (Jug)
-- docs: update changelog [`#38`](https://github.com/jug-dev/hordelib/pull/38) (Jug)
 - refactor: We do some light refactoring... [`#34`](https://github.com/jug-dev/hordelib/pull/34) (Divided by Zer0)
 - test: Optimized tests [`#32`](https://github.com/jug-dev/hordelib/pull/32) (Divided by Zer0)
 - refactor: Significant code cleanup and CI/build improvements. [`#30`](https://github.com/jug-dev/hordelib/pull/30) (tazlin)
