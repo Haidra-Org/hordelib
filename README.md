@@ -1,13 +1,13 @@
 # hordelib
 
-[![PyPI version](https://badge.fury.io/py/hordelib.svg?branch=main&nocache=1)](https://badge.fury.io/py/hordelib)
-[![Downloads](https://pepy.tech/badge/hordelib)](https://pepy.tech/project/hordelib)
-![GitHub license](https://img.shields.io/github/license/jug-dev/hordelib)
+[![PyPI Version][pypi-image]][pypi-url]
+[![Downloads][downloads-image]][downloads-url]
+![GitHub license][license-url]
 
-[![Build](https://github.com/jug-dev/hordelib/actions/workflows/maintests.yml/badge.svg?branch=main)](http://hordelib.s3-website-eu-west-1.amazonaws.com/)
-[![Test Images](https://badgen.net/badge/main/latest-images/blue?icon=awesome)](http://hordelib.s3-website-eu-west-1.amazonaws.com/)
-[![Test Images](https://badgen.net/badge/develop/latest-images/blue?icon=awesome)](http://hordelib.s3-website-eu-west-1.amazonaws.com/unstable)
-[![Release Changelog](https://img.shields.io/badge/Release-Changelog-yellow)](https://github.com/jug-dev/hordelib/blob/releases/CHANGELOG.md)
+[![Build][build-image]][build-url]
+[![Test Images][main-test-image]][main-test-url]
+[![Test Images][pr-test-image]][pr-test-url]
+[![Release Changelog][changelog-image]][changelog-url]
 
 `hordelib` is a thin wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed visually in the ComfyUI GUI.
 
@@ -211,3 +211,19 @@ To create a patch file:
 Note that the patch file _really_ needs to be in UTF-8 format and some common terminals, e.g. Powershell, won't do this by default. In Powershell to create a patch file use: `git diff | Set-Content -Encoding utf8 -Path yourfile.patch`
 
 Patches can be applied with the `hordelib.install_comfyui.Installer` classes `apply_patch()` method.
+
+<!-- Badges: -->
+
+[pypi-image]: https://badge.fury.io/py/hordelib.svg?branch=main&nocache=1
+[pypi-url]: https://badge.fury.io/py/hordelib
+[downloads-image]: https://pepy.tech/badge/hordelib
+[downloads-url]: https://pepy.tech/project/hordelib
+[license-url]: https://img.shields.io/github/license/jug-dev/hordelib
+[build-image]: https://github.com/jug-dev/hordelib/actions/workflows/maintests.yml/badge.svg?branch=main
+[build-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/
+[main-test-image]: https://badgen.net/badge/main/latest-images/blue?icon=awesome
+[main-test-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/
+[pr-test-image]: https://badgen.net/badge/develop/latest-images/blue?icon=awesome
+[pr-test-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/unstable
+[changelog-image]: https://img.shields.io/badge/Release-Changelog-yellow
+[changelog-url]: https://github.com/jug-dev/hordelib/blob/releases/CHANGELOG.md
