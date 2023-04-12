@@ -60,6 +60,7 @@ testpaths = [
 ]
 
 [tool.black]
+line-length = 119
 # Exclude ComfyUI and any packages we have installed in nodes/
 exclude = '''
 /(
