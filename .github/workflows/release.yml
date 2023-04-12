@@ -22,7 +22,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        bump_version_scheme: norelease
+        bump_version_scheme: patch
         use_github_release_notes: true
 
     - name: "✔️ Checkout"
