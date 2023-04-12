@@ -1,5 +1,18 @@
 ## hordelib Changelog
 
+## [v0.7.3](https://github.com/jug-dev/hordelib/compare/v0.7.2...v0.7.3)
+
+12 April 2023
+
+- build: more production build fixes. [`0ca0367`](https://github.com/jug-dev/hordelib/commit/0ca0367e98ec88f9b30428f797101e333902a0f9)  (Jug)
+
+## [v0.7.2](https://github.com/jug-dev/hordelib/compare/v0.7.1...v0.7.2)
+
+12 April 2023
+
+- ci: update changelog [`4ded55b`](https://github.com/jug-dev/hordelib/commit/4ded55b91f93de7191d0ab67b8dfb55996a20c57)  (jug-dev)
+- build: fix production build packaging [`1236763`](https://github.com/jug-dev/hordelib/commit/12367632c4248562423c8745fa3534bc19d0c31e)  (Jug)
+
 ## [v0.7.1](https://github.com/jug-dev/hordelib/compare/v0.7.0...v0.7.1)
 
 12 April 2023
