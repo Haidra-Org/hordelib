@@ -11,11 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
 
-    - name: "✔️ Checkout"
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-
     # Version bumps the project and creates a tag by creating
     # a github release. The github release itself is not so
     # interesting, as it's incomplete because we haven't finished
@@ -29,6 +24,11 @@ jobs:
       with:
         bump_version_scheme: norelease
         use_github_release_notes: true
+
+    - name: "✔️ Checkout"
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
 
     # Pass the version number in an env var to the below steps
     - name: Set build version env var
