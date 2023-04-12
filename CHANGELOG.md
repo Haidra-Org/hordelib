@@ -1,290 +1,295 @@
-### Changelog
+## hordelib Changelog
 
-All notable changes to this project will be documented in this file. Dates are displayed in UTC.
+## [v0.5.23](https://github.com/jug-dev/hordelib/compare/v0.5.22...v0.5.23)
+
+12 April 2023
+
+- ci: customise the changelog format [`#100`](https://github.com/jug-dev/hordelib/pull/100) (Jug)
+- ci: update changelog [`3f2d6c7`](https://github.com/jug-dev/hordelib/commit/3f2d6c7cab87547971b2f93860f543c227f37512)  (jug-dev)
+
+## [v0.5.22](https://github.com/jug-dev/hordelib/compare/v0.5.21...v0.5.22)
+
+12 April 2023
+
+- ci: auto update changelog in releases branch [`#99`](https://github.com/jug-dev/hordelib/pull/99) (Jug)
+
+## [v0.5.21](https://github.com/jug-dev/hordelib/compare/v0.5.20...v0.5.21)
+
+12 April 2023
+
+- ci: try to generate changelog for the right version [`#98`](https://github.com/jug-dev/hordelib/pull/98) (Jug)
+
+## [v0.5.20](https://github.com/jug-dev/hordelib/compare/v0.5.19...v0.5.20)
+
+12 April 2023
+
+- ci: ci again [`#97`](https://github.com/jug-dev/hordelib/pull/97) (Jug)
+- ci: more tweaks [`#96`](https://github.com/jug-dev/hordelib/pull/96) (Jug)
+- ci: try a better changelog generator [`#95`](https://github.com/jug-dev/hordelib/pull/95) (Jug)
+
+## [v0.5.19](https://github.com/jug-dev/hordelib/compare/v0.5.18...v0.5.19)
+
+12 April 2023
+
+- ci: changelog wasn't include in setuptools [`#94`](https://github.com/jug-dev/hordelib/pull/94) (Jug)
+
+## [v0.5.18](https://github.com/jug-dev/hordelib/compare/v0.5.17...v0.5.18)
+
+11 April 2023
+
+- ci: release ci tweaks [`#93`](https://github.com/jug-dev/hordelib/pull/93) (Jug)
+
+## [v0.5.17](https://github.com/jug-dev/hordelib/compare/v0.5.16...v0.5.17)
+
+11 April 2023
+
+- release: patch release [`#92`](https://github.com/jug-dev/hordelib/pull/92) (Jug)
+- style: Incremental formatting lint catchup [`#88`](https://github.com/jug-dev/hordelib/pull/88) (tazlin)
+- style: Incremental style/lint catchup [`1cb70d2`](https://github.com/jug-dev/hordelib/commit/1cb70d2eb3c219bff304c4ed0ac34f7456946281)  (tazlin)
+- ci: Enables a couple ruff rules for CI [`17bd0f8`](https://github.com/jug-dev/hordelib/commit/17bd0f8b1cfd73f3e1429ad4c9b007623517de35)  (tazlin)
+- ci: another day another way to do changelogs [`6e7ed60`](https://github.com/jug-dev/hordelib/commit/6e7ed604fee66388570b9e953f25599d49a3bc9a)  (Jug)
+
+## [v0.5.16](https://github.com/jug-dev/hordelib/compare/v0.5.15...v0.5.16)
+
+11 April 2023
+
+- ci: more ci tweaks [`#91`](https://github.com/jug-dev/hordelib/pull/91) (Jug)
+
+## [v0.5.15](https://github.com/jug-dev/hordelib/compare/v0.5.14...v0.5.15)
+
+11 April 2023
+
+- ci: this is never going to work is it [`#90`](https://github.com/jug-dev/hordelib/pull/90) (Jug)
+
+## [v0.5.14](https://github.com/jug-dev/hordelib/compare/v0.5.13...v0.5.14)
+
+11 April 2023
+
+- ci: another day another ci hack [`#89`](https://github.com/jug-dev/hordelib/pull/89) (Jug)
+
+## [v0.5.13](https://github.com/jug-dev/hordelib/compare/v0.5.12...v0.5.13)
+
+11 April 2023
+
+- ci: optimistically try to output a changelog [`#87`](https://github.com/jug-dev/hordelib/pull/87) (Jug)
+
+## [v0.5.12](https://github.com/jug-dev/hordelib/compare/v0.5.11...v0.5.12)
+
+11 April 2023
+
+- ci: Try harder to generate a changelog [`#86`](https://github.com/jug-dev/hordelib/pull/86) (Jug)
+
+## [v0.5.11](https://github.com/jug-dev/hordelib/compare/v0.5.10...v0.5.11)
+
+11 April 2023
+
+- release: minor build changes [`#85`](https://github.com/jug-dev/hordelib/pull/85) (Jug)
+- ci: add some notes to the release ci [`faf9788`](https://github.com/jug-dev/hordelib/commit/faf9788de1e284a1d0b4b54b5c36b1a5fc789ff9)  (Jug)
+- ci: generate a changelog once again [`8749370`](https://github.com/jug-dev/hordelib/commit/8749370ca78a0e5413293f5ca1a9a60859fd5e97)  (Jug)
+
+## [v0.5.10](https://github.com/jug-dev/hordelib/compare/v0.5.9...v0.5.10)
+
+11 April 2023
+
+- ci: tweak release scripts [`#84`](https://github.com/jug-dev/hordelib/pull/84) (Jug)
+- docs: remove changelog [`62dae03`](https://github.com/jug-dev/hordelib/commit/62dae03cd056ee19a7a433a1c360e026266329a7)  (Jug)
+
+## [v0.5.9](https://github.com/jug-dev/hordelib/compare/v0.5.8...v0.5.9)
+
+11 April 2023
+
+- ci: more tweaks to the ci process [`#83`](https://github.com/jug-dev/hordelib/pull/83) (Jug)
+
+## [v0.5.8](https://github.com/jug-dev/hordelib/compare/v0.5.7...v0.5.8)
+
+11 April 2023
+
+## [v0.5.7](https://github.com/jug-dev/hordelib/compare/v0.5.6...v0.5.7)
+
+11 April 2023
+
+- release: fixes to img2img and hires fix [`#82`](https://github.com/jug-dev/hordelib/pull/82) (Jug)
+- fix: img2img + highres_fix  [`#80`](https://github.com/jug-dev/hordelib/pull/80) (Divided by Zer0)
+- build: version bump [`bc135ea`](https://github.com/jug-dev/hordelib/commit/bc135ea09ef95a8c86d066ad985a05aa04c8dfff)  (github-actions)
+- ci: try to publish to pypi on release [`deb6eb5`](https://github.com/jug-dev/hordelib/commit/deb6eb5f7661be5ebbb91e121c382338a89ecb76)  (Jug)
+- ci: tweaks to the release ci [`c234ea7`](https://github.com/jug-dev/hordelib/commit/c234ea7157b4c70e62adbc2b71d7220a86e1ec98)  (Jug)
+
+## [v0.5.6](https://github.com/jug-dev/hordelib/compare/v0.5.5...v0.5.6)
+
+11 April 2023
+
+- release: testing speed increase [`#79`](https://github.com/jug-dev/hordelib/pull/79) (Jug)
+- tests: class scope on inference tests for speedup [`#78`](https://github.com/jug-dev/hordelib/pull/78) (Divided by Zer0)
+- docs: recreate LICENSE [`158a70f`](https://github.com/jug-dev/hordelib/commit/158a70f32ab27dbea6eae9d37c2eddad90016263)  (Jug)
+- docs: remove license to recreate it [`8ee4dde`](https://github.com/jug-dev/hordelib/commit/8ee4ddeb40b1824d029a7eca138cd76e61b484f0)  (Jug)
+- build: placeholder changelog [`bbf880e`](https://github.com/jug-dev/hordelib/commit/bbf880e011ea34325beb0bbb46a0ad1545e25af0)  (Jug)
+
+## [v0.5.5](https://github.com/jug-dev/hordelib/compare/v0.5.4...v0.5.5)
+
+11 April 2023
+
+## [v0.5.4](https://github.com/jug-dev/hordelib/compare/v0.5.3...v0.5.4)
+
+11 April 2023
+
+- release: fixes and refactorings [`#77`](https://github.com/jug-dev/hordelib/pull/77) (Jug)
+- build: add release mode flag [`#76`](https://github.com/jug-dev/hordelib/pull/76) (Jug)
+- refactor!: Second big Model Manager rework step [`#75`](https://github.com/jug-dev/hordelib/pull/75) (tazlin)
+- fix: adjust mlsd annotator defaults [`#74`](https://github.com/jug-dev/hordelib/pull/74) (Jug)
+- chore: resolve merge conflicts [`007bc44`](https://github.com/jug-dev/hordelib/commit/007bc441ff448eda879994212fc0e5ad896b4e84)  (Jug)
+- docs: remove the changelog from main [`6a650f2`](https://github.com/jug-dev/hordelib/commit/6a650f215482c316f77de2e8fb98609c4d60fbc7)  (Jug)
+- fix: normal map and mlsd annotators [`203873d`](https://github.com/jug-dev/hordelib/commit/203873dc6e904f73f48c56d1b9f68509e3213c15)  (Jug)
+
+## [v0.5.3](https://github.com/jug-dev/hordelib/compare/v0.5.2...v0.5.3)
+
+11 April 2023
+
+- build: patch release [`#73`](https://github.com/jug-dev/hordelib/pull/73) (Jug)
+- build: try to fix test running and build [`9df056d`](https://github.com/jug-dev/hordelib/commit/9df056d98d4502398bb13437f51522cb6a0feebf)  (Jug)
+- build: version bump [`82a4b82`](https://github.com/jug-dev/hordelib/commit/82a4b82b22d97495e2ddde23c716c8aa57cb0b46)  (github-actions)
+
+## [v0.5.2](https://github.com/jug-dev/hordelib/compare/v0.5.1...v0.5.2)
+
+11 April 2023
+
+- build: upgrade to torch 2, xformers 18 and latest comfyui [`#68`](https://github.com/jug-dev/hordelib/pull/68) (Jug)
+- build: version bump [`6af3e1e`](https://github.com/jug-dev/hordelib/commit/6af3e1e236d559497e28eed19f0a0ace5bb66bc5)  (github-actions)
+
+## [v0.5.1](https://github.com/jug-dev/hordelib/compare/v0.5.0...v0.5.1)
+
+11 April 2023
+
+- feat: Added is_model_loaded() to HyperMM [`#67`](https://github.com/jug-dev/hordelib/pull/67) (Divided by Zer0)
+- build: version bump [`41b4ad2`](https://github.com/jug-dev/hordelib/commit/41b4ad246db6f992ccebe09542e0f9a1276f6f25)  (github-actions)
+
+## [v0.5.0](https://github.com/jug-dev/hordelib/compare/v0.4.2...v0.5.0)
+
+11 April 2023
+
+- feat: add support for return_control_map [`#66`](https://github.com/jug-dev/hordelib/pull/66) (Jug)
+- build: version bump [`667bb06`](https://github.com/jug-dev/hordelib/commit/667bb06f15be835eae8f393e5da46039e72ff133)  (github-actions)
+- docs: update ci test badge [`e2b137e`](https://github.com/jug-dev/hordelib/commit/e2b137ed43d5b63c8a6f1d7899a31bbb78aa7045)  (Jug)
+
+## [v0.4.2](https://github.com/jug-dev/hordelib/compare/v0.4.1...v0.4.2)
+
+11 April 2023
+
+- fix: resize img2img before inference [`#63`](https://github.com/jug-dev/hordelib/pull/63) (Divided by Zer0)
+- fix: add timezone to build results [`#61`](https://github.com/jug-dev/hordelib/pull/61) (Jug)
+- tests: gfpgan test and size assets [`#62`](https://github.com/jug-dev/hordelib/pull/62) (Divided by Zer0)
+- docs: update with pypi test notes [`dd41120`](https://github.com/jug-dev/hordelib/commit/dd4112023d39e280fb61a1342707af4765f3b4df)  (Jug)
+- build: version bump [`e9525bc`](https://github.com/jug-dev/hordelib/commit/e9525bc8cc0bdcf33e4b6cc5c386027bf679268f)  (github-actions)
+
+## [v0.4.1](https://github.com/jug-dev/hordelib/compare/v0.4.0...v0.4.1)
+
+10 April 2023
+
+- feat: Make use of the ControlNet ModelManager [`#53`](https://github.com/jug-dev/hordelib/pull/53) (Divided by Zer0)
+- test: fix test with red border around it [`#58`](https://github.com/jug-dev/hordelib/pull/58) (Jug)
+- build: activate build results website [`#57`](https://github.com/jug-dev/hordelib/pull/57) (Jug)
+- build: make a webpage of test result images [`#55`](https://github.com/jug-dev/hordelib/pull/55) (Jug)
+- test: fix black 64x64 image tests [`#54`](https://github.com/jug-dev/hordelib/pull/54) (Jug)
+- version incremented [`14efa65`](https://github.com/jug-dev/hordelib/commit/14efa65031d595179cd00b4a1f27b9bce6ab88ac)  (github-actions)
+- build: try to be smarter when we run tests [`e0d9d4b`](https://github.com/jug-dev/hordelib/commit/e0d9d4bea09233f0f59ac28a413dd754eab613b8)  (Jug)
+- build: try to run tests more often [`4470a24`](https://github.com/jug-dev/hordelib/commit/4470a243135c47d1bc24859573c6676e58dfc64c)  (Jug)
+
+## [v0.4.0](https://github.com/jug-dev/hordelib/compare/v0.3.1...v0.4.0)
+
+10 April 2023
+
+- feat: add face fixing support [`#50`](https://github.com/jug-dev/hordelib/pull/50) (Jug)
+- version incremented [`c5aa1d5`](https://github.com/jug-dev/hordelib/commit/c5aa1d5614738cc50418772dcf70343e614e2e9d)  (github-actions)
+
+## [v0.3.1](https://github.com/jug-dev/hordelib/compare/v0.3.0...v0.3.1)
+
+10 April 2023
+
+- test: change all tests to webp [`#49`](https://github.com/jug-dev/hordelib/pull/49) (Jug)
+- version incremented [`a1adb39`](https://github.com/jug-dev/hordelib/commit/a1adb398cdc55f242158d6d3e2f6ec11645af892)  (github-actions)
+
+## [v0.3.0](https://github.com/jug-dev/hordelib/compare/v0.2.2...v0.3.0)
+
+10 April 2023
+
+- feat: add controlnet support [`#46`](https://github.com/jug-dev/hordelib/pull/46) (Jug)
+- version incremented [`62f72c1`](https://github.com/jug-dev/hordelib/commit/62f72c10373711df96d43f89c1834f2d4dee3cf5)  (github-actions)
+- docs: add build status badge to readme [`86b3d1a`](https://github.com/jug-dev/hordelib/commit/86b3d1a61442733b0a81f97f02ca58f8196f2f1c)  (Jug)
+
+## [v0.2.2](https://github.com/jug-dev/hordelib/compare/v0.2.1...v0.2.2)
+
+9 April 2023
+
+- ci: inpainting tests [`#47`](https://github.com/jug-dev/hordelib/pull/47) (Divided by Zer0)
+- version incremented [`5940da8`](https://github.com/jug-dev/hordelib/commit/5940da8efeae955a45dc84ea51905d700df5b190)  (github-actions)
+
+## [v0.2.1](https://github.com/jug-dev/hordelib/compare/v0.2.0...v0.2.1)
+
+9 April 2023
+
+- build: change how custom nodes are loaded into comfyui [`#44`](https://github.com/jug-dev/hordelib/pull/44) (Jug)
+
+## [v0.2.0](https://github.com/jug-dev/hordelib/compare/v0.1.0...v0.2.0)
+
+9 April 2023
+
+- ci: Disable pypi publish [`#45`](https://github.com/jug-dev/hordelib/pull/45) (Divided by Zer0)
+- docs: readme updates. [`#43`](https://github.com/jug-dev/hordelib/pull/43) (Jug)
+- docs: readme updates. [`#42`](https://github.com/jug-dev/hordelib/pull/42) (Jug)
+- feat: Re-adds diffusers model manager [`#41`](https://github.com/jug-dev/hordelib/pull/41) (tazlin)
+- test: add diffusers inpainting run example [`#40`](https://github.com/jug-dev/hordelib/pull/40) (Jug)
+- docs: update readme [`#39`](https://github.com/jug-dev/hordelib/pull/39) (Jug)
+- docs: update changelog [`#38`](https://github.com/jug-dev/hordelib/pull/38) (Jug)
+- refactor: We do some light refactoring... [`#34`](https://github.com/jug-dev/hordelib/pull/34) (Divided by Zer0)
+- test: Optimized tests [`#32`](https://github.com/jug-dev/hordelib/pull/32) (Divided by Zer0)
+- refactor: Significant code cleanup and CI/build improvements. [`#30`](https://github.com/jug-dev/hordelib/pull/30) (tazlin)
+- feat: Post processors [`#27`](https://github.com/jug-dev/hordelib/pull/27) (Divided by Zer0)
+- feat: adds inpainting [`dea0e9e`](https://github.com/jug-dev/hordelib/commit/dea0e9e54c8fcca87f4bb385fd68b811e8eb9a4e)  (Jug)
+- feat: image loader, basic img2img [`04994ea`](https://github.com/jug-dev/hordelib/commit/04994eaa4cd224071630f479f49d3ca578cb920a)  (Jug)
+- test: reduce vram requirements for hires fix tests [`2932764`](https://github.com/jug-dev/hordelib/commit/2932764a6e7bc5af271f883a11cb73ee94b5fb12)  (Jug)
+
+## [v0.1.0](https://github.com/jug-dev/hordelib/compare/v0.0.10...v0.1.0)
+
+6 April 2023
+
+- fix: Duplicate lines [`#25`](https://github.com/jug-dev/hordelib/pull/25) (tazlin)
+- feat: Adds a github action when pushing to main that will generate a new release and an automatic changelog [`#24`](https://github.com/jug-dev/hordelib/pull/24) (Jug)
+- fix: References to `horde_model_manager`, more docs [`#23`](https://github.com/jug-dev/hordelib/pull/23) (tazlin)
+- docs: Update LICENSE [`#20`](https://github.com/jug-dev/hordelib/pull/20) (tazlin)
+- refactor: ModelManager improvements, test adjustments [`#19`](https://github.com/jug-dev/hordelib/pull/19) (tazlin)
+- fix: missing return [`#18`](https://github.com/jug-dev/hordelib/pull/18) (Divided by Zer0)
+- refactor: 'ModelManager' rework, added 'WorkerSettings' [`#17`](https://github.com/jug-dev/hordelib/pull/17) (tazlin)
+- refactor: Test tweaks, type hint fixes [`#16`](https://github.com/jug-dev/hordelib/pull/16) (tazlin)
+- refactor: Type hints, refactoring, preemptive checks [`#15`](https://github.com/jug-dev/hordelib/pull/15) (tazlin)
+- feat: adds clip skip support [`dd1cbcc`](https://github.com/jug-dev/hordelib/commit/dd1cbcc44b9c8558f3961de1c99e25b548170066)  (Jug)
+- refactor: make things more explicit. [`970fd4a`](https://github.com/jug-dev/hordelib/commit/970fd4a21b6b771fe5e83769a74a6ae4b9be2aec)  (Jug)
+- feat: allow running comfyui easily. [`3ce7af1`](https://github.com/jug-dev/hordelib/commit/3ce7af146462bf2140b85514fef21314f2b8bdaa)  (Jug)
+
+## [v0.0.10](https://github.com/jug-dev/hordelib/compare/v0.0.9...v0.0.10)
+
+3 April 2023
+
+- fix: test_horde.py syntax error [`#14`](https://github.com/jug-dev/hordelib/pull/14) (tazlin)
+- fix: Compat fixes for tests from pr #11 [`#12`](https://github.com/jug-dev/hordelib/pull/12) (tazlin)
+- feat: Clip interrogation support [`#11`](https://github.com/jug-dev/hordelib/pull/11) (tazlin)
+- feat: Adds support for using a Model Manager  [`#8`](https://github.com/jug-dev/hordelib/pull/8) (Divided by Zer0)
+- build: fixes for new model manager and clip [`9d09885`](https://github.com/jug-dev/hordelib/commit/9d0988505a845a433b60c9f9fe1d8e9784c8ced9)  (Jug)
+- build: update comfyui to latest version [`a5cfc05`](https://github.com/jug-dev/hordelib/commit/a5cfc05352f8a86c9beb511ab5b869a2c72b6cb3)  (Jug)
+- build: disable forced reformatting from black [`835ffe5`](https://github.com/jug-dev/hordelib/commit/835ffe546ec7dd43342bc133aeeaf6b625b8e357)  (Jug)
+
+## [v0.0.9](https://github.com/jug-dev/hordelib/compare/v0.0.8...v0.0.9)
+
+3 April 2023
+
+- test: More thorough tests for ComfyUI install [`a247f2b`](https://github.com/jug-dev/hordelib/commit/a247f2b9fd9b62c3b0718468a50859e06c92ee65)  (Jug)
+- build: adds build helper script. [`afd38ea`](https://github.com/jug-dev/hordelib/commit/afd38eabbf103b52c32a8e4daff2e7f1e7b2324d)  (Jug)
+- build: don't run inference tests on github (no cuda) [`638056b`](https://github.com/jug-dev/hordelib/commit/638056bc2d48098a4cdcad592ab955abe815fcd7)  (Jug)
+
+## v0.0.8
+
+2 April 2023
+
+- Initial commit. [`e3eae1c`](https://github.com/jug-dev/hordelib/commit/e3eae1c452e0f3145af3b8b62c14c377b3136f7b)  (Jug)
+- feat: Support loading ComfyUI pipelines without manual modification. [`8c2fd13`](https://github.com/jug-dev/hordelib/commit/8c2fd13db4ce6a293f335cefaaf9c7d52aaefd7b)  (Jug)
+- feat: adds stable difussion hires fix pipeline. [`6e573cb`](https://github.com/jug-dev/hordelib/commit/6e573cb364343569ad59cbd709b266d292021428)  (Jug)
 
 Generated by [`auto-changelog`](https://github.com/CookPete/auto-changelog).
-
-#### [v0.5.22](https://github.com/jug-dev/hordelib/compare/v0.5.21...v0.5.22)
-
-> 12 April 2023
-
-- ci: auto update changelog in releases branch [`#99`](https://github.com/jug-dev/hordelib/pull/99)
-
-#### [v0.5.21](https://github.com/jug-dev/hordelib/compare/v0.5.20...v0.5.21)
-
-> 12 April 2023
-
-- ci: try to generate changelog for the right version [`#98`](https://github.com/jug-dev/hordelib/pull/98)
-
-#### [v0.5.20](https://github.com/jug-dev/hordelib/compare/v0.5.19...v0.5.20)
-
-> 12 April 2023
-
-- ci: ci again [`#97`](https://github.com/jug-dev/hordelib/pull/97)
-- ci: more tweaks [`#96`](https://github.com/jug-dev/hordelib/pull/96)
-- ci: try a better changelog generator [`#95`](https://github.com/jug-dev/hordelib/pull/95)
-
-#### [v0.5.19](https://github.com/jug-dev/hordelib/compare/v0.5.18...v0.5.19)
-
-> 12 April 2023
-
-- ci: changelog wasn't include in setuptools [`#94`](https://github.com/jug-dev/hordelib/pull/94)
-
-#### [v0.5.18](https://github.com/jug-dev/hordelib/compare/v0.5.17...v0.5.18)
-
-> 11 April 2023
-
-- ci: release ci tweaks [`#93`](https://github.com/jug-dev/hordelib/pull/93)
-
-#### [v0.5.17](https://github.com/jug-dev/hordelib/compare/v0.5.16...v0.5.17)
-
-> 11 April 2023
-
-- release: patch release [`#92`](https://github.com/jug-dev/hordelib/pull/92)
-- style: Incremental formatting lint catchup [`#88`](https://github.com/jug-dev/hordelib/pull/88)
-- style: Incremental style/lint catchup [`1cb70d2`](https://github.com/jug-dev/hordelib/commit/1cb70d2eb3c219bff304c4ed0ac34f7456946281)
-- ci: Enables a couple ruff rules for CI [`17bd0f8`](https://github.com/jug-dev/hordelib/commit/17bd0f8b1cfd73f3e1429ad4c9b007623517de35)
-- ci: another day another way to do changelogs [`6e7ed60`](https://github.com/jug-dev/hordelib/commit/6e7ed604fee66388570b9e953f25599d49a3bc9a)
-
-#### [v0.5.16](https://github.com/jug-dev/hordelib/compare/v0.5.15...v0.5.16)
-
-> 11 April 2023
-
-- ci: more ci tweaks [`#91`](https://github.com/jug-dev/hordelib/pull/91)
-
-#### [v0.5.15](https://github.com/jug-dev/hordelib/compare/v0.5.14...v0.5.15)
-
-> 11 April 2023
-
-- ci: this is never going to work is it [`#90`](https://github.com/jug-dev/hordelib/pull/90)
-
-#### [v0.5.14](https://github.com/jug-dev/hordelib/compare/v0.5.13...v0.5.14)
-
-> 11 April 2023
-
-- ci: another day another ci hack [`#89`](https://github.com/jug-dev/hordelib/pull/89)
-
-#### [v0.5.13](https://github.com/jug-dev/hordelib/compare/v0.5.12...v0.5.13)
-
-> 11 April 2023
-
-- ci: optimistically try to output a changelog [`#87`](https://github.com/jug-dev/hordelib/pull/87)
-
-#### [v0.5.12](https://github.com/jug-dev/hordelib/compare/v0.5.11...v0.5.12)
-
-> 11 April 2023
-
-- ci: Try harder to generate a changelog [`#86`](https://github.com/jug-dev/hordelib/pull/86)
-
-#### [v0.5.11](https://github.com/jug-dev/hordelib/compare/v0.5.10...v0.5.11)
-
-> 11 April 2023
-
-- release: minor build changes [`#85`](https://github.com/jug-dev/hordelib/pull/85)
-- ci: add some notes to the release ci [`faf9788`](https://github.com/jug-dev/hordelib/commit/faf9788de1e284a1d0b4b54b5c36b1a5fc789ff9)
-- ci: generate a changelog once again [`8749370`](https://github.com/jug-dev/hordelib/commit/8749370ca78a0e5413293f5ca1a9a60859fd5e97)
-
-#### [v0.5.10](https://github.com/jug-dev/hordelib/compare/v0.5.9...v0.5.10)
-
-> 11 April 2023
-
-- ci: tweak release scripts [`#84`](https://github.com/jug-dev/hordelib/pull/84)
-- docs: remove changelog [`62dae03`](https://github.com/jug-dev/hordelib/commit/62dae03cd056ee19a7a433a1c360e026266329a7)
-
-#### [v0.5.9](https://github.com/jug-dev/hordelib/compare/v0.5.8...v0.5.9)
-
-> 11 April 2023
-
-- ci: more tweaks to the ci process [`#83`](https://github.com/jug-dev/hordelib/pull/83)
-
-#### [v0.5.8](https://github.com/jug-dev/hordelib/compare/v0.5.7...v0.5.8)
-
-> 11 April 2023
-
-#### [v0.5.7](https://github.com/jug-dev/hordelib/compare/v0.5.6...v0.5.7)
-
-> 11 April 2023
-
-- release: fixes to img2img and hires fix [`#82`](https://github.com/jug-dev/hordelib/pull/82)
-- fix: img2img + highres_fix  [`#80`](https://github.com/jug-dev/hordelib/pull/80)
-- build: version bump [`bc135ea`](https://github.com/jug-dev/hordelib/commit/bc135ea09ef95a8c86d066ad985a05aa04c8dfff)
-- ci: try to publish to pypi on release [`deb6eb5`](https://github.com/jug-dev/hordelib/commit/deb6eb5f7661be5ebbb91e121c382338a89ecb76)
-- ci: tweaks to the release ci [`c234ea7`](https://github.com/jug-dev/hordelib/commit/c234ea7157b4c70e62adbc2b71d7220a86e1ec98)
-
-#### [v0.5.6](https://github.com/jug-dev/hordelib/compare/v0.5.5...v0.5.6)
-
-> 11 April 2023
-
-- release: testing speed increase [`#79`](https://github.com/jug-dev/hordelib/pull/79)
-- tests: class scope on inference tests for speedup [`#78`](https://github.com/jug-dev/hordelib/pull/78)
-- docs: recreate LICENSE [`158a70f`](https://github.com/jug-dev/hordelib/commit/158a70f32ab27dbea6eae9d37c2eddad90016263)
-- docs: remove license to recreate it [`8ee4dde`](https://github.com/jug-dev/hordelib/commit/8ee4ddeb40b1824d029a7eca138cd76e61b484f0)
-- build: placeholder changelog [`bbf880e`](https://github.com/jug-dev/hordelib/commit/bbf880e011ea34325beb0bbb46a0ad1545e25af0)
-
-#### [v0.5.5](https://github.com/jug-dev/hordelib/compare/v0.5.4...v0.5.5)
-
-> 11 April 2023
-
-#### [v0.5.4](https://github.com/jug-dev/hordelib/compare/v0.5.3...v0.5.4)
-
-> 11 April 2023
-
-- release: fixes and refactorings [`#77`](https://github.com/jug-dev/hordelib/pull/77)
-- build: add release mode flag [`#76`](https://github.com/jug-dev/hordelib/pull/76)
-- refactor!: Second big Model Manager rework step [`#75`](https://github.com/jug-dev/hordelib/pull/75)
-- fix: adjust mlsd annotator defaults [`#74`](https://github.com/jug-dev/hordelib/pull/74)
-- chore: resolve merge conflicts [`007bc44`](https://github.com/jug-dev/hordelib/commit/007bc441ff448eda879994212fc0e5ad896b4e84)
-- docs: remove the changelog from main [`6a650f2`](https://github.com/jug-dev/hordelib/commit/6a650f215482c316f77de2e8fb98609c4d60fbc7)
-- fix: normal map and mlsd annotators [`203873d`](https://github.com/jug-dev/hordelib/commit/203873dc6e904f73f48c56d1b9f68509e3213c15)
-
-#### [v0.5.3](https://github.com/jug-dev/hordelib/compare/v0.5.2...v0.5.3)
-
-> 11 April 2023
-
-- build: patch release [`#73`](https://github.com/jug-dev/hordelib/pull/73)
-- build: try to fix test running and build [`9df056d`](https://github.com/jug-dev/hordelib/commit/9df056d98d4502398bb13437f51522cb6a0feebf)
-- build: version bump [`82a4b82`](https://github.com/jug-dev/hordelib/commit/82a4b82b22d97495e2ddde23c716c8aa57cb0b46)
-
-#### [v0.5.2](https://github.com/jug-dev/hordelib/compare/v0.5.1...v0.5.2)
-
-> 11 April 2023
-
-- build: upgrade to torch 2, xformers 18 and latest comfyui [`#68`](https://github.com/jug-dev/hordelib/pull/68)
-- build: version bump [`6af3e1e`](https://github.com/jug-dev/hordelib/commit/6af3e1e236d559497e28eed19f0a0ace5bb66bc5)
-
-#### [v0.5.1](https://github.com/jug-dev/hordelib/compare/v0.5.0...v0.5.1)
-
-> 11 April 2023
-
-- feat: Added is_model_loaded() to HyperMM [`#67`](https://github.com/jug-dev/hordelib/pull/67)
-- build: version bump [`41b4ad2`](https://github.com/jug-dev/hordelib/commit/41b4ad246db6f992ccebe09542e0f9a1276f6f25)
-
-#### [v0.5.0](https://github.com/jug-dev/hordelib/compare/v0.4.2...v0.5.0)
-
-> 11 April 2023
-
-- feat: add support for return_control_map [`#66`](https://github.com/jug-dev/hordelib/pull/66)
-- build: version bump [`667bb06`](https://github.com/jug-dev/hordelib/commit/667bb06f15be835eae8f393e5da46039e72ff133)
-- docs: update ci test badge [`e2b137e`](https://github.com/jug-dev/hordelib/commit/e2b137ed43d5b63c8a6f1d7899a31bbb78aa7045)
-
-#### [v0.4.2](https://github.com/jug-dev/hordelib/compare/v0.4.1...v0.4.2)
-
-> 11 April 2023
-
-- fix: resize img2img before inference [`#63`](https://github.com/jug-dev/hordelib/pull/63)
-- fix: add timezone to build results [`#61`](https://github.com/jug-dev/hordelib/pull/61)
-- tests: gfpgan test and size assets [`#62`](https://github.com/jug-dev/hordelib/pull/62)
-- docs: update with pypi test notes [`dd41120`](https://github.com/jug-dev/hordelib/commit/dd4112023d39e280fb61a1342707af4765f3b4df)
-- build: version bump [`e9525bc`](https://github.com/jug-dev/hordelib/commit/e9525bc8cc0bdcf33e4b6cc5c386027bf679268f)
-
-#### [v0.4.1](https://github.com/jug-dev/hordelib/compare/v0.4.0...v0.4.1)
-
-> 10 April 2023
-
-- feat: Make use of the ControlNet ModelManager [`#53`](https://github.com/jug-dev/hordelib/pull/53)
-- test: fix test with red border around it [`#58`](https://github.com/jug-dev/hordelib/pull/58)
-- build: activate build results website [`#57`](https://github.com/jug-dev/hordelib/pull/57)
-- build: make a webpage of test result images [`#55`](https://github.com/jug-dev/hordelib/pull/55)
-- test: fix black 64x64 image tests [`#54`](https://github.com/jug-dev/hordelib/pull/54)
-- version incremented [`14efa65`](https://github.com/jug-dev/hordelib/commit/14efa65031d595179cd00b4a1f27b9bce6ab88ac)
-- build: try to be smarter when we run tests [`e0d9d4b`](https://github.com/jug-dev/hordelib/commit/e0d9d4bea09233f0f59ac28a413dd754eab613b8)
-- build: try to run tests more often [`4470a24`](https://github.com/jug-dev/hordelib/commit/4470a243135c47d1bc24859573c6676e58dfc64c)
-
-#### [v0.4.0](https://github.com/jug-dev/hordelib/compare/v0.3.1...v0.4.0)
-
-> 10 April 2023
-
-- feat: add face fixing support [`#50`](https://github.com/jug-dev/hordelib/pull/50)
-- version incremented [`c5aa1d5`](https://github.com/jug-dev/hordelib/commit/c5aa1d5614738cc50418772dcf70343e614e2e9d)
-
-#### [v0.3.1](https://github.com/jug-dev/hordelib/compare/v0.3.0...v0.3.1)
-
-> 10 April 2023
-
-- test: change all tests to webp [`#49`](https://github.com/jug-dev/hordelib/pull/49)
-- version incremented [`a1adb39`](https://github.com/jug-dev/hordelib/commit/a1adb398cdc55f242158d6d3e2f6ec11645af892)
-
-#### [v0.3.0](https://github.com/jug-dev/hordelib/compare/v0.2.2...v0.3.0)
-
-> 10 April 2023
-
-- feat: add controlnet support [`#46`](https://github.com/jug-dev/hordelib/pull/46)
-- version incremented [`62f72c1`](https://github.com/jug-dev/hordelib/commit/62f72c10373711df96d43f89c1834f2d4dee3cf5)
-- docs: add build status badge to readme [`86b3d1a`](https://github.com/jug-dev/hordelib/commit/86b3d1a61442733b0a81f97f02ca58f8196f2f1c)
-
-#### [v0.2.2](https://github.com/jug-dev/hordelib/compare/v0.2.1...v0.2.2)
-
-> 9 April 2023
-
-- ci: inpainting tests [`#47`](https://github.com/jug-dev/hordelib/pull/47)
-- version incremented [`5940da8`](https://github.com/jug-dev/hordelib/commit/5940da8efeae955a45dc84ea51905d700df5b190)
-
-#### [v0.2.1](https://github.com/jug-dev/hordelib/compare/v0.2.0...v0.2.1)
-
-> 9 April 2023
-
-- build: change how custom nodes are loaded into comfyui [`#44`](https://github.com/jug-dev/hordelib/pull/44)
-
-#### [v0.2.0](https://github.com/jug-dev/hordelib/compare/v0.1.0...v0.2.0)
-
-> 9 April 2023
-
-- ci: Disable pypi publish [`#45`](https://github.com/jug-dev/hordelib/pull/45)
-- docs: readme updates. [`#43`](https://github.com/jug-dev/hordelib/pull/43)
-- docs: readme updates. [`#42`](https://github.com/jug-dev/hordelib/pull/42)
-- feat: Re-adds diffusers model manager [`#41`](https://github.com/jug-dev/hordelib/pull/41)
-- test: add diffusers inpainting run example [`#40`](https://github.com/jug-dev/hordelib/pull/40)
-- docs: update readme [`#39`](https://github.com/jug-dev/hordelib/pull/39)
-- docs: update changelog [`#38`](https://github.com/jug-dev/hordelib/pull/38)
-- refactor: We do some light refactoring... [`#34`](https://github.com/jug-dev/hordelib/pull/34)
-- test: Optimized tests [`#32`](https://github.com/jug-dev/hordelib/pull/32)
-- refactor: Significant code cleanup and CI/build improvements. [`#30`](https://github.com/jug-dev/hordelib/pull/30)
-- feat: Post processors [`#27`](https://github.com/jug-dev/hordelib/pull/27)
-- feat: adds inpainting [`dea0e9e`](https://github.com/jug-dev/hordelib/commit/dea0e9e54c8fcca87f4bb385fd68b811e8eb9a4e)
-- feat: image loader, basic img2img [`04994ea`](https://github.com/jug-dev/hordelib/commit/04994eaa4cd224071630f479f49d3ca578cb920a)
-- test: reduce vram requirements for hires fix tests [`2932764`](https://github.com/jug-dev/hordelib/commit/2932764a6e7bc5af271f883a11cb73ee94b5fb12)
-
-#### [v0.1.0](https://github.com/jug-dev/hordelib/compare/v0.0.10...v0.1.0)
-
-> 6 April 2023
-
-- fix: Duplicate lines [`#25`](https://github.com/jug-dev/hordelib/pull/25)
-- feat: Adds a github action when pushing to main that will generate a new release and an automatic changelog [`#24`](https://github.com/jug-dev/hordelib/pull/24)
-- fix: References to `horde_model_manager`, more docs [`#23`](https://github.com/jug-dev/hordelib/pull/23)
-- docs: Update LICENSE [`#20`](https://github.com/jug-dev/hordelib/pull/20)
-- refactor: ModelManager improvements, test adjustments [`#19`](https://github.com/jug-dev/hordelib/pull/19)
-- fix: missing return [`#18`](https://github.com/jug-dev/hordelib/pull/18)
-- refactor: 'ModelManager' rework, added 'WorkerSettings' [`#17`](https://github.com/jug-dev/hordelib/pull/17)
-- refactor: Test tweaks, type hint fixes [`#16`](https://github.com/jug-dev/hordelib/pull/16)
-- refactor: Type hints, refactoring, preemptive checks [`#15`](https://github.com/jug-dev/hordelib/pull/15)
-- feat: adds clip skip support [`dd1cbcc`](https://github.com/jug-dev/hordelib/commit/dd1cbcc44b9c8558f3961de1c99e25b548170066)
-- refactor: make things more explicit. [`970fd4a`](https://github.com/jug-dev/hordelib/commit/970fd4a21b6b771fe5e83769a74a6ae4b9be2aec)
-- feat: allow running comfyui easily. [`3ce7af1`](https://github.com/jug-dev/hordelib/commit/3ce7af146462bf2140b85514fef21314f2b8bdaa)
-
-#### [v0.0.10](https://github.com/jug-dev/hordelib/compare/v0.0.9...v0.0.10)
-
-> 3 April 2023
-
-- fix: test_horde.py syntax error [`#14`](https://github.com/jug-dev/hordelib/pull/14)
-- fix: Compat fixes for tests from pr #11 [`#12`](https://github.com/jug-dev/hordelib/pull/12)
-- feat: Clip interrogation support [`#11`](https://github.com/jug-dev/hordelib/pull/11)
-- feat: Adds support for using a Model Manager  [`#8`](https://github.com/jug-dev/hordelib/pull/8)
-- build: fixes for new model manager and clip [`9d09885`](https://github.com/jug-dev/hordelib/commit/9d0988505a845a433b60c9f9fe1d8e9784c8ced9)
-- build: update comfyui to latest version [`a5cfc05`](https://github.com/jug-dev/hordelib/commit/a5cfc05352f8a86c9beb511ab5b869a2c72b6cb3)
-- build: disable forced reformatting from black [`835ffe5`](https://github.com/jug-dev/hordelib/commit/835ffe546ec7dd43342bc133aeeaf6b625b8e357)
-
-#### [v0.0.9](https://github.com/jug-dev/hordelib/compare/v0.0.8...v0.0.9)
-
-> 3 April 2023
-
-- test: More thorough tests for ComfyUI install [`a247f2b`](https://github.com/jug-dev/hordelib/commit/a247f2b9fd9b62c3b0718468a50859e06c92ee65)
-- build: adds build helper script. [`afd38ea`](https://github.com/jug-dev/hordelib/commit/afd38eabbf103b52c32a8e4daff2e7f1e7b2324d)
-- build: don't run inference tests on github (no cuda) [`638056b`](https://github.com/jug-dev/hordelib/commit/638056bc2d48098a4cdcad592ab955abe815fcd7)
-
-#### v0.0.8
-
-> 2 April 2023
-
-- Initial commit. [`e3eae1c`](https://github.com/jug-dev/hordelib/commit/e3eae1c452e0f3145af3b8b62c14c377b3136f7b)
-- feat: Support loading ComfyUI pipelines without manual modification. [`8c2fd13`](https://github.com/jug-dev/hordelib/commit/8c2fd13db4ce6a293f335cefaaf9c7d52aaefd7b)
-- feat: adds stable difussion hires fix pipeline. [`6e573cb`](https://github.com/jug-dev/hordelib/commit/6e573cb364343569ad59cbd709b266d292021428)
