@@ -27,6 +27,7 @@ dynamic=["version"]
 [project.urls]
 "Homepage" = "https://github.com/jug-dev/hordelib"
 "Bug Tracker" = "https://github.com/jug-dev/hordelib/issues"
+"Changelog" = "https://github.com/jug-dev/hordelib/blob/releases/CHANGELOG.md"
 
 [tool.setuptools]
 license-files = ["LICENSE", "CHANGELOG*"]
