@@ -6,6 +6,7 @@ import subprocess
 from loguru import logger
 
 from hordelib.config_path import get_comfyui_path, get_hordelib_path
+from hordelib.consts import RELEASE_VERSION
 
 
 class Installer:
@@ -13,6 +14,8 @@ class Installer:
 
     @classmethod
     def get_commit_hash(cls) -> str:
+        if RELEASE_VERSION:
+            return ""
         head_file = os.path.join(get_comfyui_path(), ".git", "HEAD")
         if not os.path.exists(head_file):
             return "NOT FOUND"
@@ -34,6 +37,9 @@ class Installer:
 
     @classmethod
     def _run_get_result(cls, command, directory=get_hordelib_path()):
+        # Don't if we're a release version
+        if RELEASE_VERSION:
+            return
         return subprocess.run(
             command,
             shell=True,
@@ -44,6 +50,9 @@ class Installer:
 
     @classmethod
     def _run(cls, command, directory=get_hordelib_path()) -> tuple[bool, str] | None:
+        # Don't if we're a release version
+        if RELEASE_VERSION:
+            return
         try:
             result = cls._run_get_result(command, directory)
         except Exception as Ex:
@@ -56,6 +65,9 @@ class Installer:
 
     @classmethod
     def install(cls, comfy_version: str) -> None:
+        # Don't if we're a release version
+        if RELEASE_VERSION:
+            return
         # Install if ComfyUI is missing completely
         if not os.path.exists(get_comfyui_path()):
             installdir = os.path.dirname(get_comfyui_path())
@@ -84,11 +96,17 @@ class Installer:
 
     @classmethod
     def remove_local_comfyui_changes(cls):
+        # Don't if we're a release version
+        if RELEASE_VERSION:
+            return
         cls._run("git reset --hard", get_comfyui_path())
         cls._run("git clean -fd", get_comfyui_path())
 
     @classmethod
     def reset_comfyui_to_version(cls, comfy_version):
+        # Don't if we're a release version
+        if RELEASE_VERSION:
+            return
         # Try hard to ensure we reset everything even if we have been
         # hacking on ComfyUI or are in a weird repo state
         cls.remove_local_comfyui_changes()
@@ -98,6 +116,9 @@ class Installer:
 
     @classmethod
     def apply_patch(cls, patchfile):
+        # Don't if we're a release version
+        if RELEASE_VERSION:
+            return
         # Check if the patch has already been applied
         result = cls._run_get_result(
             f"git apply --check {patchfile}",

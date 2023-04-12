@@ -1,7 +1,11 @@
 # build_helper.py
 # This is just a build helper script to build the pypi package.
 import os
+import shutil
 import subprocess
+
+from hordelib import install_comfy
+from hordelib.consts import COMFYUI_VERSION
 
 
 def run(command):
@@ -38,17 +42,26 @@ def patch_toml(unpatch=False):
             newfile.append(f"{line[1:]}")
         elif unpatch and line.startswith('dynamic=["version", "dependencies"]'):
             newfile.append(f"#{line}")
+        elif not unpatch and line.startswith("#write_to ="):
+            newfile.append(f"{line[1:]}")
+        elif unpatch and line.startswith("write_to ="):
+            newfile.append(f"#{line}")
         else:
             newfile.append(line)
     with open("pyproject.toml", "w") as outfile:
         outfile.writelines(newfile)
 
 
-patch_requirements()
-patch_toml()
+def static_package_comfyui():
+    installer = install_comfy.Installer()
+    installer.install(COMFYUI_VERSION)
 
-# try:
-#     run(["python", "-m", "build"])
-# finally:
-#     patch_requirements(unpatch=True)
-#     patch_toml(unpatch=True)
+    if not os.path.exists("ComfyUI"):
+        raise Exception("ComfyUI not found")
+    shutil.copytree("ComfyUI", "hordelib/_comfyui")
+
+
+if __name__ == "__main__":
+    static_package_comfyui()
+    patch_requirements()
+    patch_toml()
