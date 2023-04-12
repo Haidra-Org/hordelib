@@ -18,7 +18,7 @@ jobs:
     # get us our version number.
     - name: "📣 Release on push"
       id: release
-      uses: rymndhng/release-on-push-action@master
+      uses: rymndhng/release-on-push-action@v0.28.0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
@@ -56,6 +56,14 @@ jobs:
       run: |
         npm -g install auto-changelog
         auto-changelog
+
+    # Try to add the changelog back to the releases branch
+    - uses: EndBug/add-and-commit@v9
+      with:
+        add: 'CHANGELOG.md'
+        message: 'ci: update changelog'
+        committer_name: GitHub Actions
+        committer_email: actions@github.com
 
     # Patches our requirements.txt and pyproject.toml
     # Build a changelog
