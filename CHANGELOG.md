@@ -1,5 +1,14 @@
 ## hordelib Changelog
 
+## [v0.7.0](https://github.com/jug-dev/hordelib/compare/v0.6.1...v0.7.0)
+
+12 April 2023
+
+- build: add support for production builld [`#109`](https://github.com/jug-dev/hordelib/pull/109) (Jug)
+- ci: update changelog [`75b6f15`](https://github.com/jug-dev/hordelib/commit/75b6f15ba2f7dbd47970271e26ca0341979478a7)  (tazlin)
+- build: fix detection of production build [`029bcac`](https://github.com/jug-dev/hordelib/commit/029bcac3b1dd86a06fa453db4e804818929d67bd)  (Jug)
+- ci: if a label is forgotten on release, assume patch release [`57bdba3`](https://github.com/jug-dev/hordelib/commit/57bdba3f99c783bde769e5857762033d64b1acf1)  (Jug)
+
 ## [v0.6.1](https://github.com/jug-dev/hordelib/compare/v0.6.0...v0.6.1)
 
 12 April 2023
