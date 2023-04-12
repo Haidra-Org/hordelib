@@ -329,10 +329,7 @@ class ModelManager:
                     {model_name: self.clip.loaded_models[model_name]},
                 )
             return success
-        if (
-            self.codeformer is not None
-            and model_name in self.codeformer.model_reference
-        ):
+        if self.codeformer is not None and model_name in self.codeformer.model_reference:
             success = self.codeformer.load(
                 model_name=model_name,
             )
@@ -379,10 +376,7 @@ class ModelManager:
                     {model_name: self.gfpgan.loaded_models[model_name]},
                 )
             return success
-        if (
-            self.safety_checker is not None
-            and model_name in self.safety_checker.model_reference
-        ):
+        if self.safety_checker is not None and model_name in self.safety_checker.model_reference:
             success = self.safety_checker.load(
                 model_name=model_name,
             )

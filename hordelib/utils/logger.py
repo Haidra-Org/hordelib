@@ -57,10 +57,7 @@ class HordeLog:
     def is_stderr_log(cls, record):
         if (
             record["level"].name
-            in HordeLog.STDOUT_LEVELS
-            + HordeLog.INIT_LEVELS
-            + HordeLog.MESSAGE_LEVELS
-            + HordeLog.STATS_LEVELS
+            in HordeLog.STDOUT_LEVELS + HordeLog.INIT_LEVELS + HordeLog.MESSAGE_LEVELS + HordeLog.STATS_LEVELS
         ):
             return False
         if record["level"].no < cls.verbosity + cls.quiet:
@@ -90,9 +87,7 @@ class HordeLog:
         logger.generation(
             "This is a generation message\nIt is typically multiline\nThee Lines".encode(
                 "unicode_escape",
-            ).decode(
-                "utf-8"
-            ),
+            ).decode("utf-8"),
         )
         logger.prompt("This is a prompt message")
         logger.debug("Debug Message")
@@ -132,8 +127,12 @@ class HordeLog:
             "<level>{level: <10}</level> | <green>{time:YYYY-MM-DD HH:mm:ss.SSSSSS}</green> | "
             "<green>{name}</green>:<green>{function}</green>:<green>{line}</green> - <level>{message}</level>"
         )
-        cls.genfmt = "<level>{level: <10}</level> @ <green>{time:YYYY-MM-DD HH:mm:ss.SSSSSS}</green> | <level>{message}</level>"
-        cls.initfmt = "<magenta>INIT      </magenta> | <level>{extra[status]: <11}</level> | <magenta>{message}</magenta>"
+        cls.genfmt = (
+            "<level>{level: <10}</level> @ <green>{time:YYYY-MM-DD HH:mm:ss.SSSSSS}</green> | <level>{message}</level>"
+        )
+        cls.initfmt = (
+            "<magenta>INIT      </magenta> | <level>{extra[status]: <11}</level> | <magenta>{message}</magenta>"
+        )
         cls.msgfmt = "<level>{level: <10}</level> | <level>{message}</level>"
 
         try:
@@ -229,7 +228,7 @@ class HordeLog:
                     "backtrace": True,
                     "diagnose": True,
                 },
-            ]
+            ],
         }
 
         cls.sinks = logger.configure(**config)

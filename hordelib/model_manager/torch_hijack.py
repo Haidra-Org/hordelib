@@ -104,11 +104,7 @@ class DisableInitialization:
             # this file is always 404, prevent making request
             # XXX looks like some old hack
             bad_url = "https://huggingface.co/openai/clip-vit-large-patch14/resolve/main/added_tokens.json"
-            if (
-                url == bad_url
-                or url == "openai/clip-vit-large-patch14"
-                and args[0] == "added_tokens.json"
-            ):
+            if url == bad_url or url == "openai/clip-vit-large-patch14" and args[0] == "added_tokens.json":
                 return None
 
             try:  # XXX this is some weird, hard to follow behavior

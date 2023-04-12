@@ -138,9 +138,7 @@ class HordeLib:
             params["upscale_sampler.cfg"] = params["sampler.cfg"]
             params["upscale_sampler.steps"] = params["sampler.steps"]
             params["upscale_sampler.sampler_name"] = params["sampler.sampler_name"]
-            params[
-                "upscale_sampler.denoise"
-            ] = 0.6  # XXX is this ok for latent upscale denoise?
+            params["upscale_sampler.denoise"] = 0.6  # XXX is this ok for latent upscale denoise?
             # Adjust image sizes
             width = params.get("empty_latent_image.width", 0)
             height = params.get("empty_latent_image.height", 0)
@@ -178,9 +176,7 @@ class HordeLib:
     # Fix any nonsensical requests
     def _validate_BASIC_INFERENCE_PARAMS(self, payload):
         # Turn off hires fix if we're not generating a hires image
-        if "hires_fix" in payload and (
-            payload["width"] <= 512 or payload["height"] <= 512
-        ):
+        if "hires_fix" in payload and (payload["width"] <= 512 or payload["height"] <= 512):
             payload["hires_fix"] = False
 
         # Remove source_processing if it's not valid
@@ -193,9 +189,7 @@ class HordeLib:
                 del payload["source_image"]
 
         # Turn off hires fix if we're painting as the dimensions are from the image
-        if "hires_fix" in payload and (
-            img_proc == "inpainting" or img_proc == "outpainting"
-        ):
+        if "hires_fix" in payload and (img_proc == "inpainting" or img_proc == "outpainting"):
             payload["hires_fix"] = False
 
     def _get_appropriate_pipeline(self, params):
@@ -281,9 +275,7 @@ class HordeLib:
             del payload["source_mask"]
 
         if payload.get("source_mask"):
-            payload["source_image"] = self._add_image_alpha_channel(
-                payload["source_image"], payload["source_mask"]
-            )
+            payload["source_image"] = self._add_image_alpha_channel(payload["source_image"], payload["source_mask"])
 
     def basic_inference(self, payload: dict[str, str | None]) -> Image.Image | None:
         generator = Comfy_Horde()

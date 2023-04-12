@@ -4,7 +4,6 @@ import sys
 
 from loguru import logger
 
-from hordelib.utils.logger import HordeLog
 from hordelib import install_comfy
 from hordelib.config_path import get_hordelib_path, set_system_path
 from hordelib.consts import (
@@ -13,6 +12,7 @@ from hordelib.consts import (
     MODEL_CATEGORY_NAMES,
     RELEASE_VERSION,
 )
+from hordelib.utils.logger import HordeLog
 
 
 def initialise(
@@ -29,8 +29,7 @@ def initialise(
     if not RELEASE_VERSION and " " in get_hordelib_path():
         # Our runtime patching can't handle this
         raise Exception(
-            "Do not run this project in developer mode from a path that "
-            "contains spaces in directory names.",
+            "Do not run this project in developer mode from a path that " "contains spaces in directory names.",
         )
 
     # Ensure we have ComfyUI
