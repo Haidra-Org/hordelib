@@ -70,6 +70,7 @@ jobs:
     - name: "🔧 Prepare our build for release"
       if: ${{ steps.release.outputs.version != '' }}
       run: >-
+        pip install loguru
         python build_helper.py
 
     # Build a pypi distribution using the env var version number
