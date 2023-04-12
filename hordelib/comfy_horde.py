@@ -40,12 +40,7 @@ def horde_load_checkpoint(
     # Redirect IO
     stdio = OutputCollector()
     with contextlib.redirect_stdout(stdio):
-        (
-            modelPatcher,
-            clipModel,
-            vae,
-            clipVisionModel,
-        ) = comfy.sd.load_checkpoint_guess_config(
+        (modelPatcher, clipModel, vae, clipVisionModel) = comfy.sd.load_checkpoint_guess_config(
             ckpt_path=ckpt_path,
             output_vae=output_vae,
             output_clip=output_clip,
@@ -68,9 +63,7 @@ def horde_load_controlnet(  # XXX Needs docstring
     # Redirect IO
     stdio = OutputCollector()
     with contextlib.redirect_stdout(stdio):
-        controlnet = comfy.sd.load_controlnet(
-            ckpt_path=controlnet_path, model=target_model
-        )
+        controlnet = comfy.sd.load_controlnet(ckpt_path=controlnet_path, model=target_model)
     stdio.replay()
     return controlnet
 
@@ -120,23 +113,15 @@ class Comfy_Horde:
     def _fix_pipeline_types(self, data: dict) -> dict:
         # We have a list of nodes and each node has a class type, which we may want to change
         for nodename, node in data.items():
-            if ("class_type" in node) and (
-                node["class_type"] in Comfy_Horde.NODE_REPLACEMENTS
-            ):
+            if ("class_type" in node) and (node["class_type"] in Comfy_Horde.NODE_REPLACEMENTS):
                 logger.debug(
                     f"Changed type {data[nodename]['class_type']} to {Comfy_Horde.NODE_REPLACEMENTS[node['class_type']]}",
                 )
-                data[nodename]["class_type"] = Comfy_Horde.NODE_REPLACEMENTS[
-                    node["class_type"]
-                ]
+                data[nodename]["class_type"] = Comfy_Horde.NODE_REPLACEMENTS[node["class_type"]]
         # Now we've fixed up node types, check for any node input parameter rename needed
         for nodename, node in data.items():
-            if ("class_type" in node) and (
-                node["class_type"] in Comfy_Horde.NODE_PARAMETER_REPLACEMENTS
-            ):
-                for oldname, newname in Comfy_Horde.NODE_PARAMETER_REPLACEMENTS[
-                    node["class_type"]
-                ].items():
+            if ("class_type" in node) and (node["class_type"] in Comfy_Horde.NODE_PARAMETER_REPLACEMENTS):
+                for oldname, newname in Comfy_Horde.NODE_PARAMETER_REPLACEMENTS[node["class_type"]].items():
                     if "inputs" in node and oldname in node["inputs"]:
                         node["inputs"][newname] = node["inputs"][oldname]
                         del node["inputs"][oldname]

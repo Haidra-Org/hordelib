@@ -7,9 +7,7 @@ from hordelib.config_path import get_hordelib_path
 COMFYUI_VERSION = "c767e9426ae81bed4f52c7be0625f0efc4cbe16b"
 """The exact version of ComfyUI version to load."""
 
-REMOTE_MODEL_DB = (
-    "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/"
-)
+REMOTE_MODEL_DB = "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/"
 """The default base endpoint where to find model databases. See MODEL_DB_NAMES for valid database names."""
 
 RELEASE_VERSION = os.path.exists(os.path.join(get_hordelib_path(), "_version.py"))

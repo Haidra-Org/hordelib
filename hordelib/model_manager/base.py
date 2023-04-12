@@ -190,9 +190,7 @@ class BaseModelManager(ABC):
             model_types = ["ckpt", "diffusers"]
         models_available = []
         for model in self.model_reference:
-            if self.model_reference[model][
-                "type"
-            ] in model_types and self.check_available(
+            if self.model_reference[model]["type"] in model_types and self.check_available(
                 self.get_model_files(model),
             ):
                 models_available.append(model)
@@ -329,9 +327,7 @@ class BaseModelManager(ABC):
         # and use that unless our source file is newer than our hash
         sha256_file = f"{os.path.splitext(file_name)[0]}.sha256"
         source_timestamp = os.path.getmtime(file_name)
-        hash_timestamp = (
-            os.path.getmtime(sha256_file) if os.path.isfile(sha256_file) else 0
-        )
+        hash_timestamp = os.path.getmtime(sha256_file) if os.path.isfile(sha256_file) else 0
         if hash_timestamp > source_timestamp:
             # Use our cached hash
             with open(sha256_file) as handle:
@@ -457,10 +453,7 @@ class BaseModelManager(ABC):
         - unzip file
         """
         # XXX this function is wacky in its premise and needs to be reworked
-        if (
-            model_name in self.available_models
-            and model_name not in self.tainted_models
-        ):
+        if model_name in self.available_models and model_name not in self.tainted_models:
             logger.info(f"{model_name} is already available.")
             return True
         download = self.get_model_download(model_name)
@@ -543,10 +536,7 @@ class BaseModelManager(ABC):
                 logger.info(f"delete {temp_path}")
                 shutil.rmtree(temp_path)
             else:
-                if (
-                    not self.check_file_available(file_path)
-                    or model_name in self.tainted_models
-                ):
+                if not self.check_file_available(file_path) or model_name in self.tainted_models:
                     logger.debug(f"Downloading {download_url} to {file_path}")
                     self.download_file(download_url, file_path)
         if not self.validate_model(model_name):
@@ -594,8 +584,7 @@ class BaseModelManager(ABC):
                 cuda_device = {
                     "id": i,
                     "name": torch.cuda.get_device_name(i),
-                    "sm": torch.cuda.get_device_capability(i)[0] * 10
-                    + torch.cuda.get_device_capability(i)[1],
+                    "sm": torch.cuda.get_device_capability(i)[0] * 10 + torch.cuda.get_device_capability(i)[1],
                 }
                 cuda_arch.append(cuda_device)
             cuda_arch = sorted(cuda_arch, key=lambda k: k["sm"], reverse=True)

@@ -35,10 +35,7 @@ class TestHordeUpscaling:
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_RealESRGAN_x4plus(self):
         SharedModelManager.manager.load("RealESRGAN_x4plus")
-        assert (
-            SharedModelManager.manager.esrgan.is_model_loaded("RealESRGAN_x4plus")
-            is True
-        )
+        assert SharedModelManager.manager.esrgan.is_model_loaded("RealESRGAN_x4plus") is True
         data = {
             "model": "RealESRGAN_x4plus",
             "source_image": self.image,
@@ -54,10 +51,7 @@ class TestHordeUpscaling:
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_RealESRGAN_x2plus(self):
         SharedModelManager.manager.load("RealESRGAN_x2plus")
-        assert (
-            SharedModelManager.manager.esrgan.is_model_loaded("RealESRGAN_x2plus")
-            is True
-        )
+        assert SharedModelManager.manager.esrgan.is_model_loaded("RealESRGAN_x2plus") is True
         data = {
             "model": "RealESRGAN_x2plus",
             "source_image": self.image,
@@ -110,9 +104,7 @@ class TestHordeUpscaling:
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_4x_AnimeSharp(self):
         SharedModelManager.manager.load("4x_AnimeSharp")
-        assert (
-            SharedModelManager.manager.esrgan.is_model_loaded("4x_AnimeSharp") is True
-        )
+        assert SharedModelManager.manager.esrgan.is_model_loaded("4x_AnimeSharp") is True
         data = {
             "model": "4x_AnimeSharp",
             "source_image": self.image,
@@ -127,9 +119,7 @@ class TestHordeUpscaling:
     @pytest.mark.mm_model("codeformer")
     def test_image_facefix_codeformers(self):
         SharedModelManager.manager.load("CodeFormers")
-        assert (
-            SharedModelManager.manager.codeformer.is_model_loaded("CodeFormers") is True
-        )
+        assert SharedModelManager.manager.codeformer.is_model_loaded("CodeFormers") is True
         data = {
             "model": "CodeFormers",
             "source_image": Image.open("images/test_facefix.png"),

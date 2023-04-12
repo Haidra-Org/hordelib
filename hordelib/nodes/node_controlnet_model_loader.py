@@ -23,11 +23,7 @@ class HordeDiffControlNetLoader:
     def load_controlnet(self, model, control_net_name, model_manager):
         logger.debug(f"Loading controlnet {control_net_name} through our custom node")
 
-        if (
-            not model_manager
-            or not model_manager.manager
-            or not model_manager.manager.controlnet
-        ):
+        if not model_manager or not model_manager.manager or not model_manager.manager.controlnet:
             logger.error("controlnet model_manager appears to be missing!")
             raise RuntimeError  # XXX better guarantees need to be made
 
