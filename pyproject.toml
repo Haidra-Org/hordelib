@@ -33,7 +33,9 @@ dynamic=["version"]
 license-files = ["LICENSE", "CHANGELOG*"]
 
 [tool.setuptools_scm]
-write_to = "hordelib/_version.py"
+# Don't create a _version file in development mode
+# We uncomment this automatically at build time.
+#write_to = "hordelib/_version.py"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}

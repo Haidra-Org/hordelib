@@ -42,6 +42,10 @@ def patch_toml(unpatch=False):
             newfile.append(f"{line[1:]}")
         elif unpatch and line.startswith('dynamic=["version", "dependencies"]'):
             newfile.append(f"#{line}")
+        elif not unpatch and line.startswith("#write_to ="):
+            newfile.append(f"{line[1:]}")
+        elif unpatch and line.startswith("write_to ="):
+            newfile.append(f"#{line}")
         else:
             newfile.append(line)
     with open("pyproject.toml", "w") as outfile:
