@@ -1,9 +1,11 @@
 import importlib.resources as importlib_resources
 import time
+import typing
 from pathlib import Path
 
 import torch
 from loguru import logger
+from typing_extensions import override
 
 from hordelib.config_path import get_hordelib_path
 from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES
@@ -18,54 +20,7 @@ class BlipModelManager(BaseModelManager):
             download_reference=download_reference,
         )
 
-    def load(
-        self,
-        model_name: str,
-        half_precision=True,
-        gpu_id=0,
-        cpu_only=False,
-        blip_image_eval_size=512,
-    ):
-        """
-        model_name: str. Name of the model to load. See available_models for a list of available models.
-        half_precision: bool. If True, the model will be loaded in half precision.
-        gpu_id: int. The id of the gpu to use. If the gpu is not available, the model will be loaded on the cpu.
-        cpu_only: bool. If True, the model will be loaded on the cpu. If True, half_precision will be set to False.
-        blip_image_eval_size: int. The size of the image to use for the blip model.
-        """
-        if model_name not in self.model_reference:
-            logger.error(f"{model_name} not found")
-            return False
-        if model_name not in self.available_models:
-            logger.error(f"{model_name} not available")
-            logger.info(
-                f"Downloading {model_name}",
-                status="Downloading",
-            )  # logger.init_ok
-            self.download_model(model_name)
-            logger.info(
-                f"{model_name} downloaded",
-                status="Downloading",
-            )  # logger.init_ok
-        if model_name not in self.loaded_models:
-            tic = time.time()
-            logger.info(f"{model_name}", status="Loading")  # logger.init
-            self.loaded_models[model_name] = self.modelToRam(
-                model_name,
-                half_precision=half_precision,
-                gpu_id=gpu_id,
-                cpu_only=cpu_only,
-                blip_image_eval_size=blip_image_eval_size,
-            )
-            logger.info(f"Loading {model_name}", status="Success")  # logger.init_ok
-            toc = time.time()
-            logger.info(
-                f"Loading {model_name}: Took {toc-tic} seconds",
-                status="Success",
-            )  # logger.init_ok
-            return True
-        return None
-
+    @override
     def modelToRam(
         self,
         model_name,
@@ -73,7 +28,8 @@ class BlipModelManager(BaseModelManager):
         gpu_id=0,
         cpu_only=False,
         blip_image_eval_size=512,
-    ):
+        **kwargs,
+    ) -> dict[str, typing.Any]:
         if not self.cuda_available:
             cpu_only = True
         vit = "base" if model_name == "BLIP" else "large"

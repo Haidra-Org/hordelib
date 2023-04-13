@@ -81,15 +81,31 @@ class BaseModelManager(ABC):
         self.loadModelDatabase()
 
     def loadModelDatabase(self, list_models=False):
+        if self.model_reference:
+            logger.info(
+                f"Model reference was already loaded. Got {len(self.model_reference)} models for {self.models_db_name}.",
+            )
+            logger.info("Reloading model reference...")
+
         if self.download_reference:
             self.model_reference = self.download_model_reference()
             logger.info(
-                f"Downloaded model reference. Got {len(self.model_reference)} models for {self.models_db_name}.",
+                " ".join(
+                    [
+                        "Downloaded model reference.",
+                        f"Got {len(self.model_reference)} models for {self.models_db_name}.",
+                    ],
+                ),
             )
         else:
             self.model_reference = json.loads((self.models_db_path).read_text())
             logger.info(
-                f"Loaded model reference from disk. Got {len(self.model_reference)} models for {self.models_db_name}.",
+                " ".join(
+                    [
+                        "Loaded model reference from disk.",
+                        f"Got {len(self.model_reference)} models for {self.models_db_name}.",
+                    ],
+                ),
             )
         if list_models:
             for model in self.model_reference:
@@ -108,17 +124,17 @@ class BaseModelManager(ABC):
 
     def download_model_reference(self):
         try:
-            logger.init("Model Reference", status="Downloading")  # logger.init
+            logger.init("Model Reference", status="Downloading")
             response = requests.get(self.remote_db)
-            logger.init_ok("Model Reference", status="OK")  # logger.init_ok
+            logger.init_ok("Model Reference", status="OK")
             models = response.json()
             return models
         except Exception as e:  # XXX Double check and/or rework this
             logger.init_err(
                 "Model Reference",
                 status=f"Download failed: {e}",
-            )  # logger.init_err
-            logger.init_warn("Model Reference", status="Local")  # logger.init_warn
+            )
+            logger.init_warn("Model Reference", status="Local")
             return json.loads((self.models_db_path).read_text())
 
     def load(
@@ -126,8 +142,9 @@ class BaseModelManager(ABC):
         model_name: str,
         *,
         half_precision: bool = True,
-        gpu_id: int | None = None,
+        gpu_id: int | None = 0,
         cpu_only: bool = False,
+        **kwargs,
     ):  # XXX # FIXME
         if model_name not in self.model_reference:
             logger.error(f"{model_name} not found")
@@ -135,17 +152,23 @@ class BaseModelManager(ABC):
         if model_name not in self.available_models:
             logger.error(f"{model_name} not available")
             self.download_model(model_name)
-            logger.init_ok(f"{model_name}", status="Downloaded")  # logger.init_ok
+            logger.init_ok(f"{model_name}", status="Downloaded")
         if model_name not in self.loaded_models:
-            tic = time.time()
-            logger.init(f"{model_name}", status="Loading")  # logger.init
+            logger.init(f"{model_name}", status="Loading")
 
-            self.loaded_models[model_name] = self.modelToRam(model_name)
+            tic = time.time()
+            logger.init(f"{model_name}", status="Loading")
+
+            self.loaded_models[model_name] = self.modelToRam(
+                model_name,
+                half_precision=half_precision,
+                gpu_id=gpu_id,
+                cpu_only=cpu_only,
+                **kwargs,
+            )
             toc = time.time()
-            logger.init_ok(
-                f"{model_name}: {round(toc-tic,2)} seconds",
-                status="Loaded",
-            )  # logger.init_ok
+
+            logger.init_ok(f"{model_name}: {round(toc-tic,2)} seconds", status="Loaded")
             return True
         return None
 
@@ -157,10 +180,25 @@ class BaseModelManager(ABC):
     @abstractmethod
     def modelToRam(
         self,
+        *,
         model_name: str,
-        **kwargs,
+        half_precision: bool = True,
+        gpu_id: int | None = None,
+        cpu_only: bool = False,
+        **kwargs,  # XXX I'd like to refactor the need for this away
     ) -> dict[str, typing.Any]:  # XXX Flesh out signature
-        """"""  # XXX # FIXME These functions need something resembling error detection/logging.
+        """Load a model into RAM. Returns a dict with at least key 'model'.
+
+        Args:
+            model_name (str): The name of the model to load.
+            half_precision (bool, optional): Whether to use half precision. Defaults to True.
+            gpu_id (int | None, optional): The GPU to load into. Defaults to None.
+            cpu_only (bool, optional): Whether to only use CPU + System RAM. Defaults to False.
+            kwargs (dict[str, typing.Any]): Additional arguments.
+
+        Returns:
+            dict[str, typing.Any]: A dict with at least key 'model'.
+        """
 
     def get_model(self, model_name: str):
         return self.model_reference.get(model_name)
@@ -212,20 +250,28 @@ class BaseModelManager(ABC):
         """
         return self.loaded_models[model_name]
 
-    def get_loaded_models_names(self, string=False):  # XXX Rework 'string' param
-        """
-        :param string: If True, returns concatenated string of model names
-        Returns a list of the loaded model names
+    def get_loaded_models_names(self, string=False) -> list[str] | str:  # XXX Rework 'string' param
+        """Return a list of loaded model names.
+
+        Args:
+            string (bool, optional): Return as a comma separated string. Defaults to False.
+
+        Returns:
+            list[str] | str: The list of models, as a `list` or a comma separated string.
         """
         # return ["Deliberate"]
         if string:
             return ", ".join(self.loaded_models.keys())
         return list(self.loaded_models.keys())
 
-    def is_model_loaded(self, model_name: str):
-        """
-        :param model_name: Name of the model
-        Returns whether the model is loaded
+    def is_model_loaded(self, model_name: str) -> bool:
+        """Returns True if the model is loaded, False otherwise.
+
+        Args:
+            model_name (str): The name of the model to check.
+
+        Returns:
+            _type_: _description_
         """
         return model_name in self.loaded_models
 
@@ -383,6 +429,8 @@ class BaseModelManager(ABC):
         # THIS IS A SECURITY RISK, EVENTUALLY WE SHOULD RETURN FALSE
         # But currently not all models specify hashes
         # XXX this warning preexists me (@tazlin), probably should look into it
+
+        logger.debug(f"Model {file_details['path']} doesn't have a checksum, skipping validation!")
 
         return True
 
@@ -550,10 +598,10 @@ class BaseModelManager(ABC):
         # XXX this has no fall back and always returns true
         for model in self.get_filtered_model_names(download_all=True):
             if not self.check_model_available(model):
-                logger.info(f"{model}", status="Downloading")  # logger.init
+                logger.init(f"{model}", status="Downloading")  # logger.init
                 self.download_model(model)
             else:
-                logger.info(f"{model} is already downloaded.")
+                logger.init(f"{model} is already downloaded.")
         return True
 
     def check_model_available(self, model_name: str) -> bool:
