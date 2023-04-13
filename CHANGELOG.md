@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.8.3](https://github.com/jug-dev/hordelib/compare/v0.8.2...v0.8.3)
+
+13 April 2023
+
+- fix: defer model manager loading [`5c41949`](https://github.com/jug-dev/hordelib/commit/5c419490e708fa7fe0778d97b1c53cc5ec7aa63e)  (tazlin)
+
 ## [v0.8.2](https://github.com/jug-dev/hordelib/compare/v0.8.1...v0.8.2)
 
 13 April 2023
