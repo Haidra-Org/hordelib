@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v0.8.1](https://github.com/jug-dev/hordelib/compare/v0.8.0...v0.8.1)
+
+13 April 2023
+
+- fix: suppress terminal spam from comfyui [`07764b5`](https://github.com/jug-dev/hordelib/commit/07764b51eb2a78c1557d5acceec265b3a4cd47da)  (Jug)
+- ci: update changelog [`afd0fc5`](https://github.com/jug-dev/hordelib/commit/afd0fc5802c8457f5630d3c8319153a0c4a39a5c)  (jug-dev)
+
 ## [v0.8.0](https://github.com/jug-dev/hordelib/compare/v0.7.3...v0.8.0)
 
 13 April 2023
