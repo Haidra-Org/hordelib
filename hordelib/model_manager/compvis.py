@@ -1,4 +1,7 @@
 import os
+import typing
+
+from typing_extensions import override
 
 from hordelib.comfy_horde import horde_load_checkpoint
 from hordelib.consts import (
@@ -21,7 +24,12 @@ class CompVisModelManager(BaseModelManager):
             download_reference=download_reference,
         )
 
-    def modelToRam(self, model_name: str):
+    @override
+    def modelToRam(
+        self,
+        model_name: str,
+        **kwargs,
+    ) -> dict[str, typing.Any]:
 
         embeddings_path = os.getenv("HORDE_MODEL_DIR_EMBEDDINGS", "./")
 

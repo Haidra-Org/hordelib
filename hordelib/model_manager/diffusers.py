@@ -1,3 +1,7 @@
+import typing
+
+from typing_extensions import override
+
 from hordelib.comfy_horde import horde_load_checkpoint
 from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES
 from hordelib.model_manager.base import BaseModelManager
@@ -12,7 +16,12 @@ class DiffusersModelManager(BaseModelManager):
             download_reference=download_reference,
         )
 
-    def modelToRam(self, model_name: str, **kwargs):
+    @override
+    def modelToRam(
+        self,
+        model_name: str,
+        **kwargs,
+    ) -> dict[str, typing.Any]:
         return horde_load_checkpoint(
             ckpt_path=self.getFullModelPath(model_name),
         )

@@ -35,7 +35,7 @@ class TestHordeSaftyChecker:
         SharedModelManager.manager = None
 
     def test_safety_checker_with_preload(self):
-        SharedModelManager.manager.load("safety_checker")
+        SharedModelManager.manager.load("safety_checker", cpu_only=True)
         assert SharedModelManager.manager.safety_checker.is_model_loaded("safety_checker") is True
         assert is_image_nsfw(self.image) is False
 

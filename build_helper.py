@@ -1,9 +1,9 @@
 # build_helper.py
 # This is just a build helper script to build the pypi package.
+import argparse
 import os
 import shutil
 import subprocess
-import argparse
 
 from hordelib import install_comfy
 from hordelib.consts import COMFYUI_VERSION

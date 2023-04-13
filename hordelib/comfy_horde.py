@@ -91,9 +91,16 @@ class Comfy_Horde:
     def __init__(self) -> None:
         self.client_id = None  # used for receiving comfyUI async events
         self.pipelines = {}
+        self.executors = {}
 
         # Load our pipelines
         self._load_pipelines()
+
+        stdio = OutputCollector()
+        with contextlib.redirect_stdout(stdio):
+            # Load our custom nodes
+            self._load_custom_nodes()
+        stdio.replay()
 
     def _this_dir(self, filename: str, subdir="") -> str:
         target_dir = os.path.dirname(os.path.realpath(__file__))
@@ -104,6 +111,14 @@ class Comfy_Horde:
     def _load_custom_nodes(self) -> None:
         execution.nodes.init_custom_nodes()
         execution.nodes.load_custom_nodes(self._this_dir("nodes"))
+
+    def _get_executor(self, pipeline):
+        if executor := self.executors.get("pipeline"):
+            return executor
+        else:
+            executor = execution.PromptExecutor(self)
+            self.executors[pipeline] = executor
+            return executor
 
     def _fix_pipeline_types(self, data: dict) -> dict:
         # We have a list of nodes and each node has a class type, which we may want to change
@@ -316,13 +331,8 @@ class Comfy_Horde:
         # Set the pipeline parameters
         self._set(pipeline, **params)
 
-        # Create our prompt executive
-        inference = execution.PromptExecutor(self)
-        stdio = OutputCollector()
-        with contextlib.redirect_stdout(stdio):
-            # Load our custom nodes
-            self._load_custom_nodes()
-        stdio.replay()
+        # Create (or retrieve) our prompt executive
+        inference = self._get_executor(pipeline_name)
 
         # This is useful for dumping the entire pipeline to the terminal when
         # developing and debugging new pipelines. A badly structured pipeline

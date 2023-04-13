@@ -135,6 +135,14 @@ If the tests run successfully images will be produced in the `images/` folder.
 
 `tox -- -k <filename>` for example `tox -- -k test_initialisation`
 
+#### Running a specific predefined test suite
+
+`tox list`
+
+This will list all groups of tests which are involved in either the development, build or CI proccess. Tests which have the word 'fix' in them will automatically apply changes when run, such as to linting or formatting. You can do this by running:
+
+`tox -e [test_suite_name_here]`
+
 ### Directory Structure
 
 `hordelib/pipeline_designs/`

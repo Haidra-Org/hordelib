@@ -5,6 +5,7 @@ from diffusers.pipelines.stable_diffusion.safety_checker import (
     StableDiffusionSafetyChecker,
 )
 from loguru import logger
+from typing_extensions import override
 
 from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES
 from hordelib.model_manager.base import BaseModelManager
@@ -17,12 +18,14 @@ class SafetyCheckerModelManager(BaseModelManager):
             download_reference=download_reference,
         )
 
+    @override
     def modelToRam(
         self,
-        model_name,
+        model_name: str,
         half_precision=True,
         gpu_id=0,
-        cpu_only=True,  # XXX # FIXME These extra parameters are never able to be called from `load`
+        cpu_only=True,
+        **kwargs,
     ) -> dict[str, typing.Any]:
         if not self.cuda_available:
             cpu_only = True

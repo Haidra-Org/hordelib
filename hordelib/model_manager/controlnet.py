@@ -1,6 +1,8 @@
 import os
+import typing
 
 from loguru import logger
+from typing_extensions import override
 
 from hordelib.comfy_horde import horde_load_controlnet
 from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES
@@ -15,9 +17,14 @@ class ControlNetModelManager(BaseModelManager):
         )
         self.control_nets = {}
 
-    def modelToRam(self, model_name: str):
+    @override
+    def modelToRam(
+        self,
+        model_name: str,
+        **kwargs,
+    ) -> dict[str, typing.Any]:
         raise NotImplementedError(
-            "Controlnet requires special handling. Use `ControlNetModelManager.merge_controlnet(...)` instead of `load()`.",
+            "Controlnet requires special handling. Use `ControlNetModelManager.merge_controlnet(...)` instead of `ModelManager.load(...)`.",
         )  # XXX # TODO There might be way to avoid this.
 
     def merge_controlnet(
@@ -26,23 +33,24 @@ class ControlNetModelManager(BaseModelManager):
         model,
         model_baseline="stable diffusion 1",
     ):
+        # XXX would be nice to get the model name passed as a parameter
         controlnet_name = self.get_controlnet_name(control_type, model_baseline)
         if controlnet_name not in self.model_reference:
             logger.error(f"{controlnet_name} not found")
             return False
         if controlnet_name not in self.available_models:
             logger.error(f"{controlnet_name} not available")
-            logger.info(
+            logger.init_ok(
                 f"Downloading {controlnet_name}",
                 status="Downloading",
             )  # logger.init_ok
             self.download_control_type(control_type, [model_baseline])
-            logger.info(
+            logger.init_ok(
                 f"{controlnet_name} downloaded",
                 status="Downloading",
             )  # logger.init_ok
 
-        logger.info(f"{control_type}", status="Merging")  # logger.init
+        logger.init(f"{control_type}", status="Merging")  # logger.init
         controlnet_path = os.path.join(
             self.modelFolderPath,
             self.get_controlnet_filename(controlnet_name),
