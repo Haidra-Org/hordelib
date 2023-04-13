@@ -20,8 +20,7 @@ def initialise(
     setup_logging=True,
 ):
     # Setup logging if requested
-    if setup_logging:
-        HordeLog.initialise()
+    HordeLog.initialise(setup_logging)
 
     logger.level("DEBUG")  # XXX # FIXME
 

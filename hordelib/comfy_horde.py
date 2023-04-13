@@ -7,11 +7,9 @@ import json
 import os
 import re
 import typing
-from io import BytesIO
 from pprint import pformat
 
 from loguru import logger
-from PIL import Image
 
 from hordelib.utils.ioredirect import OutputCollector
 
@@ -36,17 +34,13 @@ def horde_load_checkpoint(
     # XXX # TODO One day this signature should be generic, and not comfy specific
     # XXX # This can remain a comfy call, but the rest of the code should be able
     # XXX # to pretend it isn't
-
     # Redirect IO
-    stdio = OutputCollector()
-    with contextlib.redirect_stdout(stdio):
-        (modelPatcher, clipModel, vae, clipVisionModel) = comfy.sd.load_checkpoint_guess_config(
-            ckpt_path=ckpt_path,
-            output_vae=output_vae,
-            output_clip=output_clip,
-            embedding_directory=embeddings_path,
-        )
-    stdio.replay()
+    (modelPatcher, clipModel, vae, clipVisionModel) = comfy.sd.load_checkpoint_guess_config(
+        ckpt_path=ckpt_path,
+        output_vae=output_vae,
+        output_clip=output_clip,
+        embedding_directory=embeddings_path,
+    )
 
     return {
         "model": modelPatcher,
@@ -61,10 +55,7 @@ def horde_load_controlnet(  # XXX Needs docstring
     target_model,
 ) -> comfy.sd.ControlNet | comfy.sd.T2IAdapter | None:
     # Redirect IO
-    stdio = OutputCollector()
-    with contextlib.redirect_stdout(stdio):
-        controlnet = comfy.sd.load_controlnet(ckpt_path=controlnet_path, model=target_model)
-    stdio.replay()
+    controlnet = comfy.sd.load_controlnet(ckpt_path=controlnet_path, model=target_model)
     return controlnet
 
 
@@ -278,7 +269,6 @@ class Comfy_Horde:
             return None
 
         logger.info(f"Running pipeline {pipeline_name}")
-        logger.debug(f"Ug oh  {pipeline_name}")
 
         # Grab a copy of the pipeline
         pipeline = copy.copy(self.pipelines[pipeline_name])
@@ -324,11 +314,8 @@ class Comfy_Horde:
 
         # Create our prompt executive
         inference = execution.PromptExecutor(self)
-        stdio = OutputCollector()
-        with contextlib.redirect_stdout(stdio):
-            # Load our custom nodes
-            self._load_custom_nodes()
-        stdio.replay()
+        # Load our custom nodes
+        self._load_custom_nodes()
 
         # This is useful for dumping the entire pipeline to the terminal when
         # developing and debugging new pipelines. A badly structured pipeline
@@ -339,11 +326,7 @@ class Comfy_Horde:
 
         # The client_id parameter here is just so we receive comfy callbacks for debugging.
         # We pretend we are a web client and want async callbacks.
-        stdio = OutputCollector()
-        with contextlib.redirect_stdout(stdio):
-            with contextlib.redirect_stderr(stdio):
-                inference.execute(pipeline, extra_data={"client_id": 1})
-        stdio.replay()
+        inference.execute(pipeline, extra_data={"client_id": 1})
 
         return inference.outputs
 

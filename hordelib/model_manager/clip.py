@@ -1,10 +1,12 @@
 import time
+from pathlib import Path
 
 import clip
 import open_clip
 import torch
 from loguru import logger
 
+from hordelib.config_path import get_hordelib_path
 from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES
 from hordelib.model_manager.base import BaseModelManager
 
@@ -16,17 +18,15 @@ class ClipModelManager(BaseModelManager):
             download_reference=download_reference,
         )
 
-    def load_data_lists(self):
-        # data_lists = {}
-        # data_lists["artist"] = load_list(self.pkg / "artists.txt")
-        # data_lists["flavors"] = load_list(self.pkg / "flavors.txt")
-        # data_lists["medium"] = load_list(self.pkg / "mediums.txt")
-        # data_lists["movement"] = load_list(self.pkg / "movements.txt")
-        # data_lists["trending"] = load_list(self.pkg / "sites.txt")
-        # data_lists["techniques"] = load_list(self.pkg / "techniques.txt")
-        # data_lists["tags"] = load_list(self.pkg / "tags.txt")
-        # return data_list
-        return {}
+    def load_ranking_lists(self):
+        ranking_lists = {}
+        ranking_lists_path = Path(get_hordelib_path()).joinpath(
+            "clip/",
+            "ranking_lists/",
+        )
+        for file in ranking_lists_path.glob("*.txt"):
+            ranking_lists[file.stem] = load_list(file)
+        return ranking_lists
 
     def load_coca(self, model_name, half_precision=True, gpu_id=0, cpu_only=False):
         model_path = self.get_model_files(model_name)[0]["path"]
@@ -72,12 +72,12 @@ class ClipModelManager(BaseModelManager):
         model.to(device)
         if half_precision:
             model = model.half()
-        data_lists = self.load_data_lists()
+        ranking_lists = self.load_ranking_lists()
         return {
             "model": model,
             "device": device,
             "preprocess": preprocess,
-            "data_lists": data_lists,
+            "ranking_lists": ranking_lists,
             "half_precision": half_precision,
             "cache_name": model_name.replace("/", "_"),
         }
@@ -96,12 +96,12 @@ class ClipModelManager(BaseModelManager):
         model = model.eval()
         if half_precision:
             model = model.half()
-        data_lists = self.load_data_lists()
+        ranking_lists = self.load_ranking_lists()
         return {
             "model": model,
             "device": device,
             "preprocess": preprocess,
-            "data_lists": data_lists,
+            "ranking_lists": ranking_lists,
             "half_precision": half_precision,
             "cache_name": model_name.replace("/", "_"),
         }
@@ -164,3 +164,9 @@ class ClipModelManager(BaseModelManager):
             status="Success",
         )  # logger.init_ok
         return loaded_model_info
+
+
+def load_list(filename):
+    with open(filename, "r", encoding="utf-8", errors="replace") as f:
+        items = [line.strip() for line in f.readlines()]
+        return items
