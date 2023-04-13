@@ -44,6 +44,4 @@ def initialise(
     # Initialise model manager
     from hordelib.shared_model_manager import SharedModelManager
 
-    SharedModelManager.loadModelManagers(**model_managers_to_load)
-
     sys.argv = sys_arg_bkp
