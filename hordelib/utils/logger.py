@@ -114,7 +114,7 @@ class HordeLog:
     def setup_compatibility(cls):
         logger.__class__.generation = partialmethod(logger.__class__.log, "INFO")
         logger.__class__.prompt = partialmethod(logger.__class__.log, "INFO")
-        logger.__class__.init = partialmethod(logger.__class__.log, "INIT")
+        logger.__class__.init = partialmethod(logger.__class__.log, "INFO")
         logger.__class__.init_ok = partialmethod(logger.__class__.log, "INFO")
         logger.__class__.init_warn = partialmethod(logger.__class__.log, "INFO")
         logger.__class__.init_err = partialmethod(logger.__class__.log, "ERROR")
