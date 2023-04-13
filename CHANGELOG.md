@@ -1,5 +1,15 @@
 ## hordelib Changelog
 
+## [v0.8.0](https://github.com/jug-dev/hordelib/compare/v0.7.3...v0.8.0)
+
+13 April 2023
+
+- feat: Clip Rankings [`#117`](https://github.com/jug-dev/hordelib/pull/117) (Divided by Zer0)
+- feat: Blip [`#116`](https://github.com/jug-dev/hordelib/pull/116) (Divided by Zer0)
+- fix: make library thread safe [`b7274b4`](https://github.com/jug-dev/hordelib/commit/b7274b4dc1170480513fbd7eb34a4e6a0cd3aaf4)  (Jug)
+- fix: remove thread mutex for now [`1a901b8`](https://github.com/jug-dev/hordelib/commit/1a901b8d8274f84663dd2933224d375105120a1b)  (Jug)
+- build: fix build_helper for local use [`6ec5f38`](https://github.com/jug-dev/hordelib/commit/6ec5f38279eca2643fbfdf0ff9cc1ab7031b6bb3)  (Jug)
+
 ## [v0.7.3](https://github.com/jug-dev/hordelib/compare/v0.7.2...v0.7.3)
 
 12 April 2023
