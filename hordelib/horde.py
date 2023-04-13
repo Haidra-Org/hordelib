@@ -5,7 +5,6 @@ import contextlib
 from loguru import logger
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from hordelib import thread_lock
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
 
@@ -282,45 +281,42 @@ class HordeLib:
             payload["source_image"] = self._add_image_alpha_channel(payload["source_image"], payload["source_mask"])
 
     def basic_inference(self, payload: dict[str, str | None]) -> Image.Image | None:
-        with thread_lock:
-            generator = Comfy_Horde()
-            # Validate our payload parameters
-            self._validate_BASIC_INFERENCE_PARAMS(payload)
-            self._resize_sources_to_request(payload)
-            # Determine our parameters
-            params = self._parameter_remap_basic_inference(payload)
-            # Determine the correct pipeline
-            pipeline = self._get_appropriate_pipeline(params)
-            # Run the pipeline
-            images = generator.run_image_pipeline(pipeline, params)
+        generator = Comfy_Horde()
+        # Validate our payload parameters
+        self._validate_BASIC_INFERENCE_PARAMS(payload)
+        self._resize_sources_to_request(payload)
+        # Determine our parameters
+        params = self._parameter_remap_basic_inference(payload)
+        # Determine the correct pipeline
+        pipeline = self._get_appropriate_pipeline(params)
+        # Run the pipeline
+        images = generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image
         return Image.open(images[0]["imagedata"])
 
     def image_upscale(self, payload: dict[str, str | None]) -> Image.Image | None:
-        with thread_lock:
-            generator = Comfy_Horde()
-            # Determine our parameters
-            params = self._parameter_remap(payload)
-            # Determine the correct pipeline
-            pipeline = "image_upscale"
-            # Run the pipeline
-            images = generator.run_image_pipeline(pipeline, params)
+        generator = Comfy_Horde()
+        # Determine our parameters
+        params = self._parameter_remap(payload)
+        # Determine the correct pipeline
+        pipeline = "image_upscale"
+        # Run the pipeline
+        images = generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image
         return Image.open(images[0]["imagedata"])
 
     def image_facefix(self, payload: dict[str, str | None]) -> Image.Image | None:
-        with thread_lock:
-            generator = Comfy_Horde()
-            # Determine our parameters
-            params = self._parameter_remap(payload)
-            # Determine the correct pipeline
-            pipeline = "image_facefix"
-            # Run the pipeline
-            images = generator.run_image_pipeline(pipeline, params)
+        generator = Comfy_Horde()
+        # Determine our parameters
+        params = self._parameter_remap(payload)
+        # Determine the correct pipeline
+        pipeline = "image_facefix"
+        # Run the pipeline
+        images = generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image
