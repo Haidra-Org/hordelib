@@ -7,12 +7,11 @@ import json
 import os
 import re
 import typing
-from io import BytesIO
 from pprint import pformat
 
 from loguru import logger
-from PIL import Image
 
+from hordelib import thread_lock
 from hordelib.utils.ioredirect import OutputCollector
 
 # Do not change the order of these imports
@@ -36,17 +35,17 @@ def horde_load_checkpoint(
     # XXX # TODO One day this signature should be generic, and not comfy specific
     # XXX # This can remain a comfy call, but the rest of the code should be able
     # XXX # to pretend it isn't
-
-    # Redirect IO
-    stdio = OutputCollector()
-    with contextlib.redirect_stdout(stdio):
-        (modelPatcher, clipModel, vae, clipVisionModel) = comfy.sd.load_checkpoint_guess_config(
-            ckpt_path=ckpt_path,
-            output_vae=output_vae,
-            output_clip=output_clip,
-            embedding_directory=embeddings_path,
-        )
-    stdio.replay()
+    with thread_lock:
+        # Redirect IO
+        stdio = OutputCollector()
+        with contextlib.redirect_stdout(stdio):
+            (modelPatcher, clipModel, vae, clipVisionModel) = comfy.sd.load_checkpoint_guess_config(
+                ckpt_path=ckpt_path,
+                output_vae=output_vae,
+                output_clip=output_clip,
+                embedding_directory=embeddings_path,
+            )
+        stdio.replay()
 
     return {
         "model": modelPatcher,
@@ -60,11 +59,12 @@ def horde_load_controlnet(  # XXX Needs docstring
     controlnet_path: str,
     target_model,
 ) -> comfy.sd.ControlNet | comfy.sd.T2IAdapter | None:
-    # Redirect IO
-    stdio = OutputCollector()
-    with contextlib.redirect_stdout(stdio):
-        controlnet = comfy.sd.load_controlnet(ckpt_path=controlnet_path, model=target_model)
-    stdio.replay()
+    with thread_lock:
+        # Redirect IO
+        stdio = OutputCollector()
+        with contextlib.redirect_stdout(stdio):
+            controlnet = comfy.sd.load_controlnet(ckpt_path=controlnet_path, model=target_model)
+        stdio.replay()
     return controlnet
 
 
@@ -278,7 +278,6 @@ class Comfy_Horde:
             return None
 
         logger.info(f"Running pipeline {pipeline_name}")
-        logger.debug(f"Ug oh  {pipeline_name}")
 
         # Grab a copy of the pipeline
         pipeline = copy.copy(self.pipelines[pipeline_name])
