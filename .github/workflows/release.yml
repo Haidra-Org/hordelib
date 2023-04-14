@@ -85,6 +85,12 @@ jobs:
       with:
         password: ${{ secrets.PYPI_API_TOKEN }}
 
+    # Update the badges (maybe, if we're lucky)
+    - name: "📦 Refresh badge cache"
+      run: >-
+        curl -X PURGE
+        https://camo.githubusercontent.com/42307cf23a47bc021a97a6da572ce61568aa29b7d23ccfbbc89bf15168d23ce0/68747470733a2f2f62616467652e667572792e696f2f70792f686f7264656c69622e7376673f6272616e63683d6d61696e266b696c6c5f63616368653d31
+
     # # TODO: Once we make it official
     # - name: "Inform with Discord Webhook"
     #   if: ${{ steps.release.outputs.version != '' }}
