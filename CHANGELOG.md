@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v0.8.5](https://github.com/jug-dev/hordelib/compare/v0.8.4...v0.8.5)
+
+14 April 2023
+
+- test: add threaded torture test [`03bd56a`](https://github.com/jug-dev/hordelib/commit/03bd56a3c40d8ace9dbbb94c0747e207c8442e4a)  (Jug)
+- fix: assert parameter bounds to stop errors [`d1a18f7`](https://github.com/jug-dev/hordelib/commit/d1a18f7659336614738d9106f7ffccc72c1b9de0)  (Jug)
+
 ## [v0.8.4](https://github.com/jug-dev/hordelib/compare/v0.8.3...v0.8.4)
 
 14 April 2023
