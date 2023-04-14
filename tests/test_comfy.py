@@ -60,6 +60,26 @@ class TestSetup:
         assert test_dict["c"]["inputs"]["d"]["f"]
         assert "unknown.parameter" not in test_dict
 
+    def test_parameter_bounds(self):
+        test_dict = {
+            "sampler.cfg": 0,
+            "sampler.denoise": 0,
+            "empty_latent_image.height": 10000,
+            "sampler.steps": 0.9,
+            "clip_skip.stop_at_clip_layer": 0,
+            "unknown.parameter": 9999,
+        }
+        expected = {
+            "sampler.cfg": 1,
+            "sampler.denoise": 0.1,
+            "empty_latent_image.height": 8192,
+            "sampler.steps": 1,
+            "clip_skip.stop_at_clip_layer": -1,
+            "unknown.parameter": 9999,
+        }
+        self.comfy._assert_parameter_bounds(test_dict)
+        assert test_dict == expected
+
     def test_fix_pipeline_types(self):
         data = {
             "node1": {"class_type": "ShouldNotBeReplaced"},

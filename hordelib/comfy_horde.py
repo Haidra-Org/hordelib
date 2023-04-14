@@ -105,6 +105,19 @@ class Comfy_Horde:
         },
     }
 
+    # Enforce min/max bounds on some parameters
+    PARAMETER_BOUNDS = {
+        "sampler.cfg": (1, 100),
+        "sampler.denoise": (0.1, 1.0),
+        "empty_latent_image.height": (64, 8192),
+        "empty_latent_image.width": (64, 8192),
+        "sampler.steps": (1, 500),
+        "empty_latent_image.batch_size": (1, 500),
+        "clip_skip.stop_at_clip_layer": (-10, -1),
+        "latent_upscale.width": (64, 8192),
+        "latent_upscale.height": (64, 8192),
+    }
+
     def __init__(self) -> None:
         self.client_id = None  # used for receiving comfyUI async events
         self.pipelines = {}
@@ -172,6 +185,16 @@ class Comfy_Horde:
                     if type(input) is list and input and input[0] in renames:
                         input[0] = renames[input[0]]
         return newnodes
+
+    def _assert_parameter_bounds(self, params):
+        for key, value in params.items():
+            if key in self.PARAMETER_BOUNDS:
+                pmin, pmax = self.PARAMETER_BOUNDS[key]
+                if value < pmin:
+                    value = pmin
+                elif value > pmax:
+                    value = pmax
+                params[key] = value
 
     # We are passed a valid comfy pipeline and a design file from the comfyui web app.
     # Why?
@@ -339,6 +362,9 @@ class Comfy_Horde:
                     "controlnet_apply.image",
                     params["control_type"],
                 )
+
+        # Enforce our parameter bounds
+        self._assert_parameter_bounds(params)
 
         # Set the pipeline parameters
         self._set(pipeline, **params)
