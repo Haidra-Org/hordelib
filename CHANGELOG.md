@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v0.8.4](https://github.com/jug-dev/hordelib/compare/v0.8.3...v0.8.4)
+
+14 April 2023
+
+- fix: threading and job settings being mixed together [`#127`](https://github.com/jug-dev/hordelib/pull/127) (Jug)
+- ci: try to refresh pypi badge on release [`fbb832c`](https://github.com/jug-dev/hordelib/commit/fbb832c8cf3906958ed08b6fb0408811130e57ca)  (Jug)
+- docs: minor url tweak in readme [`6faee9a`](https://github.com/jug-dev/hordelib/commit/6faee9a8757b749013f3809c2617e7a7003310ba)  (Jug)
+
 ## [v0.8.3](https://github.com/jug-dev/hordelib/compare/v0.8.2...v0.8.3)
 
 13 April 2023
