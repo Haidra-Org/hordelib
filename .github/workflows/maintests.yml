@@ -28,7 +28,7 @@ jobs:
       - name: Run tox
         run: tox -e tests
       - name: Run a direct run test
-        run: python -m tests.run_upscale
+        run: python -m examples.run_upscale
       - name: Create CI webpage of results
         run: python -m tests.make_index
       - name: Upload to S3
