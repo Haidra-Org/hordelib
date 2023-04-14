@@ -24,5 +24,5 @@ class CodeFormerModelManager(BaseModelManager):
     ) -> dict[str, typing.Any]:
         model_path = self.getFullModelPath(model_name)
         sd = comfy_horde.load_torch_file(model_path)
-        out = comfy_horde.model_loading.load_state_dict(sd).eval()
+        out = comfy_horde.load_state_dict(sd).eval()
         return {"model": out}

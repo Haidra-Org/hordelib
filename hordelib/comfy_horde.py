@@ -6,6 +6,7 @@ import glob
 import json
 import os
 import re
+import threading
 import typing
 from pprint import pformat
 
@@ -13,15 +14,32 @@ from loguru import logger
 
 from hordelib.utils.ioredirect import OutputCollector
 
-# Do not change the order of these imports
+# Note these imports are intentionally somewhat obfuscated as a reminder to other modules
+# that they should never call through this module into comfy directly. All calls into
+# comfy should be abstracted through functions in this module.
 # isort: off
-import execution
-import comfy.sd
-import comfy.clip_vision
-from comfy.utils import load_torch_file  # XXX Add to __all__
-from comfy_extras.chainner_models import model_loading  # XXX Add to __all__
+from execution import nodes as _comfy_nodes
+from execution import PromptExecutor as _comfy_PromptExecutor
+from comfy.sd import load_checkpoint_guess_config as __comfy_load_checkpoint_guess_config
+from comfy.sd import load_controlnet as __comfy_load_controlnet
+from comfy.utils import load_torch_file as __comfy_load_torch_file
+from comfy_extras.chainner_models import model_loading as _comfy_model_loading
 
 # isort: on
+
+_mutex = threading.RLock()
+
+
+def load_torch_file(filename):
+    with _mutex:
+        result = __comfy_load_torch_file(filename)
+    return result
+
+
+def load_state_dict(state_dict):
+    with _mutex:
+        result = _comfy_model_loading.load_state_dict(state_dict)
+    return result
 
 
 def horde_load_checkpoint(
@@ -34,15 +52,16 @@ def horde_load_checkpoint(
     # XXX # TODO One day this signature should be generic, and not comfy specific
     # XXX # This can remain a comfy call, but the rest of the code should be able
     # XXX # to pretend it isn't
-    # Redirect IO
-    stdio = OutputCollector()
-    with contextlib.redirect_stdout(stdio):
-        (modelPatcher, clipModel, vae, clipVisionModel) = comfy.sd.load_checkpoint_guess_config(
-            ckpt_path=ckpt_path,
-            output_vae=output_vae,
-            output_clip=output_clip,
-            embedding_directory=embeddings_path,
-        )
+    with _mutex:
+        # Redirect IO
+        stdio = OutputCollector()
+        with contextlib.redirect_stdout(stdio):
+            (modelPatcher, clipModel, vae, clipVisionModel) = __comfy_load_checkpoint_guess_config(
+                ckpt_path=ckpt_path,
+                output_vae=output_vae,
+                output_clip=output_clip,
+                embedding_directory=embeddings_path,
+            )
 
     return {
         "model": modelPatcher,
@@ -52,14 +71,12 @@ def horde_load_checkpoint(
     }
 
 
-def horde_load_controlnet(  # XXX Needs docstring
-    controlnet_path: str,
-    target_model,
-) -> comfy.sd.ControlNet | comfy.sd.T2IAdapter | None:
-    # Redirect IO
-    stdio = OutputCollector()
-    with contextlib.redirect_stdout(stdio):
-        controlnet = comfy.sd.load_controlnet(ckpt_path=controlnet_path, model=target_model)
+def horde_load_controlnet(controlnet_path: str, target_model):  # XXX Needs docstring
+    with _mutex:
+        # Redirect IO
+        stdio = OutputCollector()
+        with contextlib.redirect_stdout(stdio):
+            controlnet = __comfy_load_controlnet(ckpt_path=controlnet_path, model=target_model)
     return controlnet
 
 
@@ -91,7 +108,6 @@ class Comfy_Horde:
     def __init__(self) -> None:
         self.client_id = None  # used for receiving comfyUI async events
         self.pipelines = {}
-        self.executors = {}
 
         # Load our pipelines
         self._load_pipelines()
@@ -109,16 +125,12 @@ class Comfy_Horde:
         return os.path.join(target_dir, filename)
 
     def _load_custom_nodes(self) -> None:
-        execution.nodes.init_custom_nodes()
-        execution.nodes.load_custom_nodes(self._this_dir("nodes"))
+        _comfy_nodes.init_custom_nodes()
+        _comfy_nodes.load_custom_nodes(self._this_dir("nodes"))
 
     def _get_executor(self, pipeline):
-        if executor := self.executors.get("pipeline"):
-            return executor
-        else:
-            executor = execution.PromptExecutor(self)
-            self.executors[pipeline] = executor
-            return executor
+        executor = _comfy_PromptExecutor(self)
+        return executor
 
     def _fix_pipeline_types(self, data: dict) -> dict:
         # We have a list of nodes and each node has a class type, which we may want to change
@@ -290,7 +302,7 @@ class Comfy_Horde:
         logger.info(f"Running pipeline {pipeline_name}")
 
         # Grab a copy of the pipeline
-        pipeline = copy.copy(self.pipelines[pipeline_name])
+        pipeline = copy.deepcopy(self.pipelines[pipeline_name])
 
         # Inject our model manager if required
         from hordelib.shared_model_manager import SharedModelManager
@@ -343,10 +355,11 @@ class Comfy_Horde:
 
         # The client_id parameter here is just so we receive comfy callbacks for debugging.
         # We pretend we are a web client and want async callbacks.
-        stdio = OutputCollector()
-        with contextlib.redirect_stdout(stdio):
-            with contextlib.redirect_stderr(stdio):
-                inference.execute(pipeline, extra_data={"client_id": 1})
+        with _mutex:
+            stdio = OutputCollector()
+            with contextlib.redirect_stdout(stdio):
+                with contextlib.redirect_stderr(stdio):
+                    inference.execute(pipeline, extra_data={"client_id": 1})
         stdio.replay()
 
         return inference.outputs
@@ -362,12 +375,10 @@ class Comfy_Horde:
         #   },
         # ]
         # See node_image_output.py
-        result = self.run_pipeline(pipeline_name, params)
+        with _mutex:
+            result = self.run_pipeline(pipeline_name, params)
 
         if result:
             return result["output_image"]["images"]
 
         return None
-
-
-__all__ = ["load_torch_file", "model_loading"]

@@ -245,7 +245,7 @@ Patches can be applied with the `hordelib.install_comfyui.Installer` classes `ap
 
 <!-- Badges: -->
 
-[pypi-image]: https://badge.fury.io/py/hordelib.svg?branch=main&nocache=1
+[pypi-image]: https://badge.fury.io/py/hordelib.svg?branch=main&kill_cache=1
 [pypi-url]: https://badge.fury.io/py/hordelib
 [downloads-image]: https://pepy.tech/badge/hordelib
 [downloads-url]: https://pepy.tech/project/hordelib
