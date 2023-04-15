@@ -6,6 +6,7 @@ import glob
 import json
 import os
 import re
+import time
 import threading
 import typing
 from pprint import pformat
@@ -28,16 +29,17 @@ from comfy_extras.chainner_models import model_loading as _comfy_model_loading
 # isort: on
 
 _mutex = threading.RLock()
+_loading_mutex = threading.RLock()
 
 
 def load_torch_file(filename):
-    with _mutex:
+    with _loading_mutex:
         result = __comfy_load_torch_file(filename)
     return result
 
 
 def load_state_dict(state_dict):
-    with _mutex:
+    with _loading_mutex:
         result = _comfy_model_loading.load_state_dict(state_dict)
     return result
 
@@ -52,7 +54,7 @@ def horde_load_checkpoint(
     # XXX # TODO One day this signature should be generic, and not comfy specific
     # XXX # This can remain a comfy call, but the rest of the code should be able
     # XXX # to pretend it isn't
-    with _mutex:
+    with _loading_mutex:
         # Redirect IO
         stdio = OutputCollector()
         with contextlib.redirect_stdout(stdio):
@@ -72,7 +74,7 @@ def horde_load_checkpoint(
 
 
 def horde_load_controlnet(controlnet_path: str, target_model):  # XXX Needs docstring
-    with _mutex:
+    with _loading_mutex:
         # Redirect IO
         stdio = OutputCollector()
         with contextlib.redirect_stdout(stdio):
@@ -121,7 +123,7 @@ class Comfy_Horde:
     def __init__(self) -> None:
         self.client_id = None  # used for receiving comfyUI async events
         self.pipelines = {}
-
+        self.exit_time = 0
         # Load our pipelines
         self._load_pipelines()
 
@@ -381,11 +383,10 @@ class Comfy_Horde:
 
         # The client_id parameter here is just so we receive comfy callbacks for debugging.
         # We pretend we are a web client and want async callbacks.
-        with _mutex:
-            stdio = OutputCollector()
-            with contextlib.redirect_stdout(stdio):
-                with contextlib.redirect_stderr(stdio):
-                    inference.execute(pipeline, extra_data={"client_id": 1})
+        stdio = OutputCollector()
+        with contextlib.redirect_stdout(stdio):
+            with contextlib.redirect_stderr(stdio):
+                inference.execute(pipeline, extra_data={"client_id": 1})
         stdio.replay()
 
         return inference.outputs
@@ -402,7 +403,14 @@ class Comfy_Horde:
         # ]
         # See node_image_output.py
         with _mutex:
+            # We have entered our mutex lock, measure the time since we last exited
+            if self.exit_time:
+                idle_time = time.time() - self.exit_time
+                if idle_time > 1:
+                    logger.warning(f"No job ran for {round(idle_time, 3)} seconds")
+
             result = self.run_pipeline(pipeline_name, params)
+            self.exit_time = time.time()
 
         if result:
             return result["output_image"]["images"]
