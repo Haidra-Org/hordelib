@@ -10,7 +10,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "diff_control_sd21_canny_fp16.safetensors"
+					"path": "diff_control_sd21_canny_fp16.safetensors",
+					"sha256sum": "7b2c5d972b6212bb9185e5860e66edd29eeeaeb98d43877688e20c156e196ce4"
 				},
 				{
 					"path": "cldm_v21.yaml"
@@ -37,7 +38,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "diff_control_sd21_depth_fp16.safetensors"
+					"path": "diff_control_sd21_depth_fp16.safetensors",
+					"sha256sum": "ed33ec158b6ea3bf61494ee71adc16d45886d5f6611d108345a184ebe7d08d81"
 				},
 				{
 					"path": "cldm_v21.yaml"
@@ -64,7 +66,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "diff_control_sd21_hed_fp16.safetensors"
+					"path": "diff_control_sd21_hed_fp16.safetensors",
+					"sha256sum": "c2f7b28a3ba62c372ad8a1baa875ddbecbd0f9f28b899ecd1c6add2c7b71f7cf"
 				},
 				{
 					"path": "cldm_v21.yaml"
@@ -91,7 +94,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "control_openpose_fp21.safetensors"
+					"path": "control_openpose_fp21.safetensors",
+					"sha256sum": "9d78ae69920502b7dcbf39cd2ec55c9b91b8852ef0248c9bce1624d972f830c5"
 				},
 				{
 					"path": "cldm_v21.yaml"
@@ -118,7 +122,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "control_scribble_fp21.safetensors"
+					"path": "control_scribble_fp21.safetensors",
+					"sha256sum": "7b2ec6479676b52beb8bd22041f6cabbd1a8a16aac7d2d1a3f0e9121edef7b5e"
 				},
 				{
 					"path": "cldm_v21.yaml"
@@ -145,7 +150,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "control_scribble_fp21.safetensors"
+					"path": "control_scribble_fp21.safetensors",
+					"sha256sum": "7b2ec6479676b52beb8bd22041f6cabbd1a8a16aac7d2d1a3f0e9121edef7b5e"
 				},
 				{
 					"path": "cldm_v21.yaml"
@@ -172,7 +178,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "diff_control_sd15_canny_fp16.safetensors"
+					"path": "diff_control_sd15_canny_fp16.safetensors",
+					"sha256sum": "231ce6b2760538a3fb77b7cdc40983d460a91a95ab526f920b08f5e750748d9c"
 				},
 				{
 					"path": "cldm_v15.yaml"
@@ -199,7 +206,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "diff_control_sd15_depth_fp16.safetensors"
+					"path": "diff_control_sd15_depth_fp16.safetensors",
+					"sha256sum": "8b00f19f3f400e3791081ba35c1c615e975d88f5338e7f1bbe09e06465dabc00"
 				},
 				{
 					"path": "cldm_v15.yaml"
@@ -226,7 +234,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "diff_control_sd15_hed_fp16.safetensors"
+					"path": "diff_control_sd15_hed_fp16.safetensors",
+					"sha256sum": "b0d250e550cedad78abf96431bb298f23573c6739b57b93475390a5529b85e52"
 				},
 				{
 					"path": "cldm_v15.yaml"
@@ -253,7 +262,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "control_mlsd_fp16.safetensors"
+					"path": "control_mlsd_fp16.safetensors",
+					"sha256sum": "948fe030361fad35b974e4d112b0ac94df41d7ab61d7847ad7e7b9a98648cf25"
 				},
 				{
 					"path": "cldm_v15.yaml"
@@ -280,7 +290,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "control_mlsd_fp16.safetensors"
+					"path": "control_mlsd_fp16.safetensors",
+					"sha256sum": "948fe030361fad35b974e4d112b0ac94df41d7ab61d7847ad7e7b9a98648cf25"
 				},
 				{
 					"path": "cldm_v15.yaml"
@@ -307,7 +318,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "control_normal_fp16.safetensors"
+					"path": "control_normal_fp16.safetensors",
+					"sha256sum": "1007949f163820f5ba324fd78b674fd04423c62ac6b8db1e896b7bf0ab24422c"
 				},
 				{
 					"path": "cldm_v15.yaml"
@@ -334,7 +346,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "control_openpose_fp16.safetensors"
+					"path": "control_openpose_fp16.safetensors",
+					"sha256sum": "ac1d356292486bbb8d88c67b1099a2b254008b7213149cd874f9506dff81d8da"
 				},
 				{
 					"path": "cldm_v15.yaml"
@@ -361,7 +374,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "control_scribble_fp16.safetensors"
+					"path": "control_scribble_fp16.safetensors",
+					"sha256sum": "b8be265a72b739f809e461adf985051c925c21e9e22e86987a1519191916fc8d"
 				},
 				{
 					"path": "cldm_v15.yaml"
@@ -388,7 +402,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "control_scribble_fp16.safetensors"
+					"path": "control_scribble_fp16.safetensors",
+					"sha256sum": "b8be265a72b739f809e461adf985051c925c21e9e22e86987a1519191916fc8d"
 				},
 				{
 					"path": "cldm_v15.yaml"
@@ -415,7 +430,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "control_seg_fp16.safetensors"
+					"path": "control_seg_fp16.safetensors",
+					"sha256sum": "2471479e29acd24f426ab4aa9cc1598d98d261c3621c91ac70042cdab6cded85"
 				},
 				{
 					"path": "cldm_v15.yaml"

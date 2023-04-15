@@ -18,6 +18,6 @@ class TestCompvis:
         yield
         del self.compvis_model_manager
 
-    def test_safety_checker_load_defaults(self):
+    def test_compvis_load_defaults(self):
         success = self.compvis_model_manager.load("Deliberate")
         assert success

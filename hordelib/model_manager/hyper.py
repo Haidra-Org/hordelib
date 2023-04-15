@@ -55,6 +55,9 @@ class ModelManager:
     loaded_models: dict
     """All models for which have successfully loaded across all `BaseModelManager` types."""
 
+    active_model_managers: list[BaseModelManager] | None = None
+    """All loaded model managers."""
+
     def __init__(
         self,
     ):
@@ -104,11 +107,12 @@ class ModelManager:
                 modelmanager(download_reference=False),
             )  # XXX # FIXME # HACK
 
+        self.active_model_managers = []
         self.refreshManagers()
 
     def refreshManagers(self) -> None:  # XXX rename + docstring rewrite
         """Called when one of the `BaseModelManager` changes, updating `available_models`."""
-        model_types = [
+        _active_model_managers = [
             # self.aitemplate, # XXX TODO
             self.blip,
             self.clip,
@@ -122,10 +126,11 @@ class ModelManager:
         ]
         # reset available models
         self.available_models = []
-        for model_type in model_types:
-            if model_type is not None:
-                self.models.update(model_type.model_reference)
-                self.available_models.extend(model_type.available_models)
+        for model_manager in _active_model_managers:
+            if model_manager is not None:
+                self.active_model_managers.append(model_manager)
+                self.models.update(model_manager.model_reference)
+                self.available_models.extend(model_manager.available_models)
 
     def reload_database(self) -> None:
         """Completely resets the `BaseModelManager` classes, and forces each to re-init."""

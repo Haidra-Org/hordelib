@@ -5,7 +5,8 @@
     "config": {
       "files": [
         {
-          "path": "model__base_caption.pth"
+          "path": "model__base_caption.pth",
+          "sha256sum": "96ac8749bd0a568c274ebe302b3a3748ab9be614c737f3d8c529697139174086"
         }
       ],
       "download": [
@@ -24,7 +25,8 @@
     "config": {
       "files": [
         {
-          "path": "model_large_caption.pth"
+          "path": "model_large_caption.pth",
+          "sha256sum": "0d79b3b7c41478b5fe55c35b73ca6f3525a09708289371c6c0fac641e588287e"
         }
       ],
       "download": [

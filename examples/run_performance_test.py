@@ -136,7 +136,9 @@ def main():
     threads = []
     threads.append(
         threading.Thread(
-            daemon=True, target=generate_images, kwargs={"model": "Deliberate", "threadid": 1, "count": 10}
+            daemon=True,
+            target=generate_images,
+            kwargs={"model": "Deliberate", "threadid": 1, "count": 10},
         ),
     )
     threads.append(

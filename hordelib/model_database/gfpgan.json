@@ -8,13 +8,16 @@
 		"config": {
 			"files": [
 				{
-					"path": "GFPGANv1.4.pth"
+					"path": "GFPGANv1.4.pth",
+					"sha256sum": "e2cd4703ab14f4d01fd1383a8a8b266f9a5833dacee8e6a79d3bf21a1b6be5ad"
 				},
 				{
-					"path": "detection_Resnet50_Final.pth"
+					"path": "detection_Resnet50_Final.pth",
+					"sha256sum": "6d1de9c2944f2ccddca5f5e010ea5ae64a39845a86311af6fdf30841b0a5a16d"
 				},
 				{
-					"path": "parsing_parsenet.pth"
+					"path": "parsing_parsenet.pth",
+					"sha256sum": "3d558d8d0e42c20224f13cf5a29c79eba2d59913419f945545d8cf7b72920de2"
 				}
 			],
 			"download": [

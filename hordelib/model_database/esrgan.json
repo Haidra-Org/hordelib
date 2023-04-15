@@ -8,7 +8,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "RealESRGAN_x4plus.pth"
+					"path": "RealESRGAN_x4plus.pth",
+					"sha256sum": "4fa0d38905f75ac06eb49a7951b426670021be3018265fd191d2125df9d682f1"
 				}
 			],
 			"download": [
@@ -30,7 +31,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "RealESRGAN_x4plus_anime_6B.pth"
+					"path": "RealESRGAN_x4plus_anime_6B.pth",
+					"sha256sum": "f872d837d3c90ed2e05227bed711af5671a6fd1c9f7d7e91c911a61f155e99da"
 				}
 			],
 			"download": [
@@ -52,7 +54,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "RealESRGAN_x2plus.pth"
+					"path": "RealESRGAN_x2plus.pth",
+					"sha256sum": "49fafd45f8fd7aa8d31ab2a22d14d91b536c34494a5cfe31eb5d89c2fa266abb"
 				}
 			],
 			"download": [
@@ -74,7 +77,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "NMKD_Siax.pth"
+					"path": "NMKD_Siax.pth",
+					"sha256sum": "65fece06e1ccb48853242aa972bdf00ad07a7dd8938d2dcbdf4221b59f6372ce"
 				}
 			],
 			"download": [
@@ -96,7 +100,8 @@
 		"config": {
 			"files": [
 				{
-					"path": "4x_AnimeSharp.pth"
+					"path": "4x_AnimeSharp.pth",
+					"sha256sum": "e7a7de2dafd7331c1992862bbbcd9e9712a9f9f8e6303f0aaa59b4341d359bab"
 				}
 			],
 			"download": [

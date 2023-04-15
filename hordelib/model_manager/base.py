@@ -151,16 +151,22 @@ class BaseModelManager(ABC):
             return False
         if model_name not in self.available_models:
             logger.error(f"{model_name} not available")
-            self.download_model(model_name)
+            download_succeeded = self.download_model(model_name)
+            if not download_succeeded:
+                logger.init_err(f"{model_name} failed to download", status="Error")
+                return False
             logger.init_ok(f"{model_name}", status="Downloaded")
         if model_name not in self.loaded_models:
+            model_validated = self.validate_model(model_name)
+            if not model_validated:
+                return False
             logger.init(f"{model_name}", status="Loading")
 
             tic = time.time()
             logger.init(f"{model_name}", status="Loading")
 
             self.loaded_models[model_name] = self.modelToRam(
-                model_name,
+                model_name=model_name,
                 half_precision=half_precision,
                 gpu_id=gpu_id,
                 cpu_only=cpu_only,
@@ -321,7 +327,14 @@ class BaseModelManager(ABC):
                 logger.debug(f"File {file_details['path']} not found")
                 return False
             if not skip_checksum and not self.validate_file(file_details):
-                logger.debug(f"File {file_details['path']} has invalid checksum")
+                logger.error(f"File {file_details['path']} has invalid checksum")
+                try:
+                    modelPath = Path(self.modelFolderPath).joinpath(file_details["path"])
+                    logger.error(f"Deleting {file_details['path']}.")
+                    modelPath.unlink(True)
+                except OSError as e:
+                    logger.error(f"Unable to delete {file_details['path']}: {e}.")
+                    logger.error(f"Please delete {file_details['path']} if this error persists.")
                 return False
         return True
 
@@ -457,7 +470,7 @@ class BaseModelManager(ABC):
                 available = False
         return available
 
-    def download_file(self, url: str, filename: str):
+    def download_file(self, url: str, filename: str) -> bool:
         """
         :param url: URL of the file to download. URL is from the model's download list.
         :param file_path: Path of the model's file. File is from the model's files list.
@@ -467,21 +480,35 @@ class BaseModelManager(ABC):
         full_path = f"{self.modelFolderPath}/{filename}"
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
         pbar_desc = full_path.split("/")[-1]
-        r = requests.get(url, stream=True, allow_redirects=True)
-        with open(full_path, "wb") as f, tqdm(
-            # all optional kwargs
-            unit="B",
-            unit_scale=True,
-            unit_divisor=1024,
-            miniters=1,
-            desc=pbar_desc,
-            total=int(r.headers.get("content-length", 0)),
-            disable=WorkerSettings.disable_download_progress.active,
-        ) as pbar:
-            for chunk in r.iter_content(chunk_size=16 * 1024):
-                if chunk:
-                    f.write(chunk)
-                    pbar.update(len(chunk))
+        try:
+            response = requests.get(url, stream=True, allow_redirects=True)
+            with open(full_path, "wb") as f, tqdm(
+                # all optional kwargs
+                unit="B",
+                unit_scale=True,
+                unit_divisor=1024,
+                miniters=1,
+                desc=pbar_desc,
+                total=int(response.headers.get("content-length", 0)),
+                disable=WorkerSettings.disable_download_progress.active,
+            ) as pbar:
+                for chunk in response.iter_content(chunk_size=16 * 1024):
+                    response.raise_for_status()
+                    if chunk:
+                        f.write(chunk)
+                        pbar.update(len(chunk))
+            return True
+        except requests.exceptions.HTTPError as e:
+            logger.error(f"Error downloading {url}: {e}")
+            if os.path.exists(full_path):
+                os.remove(full_path)
+            return False
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error downloading {url}: {e}")
+            logger.error("Are you connected to the internet?")
+            if os.path.exists(full_path):
+                os.remove(full_path)
+            return False
 
     def download_model(self, model_name: str):
         """
@@ -502,7 +529,7 @@ class BaseModelManager(ABC):
         """
         # XXX this function is wacky in its premise and needs to be reworked
         if model_name in self.available_models and model_name not in self.tainted_models:
-            logger.info(f"{model_name} is already available.")
+            logger.debug(f"{model_name} is already available.")
             return True
         download = self.get_model_download(model_name)
         files = self.get_model_files(model_name)
@@ -536,10 +563,7 @@ class BaseModelManager(ABC):
                     exist_ok=True,
                 )
                 with open(
-                    os.path.join(
-                        self.modelFolderPath,
-                        os.path.join(download_path, download_name),
-                    ),
+                    os.path.join(self.modelFolderPath, os.path.join(download_path, download_name)),
                     "w",
                 ) as f:
                     f.write(file_content)
@@ -570,26 +594,34 @@ class BaseModelManager(ABC):
                 zip_path = f"{self.modelFolderPath}/{download_name}.zip"
                 temp_path = f"{self.modelFolderPath}/{str(uuid4())}/"
                 os.makedirs(temp_path, exist_ok=True)
-                self.download_file(download_url, zip_path)
+
+                download_succeeded = self.download_file(download_url, zip_path)
+                if not download_succeeded:
+                    return False
+
                 logger.info(f"unzip {zip_path}")
                 with zipfile.ZipFile(zip_path, "r") as zip_ref:
                     zip_ref.extractall(temp_path)
+
                 logger.info(f"moving {temp_path} to {download_path}")
                 shutil.move(
                     temp_path,
                     os.path.join(self.modelFolderPath, download_path),
                 )
+
                 logger.info(f"delete {zip_path}")
                 os.remove(zip_path)
+
                 logger.info(f"delete {temp_path}")
                 shutil.rmtree(temp_path)
             else:
                 if not self.check_file_available(file_path) or model_name in self.tainted_models:
                     logger.debug(f"Downloading {download_url} to {file_path}")
-                    self.download_file(download_url, file_path)
-        if not self.validate_model(model_name):
-            return False
-        return True
+                    download_succeeded = self.download_file(download_url, file_path)
+                    if not download_succeeded:
+                        return False
+
+        return self.validate_model(model_name)
 
     def download_all_models(self) -> bool:
         """
