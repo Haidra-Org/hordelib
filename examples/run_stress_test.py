@@ -190,12 +190,12 @@ def main():
     global count
     count = 0
     threads = [
-        threading.Thread(daemon=True, target=run_iterations).start(),
-        threading.Thread(daemon=True, target=run_iterations).start(),
-        threading.Thread(daemon=True, target=run_iterations).start(),
+        threading.Thread(daemon=True, target=run_iterations),
+        threading.Thread(daemon=True, target=run_iterations),
+        threading.Thread(daemon=True, target=run_iterations),
     ]
-    for t in threads:
-        t.join()
+    [x.start() for x in threads]
+    [x.join() for x in threads if x]
 
     expected_iterations = ITERATIONS * 5
     logger.warning(f"Test took {round(time.time() - start_time)} seconds ({count} generations)")
