@@ -91,3 +91,23 @@ class TestSharedModelManager:
         assert SharedModelManager.manager.is_model_loaded("Deliberate") is True
         assert SharedModelManager.manager.is_model_loaded("GFPGAN") is True
         assert SharedModelManager.manager.is_model_loaded("RealESRGAN_x4plus") is True
+
+    def test_check_sha(self):
+        """Check the sha256 hashes of all models. If the .sha file doesn't exist, this will write it out."""
+        assert SharedModelManager.manager is not None
+        for model_manager in SharedModelManager.manager.active_model_managers:
+            for model in model_manager.available_models:
+                model_file_details = model_manager.get_model_files(model)
+                for file in model_file_details:
+                    path = file.get("path")
+                    if not (".pt" in path or ".ckpt" in path or ".safetensors" in path):
+                        continue
+                    hash = model_manager.get_file_sha256_hash(f"{model_manager.modelFolderPath}/{path}")
+                    # print(f"{path}: {hash}")
+        pass
+
+    def test_check_validate_all_available_models(self):
+        assert SharedModelManager.manager is not None
+        for model_manager in SharedModelManager.manager.active_model_managers:
+            for model in model_manager.available_models:
+                assert model_manager.validate_model(model)
