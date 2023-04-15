@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v0.8.8](https://github.com/jug-dev/hordelib/compare/v0.8.7...v0.8.8)
+
+15 April 2023
+
+- fix: Make thread locking as minimalist as possible [`#142`](https://github.com/jug-dev/hordelib/pull/142) (Jug)
+- fix: fix broken stress test [`be9567e`](https://github.com/jug-dev/hordelib/commit/be9567e8935f6016a607ad7de58522d2d84b21f7)  (Jug)
+
 ## [v0.8.7](https://github.com/jug-dev/hordelib/compare/v0.8.6...v0.8.7)
 
 15 April 2023
