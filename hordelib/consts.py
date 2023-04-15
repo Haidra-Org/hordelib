@@ -4,7 +4,7 @@ from enum import Enum, auto
 
 from hordelib.config_path import get_hordelib_path
 
-COMFYUI_VERSION = "c767e9426ae81bed4f52c7be0625f0efc4cbe16b"
+COMFYUI_VERSION = "7f23353d6382f974281ccc38097a93c831b38a9a"
 """The exact version of ComfyUI version to load."""
 
 REMOTE_MODEL_DB = "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/"
