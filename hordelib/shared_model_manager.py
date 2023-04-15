@@ -1,6 +1,9 @@
 # shared_model_manager.py
-
+import builtins
+from pathlib import Path
 from hordelib.model_manager.hyper import ModelManager
+from hordelib.cache import get_cache_directory
+from hordelib.preload import download_all_controlnet_annotators
 
 
 class SharedModelManager:
@@ -33,3 +36,9 @@ class SharedModelManager:
         args_passed.pop("cls")  # XXX This is temporary
 
         cls.manager.init_model_managers(**args_passed)
+        builtins.annotator_ckpts_path = Path(get_cache_directory()).joinpath("controlnet").joinpath("annotator")
+        # XXX # FIXME _PLEASE_
+
+    @classmethod
+    def preloadAnnotators(cls):
+        download_all_controlnet_annotators()
