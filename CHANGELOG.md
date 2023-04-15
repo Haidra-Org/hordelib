@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v0.8.7](https://github.com/jug-dev/hordelib/compare/v0.8.6...v0.8.7)
+
+15 April 2023
+
+- fix: don't thread lock loading with inference [`00ec98d`](https://github.com/jug-dev/hordelib/commit/00ec98dc8c80c14208f38c58bc7673ad03d7ab4b)  (Jug)
+- chore: more badge refresh tweaks [`4a54868`](https://github.com/jug-dev/hordelib/commit/4a54868cb05b5ac8c45e6646ff04565c28732df2)  (Jug)
+
 ## [v0.8.6](https://github.com/jug-dev/hordelib/compare/v0.8.5...v0.8.6)
 
 15 April 2023
