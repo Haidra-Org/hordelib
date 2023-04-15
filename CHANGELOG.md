@@ -1,5 +1,14 @@
 ## hordelib Changelog
 
+## [v0.8.6](https://github.com/jug-dev/hordelib/compare/v0.8.5...v0.8.6)
+
+15 April 2023
+
+- fix: Sha validation fix [`#139`](https://github.com/jug-dev/hordelib/pull/139) (tazlin)
+- fix: pytest discovery, broken by non-tests in test folder [`534695e`](https://github.com/jug-dev/hordelib/commit/534695e10e5f6a94571059a6916d9798867860fa)  (tazlin)
+- fix: switches pr CI to use example/ run_* [`e6ba23e`](https://github.com/jug-dev/hordelib/commit/e6ba23e62bc44eaebe0996201baf807a150a389e)  (tazlin)
+- build: update CI to do a weak lint/formatting check [`6d09423`](https://github.com/jug-dev/hordelib/commit/6d09423e3c8028bc17d0be36f460b9a1963207f1)  (tazlin)
+
 ## [v0.8.5](https://github.com/jug-dev/hordelib/compare/v0.8.4...v0.8.5)
 
 14 April 2023
