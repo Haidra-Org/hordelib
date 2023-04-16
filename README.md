@@ -231,9 +231,9 @@ Now ComfyUI is pinned to a new version.
 
 ### ComfyUI Patching
 
-We need to patch the ComfyUI source code. It's only a small patch to:
+We patch the ComfyUI source code to:
 
-1. Allow ComfyUI to find our custom nodes without copying files and folder around.
+1. Modify the model manager to allow us to dynamically move models between VRAM, RAM and disk cache.
 2. Allow make ComfyUI output some handy JSON we need for development purposes.
 
 To create a patch file:

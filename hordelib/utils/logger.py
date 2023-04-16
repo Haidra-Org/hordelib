@@ -206,7 +206,7 @@ class HordeLog:
                     "colorize": False,
                     "filter": cls.is_not_stats_log,
                     "retention": "2 days",
-                    "rotation": "3 hours",
+                    "rotation": "1 days",
                 },
                 {
                     "sink": "logs/stats.log",

@@ -33,7 +33,7 @@ cnets = ["openpose", "canny", "fakescribbes", "hed", "depth"]
 
 start_time = time.time()
 
-ITERATIONS = 5
+ITERATIONS = 1
 CONTROL_NET = True
 
 mutex = threading.Lock()
@@ -197,10 +197,14 @@ def main():
     [x.start() for x in threads]
     [x.join() for x in threads if x]
 
-    expected_iterations = ITERATIONS * 5
+    expected_iterations = (ITERATIONS * 5) * len(threads)
     logger.warning(f"Test took {round(time.time() - start_time)} seconds ({count} generations)")
     if expected_iterations != count:
         logger.error("Test did not finsihed all iterations")
 
 
 main()
+
+# 275 seconds, 3 threads, 5 iterations, 5 tests = 3.6 seconds per gen
+# 311 seconds, 3 threads, 5 iterations, 5 tests, 1 at a time (mutex locked) = 4.14
+# 265 seconds, 3 threads, 5 iterations, 5 tests, sampler_mutex = 3.5 seconds per gen

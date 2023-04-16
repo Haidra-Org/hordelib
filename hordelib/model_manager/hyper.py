@@ -49,14 +49,54 @@ class ModelManager:
     safety_checker: SafetyCheckerModelManager | None = None
     # XXX I think this can be reworked into an array of BaseModelManager instances
 
-    models: dict  # XXX unclear as to purpose... unused in AI-Horde-Worker?
-    available_models: list
-    """All models for which information exists, and for which a download attempt could be made."""
-    loaded_models: dict
-    """All models for which have successfully loaded across all `BaseModelManager` types."""
+    @property
+    def models(self) -> dict:
+        """All model manager's internal dictionaries of models, loaded from model database JSON files."""
+        _models = {}
+        for model_manager in self.active_model_managers:
+            model_manager.model_reference
+            _models.update(model_manager.model_reference)
+        return _models
 
-    active_model_managers: list[BaseModelManager] | None = None
-    """All loaded model managers."""
+    @property
+    def available_models(self) -> list[str]:
+        """All models for which information exists, and for which a download attempt could be made."""
+        all_available_models: list[str] = []
+        for model_manager in self.active_model_managers:
+            all_available_models.extend(model_manager.available_models)
+        return all_available_models
+
+    @property
+    def loaded_models(self) -> dict[str, dict]:
+        """All models for which have successfully loaded across all `BaseModelManager` types."""
+        all_loaded_models: dict[str, dict] = {}
+        for model_manager in self.active_model_managers:
+            all_loaded_models.update(model_manager.loaded_models)
+        return all_loaded_models
+
+    @property
+    def active_model_managers(self) -> list[BaseModelManager] | None:
+        """All loaded model managers."""
+        all_model_managers = [
+            # self.aitemplate, # XXX TODO
+            self.blip,
+            self.clip,
+            self.compvis,
+            self.diffusers,
+            self.esrgan,
+            self.gfpgan,
+            self.safety_checker,
+            self.codeformer,
+            self.controlnet,
+        ]
+        # reset available models
+
+        _active_model_managers: list[BaseModelManager] = []
+        for model_manager in all_model_managers:
+            if model_manager is not None:
+                _active_model_managers.append(model_manager)
+
+        return _active_model_managers
 
     def __init__(
         self,
@@ -64,9 +104,7 @@ class ModelManager:
         """Create a new instance of model manager."""
         # logger.initialise_voodoo()
         self.cuda_available = torch.cuda.is_available()
-        self.models = {}
-        self.available_models = []
-        self.loaded_models = {}
+        """DEPRECATED: Use `torch.cuda.is_available()` instead."""
 
     def init_model_managers(
         self,
@@ -107,43 +145,15 @@ class ModelManager:
                 modelmanager(download_reference=False),
             )  # XXX # FIXME # HACK
 
-        self.active_model_managers = []
-        self.refreshManagers()
-
-    def refreshManagers(self) -> None:  # XXX rename + docstring rewrite
-        """Called when one of the `BaseModelManager` changes, updating `available_models`."""
-        _active_model_managers = [
-            # self.aitemplate, # XXX TODO
-            self.blip,
-            self.clip,
-            self.compvis,
-            self.diffusers,
-            self.esrgan,
-            self.gfpgan,
-            self.safety_checker,
-            self.codeformer,
-            self.controlnet,
-        ]
-        # reset available models
-        self.available_models = []
-        for model_manager in _active_model_managers:
-            if model_manager is not None:
-                self.active_model_managers.append(model_manager)
-                self.models.update(model_manager.model_reference)
-                self.available_models.extend(model_manager.available_models)
-
     def reload_database(self) -> None:
         """Completely resets the `BaseModelManager` classes, and forces each to re-init."""
         model_managers: list[BaseModelManager] = []
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
             model_managers.append(getattr(self, model_manager_type))
 
-        self.available_models = []  # reset available models
         for model_manager in model_managers:
             if model_manager is not None:
                 model_manager.loadModelDatabase()
-                self.models.update(model_manager.model_reference)
-                self.available_models.extend(model_manager.available_models)
 
     def download_model(self, model_name: str) -> bool | None:
         """Looks across all `BaseModelManager` for the model_name and attempts to download it.
@@ -215,7 +225,6 @@ class ModelManager:
                 continue
             if any(model in model_manager.model_reference for model in models):
                 model_manager.taint_models(models)
-        self.refreshManagers()
 
     def unload_model(self, model_name: str) -> bool | None:
         """Unloads the target model.
@@ -232,13 +241,11 @@ class ModelManager:
                 continue
             if model_name not in model_manager.model_reference:
                 continue
-            model_unloaded = model_manager.unload_model(model_name)
-            del self.loaded_models[model_name]
-            return model_unloaded
+            return model_manager.unload_model(model_name)
         return None
 
     def get_loaded_models_names(self) -> list:
-        """Returns a list of all the currently loaded models.
+        """DEPRECATED: Use property self.loaded_models. Returns a list of all the currently loaded models.
 
         Returns:
             list: All currently loaded models.
@@ -246,7 +253,7 @@ class ModelManager:
         return list(self.loaded_models.keys())
 
     def is_model_loaded(self, model_name) -> bool:
-        return model_name in self.get_loaded_models_names()
+        return model_name in self.loaded_models
 
     def get_available_models_by_types(self, model_types: list[str] | None = None):
         if not model_types:
@@ -285,6 +292,17 @@ class ModelManager:
         """
         return self.available_models
 
+    def ensure_memory_available(self, specific_type=None):
+        """Asserts minimum amount of RAM is available. Unloads models if necessary."""
+        for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
+            if specific_type and specific_type != model_manager_type:
+                continue
+            model_manager: BaseModelManager = getattr(self, model_manager_type)
+            if model_manager is None:
+                continue
+            model_manager.ensure_memory_available()
+        return None
+
     def load(
         self,
         model_name: str,
@@ -308,91 +326,18 @@ class ModelManager:
         Returns:
             bool | None: The success of the load. If `None`, the model was not found.
         """
-        # XXX This whole function is a mess and still needs to be reworked. # FIXME
         if not self.cuda_available:
             cpu_only = True
-        # if self.aitemplate is not None and model_name in self.aitemplate.models:
-        #     return self.aitemplate.load(model_name, gpu_id)
-        if self.blip is not None and model_name in self.blip.model_reference:
-            success = self.blip.load(
-                model_name=model_name,
-                half_precision=half_precision,
-                gpu_id=gpu_id,
-                cpu_only=cpu_only,
-            )
-            if success:
-                self.loaded_models.update(
-                    {model_name: self.blip.loaded_models[model_name]},
+
+        for model_manager in self.active_model_managers:
+            if model_name in model_manager.model_reference:
+                return model_manager.load(
+                    model_name=model_name,
+                    half_precision=half_precision,
+                    gpu_id=gpu_id,
+                    cpu_only=cpu_only,
+                    voodoo=voodoo,
                 )
-            return success
-        if self.clip is not None and model_name in self.clip.model_reference:
-            success = self.clip.load(
-                model_name=model_name,
-                half_precision=half_precision,
-                gpu_id=gpu_id,
-                cpu_only=cpu_only,
-            )
-            if success:
-                self.loaded_models.update(
-                    {model_name: self.clip.loaded_models[model_name]},
-                )
-            return success
-        if self.codeformer is not None and model_name in self.codeformer.model_reference:
-            success = self.codeformer.load(
-                model_name=model_name,
-            )
-            if success:
-                self.loaded_models.update(
-                    {model_name: self.codeformer.loaded_models[model_name]},
-                )
-            return success
-        if self.compvis is not None and model_name in self.compvis.model_reference:
-            success = self.compvis.load(model_name=model_name)
-            if success:
-                self.loaded_models.update(
-                    {model_name: self.compvis.loaded_models[model_name]},
-                )
-            return success
-        if self.diffusers is not None and model_name in self.diffusers.model_reference:
-            success = self.diffusers.load(
-                model_name=model_name,
-                half_precision=half_precision,
-                gpu_id=gpu_id,
-                cpu_only=cpu_only,
-                # voodoo=voodoo, # XXX
-            )
-            if success:
-                self.loaded_models.update(
-                    {model_name: self.diffusers.loaded_models[model_name]},
-                )
-            return success
-        if self.esrgan is not None and model_name in self.esrgan.model_reference:
-            success = self.esrgan.load(
-                model_name=model_name,
-            )
-            if success:
-                self.loaded_models.update(
-                    {model_name: self.esrgan.loaded_models[model_name]},
-                )
-            return success
-        if self.gfpgan is not None and model_name in self.gfpgan.model_reference:
-            success = self.gfpgan.load(
-                model_name=model_name,
-            )
-            if success:
-                self.loaded_models.update(
-                    {model_name: self.gfpgan.loaded_models[model_name]},
-                )
-            return success
-        if self.safety_checker is not None and model_name in self.safety_checker.model_reference:
-            success = self.safety_checker.load(
-                model_name=model_name,
-                cpu_only=True,
-            )
-            if success:
-                self.loaded_models.update(
-                    {model_name: self.safety_checker.loaded_models[model_name]},
-                )
-            return success
+
         logger.error(f"{model_name} not found")
-        return False
+        return None

@@ -1,55 +1,334 @@
 ﻿diff --git a/comfy/model_management.py b/comfy/model_management.py
-index 8303cb4..c7e047a 100644
+index 76455e4..12eaa4c 100644
 --- a/comfy/model_management.py
 +++ b/comfy/model_management.py
-@@ -1,6 +1,7 @@
+@@ -1,6 +1,8 @@
  import psutil
  from enum import Enum
  from cli_args import args
 +import threading
++from loguru import logger
  
  class VRAMState(Enum):
      CPU = 0
-@@ -118,6 +119,7 @@ current_gpu_controlnets = []
+@@ -113,87 +115,130 @@ if args.cpu:
+ print(f"Set vram state to: {vram_state.name}")
  
- model_accelerated = False
  
-+mutex = threading.RLock()
- 
- def unload_model():
-     global current_loaded_model
-@@ -136,11 +138,11 @@ def unload_model():
-         current_loaded_model.unpatch_model()
-         current_loaded_model = None
- 
+-current_loaded_model = None
+-current_gpu_controlnets = []
+-
+-model_accelerated = False
+-
+-
+-def unload_model():
+-    global current_loaded_model
+-    global model_accelerated
+-    global current_gpu_controlnets
+-    global vram_state
+-
+-    if current_loaded_model is not None:
+-        if model_accelerated:
+-            accelerate.hooks.remove_hook_from_submodules(current_loaded_model.model)
+-            model_accelerated = False
+-
+-        #never unload models from GPU on high vram
+-        if vram_state != VRAMState.HIGH_VRAM:
+-            current_loaded_model.model.cpu()
+-        current_loaded_model.unpatch_model()
+-        current_loaded_model = None
+-
 -    if vram_state != VRAMState.HIGH_VRAM:
 -        if len(current_gpu_controlnets) > 0:
 -            for n in current_gpu_controlnets:
 -                n.cpu()
 -            current_gpu_controlnets = []
-+    # if vram_state != VRAMState.HIGH_VRAM:
-+    #     if len(current_gpu_controlnets) > 0:
-+    #         for n in current_gpu_controlnets:
-+    #             n.cpu()
-+    #         current_gpu_controlnets = []
- 
- 
- def load_model_gpu(model):
-@@ -150,7 +152,8 @@ def load_model_gpu(model):
- 
-     if model is current_loaded_model:
-         return
+-
+-
+-def load_model_gpu(model):
+-    global current_loaded_model
+-    global vram_state
+-    global model_accelerated
+-
+-    if model is current_loaded_model:
+-        return
 -    unload_model()
-+    if model:
-+        unload_model()
-     try:
-         real_model = model.patch_model()
-     except Exception as e:
+-    try:
+-        real_model = model.patch_model()
+-    except Exception as e:
+-        model.unpatch_model()
+-        raise e
+-    current_loaded_model = model
+-    if vram_state == VRAMState.CPU:
+-        pass
+-    elif vram_state == VRAMState.MPS:
+-        mps_device = torch.device("mps")
+-        real_model.to(mps_device)
+-        pass
+-    elif vram_state == VRAMState.NORMAL_VRAM or vram_state == VRAMState.HIGH_VRAM:
+-        model_accelerated = False
+-        real_model.to(get_torch_device())
+-    else:
+-        if vram_state == VRAMState.NO_VRAM:
+-            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
+-        elif vram_state == VRAMState.LOW_VRAM:
+-            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(total_vram_available_mb), "cpu": "16GiB"})
+-
+-        accelerate.dispatch_model(real_model, device_map=device_map, main_device=get_torch_device())
+-        model_accelerated = True
+-    return current_loaded_model
+-
+-def load_controlnet_gpu(models):
+-    global current_gpu_controlnets
+-    global vram_state
+-    if vram_state == VRAMState.CPU:
+-        return
+-
+-    if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
+-        #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
+-        return
+-
+-    for m in current_gpu_controlnets:
+-        if m not in models:
+-            m.cpu()
+-
+-    device = get_torch_device()
+-    current_gpu_controlnets = []
+-    for m in models:
+-        current_gpu_controlnets.append(m.to(device))
++class ModelManager:
++    _instance = None
++    _initialised = False
++    _mutex = threading.RLock()
++    sampler_mutex = threading.RLock()
++    system_reserved_vram_mb = 6 * 1024
++    user_reserved_vram_mb = 0
++
++    # We are a singleton
++    def __new__(cls):
++        if cls._instance is None:
++            cls._instance = super().__new__(cls)
++        return cls._instance
++
++    # We initialise only ever once (in the lifetime of the singleton)
++    def __init__(self):
++        if not self._initialised:
++            self.models_in_use = []
++            self.current_loaded_models = []
++            self.current_gpu_controlnets = []
++            self.models_accelerated = []
++            self.__class__._initialised = True    
++
++    def set_user_reserved_vram(self, vram_mb):
++        with self._mutex:
++            self.user_reserved_vram_mb = vram_mb
++
++    def get_models_on_gpu(self):
++        with self._mutex:
++            return self.current_loaded_models[:]
++
++    def model_in_use(self, model):
++        with self._mutex:
++            return model in self.models_in_use
++
++    def unload_model(self, model):
++        global vram_state
++        with self._mutex:
++            if model not in self.current_loaded_models:
++                logger.debug("Skip GPU unload as not on the GPU")
++                return
++
++            if model in self.models_in_use:
++                logger.debug("Not unloaded model as it is in use right now")
++                return
++
++            if model in self.models_accelerated:
++                accelerate.hooks.remove_hook_from_submodules(model.model)
++                self.models_accelerated.remove(model)
++
++            # Unload to RAM
++            model.model.cpu()
++            model.unpatch_model()
++            self.current_loaded_models.remove(model)
++
++    def done_with_model(self, model):
++        with self._mutex:
++            if model in self.models_in_use:
++                self.models_in_use.remove(model)
++
++    def load_model_gpu(self, model):
++        global vram_state
++
++        with self._mutex:
++
++            # Don't run out of vram
++            if self.current_loaded_models:
++                freemem = round(get_free_memory(get_torch_device()) / (1024 * 1024))
++                logger.debug(f"Free VRAM is: {freemem}MB ({len(self.current_loaded_models)} models loaded on GPU)")
++                if freemem < (self.system_reserved_vram_mb + self.user_reserved_vram_mb):
++                    # release the least used model
++                    self.unload_model(self.current_loaded_models[-1])
++                    freemem = round(get_free_memory(get_torch_device()) / (1024 * 1024))
++                    logger.debug(f"Unloaded a model, free VRAM is now: {freemem}MB ({len(self.current_loaded_models)} models loaded on GPU)")
++
++            if model in self.current_loaded_models:
++                # Move this model to the top of the list
++                self.current_loaded_models.insert(0, self.current_loaded_models.pop(self.current_loaded_models.index(model)))
++                return model
++            
++            try:
++                real_model = model.patch_model()
++            except Exception as e:
++                model.unpatch_model()
++                raise e
++            
++            self.current_loaded_models.insert(0, model)
++
++            if vram_state == VRAMState.CPU:
++                pass
++            elif vram_state == VRAMState.MPS:
++                mps_device = torch.device("mps")
++                real_model.to(mps_device)
++            elif vram_state == VRAMState.NORMAL_VRAM or vram_state == VRAMState.HIGH_VRAM:
++                if model in self.models_accelerated:
++                    self.models_accelerated.remove(model)
++                real_model.to(get_torch_device())
++            else:
++                if vram_state == VRAMState.NO_VRAM:
++                    device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
++                elif vram_state == VRAMState.LOW_VRAM:
++                    device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(total_vram_available_mb), "cpu": "16GiB"})
++
++                accelerate.dispatch_model(real_model, device_map=device_map, main_device=get_torch_device())
++                self.models_accelerated.append(model)
++            return model
++
++    def load_controlnet_gpu(self, models):        
++        global vram_state
++        with self._mutex:
++            if vram_state == VRAMState.CPU:
++                return
++
++            if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
++                #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
++                return
++
++            device = get_torch_device()
++            for m in models:
++                if m not in self.current_gpu_controlnets:
++                    self.current_gpu_controlnets.append(m.to(device))
++
++
++model_manager = ModelManager()
+ 
+ 
+ def load_if_low_vram(model):
+diff --git a/comfy/samplers.py b/comfy/samplers.py
+index ed36442..6b10249 100644
+--- a/comfy/samplers.py
++++ b/comfy/samplers.py
+@@ -497,51 +497,52 @@ class KSampler:
+         else:
+             max_denoise = True
+ 
+-        with precision_scope(model_management.get_autocast_device(self.device)):
+-            if self.sampler == "uni_pc":
+-                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask)
+-            elif self.sampler == "uni_pc_bh2":
+-                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, variant='bh2')
+-            elif self.sampler == "ddim":
+-                timesteps = []
+-                for s in range(sigmas.shape[0]):
+-                    timesteps.insert(0, self.model_wrap.sigma_to_t(sigmas[s]))
+-                noise_mask = None
+-                if denoise_mask is not None:
+-                    noise_mask = 1.0 - denoise_mask
+-                sampler = DDIMSampler(self.model, device=self.device)
+-                sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
+-                z_enc = sampler.stochastic_encode(latent_image, torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(self.device), noise=noise, max_denoise=max_denoise)
+-                samples, _ = sampler.sample_custom(ddim_timesteps=timesteps,
+-                                                     conditioning=positive,
+-                                                     batch_size=noise.shape[0],
+-                                                     shape=noise.shape[1:],
+-                                                     verbose=False,
+-                                                     unconditional_guidance_scale=cfg,
+-                                                     unconditional_conditioning=negative,
+-                                                     eta=0.0,
+-                                                     x_T=z_enc,
+-                                                     x0=latent_image,
+-                                                     denoise_function=sampling_function,
+-                                                     extra_args=extra_args,
+-                                                     mask=noise_mask,
+-                                                     to_zero=sigmas[-1]==0,
+-                                                     end_step=sigmas.shape[0] - 1)
+-
+-            else:
+-                extra_args["denoise_mask"] = denoise_mask
+-                self.model_k.latent_image = latent_image
+-                self.model_k.noise = noise
++        with model_management.model_manager.sampler_mutex:
++            with precision_scope(model_management.get_autocast_device(self.device)):
++                if self.sampler == "uni_pc":
++                    samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask)
++                elif self.sampler == "uni_pc_bh2":
++                    samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, variant='bh2')
++                elif self.sampler == "ddim":
++                    timesteps = []
++                    for s in range(sigmas.shape[0]):
++                        timesteps.insert(0, self.model_wrap.sigma_to_t(sigmas[s]))
++                    noise_mask = None
++                    if denoise_mask is not None:
++                        noise_mask = 1.0 - denoise_mask
++                    sampler = DDIMSampler(self.model, device=self.device)
++                    sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
++                    z_enc = sampler.stochastic_encode(latent_image, torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(self.device), noise=noise, max_denoise=max_denoise)
++                    samples, _ = sampler.sample_custom(ddim_timesteps=timesteps,
++                                                        conditioning=positive,
++                                                        batch_size=noise.shape[0],
++                                                        shape=noise.shape[1:],
++                                                        verbose=False,
++                                                        unconditional_guidance_scale=cfg,
++                                                        unconditional_conditioning=negative,
++                                                        eta=0.0,
++                                                        x_T=z_enc,
++                                                        x0=latent_image,
++                                                        denoise_function=sampling_function,
++                                                        extra_args=extra_args,
++                                                        mask=noise_mask,
++                                                        to_zero=sigmas[-1]==0,
++                                                        end_step=sigmas.shape[0] - 1)
+ 
+-                noise = noise * sigmas[0]
+-
+-                if latent_image is not None:
+-                    noise += latent_image
+-                if self.sampler == "dpm_fast":
+-                    samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args=extra_args)
+-                elif self.sampler == "dpm_adaptive":
+-                    samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args)
+                 else:
+-                    samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args)
++                    extra_args["denoise_mask"] = denoise_mask
++                    self.model_k.latent_image = latent_image
++                    self.model_k.noise = noise
++
++                    noise = noise * sigmas[0]
++
++                    if latent_image is not None:
++                        noise += latent_image
++                    if self.sampler == "dpm_fast":
++                        samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args=extra_args)
++                    elif self.sampler == "dpm_adaptive":
++                        samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args)
++                    else:
++                        samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args)
+ 
+         return samples.to(torch.float32)
 diff --git a/comfy/sd.py b/comfy/sd.py
-index 2d7ff5a..37e02ae 100644
+index 9c632e2..3ec8e7a 100644
 --- a/comfy/sd.py
 +++ b/comfy/sd.py
-@@ -409,7 +409,6 @@ class VAE:
+@@ -415,7 +415,6 @@ class VAE:
          return output
  
      def decode(self, samples_in):
@@ -57,7 +336,7 @@ index 2d7ff5a..37e02ae 100644
          self.first_stage_model = self.first_stage_model.to(self.device)
          try:
              free_memory = model_management.get_free_memory(self.device)
-@@ -429,14 +428,12 @@ class VAE:
+@@ -435,14 +434,12 @@ class VAE:
          return pixel_samples
  
      def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap = 16):
@@ -72,7 +351,7 @@ index 2d7ff5a..37e02ae 100644
          self.first_stage_model = self.first_stage_model.to(self.device)
          pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
          samples = self.first_stage_model.encode(2. * pixel_samples - 1.).sample() * self.scale_factor
-@@ -445,7 +442,6 @@ class VAE:
+@@ -451,7 +448,6 @@ class VAE:
          return samples
  
      def encode_tiled(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
@@ -81,10 +360,10 @@ index 2d7ff5a..37e02ae 100644
          pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
          samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
 diff --git a/execution.py b/execution.py
-index 79c9a3a..fec1ff1 100644
+index 73be6db..3fe16c6 100644
 --- a/execution.py
 +++ b/execution.py
-@@ -289,6 +289,8 @@ def validate_prompt(prompt):
+@@ -288,6 +288,8 @@ def validate_prompt(prompt):
          errors_list = "\n".join(set(map(lambda a: "{}".format(a[1]), errors)))
          return (False, "Prompt has no properly connected outputs\n {}".format(errors_list))
  
@@ -94,7 +373,7 @@ index 79c9a3a..fec1ff1 100644
  
  
 diff --git a/main.py b/main.py
-index 9c0a3d8..1e786bf 100644
+index 02c700e..27a3324 100644
 --- a/main.py
 +++ b/main.py
 @@ -25,7 +25,7 @@ import yaml
@@ -106,8 +385,8 @@ index 9c0a3d8..1e786bf 100644
  
  
  def prompt_worker(q, server):
-@@ -82,6 +82,7 @@ if __name__ == "__main__":
-     q = execution.PromptQueue(server)
+@@ -90,6 +90,7 @@ if __name__ == "__main__":
+             load_extra_path_config(config_path)
  
      init_custom_nodes()
 +    load_custom_nodes(os.getenv("AIWORKER_CUSTOM_NODES"))
@@ -115,35 +394,33 @@ index 9c0a3d8..1e786bf 100644
      hijack_progress(server)
  
 diff --git a/nodes.py b/nodes.py
-index 14a73bc..6c81538 100644
+index c775da0..75abed0 100644
 --- a/nodes.py
 +++ b/nodes.py
-@@ -678,6 +678,7 @@ class SetLatentNoiseMask:
+@@ -696,7 +696,8 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
+         noise_mask = noise_mask.to(device)
  
+     real_model = None
+-    comfy.model_management.load_model_gpu(model)
++    comfy.model_management.model_manager.model_in_use(model)
++    comfy.model_management.model_manager.load_model_gpu(model)
+     real_model = model.model
  
- def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
-+    model_management.mutex.acquire()
-     latent_image = latent["samples"]
-     noise_mask = None
-     device = model_management.get_torch_device()
+     noise = noise.to(device)
+@@ -726,7 +727,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
+     control_net_models = []
+     for x in control_nets:
+         control_net_models += x.get_control_models()
+-    comfy.model_management.load_controlnet_gpu(control_net_models)
++    comfy.model_management.model_manager.load_controlnet_gpu(control_net_models)
+ 
+     if sampler_name in comfy.samplers.KSampler.SAMPLERS:
+         sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
 @@ -741,6 +742,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
  
      out = latent.copy()
      out["samples"] = samples
-+    model_management.mutex.release()
++    comfy.model_management.model_manager.done_with_model(model)
      return (out, )
  
  class KSampler:
-@@ -1175,8 +1177,10 @@ def load_custom_node(module_path):
-         print(traceback.format_exc())
-         print(f"Cannot import {module_path} module for custom nodes:", e)
- 
--def load_custom_nodes():
--    CUSTOM_NODE_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")
-+def load_custom_nodes(path=os.path.join(os.path.dirname(os.path.realpath(__file__)), "custom_nodes")):
-+    if not path:
-+        return
-+    CUSTOM_NODE_PATH = path
-     possible_modules = os.listdir(CUSTOM_NODE_PATH)
-     if "__pycache__" in possible_modules:
-         possible_modules.remove("__pycache__")

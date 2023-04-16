@@ -2,18 +2,21 @@
 # Wrapper around comfy to allow usage by the horde worker.
 import contextlib
 import copy
+import gc
 import glob
 import json
 import os
 import re
 import time
-import threading
 import typing
 from pprint import pformat
 
+import torch
 from loguru import logger
 
+from hordelib.settings import UserSettings
 from hordelib.utils.ioredirect import OutputCollector
+from hordelib.config_path import get_hordelib_path
 
 # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
 # that they should never call through this module into comfy directly. All calls into
@@ -21,12 +24,31 @@ from hordelib.utils.ioredirect import OutputCollector
 # isort: off
 from execution import nodes as _comfy_nodes
 from execution import PromptExecutor as _comfy_PromptExecutor
+from folder_paths import folder_names_and_paths as _comfy_folder_paths
 from comfy.sd import load_checkpoint_guess_config as __comfy_load_checkpoint_guess_config
 from comfy.sd import load_controlnet as __comfy_load_controlnet
+from comfy.model_management import model_manager as _comfy_model_manager
 from comfy.utils import load_torch_file as __comfy_load_torch_file
 from comfy_extras.chainner_models import model_loading as _comfy_model_loading
 
 # isort: on
+
+
+def get_models_on_gpu():
+    return _comfy_model_manager.get_models_on_gpu()
+
+
+def unload_model_from_gpu(model):
+    _comfy_model_manager.unload_model(model)
+    gc.collect()
+    if torch.cuda.is_available():
+        if torch.version.cuda:  # This seems to make things worse on ROCm so I only do it for cuda
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+
+
+def is_model_in_use(model):
+    return _comfy_model_manager.model_in_use(model)
 
 
 def load_torch_file(filename):
@@ -50,14 +72,18 @@ def horde_load_checkpoint(
     # XXX # This can remain a comfy call, but the rest of the code should be able
     # XXX # to pretend it isn't
     # Redirect IO
-    stdio = OutputCollector()
-    with contextlib.redirect_stdout(stdio):
-        (modelPatcher, clipModel, vae, clipVisionModel) = __comfy_load_checkpoint_guess_config(
-            ckpt_path=ckpt_path,
-            output_vae=output_vae,
-            output_clip=output_clip,
-            embedding_directory=embeddings_path,
-        )
+    try:
+        stdio = OutputCollector()
+        with contextlib.redirect_stdout(stdio):
+            (modelPatcher, clipModel, vae, clipVisionModel) = __comfy_load_checkpoint_guess_config(
+                ckpt_path=ckpt_path,
+                output_vae=output_vae,
+                output_clip=output_clip,
+                embedding_directory=embeddings_path,
+            )
+    except RuntimeError:
+        # Failed, hard to tell why, bad checkpoint, not enough ram, for example
+        raise
 
     return {
         "model": modelPatcher,
@@ -117,6 +143,8 @@ class Comfy_Horde:
         self.client_id = None  # used for receiving comfyUI async events
         self.pipelines = {}
         self.exit_time = 0
+        # Set custom node path
+        _comfy_folder_paths["custom_nodes"] = ([os.path.join(get_hordelib_path(), "nodes")], [])
         # Load our pipelines
         self._load_pipelines()
 
@@ -134,7 +162,6 @@ class Comfy_Horde:
 
     def _load_custom_nodes(self) -> None:
         _comfy_nodes.init_custom_nodes()
-        _comfy_nodes.load_custom_nodes(self._this_dir("nodes"))
 
     def _get_executor(self, pipeline):
         executor = _comfy_PromptExecutor(self)
@@ -316,6 +343,9 @@ class Comfy_Horde:
         if pipeline_name not in self.pipelines:
             logger.error(f"Unknown inference pipeline: {pipeline_name}")
             return None
+
+        # Update user settings
+        _comfy_model_manager.set_user_reserved_vram(UserSettings.vram_to_leave_free_mb)
 
         logger.info(f"Running pipeline {pipeline_name}")
 
