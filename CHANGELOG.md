@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.9.0](https://github.com/jug-dev/hordelib/compare/v0.8.8...v0.9.0)
+
+16 April 2023
+
+- feat: active memory and model management [`#144`](https://github.com/jug-dev/hordelib/pull/144) (Jug)
+
 ## [v0.8.8](https://github.com/jug-dev/hordelib/compare/v0.8.7...v0.8.8)
 
 15 April 2023
