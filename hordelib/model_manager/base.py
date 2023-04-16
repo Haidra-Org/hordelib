@@ -1,3 +1,4 @@
+import gc
 import hashlib
 import importlib.resources as importlib_resources
 import json
@@ -12,6 +13,7 @@ from typing import Any
 from uuid import uuid4
 
 import git
+import psutil
 import requests
 import torch
 from loguru import logger
@@ -19,9 +21,10 @@ from tqdm import tqdm
 from transformers import logging
 
 from hordelib.cache import get_cache_directory
+from hordelib.comfy_horde import get_models_on_gpu, is_model_in_use, unload_model_from_gpu
 from hordelib.config_path import get_hordelib_path
 from hordelib.consts import REMOTE_MODEL_DB
-from hordelib.settings import WorkerSettings
+from hordelib.settings import UserSettings
 
 logging.set_verbosity_error()
 
@@ -137,6 +140,50 @@ class BaseModelManager(ABC):
             logger.init_warn("Model Reference", status="Local")
             return json.loads((self.models_db_path).read_text())
 
+    def _modelref_to_name(self, modelref):
+        for name, data in self.loaded_models.items():
+            if modelref and data["model"] is modelref:
+                return name
+        return None
+
+    def ensure_memory_available(self):
+        # Can this type of model be cached?
+        if not self.can_cache_on_disk():
+            return
+        # If we have less than the minimum RAM free, free some up
+        freemem = round(psutil.virtual_memory().available / (1024 * 1024))
+        logger.debug(f"Free RAM is: {freemem} MB, ({len(self.loaded_models)} models loaded in RAM)")
+        if freemem > UserSettings.ram_to_leave_free_mb + 4096:
+            return
+        logger.debug(f"Not enough free RAM attempting to free some")
+        # Grab a list of models (ModelPatcher) that are loaded on the gpu
+        # These are actually returned with the least important at the bottom of the list
+        busy_models = get_models_on_gpu()
+        # Try to find one we have in ram that isn't on the gpu
+        idle_model = None
+        for ram_model_name, ram_model_data in self.loaded_models.items():
+            if type(ram_model_data["model"]) is not str and ram_model_data["model"] not in busy_models:
+                idle_model = ram_model_name
+                break
+        # If we didn't have one hanging around in ram not on the gpu
+        # pick the least used gpu model
+        if not idle_model and busy_models:
+            idle_model = self._modelref_to_name(busy_models[-1])
+
+        if idle_model:
+            logger.debug(f"Moving model {idle_model} to disk to free up RAM")
+            self.move_to_disk_cache(idle_model)
+        else:
+            # Nothing else to release
+            logger.debug(f"Could not find a model to free RAM")
+
+    def move_to_disk_cache(self, model_name):
+        pass
+
+    def can_cache_on_disk(self):
+        """Can this of type model be cached on disk?"""
+        return False
+
     def load(
         self,
         model_name: str,
@@ -146,6 +193,7 @@ class BaseModelManager(ABC):
         cpu_only: bool = False,
         **kwargs,
     ):  # XXX # FIXME
+        self.ensure_memory_available()
         if model_name not in self.model_reference:
             logger.error(f"{model_name} not found")
             return False
@@ -165,13 +213,20 @@ class BaseModelManager(ABC):
             tic = time.time()
             logger.init(f"{model_name}", status="Loading")
 
-            self.loaded_models[model_name] = self.modelToRam(
-                model_name=model_name,
-                half_precision=half_precision,
-                gpu_id=gpu_id,
-                cpu_only=cpu_only,
-                **kwargs,
-            )
+            try:
+                self.loaded_models[model_name] = self.modelToRam(
+                    model_name=model_name,
+                    half_precision=half_precision,
+                    gpu_id=gpu_id,
+                    cpu_only=cpu_only,
+                    **kwargs,
+                )
+
+            except RuntimeError:
+                # It failed, it happens.
+                logger.error(f"Failed to load model {model_name}")
+                return None
+
             toc = time.time()
 
             logger.init_ok(f"{model_name}: {round(toc-tic,2)} seconds", status="Loaded")
@@ -247,7 +302,7 @@ class BaseModelManager(ABC):
         """
         Returns the loaded models
         """
-        return self.loaded_models
+        return self.loaded_models[:]
 
     def get_loaded_model(self, model_name: str):
         """
@@ -281,22 +336,48 @@ class BaseModelManager(ABC):
         """
         return model_name in self.loaded_models
 
+    def remove_model_from_ram(self, model_name):
+        if model_name not in self.loaded_models:
+            return
+        # Remove the model from ram. Just removing from the dictionary
+        # wasn't actually releasing the RAM
+        model = self.loaded_models[model_name]
+        del self.loaded_models[model_name]
+        if "model" in model:
+            del model["model"]
+        if "clip" in model:
+            del model["clip"]
+        if "vae" in model:
+            del model["vae"]
+        if "clipVisionModel" in model:
+            del model["clipVisionModel"]
+        del model
+        gc.collect()
+
     def unload_model(self, model_name: str):
         """
         :param model_name: Name of the model
-        Unloads a model
+        Unloads a model. Completely remove it, free all resources, forget it exists.
         """
         if model_name in self.loaded_models:
-            del self.loaded_models[model_name]
-            return True
-        return False
+            if not is_model_in_use(self.loaded_models[model_name]["model"]):
+                # Unload it from the GPU if it has been loaded there
+                try:
+                    unload_model_from_gpu(self.loaded_models[model_name]["model"])
+                    # Free it's ram
+                    self.remove_model_from_ram(model_name)
+                    return True
+                except Exception as e:
+                    logger.warning(f"Failed to unload model {model_name}: {e}")
+                    return False
+        return None
 
     def unload_all_models(self):
         """
         Unloads all models
         """
         for model in self.loaded_models:
-            del self.loaded_models[model]
+            self.unload_model(model)
         return True
 
     def taint_model(self, model_name: str):
@@ -490,7 +571,7 @@ class BaseModelManager(ABC):
                 miniters=1,
                 desc=pbar_desc,
                 total=int(response.headers.get("content-length", 0)),
-                disable=WorkerSettings.disable_download_progress.active,
+                disable=UserSettings.disable_download_progress.active,
             ) as pbar:
                 for chunk in response.iter_content(chunk_size=16 * 1024):
                     response.raise_for_status()

@@ -20,6 +20,7 @@ GitPython
 clip-anytorch
 diffusers
 omegaconf
+psutil
 # face fixer custom nodes
 opencv-python
 # controlnet custom nodes
