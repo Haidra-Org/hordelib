@@ -1,6 +1,10 @@
 # test_horde.py
+import glob
+import pathlib
+
 import pytest
 
+from hordelib.cache import get_cache_directory
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
@@ -105,8 +109,18 @@ class TestSharedModelManager:
                     model_manager.get_file_sha256_hash(f"{model_manager.modelFolderPath}/{path}")
         pass
 
+    def test_check_sha_annotators(self):
+        annotatorCacheDir = pathlib.Path(get_cache_directory()).joinpath("controlnet").joinpath("annotator")
+        annotators = glob.glob("*.pt*", root_dir=annotatorCacheDir)
+        for annotator in annotators:
+            hash = SharedModelManager.manager.controlnet.get_file_sha256_hash(annotatorCacheDir.joinpath(annotator))
+            print(f"{annotator}: {hash}")
+
     def test_check_validate_all_available_models(self):
         assert SharedModelManager.manager is not None
         for model_manager in SharedModelManager.manager.active_model_managers:
             for model in model_manager.available_models:
                 assert model_manager.validate_model(model)
+
+    def test_preload_annotators(self):
+        assert SharedModelManager.preloadAnnotators()
