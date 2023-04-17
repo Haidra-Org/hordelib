@@ -360,10 +360,36 @@ index 9c632e2..3ec8e7a 100644
          pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
          samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
 diff --git a/execution.py b/execution.py
-index 73be6db..3fe16c6 100644
+index 73be6db..b637eb9 100644
 --- a/execution.py
 +++ b/execution.py
-@@ -288,6 +288,8 @@ def validate_prompt(prompt):
+@@ -7,6 +7,7 @@ import heapq
+ import traceback
+ import gc
+ 
++from loguru import logger
+ import torch
+ import nodes
+ 
+@@ -183,7 +184,7 @@ class PromptExecutor:
+                             if valid:
+                                 executed += recursive_execute(self.server, prompt, self.outputs, x, extra_data)
+             except Exception as e:
+-                print(traceback.format_exc())
++                logger.error(traceback.format_exc())
+                 to_delete = []
+                 for o in self.outputs:
+                     if o not in current_outputs:
+@@ -280,7 +281,7 @@ def validate_prompt(prompt):
+         if valid == True:
+             good_outputs.add(x)
+         else:
+-            print("Failed to validate prompt for output {} {}".format(o, reason))
++            logger.error("Failed to validate prompt for output {} {}".format(o, reason))
+             print("output will be ignored")
+             errors += [(o, reason)]
+ 
+@@ -288,6 +289,8 @@ def validate_prompt(prompt):
          errors_list = "\n".join(set(map(lambda a: "{}".format(a[1]), errors)))
          return (False, "Prompt has no properly connected outputs\n {}".format(errors_list))
  
