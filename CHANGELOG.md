@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.9.1](https://github.com/jug-dev/hordelib/compare/v0.9.0...v0.9.1)
+
+17 April 2023
+
+- fix: add proper exception logging to comfyui, closes #64 [`#64`](https://github.com/jug-dev/hordelib/issues/64)  ()
+
 ## [v0.9.0](https://github.com/jug-dev/hordelib/compare/v0.8.8...v0.9.0)
 
 16 April 2023
