@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.9.2](https://github.com/jug-dev/hordelib/compare/v0.9.1...v0.9.2)
+
+17 April 2023
+
+- fix: don't mix up controlnets and run out of vram [`#147`](https://github.com/jug-dev/hordelib/pull/147) (Jug)
+
 ## [v0.9.1](https://github.com/jug-dev/hordelib/compare/v0.9.0...v0.9.1)
 
 17 April 2023
