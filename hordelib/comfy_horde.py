@@ -8,7 +8,9 @@ import json
 import os
 import re
 import time
+import sys
 import typing
+import random
 from pprint import pformat
 
 import torch
@@ -409,7 +411,7 @@ class Comfy_Horde:
         stdio = OutputCollector()
         with contextlib.redirect_stdout(stdio):
             with contextlib.redirect_stderr(stdio):
-                inference.execute(pipeline, extra_data={"client_id": 1})
+                inference.execute(pipeline, extra_data={"client_id": random.randint(0, sys.maxsize)})
         stdio.replay()
 
         return inference.outputs
