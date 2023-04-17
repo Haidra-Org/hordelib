@@ -1,8 +1,8 @@
 import os
+import threading
 
 import comfy
 from loguru import logger
-import threading
 
 
 class HordeDiffControlNetLoader:
