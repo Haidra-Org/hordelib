@@ -43,10 +43,11 @@ def get_models_on_gpu():
 def unload_model_from_gpu(model):
     _comfy_model_manager.unload_model(model)
     gc.collect()
-    if torch.cuda.is_available():
-        if torch.version.cuda:  # This seems to make things worse on ROCm so I only do it for cuda
-            torch.cuda.empty_cache()
-            torch.cuda.ipc_collect()
+    if not torch.cuda.is_available():
+        return None
+    if torch.version.cuda:  # This seems to make things worse on ROCm so I only do it for cuda
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
 
 
 def is_model_in_use(model):
@@ -174,7 +175,10 @@ class Comfy_Horde:
         for nodename, node in data.items():
             if ("class_type" in node) and (node["class_type"] in Comfy_Horde.NODE_REPLACEMENTS):
                 logger.debug(
-                    f"Changed type {data[nodename]['class_type']} to {Comfy_Horde.NODE_REPLACEMENTS[node['class_type']]}",
+                    (
+                        f"Changed type {data[nodename]['class_type']} to "
+                        f"{Comfy_Horde.NODE_REPLACEMENTS[node['class_type']]}"
+                    ),
                 )
                 data[nodename]["class_type"] = Comfy_Horde.NODE_REPLACEMENTS[node["class_type"]]
         # Now we've fixed up node types, check for any node input parameter rename needed
@@ -409,9 +413,8 @@ class Comfy_Horde:
         # The client_id parameter here is just so we receive comfy callbacks for debugging.
         # We pretend we are a web client and want async callbacks.
         stdio = OutputCollector()
-        with contextlib.redirect_stdout(stdio):
-            with contextlib.redirect_stderr(stdio):
-                inference.execute(pipeline, extra_data={"client_id": random.randint(0, sys.maxsize)})
+        with contextlib.redirect_stdout(stdio), contextlib.redirect_stderr(stdio):
+            inference.execute(pipeline, extra_data={"client_id": random.randint(0, sys.maxsize)})
         stdio.replay()
 
         return inference.outputs

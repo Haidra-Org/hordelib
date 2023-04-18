@@ -86,7 +86,10 @@ class BaseModelManager(ABC):
     def loadModelDatabase(self, list_models=False):
         if self.model_reference:
             logger.info(
-                f"Model reference was already loaded. Got {len(self.model_reference)} models for {self.models_db_name}.",
+                (
+                    "Model reference was already loaded."
+                    f" Got {len(self.model_reference)} models for {self.models_db_name}."
+                ),
             )
             logger.info("Reloading model reference...")
 
@@ -155,7 +158,7 @@ class BaseModelManager(ABC):
         logger.debug(f"Free RAM is: {freemem} MB, ({len(self.loaded_models)} models loaded in RAM)")
         if freemem > UserSettings.ram_to_leave_free_mb + 4096:
             return
-        logger.debug(f"Not enough free RAM attempting to free some")
+        logger.debug("Not enough free RAM attempting to free some")
         # Grab a list of models (ModelPatcher) that are loaded on the gpu
         # These are actually returned with the least important at the bottom of the list
         busy_models = get_models_on_gpu()
@@ -175,8 +178,9 @@ class BaseModelManager(ABC):
             self.move_to_disk_cache(idle_model)
         else:
             # Nothing else to release
-            logger.debug(f"Could not find a model to free RAM")
+            logger.debug("Could not find a model to free RAM")
 
+    # @abstractmethod # TODO
     def move_to_disk_cache(self, model_name):
         pass
 
