@@ -137,7 +137,10 @@ class HordeLib:
             params["negative_prompt.text"] = promptsSplit[1]
 
         # Sampler remap
-        sampler = HordeLib.SAMPLERS_MAP.get(params["sampler.sampler_name"], "euler")
+        sampler = HordeLib.SAMPLERS_MAP.get(params["sampler.sampler_name"], "unknown")
+        if sampler == "unknown":
+            logger.error(f"Unknown sampler {params['sampler.sampler_name']} defaulting to euler")
+            sampler = "euler"
         params["sampler.sampler_name"] = sampler
 
         # Clip skip inversion, comfy uses -1, -2, etc
@@ -174,9 +177,12 @@ class HordeLib:
         if cnet := payload.get("control_type"):
             # Determine the pre-processor that was requested
             pre_processor = HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(cnet)
+            if not pre_processor:
+                logger.error("Unknown controlnet pre-processor type {cnet} defaulting to canny")
+                pre_processor = "canny"
 
             # The controlnet type becomes a direct parameter to the pipeline
-            # It is tranlated to its model as required my ComfyUI from the CN ModelManager
+            # It is translated to its model as required my ComfyUI from the CN ModelManager
             params["controlnet_model_loader.control_net_name"] = cnet
 
             # For the pre-processor we dynamically reroute nodes in the pipeline later
