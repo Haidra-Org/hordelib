@@ -102,8 +102,7 @@ class TestSharedModelManager:
                     path = file.get("path")
                     if not (".pt" in path or ".ckpt" in path or ".safetensors" in path):
                         continue
-                    hash = model_manager.get_file_sha256_hash(f"{model_manager.modelFolderPath}/{path}")
-                    # print(f"{path}: {hash}")
+                    model_manager.get_file_sha256_hash(f"{model_manager.modelFolderPath}/{path}")
         pass
 
     def test_check_validate_all_available_models(self):

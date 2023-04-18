@@ -1,3 +1,4 @@
+import contextlib
 import sys
 from functools import partialmethod
 
@@ -163,11 +164,10 @@ class HordeLog:
     def set_sinks(cls):
         # Remove any existing sinks that we added
         for sink in cls.sinks:
-            try:
+            with contextlib.suppress(ValueError):
+                # Suppress if someone else beat us to it
                 logger.remove(sink)
-            except ValueError:
-                # Someone else beat us to it
-                pass
+
         cls.sinks = []
 
         config = {

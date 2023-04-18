@@ -19,7 +19,7 @@ from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
 # from worker.util.voodoo import initialise_voodoo
 
 
-MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type] = {
+MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type[BaseModelManager]] = {
     # ModelCategoryNames.aitemplate: AITemplateModelManager,
     MODEL_CATEGORY_NAMES.blip: BlipModelManager,
     MODEL_CATEGORY_NAMES.clip: ClipModelManager,
@@ -128,9 +128,8 @@ class ModelManager:
 
         for argName, argValue in args_passed.items():
             if not (argName in allModelMangerTypeKeys and hasattr(self, argName)):
-                raise Exception(
-                    f"{argName} is not a valid model manager type!",
-                )  # XXX better guarantees need to be made
+                raise Exception(f"{argName} is not a valid model manager type!")
+                # XXX better guarantees need to be made
             if not argValue:
                 continue
             if getattr(self, argName) is not None:
@@ -292,7 +291,7 @@ class ModelManager:
         """
         return self.available_models
 
-    def ensure_memory_available(self, specific_type=None):
+    def ensure_memory_available(self, specific_type: type[BaseModelManager] = None) -> None:
         """Asserts minimum amount of RAM is available. Unloads models if necessary."""
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
             if specific_type and specific_type != model_manager_type:
@@ -301,7 +300,7 @@ class ModelManager:
             if model_manager is None:
                 continue
             model_manager.ensure_memory_available()
-        return None
+        return
 
     def load(
         self,

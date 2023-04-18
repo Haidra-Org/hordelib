@@ -82,7 +82,9 @@ class TestInference:
                 "establishing shot, 8k resolution, dramatic lighting, award winning "
                 "photograph, masterpiece, very detailed, sharp focus, very realistic lighting"
             ),
-            "negative_prompt.text": "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes",
+            "negative_prompt.text": (
+                "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes"
+            ),
             "model_loader.model_name": "Deliberate",
             "empty_latent_image.width": 256,
             "empty_latent_image.height": 256,
@@ -118,7 +120,9 @@ class TestInference:
                 "establishing shot, 8k resolution, dramatic lighting, award winning "
                 "photograph, masterpiece, very detailed, sharp focus, very realistic lighting"
             ),
-            "negative_prompt.text": "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes",
+            "negative_prompt.text": (
+                "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes"
+            ),
             "model_loader.model_name": "Deliberate",
             "empty_latent_image.width": 256,
             "empty_latent_image.height": 256,

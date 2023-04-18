@@ -1,6 +1,7 @@
 # node_model_loader.py
 # Simple proof of concept custom node to load models.
 
+import contextlib
 import os
 import pickle
 
@@ -52,10 +53,9 @@ class HordeCheckpointLoader:
                     clip = pickle.load(cache)
             except (pickle.PickleError, EOFError):
                 # Most likely corrupt cache file, remove the file
-                try:
-                    os.remove(model)
-                except OSError:
-                    pass  # we tried
+                with contextlib.suppress(OSError):
+                    os.remove(model)  # ... at least try to remove it
+
                 raise Exception(f"Model cache file {model_cache} was corrupt. It has been removed.")
 
         # XXX # TODO I would like to revisit this dict->tuple conversion at some point soon
