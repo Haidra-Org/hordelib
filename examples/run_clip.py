@@ -9,14 +9,15 @@ import hordelib
 def main():
     hordelib.initialise()
 
+    import json
+
+    from loguru import logger
     from PIL import Image
 
+    from hordelib.blip.caption import Caption
+    from hordelib.clip.interrogate import Interrogator
     from hordelib.horde import HordeLib
     from hordelib.shared_model_manager import SharedModelManager
-    from hordelib.clip.interrogate import Interrogator
-    from loguru import logger
-    import json
-    from hordelib.blip.caption import Caption
 
     generate = HordeLib()
     SharedModelManager.loadModelManagers(clip=True, blip=True)
