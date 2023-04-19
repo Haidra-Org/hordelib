@@ -52,7 +52,7 @@ class Installer:
     def _run(cls, command, directory=get_hordelib_path()) -> tuple[bool, str] | None:
         # Don't if we're a release version
         if RELEASE_VERSION:
-            return
+            return None
         try:
             result = cls._run_get_result(command, directory)
         except Exception as Ex:

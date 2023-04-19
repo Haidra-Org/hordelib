@@ -52,7 +52,7 @@ class ModelManager:
     @property
     def models(self) -> dict:
         """All model manager's internal dictionaries of models, loaded from model database JSON files."""
-        _models = {}
+        _models: dict = {}
         for model_manager in self.active_model_managers:
             model_manager.model_reference
             _models.update(model_manager.model_reference)
@@ -75,7 +75,7 @@ class ModelManager:
         return all_loaded_models
 
     @property
-    def active_model_managers(self) -> list[BaseModelManager] | None:
+    def active_model_managers(self) -> list[BaseModelManager]:
         """All loaded model managers."""
         all_model_managers = [
             # self.aitemplate, # XXX TODO
@@ -291,7 +291,7 @@ class ModelManager:
         """
         return self.available_models
 
-    def ensure_memory_available(self, specific_type: type[BaseModelManager] = None) -> None:
+    def ensure_memory_available(self, specific_type: type[BaseModelManager] | None = None) -> None:
         """Asserts minimum amount of RAM is available. Unloads models if necessary."""
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
             if specific_type and specific_type != model_manager_type:
