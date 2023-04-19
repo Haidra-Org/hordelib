@@ -1,10 +1,12 @@
+from typing_extensions import Self
+
 from hordelib.utils.switch import Switch
 
 
 class UserSettings:
     """Container class for all worker settings."""
 
-    _instance = None
+    _instance: Self | None = None
 
     def __new__(cls):
         if cls._instance is None:

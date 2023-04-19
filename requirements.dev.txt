@@ -3,3 +3,4 @@ black==22.3.0
 pytest>=7.2.2
 coverage>=7.2.3
 ruff==0.0.261
+build>=0.10.0

@@ -15,7 +15,7 @@ class CONTROLNET_BASELINE_NAMES(str, Enum):  # XXX # TODO Move this to consts.py
     stable_diffusion_2 = "stable diffusion 2"
 
 
-CONTROLNET_BASELINE_APPENDS = {
+CONTROLNET_BASELINE_APPENDS: dict[CONTROLNET_BASELINE_NAMES | str, str] = {
     CONTROLNET_BASELINE_NAMES.stable_diffusion_1: "",
     CONTROLNET_BASELINE_NAMES.stable_diffusion_2: "_sd2",
 }
@@ -47,7 +47,7 @@ class ControlNetModelManager(BaseModelManager):
         control_type: str,
         model,
         model_baseline: str = CONTROLNET_BASELINE_NAMES.stable_diffusion_1,
-    ) -> tuple[any]:
+    ) -> tuple[typing.Any]:
         """Merge the specified control net with target model.
 
         Args:
@@ -95,7 +95,7 @@ class ControlNetModelManager(BaseModelManager):
     def download_control_type(
         self,
         control_type: str,
-        sd_baselines: list[str] = None,
+        sd_baselines: list[str] | None = None,
     ) -> None:
         if sd_baselines is None:
             sd_baselines = [CONTROLNET_BASELINE_NAMES.stable_diffusion_1, CONTROLNET_BASELINE_NAMES.stable_diffusion_2]
@@ -133,4 +133,5 @@ class ControlNetModelManager(BaseModelManager):
         for f in self.get_model_files(controlnet_name):
             if f["path"].endswith("safetensors"):
                 return f["path"]
+        logger.error(f"Could not find {controlnet_name}.safetensors on disk.")
         return None
