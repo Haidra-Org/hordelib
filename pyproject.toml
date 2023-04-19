@@ -71,7 +71,7 @@ exclude = '''
   | comfy_controlnet_preprocessors
   | facerestore
 )/
-'''
+''' # If you change this, you probably need to also change [tool.mypy] below
 
 [tool.ruff] # XXX this isn't part of CI yet
 line-length=119
@@ -117,3 +117,12 @@ select = [
 "med.py" = ["E501", "UP035"]
 "vit.py" = ["E501", "UP035", "F821"] # F821 looks like a real bug, suppressed only for dev CI purposes
 "run_stress_test.py" = ["F841"]
+
+
+[tool.mypy]
+exclude = '''(?x)(
+    ComfyUI
+  | \.tox
+  | comfy_controlnet_preprocessors
+  | facerestore
+)''' # If you change this, you probably need to also change [tool.black] above
