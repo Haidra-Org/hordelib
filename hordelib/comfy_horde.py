@@ -276,6 +276,7 @@ class Comfy_Horde:
                 return True
         except (OSError, ValueError):
             logger.error(f"Invalid inference pipeline file: {filename}")
+            return None
 
     def _load_pipelines(self) -> int:
         files = glob.glob(self._this_dir("pipeline_*.json", subdir="pipelines"))
