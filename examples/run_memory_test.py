@@ -27,7 +27,7 @@ def main():
     from hordelib.horde import HordeLib
     from hordelib.shared_model_manager import SharedModelManager
 
-    generate = HordeLib()
+    HordeLib()
     SharedModelManager.loadModelManagers(compvis=True)
 
     load_and_free()

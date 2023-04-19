@@ -19,7 +19,7 @@ def main():
     from hordelib.horde import HordeLib
     from hordelib.shared_model_manager import SharedModelManager
 
-    generate = HordeLib()
+    HordeLib()
     SharedModelManager.loadModelManagers(clip=True, blip=True)
     SharedModelManager.manager.load("ViT-L/14")
     SharedModelManager.manager.load("BLIP_Large")
@@ -46,6 +46,7 @@ def main():
         repetition_penalty=1.4,
     )
     logger.warning(json.dumps(caption, indent=4))
+
 
 if __name__ == "__main__":
     main()
