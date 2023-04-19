@@ -241,10 +241,7 @@ class HordeLib:
 
         # ControlNet
         if params.get("control_type"):
-            if params.get("return_control_map", False):
-                pipeline = "controlnet_annotator"
-            else:
-                pipeline = "controlnet"
+            pipeline = "controlnet_annotator" if params.get("return_control_map", False) else "controlnet"
 
         return pipeline
 
