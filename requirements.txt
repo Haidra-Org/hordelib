@@ -21,6 +21,7 @@ clip-anytorch
 diffusers
 omegaconf
 psutil
+typing-extensions
 # face fixer custom nodes
 opencv-python
 # controlnet custom nodes
