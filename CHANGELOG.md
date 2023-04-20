@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.9.4](https://github.com/jug-dev/hordelib/compare/v0.9.3...v0.9.4)
+
+20 April 2023
+
+- fix: add missing dependency [`1dc5127`](https://github.com/jug-dev/hordelib/commit/1dc51270a15981aa6eb08aafe2ae8fba7a1e7d57)  (Jug)
+
 ## [v0.9.3](https://github.com/jug-dev/hordelib/compare/v0.9.2...v0.9.3)
 
 20 April 2023
