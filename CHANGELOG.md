@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.9.5](https://github.com/jug-dev/hordelib/compare/v0.9.4...v0.9.5)
+
+20 April 2023
+
+- build: fix missing dependency in pypi build [`01169be`](https://github.com/jug-dev/hordelib/commit/01169beb575c0a0577eebc00210ca98d14eeff42)  (Jug)
+
 ## [v0.9.4](https://github.com/jug-dev/hordelib/compare/v0.9.3...v0.9.4)
 
 20 April 2023
