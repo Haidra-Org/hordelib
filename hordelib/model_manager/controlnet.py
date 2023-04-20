@@ -79,16 +79,10 @@ class ControlNetModelManager(BaseModelManager):
             self.modelFolderPath,
             self.get_controlnet_filename(controlnet_name),
         )
-        controlnet = self.control_nets.get(f"{control_type}.{model}")
-        if controlnet:
-            logger.debug(f"Got cached control net {control_type}.{model}")
-        if not controlnet:
-            logger.debug(f"Loading control net {control_type}.{model}")
-            controlnet = horde_load_controlnet(
-                controlnet_path=controlnet_path,
-                target_model=model,
-            )
-            self.control_nets[f"{control_type}.{model}"] = controlnet
+        controlnet = horde_load_controlnet(
+            controlnet_path=controlnet_path,
+            target_model=model,
+        )
         return (controlnet,)
 
     def download_control_type(
