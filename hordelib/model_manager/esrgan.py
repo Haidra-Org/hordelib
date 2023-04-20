@@ -1,6 +1,6 @@
 import typing
 
-from typing_extensions import override  # noqa: I001
+from typing_extensions import override
 
 from hordelib import comfy_horde
 from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES

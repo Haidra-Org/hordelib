@@ -1,9 +1,10 @@
+import io
 from collections import deque
 
 from loguru import logger
 
 
-class OutputCollector:
+class OutputCollector(io.TextIOWrapper):
     def __init__(self):
         logger.disable("tqdm")  # just.. no
         self.deque = deque()

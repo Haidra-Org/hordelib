@@ -22,8 +22,6 @@ def initialise(
     # Setup logging if requested
     HordeLog.initialise(setup_logging)
 
-    logger.level("DEBUG")  # XXX # FIXME
-
     # If developer mode, don't permit some things
     if not RELEASE_VERSION and " " in get_hordelib_path():
         # Our runtime patching can't handle this

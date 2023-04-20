@@ -89,7 +89,6 @@ class HordeLib:
     # We initialise only ever once (in the lifetime of the singleton)
     def __init__(self):
         if not self._initialised:
-            self.generator = Comfy_Horde()
             self.__class__._initialised = True
 
     def _parameter_remap(self, payload: dict[str, str | None]) -> dict[str, str | None]:
@@ -137,7 +136,10 @@ class HordeLib:
             params["negative_prompt.text"] = promptsSplit[1]
 
         # Sampler remap
-        sampler = HordeLib.SAMPLERS_MAP.get(params["sampler.sampler_name"], "euler")
+        sampler = HordeLib.SAMPLERS_MAP.get(params["sampler.sampler_name"], "unknown")
+        if sampler == "unknown":
+            logger.error(f"Unknown sampler {params['sampler.sampler_name']} defaulting to euler")
+            sampler = "euler"
         params["sampler.sampler_name"] = sampler
 
         # Clip skip inversion, comfy uses -1, -2, etc
@@ -174,9 +176,12 @@ class HordeLib:
         if cnet := payload.get("control_type"):
             # Determine the pre-processor that was requested
             pre_processor = HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(cnet)
+            if not pre_processor:
+                logger.error("Unknown controlnet pre-processor type {cnet} defaulting to canny")
+                pre_processor = "canny"
 
             # The controlnet type becomes a direct parameter to the pipeline
-            # It is tranlated to its model as required my ComfyUI from the CN ModelManager
+            # It is translated to its model as required my ComfyUI from the CN ModelManager
             params["controlnet_model_loader.control_net_name"] = cnet
 
             # For the pre-processor we dynamically reroute nodes in the pipeline later
@@ -235,10 +240,7 @@ class HordeLib:
 
         # ControlNet
         if params.get("control_type"):
-            if params.get("return_control_map", False):
-                pipeline = "controlnet_annotator"
-            else:
-                pipeline = "controlnet"
+            pipeline = "controlnet_annotator" if params.get("return_control_map", False) else "controlnet"
 
         return pipeline
 
@@ -301,7 +303,8 @@ class HordeLib:
         # Determine the correct pipeline
         pipeline = self._get_appropriate_pipeline(params)
         # Run the pipeline
-        images = self.generator.run_image_pipeline(pipeline, params)
+        generator = Comfy_Horde()
+        images = generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image
@@ -313,7 +316,8 @@ class HordeLib:
         # Determine the correct pipeline
         pipeline = "image_upscale"
         # Run the pipeline
-        images = self.generator.run_image_pipeline(pipeline, params)
+        generator = Comfy_Horde()
+        images = generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image
@@ -325,7 +329,8 @@ class HordeLib:
         # Determine the correct pipeline
         pipeline = "image_facefix"
         # Run the pipeline
-        images = self.generator.run_image_pipeline(pipeline, params)
+        generator = Comfy_Horde()
+        images = generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image

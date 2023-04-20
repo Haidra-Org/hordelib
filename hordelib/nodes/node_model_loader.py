@@ -1,6 +1,7 @@
 # node_model_loader.py
 # Simple proof of concept custom node to load models.
 
+import contextlib
 import os
 import pickle
 
@@ -33,13 +34,14 @@ class HordeCheckpointLoader:
             logger.error("horde_model_manager appears to be missing!")
             raise RuntimeError  # XXX better guarantees need to be made
 
-        if model_name not in model_manager.manager.loaded_models:
+        loaded_models = model_manager.manager.loaded_models
+        if model_name not in loaded_models:
             logger.error(f"Model {model_name} is not loaded")
             raise RuntimeError  # XXX better guarantees need to be made
 
-        model = model_manager.manager.loaded_models[model_name]["model"]
-        clip = model_manager.manager.loaded_models[model_name]["clip"]
-        vae = model_manager.manager.loaded_models[model_name]["vae"]
+        model = loaded_models[model_name]["model"]
+        clip = loaded_models[model_name]["clip"]
+        vae = loaded_models[model_name]["vae"]
 
         # If we got strings, not objects, it's a cache reference, load the cache
         if type(model) is str:
@@ -52,10 +54,9 @@ class HordeCheckpointLoader:
                     clip = pickle.load(cache)
             except (pickle.PickleError, EOFError):
                 # Most likely corrupt cache file, remove the file
-                try:
-                    os.remove(model)
-                except OSError:
-                    pass  # we tried
+                with contextlib.suppress(OSError):
+                    os.remove(model)  # ... at least try to remove it
+
                 raise Exception(f"Model cache file {model_cache} was corrupt. It has been removed.")
 
         # XXX # TODO I would like to revisit this dict->tuple conversion at some point soon

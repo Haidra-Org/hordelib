@@ -98,7 +98,7 @@ def create_index():
     )
 
     # Output results
-    with open("images/index.html", "wt") as outfile:
+    with open("images/index.html", "w") as outfile:
         outfile.write(indexhtml)
 
 

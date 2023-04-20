@@ -7,6 +7,10 @@ on:
     paths:
       - '**.py'
       - '**.json'
+      - 'tox.ini'
+      - '.github/workflows/maintests.yml'
+      - '.github/workflows/prtests.yml'
+      - '.github/workflows/release.yml' 
 jobs:
   build:
 

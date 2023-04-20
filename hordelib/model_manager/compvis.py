@@ -60,17 +60,22 @@ class CompVisModelManager(BaseModelManager):
         return False
 
     def move_to_disk_cache(self, model_name):
-        cache_file = self.get_model_cache_filename(model_name)
-        # Serialise our objects
-        model_data = copy.copy(self.loaded_models[model_name])
-        components = ["model", "vae", "clip"]
-        if not self.have_model_cache(model_name):
-            with open(cache_file, "wb") as cache:
-                for component in components:
-                    pickle.dump(self.loaded_models[model_name][component], cache, protocol=pickle.HIGHEST_PROTOCOL)
-        for component in components:
-            model_data[component] = cache_file
-        # Remove from ram
-        self.remove_model_from_ram(model_name)
-        # Point the model to the cache
-        self.loaded_models[model_name] = model_data
+        with self._mutex:
+            cache_file = self.get_model_cache_filename(model_name)
+            # Serialise our objects
+            model_data = copy.copy(self.get_loaded_model(model_name))
+            components = ["model", "vae", "clip"]
+            if not self.have_model_cache(model_name):
+                with open(cache_file, "wb") as cache:
+                    for component in components:
+                        pickle.dump(
+                            self.get_loaded_model(model_name)[component],
+                            cache,
+                            protocol=pickle.HIGHEST_PROTOCOL,
+                        )
+            for component in components:
+                model_data[component] = cache_file
+            # Remove from vram/ram
+            self.free_model_resources(model_name)
+            # Point the model to the cache
+            self.add_loaded_model(model_name, model_data)
