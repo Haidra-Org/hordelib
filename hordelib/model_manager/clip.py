@@ -135,7 +135,7 @@ class ClipModelManager(BaseModelManager):
                 gpu_id,
                 cpu_only,
             )
-            self.loaded_models[model_name] = loaded_model_info
+            self.add_loaded_model(model_name, loaded_model_info)
         elif self.model_reference[model_name]["type"] == "clip":
             loaded_model_info = self.load_clip(
                 model_name,
@@ -143,7 +143,7 @@ class ClipModelManager(BaseModelManager):
                 gpu_id,
                 cpu_only,
             )
-            self.loaded_models[model_name] = loaded_model_info
+            self.add_loaded_model(model_name, loaded_model_info)
         elif self.model_reference[model_name]["type"] == "coca":
             loaded_model_info = self.load_coca(
                 model_name,
@@ -151,7 +151,7 @@ class ClipModelManager(BaseModelManager):
                 gpu_id,
                 cpu_only,
             )
-            self.loaded_models[model_name] = loaded_model_info
+            self.add_loaded_models(model_name, loaded_model_info)
         else:
             logger.error(
                 f"Unknown model type: {self.model_reference[model_name]['type']}",

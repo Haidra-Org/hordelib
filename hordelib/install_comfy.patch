@@ -1,5 +1,5 @@
 ﻿diff --git a/comfy/model_management.py b/comfy/model_management.py
-index 76455e4..12eaa4c 100644
+index 76455e4..5f4daf8 100644
 --- a/comfy/model_management.py
 +++ b/comfy/model_management.py
 @@ -1,6 +1,8 @@
@@ -11,7 +11,7 @@ index 76455e4..12eaa4c 100644
  
  class VRAMState(Enum):
      CPU = 0
-@@ -113,87 +115,130 @@ if args.cpu:
+@@ -113,87 +115,145 @@ if args.cpu:
  print(f"Set vram state to: {vram_state.name}")
  
  
@@ -218,6 +218,21 @@ index 76455e4..12eaa4c 100644
 +                if m not in self.current_gpu_controlnets:
 +                    self.current_gpu_controlnets.append(m.to(device))
 +
++    def unload_controlnet_gpu(self, models):        
++        global vram_state
++        with self._mutex:
++            if vram_state == VRAMState.CPU:
++                return
++
++            if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
++                #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
++                return
++
++            for m in models:
++                if m in self.current_gpu_controlnets:
++                    m.cpu()
++                    self.current_gpu_controlnets.remove(m)
++                    del m
 +
 +model_manager = ModelManager()
  
@@ -325,10 +340,18 @@ index ed36442..6b10249 100644
  
          return samples.to(torch.float32)
 diff --git a/comfy/sd.py b/comfy/sd.py
-index 9c632e2..3ec8e7a 100644
+index 9c632e2..5b82f11 100644
 --- a/comfy/sd.py
 +++ b/comfy/sd.py
-@@ -415,7 +415,6 @@ class VAE:
+@@ -1,6 +1,7 @@
+ import torch
+ import contextlib
+ import copy
++import threading
+ 
+ import sd1_clip
+ import sd2_clip
+@@ -415,7 +416,6 @@ class VAE:
          return output
  
      def decode(self, samples_in):
@@ -336,7 +359,7 @@ index 9c632e2..3ec8e7a 100644
          self.first_stage_model = self.first_stage_model.to(self.device)
          try:
              free_memory = model_management.get_free_memory(self.device)
-@@ -435,14 +434,12 @@ class VAE:
+@@ -435,14 +435,12 @@ class VAE:
          return pixel_samples
  
      def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap = 16):
@@ -351,7 +374,7 @@ index 9c632e2..3ec8e7a 100644
          self.first_stage_model = self.first_stage_model.to(self.device)
          pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
          samples = self.first_stage_model.encode(2. * pixel_samples - 1.).sample() * self.scale_factor
-@@ -451,7 +448,6 @@ class VAE:
+@@ -451,7 +449,6 @@ class VAE:
          return samples
  
      def encode_tiled(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
@@ -359,6 +382,25 @@ index 9c632e2..3ec8e7a 100644
          self.first_stage_model = self.first_stage_model.to(self.device)
          pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
          samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
+@@ -568,8 +565,17 @@ class ControlNet:
+         out.append(self.control_model)
+         return out
+ 
++_controlnet_models = {}
++_mutex = threading.Lock()
++
+ def load_controlnet(ckpt_path, model=None):
+-    controlnet_data = utils.load_torch_file(ckpt_path)
++    with _mutex:
++        if ckpt_path in _controlnet_models:
++            controlnet_data = copy.deepcopy(_controlnet_models.get(ckpt_path))
++        else:
++            controlnet_data = utils.load_torch_file(ckpt_path)
++            _controlnet_models[ckpt_path] = copy.deepcopy(controlnet_data)
++
+     pth_key = 'control_model.input_blocks.1.1.transformer_blocks.0.attn2.to_k.weight'
+     pth = False
+     sd2 = False
 diff --git a/execution.py b/execution.py
 index 73be6db..b637eb9 100644
 --- a/execution.py
@@ -420,7 +462,7 @@ index 02c700e..27a3324 100644
      hijack_progress(server)
  
 diff --git a/nodes.py b/nodes.py
-index c775da0..75abed0 100644
+index c775da0..013db3d 100644
 --- a/nodes.py
 +++ b/nodes.py
 @@ -696,7 +696,8 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
@@ -442,7 +484,13 @@ index c775da0..75abed0 100644
  
      if sampler_name in comfy.samplers.KSampler.SAMPLERS:
          sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
-@@ -741,6 +742,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
+@@ -736,11 +737,13 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
+ 
+     samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
+     samples = samples.cpu()
++    comfy.model_management.model_manager.unload_controlnet_gpu(control_net_models)
+     for c in control_nets:
+         c.cleanup()
  
      out = latent.copy()
      out["samples"] = samples

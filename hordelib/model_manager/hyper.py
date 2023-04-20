@@ -71,7 +71,7 @@ class ModelManager:
         """All models for which have successfully loaded across all `BaseModelManager` types."""
         all_loaded_models: dict[str, dict] = {}
         for model_manager in self.active_model_managers:
-            all_loaded_models.update(model_manager.loaded_models)
+            all_loaded_models.update(model_manager.get_loaded_models())
         return all_loaded_models
 
     @property

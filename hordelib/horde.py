@@ -89,7 +89,6 @@ class HordeLib:
     # We initialise only ever once (in the lifetime of the singleton)
     def __init__(self):
         if not self._initialised:
-            self.generator = Comfy_Horde()
             self.__class__._initialised = True
 
     def _parameter_remap(self, payload: dict[str, str | None]) -> dict[str, str | None]:
@@ -304,7 +303,8 @@ class HordeLib:
         # Determine the correct pipeline
         pipeline = self._get_appropriate_pipeline(params)
         # Run the pipeline
-        images = self.generator.run_image_pipeline(pipeline, params)
+        generator = Comfy_Horde()
+        images = generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image
@@ -316,7 +316,8 @@ class HordeLib:
         # Determine the correct pipeline
         pipeline = "image_upscale"
         # Run the pipeline
-        images = self.generator.run_image_pipeline(pipeline, params)
+        generator = Comfy_Horde()
+        images = generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image
@@ -328,7 +329,8 @@ class HordeLib:
         # Determine the correct pipeline
         pipeline = "image_facefix"
         # Run the pipeline
-        images = self.generator.run_image_pipeline(pipeline, params)
+        generator = Comfy_Horde()
+        images = generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # XXX Assumes the horde only asks for and wants 1 image
