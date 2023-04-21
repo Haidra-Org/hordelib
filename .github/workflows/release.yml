@@ -42,7 +42,9 @@ jobs:
         python-version: "3.10"
 
     # Install build deps
-    # NOTE If `run` is changed, please also update `[testenv:test-build-helper]` in tox.ini
+    # NOTE If any hordelib imports used by build_helper.py are changed, or the specific modules
+    # imported from hordelib depend on a package not included here, this will fail.
+    # See `build_helper.py` and `tests\meta\test_build_helper_import_check.py` for more information.
     - name: "🛠 Install pypa/build"
       if: ${{ steps.release.outputs.version != '' }}
       run: >-
