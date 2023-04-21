@@ -18,7 +18,7 @@ from hordelib.utils.logger import HordeLog
 def initialise(
     model_managers_to_load: dict[MODEL_CATEGORY_NAMES, bool] = DEFAULT_MODEL_MANAGERS,
     setup_logging=True,
-):
+):  # XXX # TODO Do we need `model_managers_to_load`?
     # Setup logging if requested
     HordeLog.initialise(setup_logging)
 
