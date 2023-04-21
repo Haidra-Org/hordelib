@@ -48,7 +48,7 @@ def download_model_if_not_existed():
         from comfy_controlnet_preprocessors.util import load_file_from_url
 
         load_file_from_url(remote_model_path_leres, model_dir=builtins.annotator_ckpts_path)
-        os.rename(os.path.join(builtins.annotator_ckpts_path, "download"), model_path)
+        os.rename(os.path.join(builtins.annotator_ckpts_path, "res101.pth"), model_path)
     return model_path
 
 
