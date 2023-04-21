@@ -34,11 +34,11 @@ def download_all_controlnet_annotators() -> bool:
 
     try:
         for annotator_init_func in annotator_init_funcs:
-            logger.debug(f"Downloading annotator: {annotator_init_func}")
+            logger.init(f"Downloading annotator: {annotator_init_func}", status="Downloading")
             annotator_init_func()
         return True
     except (OSError, requests.exceptions.RequestException) as e:
-        logger.init_err(f"Failed to download annotator: {e}")
+        logger.init_err(f"Failed to download annotator: {e}", status="Error")
 
     return False
 
