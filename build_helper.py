@@ -8,6 +8,9 @@ import subprocess
 from hordelib import install_comfy
 from hordelib.consts import COMFYUI_VERSION
 
+# NOTE If any imports to hordelib are added or changed, you must include those in
+# `tests/build/test_build_helper.py`
+
 
 def run(command):
     result = subprocess.run(command, shell=True, text=True)
