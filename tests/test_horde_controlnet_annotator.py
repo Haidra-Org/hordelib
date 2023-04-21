@@ -27,6 +27,7 @@ class TestHordeInference:
         assert SharedModelManager.manager is not None
         for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
             SharedModelManager.manager.controlnet.download_control_type(preproc)
+        assert SharedModelManager.preloadAnnotators()
         self.image = Image.open("images/test_annotator.jpg")
         self.width, self.height = self.image.size
         yield

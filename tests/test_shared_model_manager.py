@@ -1,6 +1,10 @@
 # test_horde.py
+import glob
+import pathlib
+
 import pytest
 
+from hordelib.cache import get_cache_directory
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
@@ -110,3 +114,6 @@ class TestSharedModelManager:
         for model_manager in SharedModelManager.manager.active_model_managers:
             for model in model_manager.available_models:
                 assert model_manager.validate_model(model)
+
+    def test_preload_annotators(self):
+        assert SharedModelManager.preloadAnnotators()

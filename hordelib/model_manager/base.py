@@ -720,7 +720,7 @@ class BaseModelManager(ABC):
                 logger.init(f"{model}", status="Downloading")  # logger.init
                 self.download_model(model)
             else:
-                logger.init(f"{model} is already downloaded.")
+                logger.init(f"{model} is already downloaded.", status="Skipped")
         return True
 
     def check_model_available(self, model_name: str) -> bool:

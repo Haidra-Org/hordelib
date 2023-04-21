@@ -8,8 +8,9 @@ from tqdm import tqdm
 from urllib.parse import urlparse
 import torch
 
+import builtins
 
-annotator_ckpts_path = os.path.join(os.path.dirname(__file__), "ckpts")
+builtins.annotator_ckpts_path = os.path.join(os.path.dirname(__file__), "ckpts")
 
 
 def HWC3(x):
