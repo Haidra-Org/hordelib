@@ -134,7 +134,11 @@ class FaceRestoreWithModel:
     CATEGORY = "facerestore"
 
     def restore_face(self, upscale_model, image, facedetection):
+        # logger.warning(f"mutex:{id(FaceRestoreWithModel._mutex):x} Facerestore with upscale_model {id(upscale_model):x} and detection model {id(facedetection):x} and image {id(image):x}")
         with FaceRestoreWithModel._mutex:
+
+            # facedetection = copy.deepcopy(facedetection)
+
             device = model_management.get_torch_device()
             upscale_model.to(device)
             face_helper = FaceRestoreHelper(
@@ -155,15 +159,15 @@ class FaceRestoreWithModel:
 
             if upscale_model is None or face_helper is None:
                 return image
-
+        
             face_helper.clean_all()
             face_helper.read_image(image_np)
             face_helper.get_face_landmarks_5(
                 only_center_face=False, resize=640, eye_dist_threshold=5
             )
             face_helper.align_warp_face()
-
             restored_face = None
+
             for idx, cropped_face in enumerate(face_helper.cropped_faces):
                 cropped_face_t = img2tensor(
                     cropped_face / 255.0, bgr2rgb=True, float32=True

@@ -3,6 +3,7 @@ from .util import HWC3, resize_image
 import torch
 import numpy as np
 import cv2
+import threading
 
 def img_np_to_tensor(img_np_list):
     out_list = []
@@ -16,27 +17,30 @@ def img_tensor_to_np(img_tensor):
     return mask_list
     #Thanks ChatGPT
 
+_mutex = threading.Lock()
+
 def common_annotator_call(annotator_callback, tensor_image, *args):
-    tensor_image_list = img_tensor_to_np(tensor_image)
-    out_list = []
-    out_info_list = []
-    for tensor_image in tensor_image_list:
-        call_result = annotator_callback(resize_image(HWC3(tensor_image)), *args)
-        H, W, C = tensor_image.shape
+    with _mutex:
+        tensor_image_list = img_tensor_to_np(tensor_image)
+        out_list = []
+        out_info_list = []
+        for tensor_image in tensor_image_list:
+            call_result = annotator_callback(resize_image(HWC3(tensor_image)), *args)
+            H, W, C = tensor_image.shape
+            if type(annotator_callback) is openpose.OpenposeDetector:
+                out_list.append(cv2.resize(HWC3(call_result[0]), (W, H), interpolation=cv2.INTER_AREA))
+                out_info_list.append(call_result[1])
+            elif type(annotator_callback) is midas.MidasDetector:
+                out_list.append(cv2.resize(HWC3(call_result[0]), (W, H), interpolation=cv2.INTER_AREA))
+                out_info_list.append(cv2.resize(HWC3(call_result[1]), (W, H), interpolation=cv2.INTER_AREA))
+            else:
+                out_list.append(cv2.resize(HWC3(call_result), (W, H), interpolation=cv2.INTER_AREA))
         if type(annotator_callback) is openpose.OpenposeDetector:
-            out_list.append(cv2.resize(HWC3(call_result[0]), (W, H), interpolation=cv2.INTER_AREA))
-            out_info_list.append(call_result[1])
+            return (out_list, out_info_list)
         elif type(annotator_callback) is midas.MidasDetector:
-            out_list.append(cv2.resize(HWC3(call_result[0]), (W, H), interpolation=cv2.INTER_AREA))
-            out_info_list.append(cv2.resize(HWC3(call_result[1]), (W, H), interpolation=cv2.INTER_AREA))
+            return (out_list, out_info_list)
         else:
-            out_list.append(cv2.resize(HWC3(call_result), (W, H), interpolation=cv2.INTER_AREA))
-    if type(annotator_callback) is openpose.OpenposeDetector:
-        return (out_list, out_info_list)
-    elif type(annotator_callback) is midas.MidasDetector:
-        return (out_list, out_info_list)
-    else:
-        return out_list
+            return out_list
 
 
 class Canny_Edge_Preprocessor:

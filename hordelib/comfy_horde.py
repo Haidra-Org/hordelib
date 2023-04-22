@@ -38,8 +38,6 @@ from comfy_extras.chainner_models import model_loading as _comfy_model_loading
 # isort: on
 
 __models_to_release = {}
-_controlnet_mutex = threading.Lock()
-_facefix_mutex = threading.Lock()
 
 
 def cleanup():
@@ -94,7 +92,7 @@ def unload_model_from_gpu(model):
 
 
 def is_model_in_use(model):
-    return _comfy_model_manager.model_in_use(model)
+    return _comfy_model_manager.is_model_in_use(model)
 
 
 def load_torch_file(filename):
@@ -185,8 +183,23 @@ class Comfy_Horde:
         "latent_upscale.height": (64, 8192),
     }
 
+    _property_mutex = threading.Lock()
+
+    # We maintain one "client_id" per thread
+    @property
+    def client_id(self):
+        with Comfy_Horde._property_mutex:
+            tid = threading.current_thread().ident
+            return self._client_id.get(tid)
+
+    @client_id.setter
+    def client_id(self, client_id):
+        with Comfy_Horde._property_mutex:
+            tid = threading.current_thread().ident
+            self._client_id[tid] = client_id
+
     def __init__(self) -> None:
-        self.client_id = None  # used for receiving comfyUI async events
+        self._client_id = {}
         self.pipelines = {}
         self.exit_time = 0
         # Set custom node path
@@ -411,16 +424,13 @@ class Comfy_Horde:
 
         # If we have a source image, use that rather than noise (i.e. img2img)
         # XXX This probably shouldn't be here. But for the moment, it works.
-        if "image_loader.image" in params:
+        if params.get("image_loader.image"):
             self.reconnect_input(pipeline, "sampler.latent_image", "vae_encode")
 
         # XXX This shouldn't be here either, but it's not clear to me yet where the
         # XXX correct place for dynamic connection of nodes is. Need to do a few more
         # XXX pipelines to see.
-        mutex = None
-        if "control_type" in params:
-            # FIXME Only allow one controlnet job at a time
-            mutex = _controlnet_mutex
+        if params.get("control_type"):
             # Inject control net model manager
             if "controlnet_model_loader.model_manager" not in params:
                 logger.debug("Injecting controlnet model manager")
@@ -457,19 +467,11 @@ class Comfy_Horde:
         if False:  # This isn't here Tazlin :)
             logger.error(pretty_pipeline)
 
-        # Last minute mutex setup
-        if pipeline_name == "image_facefix":
-            mutex = _facefix_mutex
-
         # The client_id parameter here is just so we receive comfy callbacks for debugging.
         # We pretend we are a web client and want async callbacks.
         stdio = OutputCollector()
         with contextlib.redirect_stdout(stdio), contextlib.redirect_stderr(stdio):
-            if mutex:
-                with mutex:
-                    inference.execute(pipeline, extra_data={"client_id": random.randint(0, sys.maxsize)})
-            else:
-                inference.execute(pipeline, extra_data={"client_id": random.randint(0, sys.maxsize)})
+            inference.execute(pipeline, extra_data={"client_id": random.randint(0, sys.maxsize)})
 
         stdio.replay()
 
