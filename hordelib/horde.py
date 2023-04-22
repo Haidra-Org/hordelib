@@ -1,12 +1,14 @@
 # horde.py
 # Main interface for the horde to this library.
-import contextlib
+import random
+import sys
 
 from loguru import logger
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
+from hordelib.utils.dynamicprompt import DynamicPromptParser
 
 
 class HordeLib:
@@ -113,8 +115,15 @@ class HordeLib:
         params = self._parameter_remap(payload)
 
         # XXX I think we need seed as an integer
-        with contextlib.suppress(ValueError):
+        try:
             params["sampler.seed"] = int(params["sampler.seed"])
+        except ValueError:
+            # Now what? Pick a random one I guess?
+            params["sampler.seed"] = random.randint(0, sys.maxsize)
+
+        # Process dynamic prompts
+        if new_prompt := DynamicPromptParser(params["sampler.seed"]).parse(payload.get("prompt", "")):
+            payload["prompt"] = new_prompt
 
         # karras flag determines which scheduler we use
         if payload.get("karras", False):
