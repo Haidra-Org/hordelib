@@ -148,7 +148,7 @@ class HordeLib:
         # Sampler remap
         sampler = HordeLib.SAMPLERS_MAP.get(params["sampler.sampler_name"], "unknown")
         if sampler == "unknown":
-            logger.error(f"Unknown sampler {params['sampler.sampler_name']} defaulting to euler")
+            logger.warning(f"Unknown sampler {params['sampler.sampler_name']} defaulting to euler")
             sampler = "euler"
         params["sampler.sampler_name"] = sampler
 
@@ -187,7 +187,7 @@ class HordeLib:
             # Determine the pre-processor that was requested
             pre_processor = HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(cnet)
             if not pre_processor:
-                logger.error("Unknown controlnet pre-processor type {cnet} defaulting to canny")
+                logger.warning("Unknown controlnet pre-processor type {cnet} defaulting to canny")
                 pre_processor = "canny"
 
             # The controlnet type becomes a direct parameter to the pipeline

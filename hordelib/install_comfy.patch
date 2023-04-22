@@ -520,7 +520,7 @@ index ed36442..cbcc135 100644
  
          return samples.to(torch.float32)
 diff --git a/comfy/sd.py b/comfy/sd.py
-index 9c632e2..21d5013 100644
+index 9c632e2..1b5d910 100644
 --- a/comfy/sd.py
 +++ b/comfy/sd.py
 @@ -1,6 +1,7 @@
@@ -548,7 +548,7 @@ index 9c632e2..21d5013 100644
              for k in p[1]:
                  v = p[1][k]
                  key = k
-@@ -415,34 +419,51 @@ class VAE:
+@@ -415,52 +419,72 @@ class VAE:
          return output
  
      def decode(self, samples_in):
@@ -619,22 +619,49 @@ index 9c632e2..21d5013 100644
  
      def encode(self, pixel_samples):
 -        model_management.unload_model()
+-        self.first_stage_model = self.first_stage_model.to(self.device)
+-        pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
+-        samples = self.first_stage_model.encode(2. * pixel_samples - 1.).sample() * self.scale_factor
+-        self.first_stage_model = self.first_stage_model.cpu()
+-        samples = samples.cpu()
+-        return samples
 +        #logger.warning("VAE.encode() would unload model")
 +        # model_management.unload_model()
-         self.first_stage_model = self.first_stage_model.to(self.device)
-         pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
-         samples = self.first_stage_model.encode(2. * pixel_samples - 1.).sample() * self.scale_factor
-@@ -451,7 +472,8 @@ class VAE:
-         return samples
++        with model_management.model_manager.sampler_mutex:
++            self.first_stage_model = self.first_stage_model.to(self.device)
++            pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
++            samples = self.first_stage_model.encode(2. * pixel_samples - 1.).sample() * self.scale_factor
++            self.first_stage_model = self.first_stage_model.cpu()
++            samples = samples.cpu()
++            return samples
  
      def encode_tiled(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
 -        model_management.unload_model()
-+        logger.encode_tiled("VAE.decode() would unload model")
+-        self.first_stage_model = self.first_stage_model.to(self.device)
+-        pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
+-        samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
+-        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4)
+-        samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4)
+-        samples /= 3.0
+-        self.first_stage_model = self.first_stage_model.cpu()
+-        samples = samples.cpu()
+-        return samples
++        #logger.warning("VAE.decode() would unload model")
 +        # model_management.unload_model()
-         self.first_stage_model = self.first_stage_model.to(self.device)
-         pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
-         samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
-@@ -568,8 +590,15 @@ class ControlNet:
++        with model_management.model_manager.sampler_mutex:
++            self.first_stage_model = self.first_stage_model.to(self.device)
++            pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
++            samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
++            samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x * 2, tile_y // 2, overlap, upscale_amount = (1/8), out_channels=4)
++            samples += utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x // 2, tile_y * 2, overlap, upscale_amount = (1/8), out_channels=4)
++            samples /= 3.0
++            self.first_stage_model = self.first_stage_model.cpu()
++            samples = samples.cpu()
++            return samples
+ 
+ def resize_image_to(tensor, target_latent_tensor, batched_number):
+     tensor = utils.common_upscale(tensor, target_latent_tensor.shape[3] * 8, target_latent_tensor.shape[2] * 8, 'nearest-exact', "center")
+@@ -568,8 +592,15 @@ class ControlNet:
          out.append(self.control_model)
          return out
  
@@ -651,7 +678,7 @@ index 9c632e2..21d5013 100644
      pth_key = 'control_model.input_blocks.1.1.transformer_blocks.0.attn2.to_k.weight'
      pth = False
      sd2 = False
-@@ -629,6 +658,7 @@ def load_controlnet(ckpt_path, model=None):
+@@ -629,6 +660,7 @@ def load_controlnet(ckpt_path, model=None):
              if model is not None:
                  m = model.patch_model()
                  model_sd = m.state_dict()
