@@ -42,10 +42,14 @@ jobs:
         python-version: "3.10"
 
     # Install build deps
+    # NOTE If any hordelib imports used by build_helper.py are changed, or the specific modules
+    # imported from hordelib depend on a package not included here, this will fail.
+    # See `build_helper.py` and `tests\meta\test_build_helper_import_check.py` for more information.
     - name: "🛠 Install pypa/build"
       if: ${{ steps.release.outputs.version != '' }}
       run: >-
         python -m pip install build typing-extensions loguru --user
+        
 
     - name: "✏️ Install changelog dependencies"
       if: ${{ steps.release.outputs.version != '' }}

@@ -5,6 +5,9 @@ import os
 import shutil
 import subprocess
 
+# NOTE The following imports should *exactly* match those in `tests/meta/test_build_helper.py`
+# If `tests/meta/test_build_helper.py`, fails, include the imports missing in `release.yaml`.
+# and update [testenv:test-build-helper] in `tox.ini`.
 from hordelib import install_comfy
 from hordelib.consts import COMFYUI_VERSION
 

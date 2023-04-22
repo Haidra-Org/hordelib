@@ -1,4 +1,6 @@
 """Home for the controller class ModelManager, and related meta information."""
+import copy
+
 import torch
 from loguru import logger
 
@@ -105,6 +107,12 @@ class ModelManager:
         # logger.initialise_voodoo()
         self.cuda_available = torch.cuda.is_available()
         """DEPRECATED: Use `torch.cuda.is_available()` instead."""
+
+    def get_model_copy(self, model_name, model_component=None):
+        if not model_component:
+            return copy.deepcopy(self.loaded_models[model_name])
+        else:
+            return copy.deepcopy(self.loaded_models[model_name][model_component])
 
     def init_model_managers(
         self,

@@ -1,7 +1,5 @@
-import time
 import typing
 
-from loguru import logger
 from typing_extensions import override
 
 from hordelib import comfy_horde
@@ -25,7 +23,4 @@ class CodeFormerModelManager(BaseModelManager):
         model_path = self.getFullModelPath(model_name)
         sd = comfy_horde.load_torch_file(model_path)
         out = comfy_horde.load_state_dict(sd).eval()
-
-        # FIXME This is a hack to force the model to the GPU which shouldn't be here
-        # FIXME but is here as our facefix plugin is a bit dodgy
-        return {"model": out.to(self.get_torch_device())}
+        return {"model": out}

@@ -34,9 +34,13 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Install tox and any other packages
         run: pip install --upgrade -r requirements.dev.txt
-      - name: Run lint/format check
+      - name: Run format check
+        run: tox -e format
+      - name: Run lint check
         run: tox -e lint-weak-check
-      - name: Run tox
+      - name: Check build_helper.py hordelib imports have no breaking dependency changes
+        run: tox -e test-build-helper
+      - name: Run unit tests
         run: tox -e tests
       - name: Run a direct run test
         run: python -m examples.run_upscale

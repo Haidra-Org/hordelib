@@ -1,5 +1,55 @@
-﻿diff --git a/comfy/model_management.py b/comfy/model_management.py
-index 76455e4..5f4daf8 100644
+﻿diff --git a/comfy/k_diffusion/sampling.py b/comfy/k_diffusion/sampling.py
+index c809d39..9c9f6b8 100644
+--- a/comfy/k_diffusion/sampling.py
++++ b/comfy/k_diffusion/sampling.py
+@@ -8,6 +8,8 @@ import torchsde
+ from tqdm.auto import trange, tqdm
+ 
+ from . import utils
++from loguru import logger
++import threading
+ 
+ 
+ def append_zero(x):
+@@ -584,24 +586,36 @@ def sample_dpmpp_sde(model, x, sigmas, extra_args=None, callback=None, disable=N
+ @torch.no_grad()
+ def sample_dpmpp_2m(model, x, sigmas, extra_args=None, callback=None, disable=None):
+     """DPM-Solver++(2M)."""
++    # logger.warning(f"Starting DPM-Solver++(2M) on model {id(model):x}")
+     extra_args = {} if extra_args is None else extra_args
+     s_in = x.new_ones([x.shape[0]])
+     sigma_fn = lambda t: t.neg().exp()
+     t_fn = lambda sigma: sigma.log().neg()
+     old_denoised = None
+ 
++    # logger.warning(f"Starting iterations of DPM-Solver++(2M) on model {id(model):x}")
+     for i in trange(len(sigmas) - 1, disable=disable):
++        # logger.warning(f"Starting iterations {i} on model {id(model):x}")
++        # logger.warning(f"denoise = {id(model):x}({id(x):x}, {id(sigmas):x} * {id(s_in)}, {id(extra_args)})")
+         denoised = model(x, sigmas[i] * s_in, **extra_args)
++        # logger.warning(f"  denoised on model {id(model):x}")
+         if callback is not None:
+             callback({'x': x, 'i': i, 'sigma': sigmas[i], 'sigma_hat': sigmas[i], 'denoised': denoised})
++        # logger.warning(f"  step 1 {id(model):x}")
+         t, t_next = t_fn(sigmas[i]), t_fn(sigmas[i + 1])
++        # logger.warning(f"  step 2 {id(model):x}")
+         h = t_next - t
++        # logger.warning(f"  step 3 {id(model):x}")
+         if old_denoised is None or sigmas[i + 1] == 0:
++            # logger.warning(f"  step 3a {id(model):x}")
+             x = (sigma_fn(t_next) / sigma_fn(t)) * x - (-h).expm1() * denoised
+         else:
++            # logger.warning(f"  step 3b {id(model):x}")
+             h_last = t - t_fn(sigmas[i - 1])
+             r = h_last / h
+             denoised_d = (1 + 1 / (2 * r)) * denoised - (1 / (2 * r)) * old_denoised
+             x = (sigma_fn(t_next) / sigma_fn(t)) * x - (-h).expm1() * denoised_d
++        # logger.warning(f"  step 4 end iteration {id(model):x}")
+         old_denoised = denoised
++    # logger.warning(f"Done DPM-Solver++(2M) on model {id(model):x}")
+     return x
+diff --git a/comfy/model_management.py b/comfy/model_management.py
+index 76455e4..44130b1 100644
 --- a/comfy/model_management.py
 +++ b/comfy/model_management.py
 @@ -1,6 +1,8 @@
@@ -11,7 +61,7 @@ index 76455e4..5f4daf8 100644
  
  class VRAMState(Enum):
      CPU = 0
-@@ -113,87 +115,145 @@ if args.cpu:
+@@ -113,87 +115,161 @@ if args.cpu:
  print(f"Set vram state to: {vram_state.name}")
  
  
@@ -127,7 +177,11 @@ index 76455e4..5f4daf8 100644
 +        with self._mutex:
 +            return self.current_loaded_models[:]
 +
-+    def model_in_use(self, model):
++    def set_model_in_use(self, model):
++        with self._mutex:
++            self.models_in_use.append(model)
++
++    def is_model_in_use(self, model):
 +        with self._mutex:
 +            return model in self.models_in_use
 +
@@ -150,6 +204,7 @@ index 76455e4..5f4daf8 100644
 +            model.model.cpu()
 +            model.unpatch_model()
 +            self.current_loaded_models.remove(model)
++            #logger.warning(f"Unload model {id(model):x}")
 +
 +    def done_with_model(self, model):
 +        with self._mutex:
@@ -158,8 +213,9 @@ index 76455e4..5f4daf8 100644
 +
 +    def load_model_gpu(self, model):
 +        global vram_state
-+
++        
 +        with self._mutex:
++            #logger.warning(f"load_model_gpu( {id(model):x} )")
 +
 +            # Don't run out of vram
 +            if self.current_loaded_models:
@@ -167,6 +223,7 @@ index 76455e4..5f4daf8 100644
 +                logger.debug(f"Free VRAM is: {freemem}MB ({len(self.current_loaded_models)} models loaded on GPU)")
 +                if freemem < (self.system_reserved_vram_mb + self.user_reserved_vram_mb):
 +                    # release the least used model
++                    #logger.warning("Will unload least used model")
 +                    self.unload_model(self.current_loaded_models[-1])
 +                    freemem = round(get_free_memory(get_torch_device()) / (1024 * 1024))
 +                    logger.debug(f"Unloaded a model, free VRAM is now: {freemem}MB ({len(self.current_loaded_models)} models loaded on GPU)")
@@ -174,14 +231,18 @@ index 76455e4..5f4daf8 100644
 +            if model in self.current_loaded_models:
 +                # Move this model to the top of the list
 +                self.current_loaded_models.insert(0, self.current_loaded_models.pop(self.current_loaded_models.index(model)))
++                #logger.warning(f"Model {id(model):x} already on GPU so not loading")
 +                return model
 +            
 +            try:
++                #logger.warning(f"Patching model {id(model):x}")
 +                real_model = model.patch_model()
 +            except Exception as e:
++                logger.error("Patching failed")
 +                model.unpatch_model()
 +                raise e
 +            
++            #logger.warning(f"Adding model to current_loaded_models {id(model):x}")
 +            self.current_loaded_models.insert(0, model)
 +
 +            if vram_state == VRAMState.CPU:
@@ -191,8 +252,11 @@ index 76455e4..5f4daf8 100644
 +                real_model.to(mps_device)
 +            elif vram_state == VRAMState.NORMAL_VRAM or vram_state == VRAMState.HIGH_VRAM:
 +                if model in self.models_accelerated:
++                    #logger.warning(f"removing model from accelerated list {id(model):x}")
 +                    self.models_accelerated.remove(model)
++                #logger.warning(f"Moving model {id(model):x} / {id(real_model):x} to device {get_torch_device()}")
 +                real_model.to(get_torch_device())
++                #logger.warning(f"Done moving model {id(model):x} / {id(real_model):x} to device {get_torch_device()}")
 +            else:
 +                if vram_state == VRAMState.NO_VRAM:
 +                    device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
@@ -204,8 +268,8 @@ index 76455e4..5f4daf8 100644
 +            return model
 +
 +    def load_controlnet_gpu(self, models):        
-+        global vram_state
 +        with self._mutex:
++            global vram_state
 +            if vram_state == VRAMState.CPU:
 +                return
 +
@@ -216,11 +280,12 @@ index 76455e4..5f4daf8 100644
 +            device = get_torch_device()
 +            for m in models:
 +                if m not in self.current_gpu_controlnets:
++                    #logger.warning(f"Loaded controlnet {id(m):x} to GPU")
 +                    self.current_gpu_controlnets.append(m.to(device))
 +
 +    def unload_controlnet_gpu(self, models):        
-+        global vram_state
 +        with self._mutex:
++            global vram_state
 +            if vram_state == VRAMState.CPU:
 +                return
 +
@@ -232,6 +297,7 @@ index 76455e4..5f4daf8 100644
 +                if m in self.current_gpu_controlnets:
 +                    m.cpu()
 +                    self.current_gpu_controlnets.remove(m)
++                    #logger.warning(f"Unloaded controlnet {id(m):x} from GPU")
 +                    del m
 +
 +model_manager = ModelManager()
@@ -239,29 +305,172 @@ index 76455e4..5f4daf8 100644
  
  def load_if_low_vram(model):
 diff --git a/comfy/samplers.py b/comfy/samplers.py
-index ed36442..6b10249 100644
+index ed36442..cbcc135 100644
 --- a/comfy/samplers.py
 +++ b/comfy/samplers.py
-@@ -497,51 +497,52 @@ class KSampler:
+@@ -6,6 +6,8 @@ import contextlib
+ from comfy import model_management
+ from .ldm.models.diffusion.ddim import DDIMSampler
+ from .ldm.modules.diffusionmodules.util import make_ddim_timesteps
++from loguru import logger
++import threading
+ 
+ class CFGDenoiser(torch.nn.Module):
+     def __init__(self, model):
+@@ -120,6 +122,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+             return out
+ 
+         def calc_cond_uncond_batch(model_function, cond, uncond, x_in, timestep, max_total_area, cond_concat_in, model_options):
++            # #logger.warning("calc_cond_uncond_batch()")
+             out_cond = torch.zeros_like(x_in)
+             out_count = torch.ones_like(x_in)/100000.0
+ 
+@@ -130,12 +133,14 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+             UNCOND = 1
+ 
+             to_run = []
++            # #logger.warning("calc_cond_uncond_batch() 1")
+             for x in cond:
+                 p = get_area_and_mult(x, x_in, cond_concat_in, timestep)
+                 if p is None:
+                     continue
+ 
+                 to_run += [(p, COND)]
++            #logger.warning("calc_cond_uncond_batch() 2")
+             for x in uncond:
+                 p = get_area_and_mult(x, x_in, cond_concat_in, timestep)
+                 if p is None:
+@@ -143,6 +148,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+ 
+                 to_run += [(p, UNCOND)]
+ 
++            #logger.warning("calc_cond_uncond_batch() 3")
+             while len(to_run) > 0:
+                 first = to_run[0]
+                 first_shape = first[0][0].shape
+@@ -151,15 +157,18 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+                     if can_concat_cond(to_run[x][0], first[0]):
+                         to_batch_temp += [x]
+ 
++                #logger.warning("calc_cond_uncond_batch() 3a")
+                 to_batch_temp.reverse()
+                 to_batch = to_batch_temp[:1]
+ 
++                #logger.warning("calc_cond_uncond_batch() 3b")
+                 for i in range(1, len(to_batch_temp) + 1):
+                     batch_amount = to_batch_temp[:len(to_batch_temp)//i]
+                     if (len(batch_amount) * first_shape[0] * first_shape[2] * first_shape[3] < max_total_area):
+                         to_batch = batch_amount
+                         break
+ 
++                #logger.warning("calc_cond_uncond_batch() 3c")
+                 input_x = []
+                 mult = []
+                 c = []
+@@ -186,12 +195,19 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+ 
+                 if 'transformer_options' in model_options:
+                     c['transformer_options'] = model_options['transformer_options']
++                #logger.warning(f"{threading.current_thread().ident}: calc_cond_uncond_batch() 3d")
++                #logger.warning(f"{threading.current_thread().ident}: {id(model_function):x}({id(input_x):x}, {id(timestep_):x}, {id(c):x})")
+ 
++                model_management.model_manager.sampler_mutex.acquire()
+                 output = model_function(input_x, timestep_, cond=c).chunk(batch_chunks)
++                #logger.warning(f"{threading.current_thread().ident}: calc_cond_uncond_batch() 3d del")
+                 del input_x
++                model_management.model_manager.sampler_mutex.release()
+ 
+-                model_management.throw_exception_if_processing_interrupted()
+-
++                #logger.warning(f"{threading.current_thread().ident}: calc_cond_uncond_batch() 3d(comfy)")
++                # model_management.throw_exception_if_processing_interrupted()
++                
++                #logger.warning("calc_cond_uncond_batch() 3f")
+                 for o in range(batch_chunks):
+                     if cond_or_uncond[o] == COND:
+                         out_cond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
+@@ -199,18 +215,26 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+                     else:
+                         out_uncond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
+                         out_uncond_count[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
++                #logger.warning("calc_cond_uncond_batch() 3g")
+                 del mult
++                #logger.warning("calc_cond_uncond_batch() 3h")
++
+ 
++            #logger.warning("calc_cond_uncond_batch() 4")
+             out_cond /= out_count
+             del out_count
++            #logger.warning("calc_cond_uncond_batch() 5")
+             out_uncond /= out_uncond_count
+             del out_uncond_count
++            #logger.warning("calc_cond_uncond_batch() 6")
+ 
+             return out_cond, out_uncond
+ 
+-
++        #logger.warning("Entering main shared sampling function")
+         max_total_area = model_management.maximum_batch_area()
++        #logger.warning("Entering main shared sampling function 2")
+         cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
++        #logger.warning("Exiting main shared sampling function")
+         return uncond + (cond - uncond) * cond_scale
+ 
+ 
+@@ -440,12 +464,14 @@ class KSampler:
+         sigmas = self.sigmas
+         sigma_min = self.sigma_min
+ 
++        #logger.warning("sampler step 1")
+         if last_step is not None and last_step < (len(sigmas) - 1):
+             sigma_min = sigmas[last_step]
+             sigmas = sigmas[:last_step + 1]
+             if force_full_denoise:
+                 sigmas[-1] = 0
+ 
++        #logger.warning("sampler step 2")
+         if start_step is not None:
+             if start_step < (len(sigmas) - 1):
+                 sigmas = sigmas[start_step:]
+@@ -455,6 +481,7 @@ class KSampler:
+                 else:
+                     return torch.zeros_like(noise)
+ 
++        #logger.warning("sampler step 3")
+         positive = positive[:]
+         negative = negative[:]
+         #make sure each cond area has an opposite one with the same area
+@@ -463,13 +490,16 @@ class KSampler:
+         for c in negative:
+             create_cond_with_same_area_if_none(positive, c)
+ 
++        #logger.warning("sampler step 4")
+         apply_control_net_to_equal_area(positive, negative)
+ 
++        #logger.warning("sampler step 5")
+         if self.model.model.diffusion_model.dtype == torch.float16:
+             precision_scope = torch.autocast
+         else:
+             precision_scope = contextlib.nullcontext
+ 
++        #logger.warning("sampler step 6")
+         if hasattr(self.model, 'noise_augmentor'): #unclip
+             positive = encode_adm(self.model.noise_augmentor, positive, noise.shape[0], self.device)
+             negative = encode_adm(self.model.noise_augmentor, negative, noise.shape[0], self.device)
+@@ -497,7 +527,9 @@ class KSampler:
          else:
              max_denoise = True
  
--        with precision_scope(model_management.get_autocast_device(self.device)):
--            if self.sampler == "uni_pc":
--                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask)
--            elif self.sampler == "uni_pc_bh2":
--                samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, variant='bh2')
--            elif self.sampler == "ddim":
--                timesteps = []
--                for s in range(sigmas.shape[0]):
--                    timesteps.insert(0, self.model_wrap.sigma_to_t(sigmas[s]))
--                noise_mask = None
--                if denoise_mask is not None:
--                    noise_mask = 1.0 - denoise_mask
--                sampler = DDIMSampler(self.model, device=self.device)
--                sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
--                z_enc = sampler.stochastic_encode(latent_image, torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(self.device), noise=noise, max_denoise=max_denoise)
--                samples, _ = sampler.sample_custom(ddim_timesteps=timesteps,
++        #logger.warning("sampler step 7")
+         with precision_scope(model_management.get_autocast_device(self.device)):
++            #logger.warning("sampler step 7a")
+             if self.sampler == "uni_pc":
+                 samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask)
+             elif self.sampler == "uni_pc_bh2":
+@@ -513,22 +545,23 @@ class KSampler:
+                 sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
+                 z_enc = sampler.stochastic_encode(latent_image, torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(self.device), noise=noise, max_denoise=max_denoise)
+                 samples, _ = sampler.sample_custom(ddim_timesteps=timesteps,
 -                                                     conditioning=positive,
 -                                                     batch_size=noise.shape[0],
 -                                                     shape=noise.shape[1:],
@@ -276,71 +485,42 @@ index ed36442..6b10249 100644
 -                                                     mask=noise_mask,
 -                                                     to_zero=sigmas[-1]==0,
 -                                                     end_step=sigmas.shape[0] - 1)
--
--            else:
--                extra_args["denoise_mask"] = denoise_mask
--                self.model_k.latent_image = latent_image
--                self.model_k.noise = noise
-+        with model_management.model_manager.sampler_mutex:
-+            with precision_scope(model_management.get_autocast_device(self.device)):
-+                if self.sampler == "uni_pc":
-+                    samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask)
-+                elif self.sampler == "uni_pc_bh2":
-+                    samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask, variant='bh2')
-+                elif self.sampler == "ddim":
-+                    timesteps = []
-+                    for s in range(sigmas.shape[0]):
-+                        timesteps.insert(0, self.model_wrap.sigma_to_t(sigmas[s]))
-+                    noise_mask = None
-+                    if denoise_mask is not None:
-+                        noise_mask = 1.0 - denoise_mask
-+                    sampler = DDIMSampler(self.model, device=self.device)
-+                    sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
-+                    z_enc = sampler.stochastic_encode(latent_image, torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(self.device), noise=noise, max_denoise=max_denoise)
-+                    samples, _ = sampler.sample_custom(ddim_timesteps=timesteps,
-+                                                        conditioning=positive,
-+                                                        batch_size=noise.shape[0],
-+                                                        shape=noise.shape[1:],
-+                                                        verbose=False,
-+                                                        unconditional_guidance_scale=cfg,
-+                                                        unconditional_conditioning=negative,
-+                                                        eta=0.0,
-+                                                        x_T=z_enc,
-+                                                        x0=latent_image,
-+                                                        denoise_function=sampling_function,
-+                                                        extra_args=extra_args,
-+                                                        mask=noise_mask,
-+                                                        to_zero=sigmas[-1]==0,
-+                                                        end_step=sigmas.shape[0] - 1)
++                                                    conditioning=positive,
++                                                    batch_size=noise.shape[0],
++                                                    shape=noise.shape[1:],
++                                                    verbose=False,
++                                                    unconditional_guidance_scale=cfg,
++                                                    unconditional_conditioning=negative,
++                                                    eta=0.0,
++                                                    x_T=z_enc,
++                                                    x0=latent_image,
++                                                    denoise_function=sampling_function,
++                                                    extra_args=extra_args,
++                                                    mask=noise_mask,
++                                                    to_zero=sigmas[-1]==0,
++                                                    end_step=sigmas.shape[0] - 1)
  
--                noise = noise * sigmas[0]
--
--                if latent_image is not None:
--                    noise += latent_image
--                if self.sampler == "dpm_fast":
--                    samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args=extra_args)
--                elif self.sampler == "dpm_adaptive":
--                    samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args)
+             else:
++                #logger.warning("sampler step 7b")
+                 extra_args["denoise_mask"] = denoise_mask
+                 self.model_k.latent_image = latent_image
+                 self.model_k.noise = noise
+@@ -538,10 +571,13 @@ class KSampler:
+                 if latent_image is not None:
+                     noise += latent_image
+                 if self.sampler == "dpm_fast":
++                    #logger.warning("sampler sample_dpm_fast")
+                     samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args=extra_args)
+                 elif self.sampler == "dpm_adaptive":
++                    #logger.warning("sampler sample_dpm_adaptive")
+                     samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args)
                  else:
--                    samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args)
-+                    extra_args["denoise_mask"] = denoise_mask
-+                    self.model_k.latent_image = latent_image
-+                    self.model_k.noise = noise
-+
-+                    noise = noise * sigmas[0]
-+
-+                    if latent_image is not None:
-+                        noise += latent_image
-+                    if self.sampler == "dpm_fast":
-+                        samples = k_diffusion_sampling.sample_dpm_fast(self.model_k, noise, sigma_min, sigmas[0], self.steps, extra_args=extra_args)
-+                    elif self.sampler == "dpm_adaptive":
-+                        samples = k_diffusion_sampling.sample_dpm_adaptive(self.model_k, noise, sigma_min, sigmas[0], extra_args=extra_args)
-+                    else:
-+                        samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args)
++                    #logger.warning("sampler: "+"sample_{}".format(self.sampler))
+                     samples = getattr(k_diffusion_sampling, "sample_{}".format(self.sampler))(self.model_k, noise, sigmas, extra_args=extra_args)
  
          return samples.to(torch.float32)
 diff --git a/comfy/sd.py b/comfy/sd.py
-index 9c632e2..5b82f11 100644
+index 9c632e2..21d5013 100644
 --- a/comfy/sd.py
 +++ b/comfy/sd.py
 @@ -1,6 +1,7 @@
@@ -351,56 +531,176 @@ index 9c632e2..5b82f11 100644
  
  import sd1_clip
  import sd2_clip
-@@ -415,7 +416,6 @@ class VAE:
+@@ -13,6 +14,8 @@ from .t2i_adapter import adapter
+ 
+ from . import utils
+ from . import clip_vision
++from loguru import logger
++import threading
+ 
+ def load_model_weights(model, sd, verbose=False, load_state_dict_to=[]):
+     m, u = model.load_state_dict(sd, strict=False)
+@@ -265,6 +268,7 @@ class ModelPatcher:
+     def patch_model(self):
+         model_sd = self.model.state_dict()
+         for p in self.patches:
++            #logger.warning(f"Patching model {id(self):x} {len(self.patches)} patches")
+             for k in p[1]:
+                 v = p[1][k]
+                 key = k
+@@ -415,34 +419,51 @@ class VAE:
          return output
  
      def decode(self, samples_in):
 -        model_management.unload_model()
-         self.first_stage_model = self.first_stage_model.to(self.device)
-         try:
-             free_memory = model_management.get_free_memory(self.device)
-@@ -435,14 +435,12 @@ class VAE:
-         return pixel_samples
+-        self.first_stage_model = self.first_stage_model.to(self.device)
+-        try:
+-            free_memory = model_management.get_free_memory(self.device)
+-            batch_number = int((free_memory * 0.7) / (2562 * samples_in.shape[2] * samples_in.shape[3] * 64))
+-            batch_number = max(1, batch_number)
+-
+-            pixel_samples = torch.empty((samples_in.shape[0], 3, round(samples_in.shape[2] * 8), round(samples_in.shape[3] * 8)), device="cpu")
+-            for x in range(0, samples_in.shape[0], batch_number):
+-                samples = samples_in[x:x+batch_number].to(self.device)
+-                pixel_samples[x:x+batch_number] = torch.clamp((self.first_stage_model.decode(1. / self.scale_factor * samples) + 1.0) / 2.0, min=0.0, max=1.0).cpu()
+-        except model_management.OOM_EXCEPTION as e:
+-            print("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
+-            pixel_samples = self.decode_tiled_(samples_in)
+-
+-        self.first_stage_model = self.first_stage_model.cpu()
+-        pixel_samples = pixel_samples.cpu().movedim(1,-1)
+-        return pixel_samples
++        with model_management.model_manager.sampler_mutex:
++            tid = threading.current_thread().ident
++            #logger.warning(f"VAE.decode({tid}) would unload model")
++            # model_management.unload_model()
++
++            #logger.warning(f"VAE.decode({tid}) first_stage_model to device {self.device}")
++            self.first_stage_model = self.first_stage_model.to(self.device)
++            try:
++                #logger.warning(f"VAE.decode({tid}) get free memory")
++                free_memory = model_management.get_free_memory(self.device)
++                batch_number = int((free_memory * 0.7) / (2562 * samples_in.shape[2] * samples_in.shape[3] * 64))
++                batch_number = max(1, batch_number)
++                #logger.warning(f"VAE.decode({tid}) {batch_number} batches")
++
++                #logger.warning(f"VAE.decode({tid}) torch.empty")
++                pixel_samples = torch.empty((samples_in.shape[0], 3, round(samples_in.shape[2] * 8), round(samples_in.shape[3] * 8)), device="cpu")
++                #logger.warning(f"VAE.decode({tid}) starting iterations")
++                for x in range(0, samples_in.shape[0], batch_number):
++                    samples = samples_in[x:x+batch_number].to(self.device)
++                    #logger.warning(f"VAE.decode({tid}) got samples")
++                    pixel_samples[x:x+batch_number] = torch.clamp((self.first_stage_model.decode(1. / self.scale_factor * samples) + 1.0) / 2.0, min=0.0, max=1.0).cpu()
++                    #logger.warning(f"VAE.decode({tid}) clamped")
++            except model_management.OOM_EXCEPTION as e:
++                print("Warning: Ran out of memory when regular VAE decoding, retrying with tiled VAE decoding.")
++                pixel_samples = self.decode_tiled_(samples_in)
++
++            #logger.warning(f"VAE.decode({tid}) moving to cpu")
++            self.first_stage_model = self.first_stage_model.cpu()
++            #logger.warning(f"VAE.decode({tid}) calculating pixels")
++            pixel_samples = pixel_samples.cpu().movedim(1,-1)
++            #logger.warning(f"VAE.decode({tid}) returning")
++            return pixel_samples
  
      def decode_tiled(self, samples, tile_x=64, tile_y=64, overlap = 16):
 -        model_management.unload_model()
-         self.first_stage_model = self.first_stage_model.to(self.device)
-         output = self.decode_tiled_(samples, tile_x, tile_y, overlap)
-         self.first_stage_model = self.first_stage_model.cpu()
-         return output.movedim(1,-1)
+-        self.first_stage_model = self.first_stage_model.to(self.device)
+-        output = self.decode_tiled_(samples, tile_x, tile_y, overlap)
+-        self.first_stage_model = self.first_stage_model.cpu()
+-        return output.movedim(1,-1)
++        with model_management.model_manager.sampler_mutex:
++            #logger.warning("VAE.decode_tiled() would unload model")
++            # model_management.unload_model()
++            self.first_stage_model = self.first_stage_model.to(self.device)
++            output = self.decode_tiled_(samples, tile_x, tile_y, overlap)
++            self.first_stage_model = self.first_stage_model.cpu()
++            return output.movedim(1,-1)
  
      def encode(self, pixel_samples):
 -        model_management.unload_model()
++        #logger.warning("VAE.encode() would unload model")
++        # model_management.unload_model()
          self.first_stage_model = self.first_stage_model.to(self.device)
          pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
          samples = self.first_stage_model.encode(2. * pixel_samples - 1.).sample() * self.scale_factor
-@@ -451,7 +449,6 @@ class VAE:
+@@ -451,7 +472,8 @@ class VAE:
          return samples
  
      def encode_tiled(self, pixel_samples, tile_x=512, tile_y=512, overlap = 64):
 -        model_management.unload_model()
++        logger.encode_tiled("VAE.decode() would unload model")
++        # model_management.unload_model()
          self.first_stage_model = self.first_stage_model.to(self.device)
          pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
          samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
-@@ -568,8 +565,17 @@ class ControlNet:
+@@ -568,8 +590,15 @@ class ControlNet:
          out.append(self.control_model)
          return out
  
 +_controlnet_models = {}
-+_mutex = threading.Lock()
 +
  def load_controlnet(ckpt_path, model=None):
 -    controlnet_data = utils.load_torch_file(ckpt_path)
-+    with _mutex:
-+        if ckpt_path in _controlnet_models:
-+            controlnet_data = copy.deepcopy(_controlnet_models.get(ckpt_path))
-+        else:
-+            controlnet_data = utils.load_torch_file(ckpt_path)
-+            _controlnet_models[ckpt_path] = copy.deepcopy(controlnet_data)
++    if ckpt_path in _controlnet_models:
++        controlnet_data = copy.deepcopy(_controlnet_models.get(ckpt_path))
++    else:
++        controlnet_data = utils.load_torch_file(ckpt_path)
++        _controlnet_models[ckpt_path] = copy.deepcopy(controlnet_data)
 +
      pth_key = 'control_model.input_blocks.1.1.transformer_blocks.0.attn2.to_k.weight'
      pth = False
      sd2 = False
+@@ -629,6 +658,7 @@ def load_controlnet(ckpt_path, model=None):
+             if model is not None:
+                 m = model.patch_model()
+                 model_sd = m.state_dict()
++                #logger.warning(f"Modifying model {id(model):x} with controlnet {id(controlnet_data):x}")
+                 for x in controlnet_data:
+                     c_m = "control_model."
+                     if x.startswith(c_m):
+diff --git a/comfy_extras/nodes_upscale_model.py b/comfy_extras/nodes_upscale_model.py
+index d875469..08e54ad 100644
+--- a/comfy_extras/nodes_upscale_model.py
++++ b/comfy_extras/nodes_upscale_model.py
+@@ -4,6 +4,7 @@ from comfy import model_management
+ import torch
+ import comfy.utils
+ import folder_paths
++import threading
+ 
+ class UpscaleModelLoader:
+     @classmethod
+@@ -23,6 +24,7 @@ class UpscaleModelLoader:
+ 
+ 
+ class ImageUpscaleWithModel:
++    _mutex = threading.Lock()
+     @classmethod
+     def INPUT_TYPES(s):
+         return {"required": { "upscale_model": ("UPSCALE_MODEL",),
+@@ -34,13 +36,14 @@ class ImageUpscaleWithModel:
+     CATEGORY = "image/upscaling"
+ 
+     def upscale(self, upscale_model, image):
+-        device = model_management.get_torch_device()
+-        upscale_model.to(device)
+-        in_img = image.movedim(-1,-3).to(device)
+-        s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=128 + 64, tile_y=128 + 64, overlap = 8, upscale_amount=upscale_model.scale)
+-        upscale_model.cpu()
+-        s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
+-        return (s,)
++        with ImageUpscaleWithModel._mutex:
++            device = model_management.get_torch_device()
++            upscale_model.to(device)
++            in_img = image.movedim(-1,-3).to(device)
++            s = comfy.utils.tiled_scale(in_img, lambda a: upscale_model(a), tile_x=128 + 64, tile_y=128 + 64, overlap = 8, upscale_amount=upscale_model.scale)
++            upscale_model.cpu()
++            s = torch.clamp(s.movedim(-3,-1), min=0, max=1.0)
++            return (s,)
+ 
+ NODE_CLASS_MAPPINGS = {
+     "UpscaleModelLoader": UpscaleModelLoader,
 diff --git a/execution.py b/execution.py
 index 73be6db..b637eb9 100644
 --- a/execution.py
@@ -441,7 +741,7 @@ index 73be6db..b637eb9 100644
  
  
 diff --git a/main.py b/main.py
-index 02c700e..27a3324 100644
+index 02c700e..507d1db 100644
 --- a/main.py
 +++ b/main.py
 @@ -25,7 +25,7 @@ import yaml
@@ -453,42 +753,80 @@ index 02c700e..27a3324 100644
  
  
  def prompt_worker(q, server):
-@@ -90,6 +90,7 @@ if __name__ == "__main__":
-             load_extra_path_config(config_path)
- 
-     init_custom_nodes()
-+    load_custom_nodes(os.getenv("AIWORKER_CUSTOM_NODES"))
-     server.add_routes()
-     hijack_progress(server)
- 
 diff --git a/nodes.py b/nodes.py
-index c775da0..013db3d 100644
+index c775da0..3d08090 100644
 --- a/nodes.py
 +++ b/nodes.py
-@@ -696,7 +696,8 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
+@@ -26,6 +26,11 @@ import importlib
+ 
+ import folder_paths
+ 
++import pickle
++import time
++from loguru import logger
++import threading
++
+ def before_node_execution():
+     comfy.model_management.throw_exception_if_processing_interrupted()
+ 
+@@ -676,7 +681,6 @@ class SetLatentNoiseMask:
+         s["noise_mask"] = mask
+         return (s,)
+ 
+-
+ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
+     latent_image = latent["samples"]
+     noise_mask = None
+@@ -695,16 +699,19 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
+         noise_mask = torch.cat([noise_mask] * noise.shape[0])
          noise_mask = noise_mask.to(device)
  
-     real_model = None
+-    real_model = None
 -    comfy.model_management.load_model_gpu(model)
-+    comfy.model_management.model_manager.model_in_use(model)
++    comfy.model_management.model_manager.set_model_in_use(model)
 +    comfy.model_management.model_manager.load_model_gpu(model)
      real_model = model.model
  
++    #logger.warning(f"Moving noise {id(noise):x} to device {device}")
      noise = noise.to(device)
-@@ -726,7 +727,7 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
++    #logger.warning(f"Moving latest image {id(latent_image):x} to device {device}")
+     latent_image = latent_image.to(device)
+ 
+     positive_copy = []
+     negative_copy = []
+ 
++    #logger.warning(f"Assembling control nets")
+     control_nets = []
+     for p in positive:
+         t = p[0]
+@@ -726,21 +733,35 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
      control_net_models = []
      for x in control_nets:
          control_net_models += x.get_control_models()
 -    comfy.model_management.load_controlnet_gpu(control_net_models)
-+    comfy.model_management.model_manager.load_controlnet_gpu(control_net_models)
++    if control_net_models:
++        #logger.warning(f"Model {id(model):x} has {len(control_net_models)} control nets")
++        comfy.model_management.model_manager.load_controlnet_gpu(control_net_models)
++        comfy.model_management.model_manager.sampler_mutex.acquire()
  
      if sampler_name in comfy.samplers.KSampler.SAMPLERS:
++        #logger.warning(f"Creating KSampler for real model {id(real_model):x}")
          sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
-@@ -736,11 +737,13 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
+     else:
+         #other samplers
+         pass
  
++    #logger.warning(f"Sampling")
      samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
++    #logger.warning("Done sampling")
      samples = samples.cpu()
-+    comfy.model_management.model_manager.unload_controlnet_gpu(control_net_models)
++    #logger.warning("Moved samples to cpu")
++    if control_net_models:
++        # XXX force unload models for controlnet
++        #logger.warning("Forcing GPU unload of controlnet models")
++        comfy.model_management.model_manager.unload_controlnet_gpu(control_net_models)
++        comfy.model_management.model_manager.unload_model(model)
++        comfy.model_management.model_manager.sampler_mutex.release()
      for c in control_nets:
          c.cleanup()
  
@@ -498,3 +836,11 @@ index c775da0..013db3d 100644
      return (out, )
  
  class KSampler:
+@@ -903,6 +924,7 @@ class LoadImage:
+     def load_image(self, image):
+         input_dir = folder_paths.get_input_directory()
+         image_path = os.path.join(input_dir, image)
++        #logger.warning(f"Loading image {image_path}")
+         i = Image.open(image_path)
+         image = i.convert("RGB")
+         image = np.array(image).astype(np.float32) / 255.0

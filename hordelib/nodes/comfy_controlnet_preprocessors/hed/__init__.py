@@ -3,7 +3,8 @@ import cv2
 import os
 import torch
 from einops import rearrange
-from comfy_controlnet_preprocessors.util import annotator_ckpts_path
+
+import builtins
 import model_management
 
 
@@ -15,7 +16,7 @@ class Network(torch.nn.Module):
             torch.nn.Conv2d(in_channels=3, out_channels=64, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(inplace=False),
             torch.nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(inplace=False)
+            torch.nn.ReLU(inplace=False),
         )
 
         self.netVggTwo = torch.nn.Sequential(
@@ -23,7 +24,7 @@ class Network(torch.nn.Module):
             torch.nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(inplace=False),
             torch.nn.Conv2d(in_channels=128, out_channels=128, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(inplace=False)
+            torch.nn.ReLU(inplace=False),
         )
 
         self.netVggThr = torch.nn.Sequential(
@@ -33,7 +34,7 @@ class Network(torch.nn.Module):
             torch.nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(inplace=False),
             torch.nn.Conv2d(in_channels=256, out_channels=256, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(inplace=False)
+            torch.nn.ReLU(inplace=False),
         )
 
         self.netVggFou = torch.nn.Sequential(
@@ -43,7 +44,7 @@ class Network(torch.nn.Module):
             torch.nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(inplace=False),
             torch.nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(inplace=False)
+            torch.nn.ReLU(inplace=False),
         )
 
         self.netVggFiv = torch.nn.Sequential(
@@ -53,7 +54,7 @@ class Network(torch.nn.Module):
             torch.nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
             torch.nn.ReLU(inplace=False),
             torch.nn.Conv2d(in_channels=512, out_channels=512, kernel_size=3, stride=1, padding=1),
-            torch.nn.ReLU(inplace=False)
+            torch.nn.ReLU(inplace=False),
         )
 
         self.netScoreOne = torch.nn.Conv2d(in_channels=64, out_channels=1, kernel_size=1, stride=1, padding=0)
@@ -63,15 +64,18 @@ class Network(torch.nn.Module):
         self.netScoreFiv = torch.nn.Conv2d(in_channels=512, out_channels=1, kernel_size=1, stride=1, padding=0)
 
         self.netCombine = torch.nn.Sequential(
-            torch.nn.Conv2d(in_channels=5, out_channels=1, kernel_size=1, stride=1, padding=0),
-            torch.nn.Sigmoid()
+            torch.nn.Conv2d(in_channels=5, out_channels=1, kernel_size=1, stride=1, padding=0), torch.nn.Sigmoid()
         )
 
-        self.load_state_dict({strKey.replace('module', 'net'): tenWeight for strKey, tenWeight in torch.load(model_path).items()})
+        self.load_state_dict(
+            {strKey.replace("module", "net"): tenWeight for strKey, tenWeight in torch.load(model_path).items()}
+        )
 
     def forward(self, tenInput):
         tenInput = tenInput * 255.0
-        tenInput = tenInput - torch.tensor(data=[104.00698793, 116.66876762, 122.67891434], dtype=tenInput.dtype, device=tenInput.device).view(1, 3, 1, 1)
+        tenInput = tenInput - torch.tensor(
+            data=[104.00698793, 116.66876762, 122.67891434], dtype=tenInput.dtype, device=tenInput.device
+        ).view(1, 3, 1, 1)
 
         tenVggOne = self.netVggOne(tenInput)
         tenVggTwo = self.netVggTwo(tenVggOne)
@@ -85,22 +89,35 @@ class Network(torch.nn.Module):
         tenScoreFou = self.netScoreFou(tenVggFou)
         tenScoreFiv = self.netScoreFiv(tenVggFiv)
 
-        tenScoreOne = torch.nn.functional.interpolate(input=tenScoreOne, size=(tenInput.shape[2], tenInput.shape[3]), mode='bilinear', align_corners=False)
-        tenScoreTwo = torch.nn.functional.interpolate(input=tenScoreTwo, size=(tenInput.shape[2], tenInput.shape[3]), mode='bilinear', align_corners=False)
-        tenScoreThr = torch.nn.functional.interpolate(input=tenScoreThr, size=(tenInput.shape[2], tenInput.shape[3]), mode='bilinear', align_corners=False)
-        tenScoreFou = torch.nn.functional.interpolate(input=tenScoreFou, size=(tenInput.shape[2], tenInput.shape[3]), mode='bilinear', align_corners=False)
-        tenScoreFiv = torch.nn.functional.interpolate(input=tenScoreFiv, size=(tenInput.shape[2], tenInput.shape[3]), mode='bilinear', align_corners=False)
+        tenScoreOne = torch.nn.functional.interpolate(
+            input=tenScoreOne, size=(tenInput.shape[2], tenInput.shape[3]), mode="bilinear", align_corners=False
+        )
+        tenScoreTwo = torch.nn.functional.interpolate(
+            input=tenScoreTwo, size=(tenInput.shape[2], tenInput.shape[3]), mode="bilinear", align_corners=False
+        )
+        tenScoreThr = torch.nn.functional.interpolate(
+            input=tenScoreThr, size=(tenInput.shape[2], tenInput.shape[3]), mode="bilinear", align_corners=False
+        )
+        tenScoreFou = torch.nn.functional.interpolate(
+            input=tenScoreFou, size=(tenInput.shape[2], tenInput.shape[3]), mode="bilinear", align_corners=False
+        )
+        tenScoreFiv = torch.nn.functional.interpolate(
+            input=tenScoreFiv, size=(tenInput.shape[2], tenInput.shape[3]), mode="bilinear", align_corners=False
+        )
 
-        return self.netCombine(torch.cat([ tenScoreOne, tenScoreTwo, tenScoreThr, tenScoreFou, tenScoreFiv ], 1))
+        return self.netCombine(torch.cat([tenScoreOne, tenScoreTwo, tenScoreThr, tenScoreFou, tenScoreFiv], 1))
 
 
 class HEDdetector:
     def __init__(self):
-        remote_model_path = "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/network-bsds500.pth"
-        modelpath = os.path.join(annotator_ckpts_path, "network-bsds500.pth")
+        remote_model_path = (
+            "https://huggingface.co/lllyasviel/ControlNet/resolve/main/annotator/ckpts/network-bsds500.pth"
+        )
+        modelpath = os.path.join(builtins.annotator_ckpts_path, "network-bsds500.pth")
         if not os.path.exists(modelpath):
             from comfy_controlnet_preprocessors.util import load_file_from_url
-            load_file_from_url(remote_model_path, model_dir=annotator_ckpts_path)
+
+            load_file_from_url(remote_model_path, model_dir=builtins.annotator_ckpts_path)
         self.netNetwork = Network(modelpath).to(model_management.get_torch_device()).eval()
 
     def __call__(self, input_image):
@@ -109,7 +126,7 @@ class HEDdetector:
         with torch.no_grad():
             image_hed = torch.from_numpy(input_image).float().to(model_management.get_torch_device())
             image_hed = image_hed / 255.0
-            image_hed = rearrange(image_hed, 'h w c -> 1 c h w')
+            image_hed = rearrange(image_hed, "h w c -> 1 c h w")
             edge = self.netNetwork(image_hed)[0]
             edge = (edge.cpu().numpy() * 255.0).clip(0, 255).astype(np.uint8)
             return edge[0]
