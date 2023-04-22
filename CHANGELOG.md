@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v0.10.1](https://github.com/jug-dev/hordelib/compare/v0.10.0...v0.10.1)
+
+22 April 2023
+
+- fix: img2img passes 5 thread stress test [`#163`](https://github.com/jug-dev/hordelib/pull/163) (Jug)
+- fix: unknown samplers and cnets changed to warnings [`c98c74b`](https://github.com/jug-dev/hordelib/commit/c98c74ba497555770b8a685bd8fbc356216fce90)  (Jug)
+
 ## [v0.10.0](https://github.com/jug-dev/hordelib/compare/v0.9.5...v0.10.0)
 
 22 April 2023
