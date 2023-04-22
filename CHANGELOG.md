@@ -1,5 +1,15 @@
 ## hordelib Changelog
 
+## [v0.10.0](https://github.com/jug-dev/hordelib/compare/v0.9.5...v0.10.0)
+
+22 April 2023
+
+- feat: add dynamic prompt support [`#161`](https://github.com/jug-dev/hordelib/pull/161) (Jug)
+- fix: stability fixes [`#159`](https://github.com/jug-dev/hordelib/pull/159) (Jug)
+- fix: Moves ControlNet Annotators to `AIWORKER_CACHE_HOME` [`e0a7db7`](https://github.com/jug-dev/hordelib/commit/e0a7db7e89dc91016dd5abba2e94ccf3767c65d3)  (tazlin)
+- refactor: cleans up the preload annotators functions [`6b8f9c4`](https://github.com/jug-dev/hordelib/commit/6b8f9c453ef38af3439a6bf6ca2b99de649fc6c6)  (tazlin)
+- feat: Preload controlnet annotators [`6d16515`](https://github.com/jug-dev/hordelib/commit/6d1651535915022cac8e7d218ca4d5081d1d2241)  (tazlin)
+
 ## [v0.9.5](https://github.com/jug-dev/hordelib/compare/v0.9.4...v0.9.5)
 
 20 April 2023
