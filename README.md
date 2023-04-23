@@ -155,7 +155,18 @@ Contains the above pipeline JSON files converted to the format required by the b
 
 ### Running ComfyUI Web Application
 
-`tox -e comfyui`
+In this example we install the dependencies in the OS default environment. When using the git version of `hordelib`, from the project root:
+
+`pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu118 --upgrade`
+
+Ensure ComfyUI is installed and patched, one way is running the tests:
+
+`tox`
+
+From then on to run ComfyUI:
+
+`cd ComfyUI`
+`python main.py`
 
 Then open a browser at: http://127.0.0.1:8188/
 

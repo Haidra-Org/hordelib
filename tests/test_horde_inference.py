@@ -121,8 +121,8 @@ class TestHordeInference:
             "cfg_scale": 7.5,
             "denoising_strength": 1.0,
             "seed": 123456789,
-            "height": 512,
-            "width": 512,
+            "height": 512.1,  # test param fix
+            "width": 512.1,  # test param fix
             "karras": True,
             "tiling": False,
             "hires_fix": False,

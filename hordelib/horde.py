@@ -95,6 +95,24 @@ class HordeLib:
             self.generator = Comfy_Horde()
             self.__class__._initialised = True
 
+    def _check_payload(self, payload):
+        # valid width
+        if payload.get("width"):
+            try:
+                payload["width"] = int(payload.get("width"))
+                if payload["width"] < 64:
+                    payload["width"] = 64
+            except ValueError:
+                payload["width"] = 512
+        # valid height
+        if payload.get("height"):
+            try:
+                payload["height"] = int(payload.get("height"))
+                if payload["height"] < 64:
+                    payload["height"] = 64
+            except ValueError:
+                payload["height"] = 512
+
     def _parameter_remap(self, payload: dict[str, str | None]) -> dict[str, str | None]:
         params = {}
         # Extract from the payload things we understand
@@ -305,7 +323,38 @@ class HordeLib:
         if payload.get("source_mask"):
             payload["source_image"] = self._add_image_alpha_channel(payload["source_image"], payload["source_mask"])
 
+    def _shrink_image(self, image, width, height, preserve_aspect=False):
+        # Check if the provided image is an instance of the PIL.Image.Image class
+        if not isinstance(image, Image.Image):
+            logger.warning("Bad image passed to shrink_image")
+            return
+
+        # If both width and height are not specified, return
+        if width is None and height is None:
+            logger.warning("Bad image size passed to shrink_image")
+            return
+
+        # Only shrink
+        if width >= image.width or height >= image.height:
+            return image
+
+        # Calculate new dimensions
+        if preserve_aspect:
+            aspect_ratio = float(image.width) / float(image.height)
+
+            if width is not None:
+                height = int(width / aspect_ratio)
+            else:
+                width = int(height * aspect_ratio)
+
+        # Resize the image
+        resized_image = image.resize((width, height), Image.LANCZOS)
+
+        return resized_image
+
     def basic_inference(self, payload: dict[str, str | None]) -> Image.Image | None:
+        # Check payload types
+        self._check_payload(payload)
         # Validate our payload parameters
         self._validate_BASIC_INFERENCE_PARAMS(payload)
         self._resize_sources_to_request(payload)
@@ -317,10 +366,16 @@ class HordeLib:
         images = self.generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
-        # XXX Assumes the horde only asks for and wants 1 image
-        return Image.open(images[0]["imagedata"])
+        # Return image(s)
+        results = [Image.open(x["imagedata"]) for x in images]
+        if len(results) == 1:
+            return results[0]
+        else:
+            return results
 
     def image_upscale(self, payload: dict[str, str | None]) -> Image.Image | None:
+        # Check payload types
+        self._check_payload(payload)
         # Determine our parameters
         params = self._parameter_remap(payload)
         # Determine the correct pipeline
@@ -329,10 +384,21 @@ class HordeLib:
         images = self.generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
-        # XXX Assumes the horde only asks for and wants 1 image
-        return Image.open(images[0]["imagedata"])
+        # Allow arbitrary resizing
+        width = payload.get("width")
+        height = payload.get("height")
+        if width or height:
+            return self._shrink_image(Image.open(images[0]["imagedata"]), width, height)
+        # Return image(s)
+        results = [Image.open(x["imagedata"]) for x in images]
+        if len(results) == 1:
+            return results[0]
+        else:
+            return results
 
     def image_facefix(self, payload: dict[str, str | None]) -> Image.Image | None:
+        # Check payload types
+        self._check_payload(payload)
         # Determine our parameters
         params = self._parameter_remap(payload)
         # Determine the correct pipeline
@@ -341,5 +407,9 @@ class HordeLib:
         images = self.generator.run_image_pipeline(pipeline, params)
         if images is None:
             return None  # XXX Log error and/or raise Exception here
-        # XXX Assumes the horde only asks for and wants 1 image
-        return Image.open(images[0]["imagedata"])
+        # Return image(s)
+        results = [Image.open(x["imagedata"]) for x in images]
+        if len(results) == 1:
+            return results[0]
+        else:
+            return results
