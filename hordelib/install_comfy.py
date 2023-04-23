@@ -8,6 +8,12 @@ from loguru import logger
 from hordelib.config_path import get_comfyui_path, get_hordelib_path
 from hordelib.consts import RELEASE_VERSION
 
+CUSTOM_NODE_YAML = """
+hordelib:
+    base_path: ../
+    custom_nodes: hordelib/nodes
+"""
+
 
 class Installer:
     """Handles the installation of ComfyUI."""
@@ -148,3 +154,8 @@ class Installer:
             logger.debug(f"{result}")
             if result.returncode:
                 logger.error(f"Could not apply patch {patchfile}")
+
+        # Drop in custom node config
+        config_file = os.path.join(get_comfyui_path(), "extra_model_paths.yaml")
+        with open(config_file, "wt") as outfile:
+            outfile.write(CUSTOM_NODE_YAML)

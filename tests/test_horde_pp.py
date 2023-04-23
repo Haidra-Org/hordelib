@@ -12,6 +12,7 @@ class TestHordeUpscaling:
         TestHordeUpscaling.horde = HordeLib()
 
         TestHordeUpscaling.image = Image.open("images/test_db0.jpg")
+        TestHordeUpscaling.real_image = Image.open("images/test_annotator.jpg")
         (
             TestHordeUpscaling.width,
             TestHordeUpscaling.height,
@@ -77,6 +78,18 @@ class TestHordeUpscaling:
         assert width == self.width * 4
         assert height == self.height * 4
         pil_image.save("images/horde_image_upscale_NMKD_Siax.webp", quality=90)
+
+    @pytest.mark.mm_model("esrgan")
+    def test_image_upscale_NMKD_Siax_resize(self):
+        SharedModelManager.manager.load("NMKD_Siax")
+        assert SharedModelManager.manager.esrgan.is_model_loaded("NMKD_Siax") is True
+        data = {"model": "NMKD_Siax", "source_image": self.real_image, "width": 1280, "height": 1280}
+        pil_image = self.horde.image_upscale(data)
+        assert pil_image is not None
+        width, height = pil_image.size
+        assert width == 1280
+        assert height == 1280
+        pil_image.save("images/horde_image_upscale_NMKD_Siax_resize.webp", quality=90)
 
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_RealESRGAN_x4plus_anime_6B(self):
