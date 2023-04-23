@@ -49,7 +49,7 @@ index c809d39..9c9f6b8 100644
 +    # logger.warning(f"Done DPM-Solver++(2M) on model {id(model):x}")
      return x
 diff --git a/comfy/model_management.py b/comfy/model_management.py
-index 76455e4..44130b1 100644
+index a0d1313..2da5cca 100644
 --- a/comfy/model_management.py
 +++ b/comfy/model_management.py
 @@ -1,6 +1,8 @@
@@ -61,10 +61,28 @@ index 76455e4..44130b1 100644
  
  class VRAMState(Enum):
      CPU = 0
-@@ -113,87 +115,161 @@ if args.cpu:
- print(f"Set vram state to: {vram_state.name}")
+@@ -59,10 +61,10 @@ else:
+             print("xformers version:", XFORMERS_VERSION)
+             if XFORMERS_VERSION.startswith("0.0.18"):
+                 print()
+-                print("WARNING: This version of xformers has a major bug where you will get black images when generating high resolution images.")
+-                print("Please downgrade or upgrade xformers to a different version.")
+-                print()
+-                XFORMERS_ENABLED_VAE = False
++                # print("WARNING: This version of xformers has a major bug where you will get black images when generating high resolution images.")
++                # print("Please downgrade or upgrade xformers to a different version.")
++                # print()
++                # XFORMERS_ENABLED_VAE = False
+         except:
+             pass
+     except:
+@@ -110,94 +112,171 @@ except:
+ if args.cpu:
+     vram_state = VRAMState.CPU
  
- 
+-print(f"Set vram state to: {vram_state.name}")
+-
+-
 -current_loaded_model = None
 -current_gpu_controlnets = []
 -
@@ -128,7 +146,7 @@ index 76455e4..44130b1 100644
 -        model_accelerated = True
 -    return current_loaded_model
 -
--def load_controlnet_gpu(models):
+-def load_controlnet_gpu(control_models):
 -    global current_gpu_controlnets
 -    global vram_state
 -    if vram_state == VRAMState.CPU:
@@ -138,6 +156,10 @@ index 76455e4..44130b1 100644
 -        #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
 -        return
 -
+-    models = []
+-    for m in control_models:
+-        models += m.get_models()
+-
 -    for m in current_gpu_controlnets:
 -        if m not in models:
 -            m.cpu()
@@ -146,6 +168,9 @@ index 76455e4..44130b1 100644
 -    current_gpu_controlnets = []
 -    for m in models:
 -        current_gpu_controlnets.append(m.to(device))
++# print(f"Set vram state to: {vram_state.name}")
++
++
 +class ModelManager:
 +    _instance = None
 +    _initialised = False
@@ -267,7 +292,7 @@ index 76455e4..44130b1 100644
 +                self.models_accelerated.append(model)
 +            return model
 +
-+    def load_controlnet_gpu(self, models):        
++    def load_controlnet_gpu(self, control_models):
 +        with self._mutex:
 +            global vram_state
 +            if vram_state == VRAMState.CPU:
@@ -276,6 +301,10 @@ index 76455e4..44130b1 100644
 +            if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
 +                #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
 +                return
++
++            models = []
++            for m in control_models:
++                models += m.get_models()
 +
 +            device = get_torch_device()
 +            for m in models:
@@ -283,7 +312,7 @@ index 76455e4..44130b1 100644
 +                    #logger.warning(f"Loaded controlnet {id(m):x} to GPU")
 +                    self.current_gpu_controlnets.append(m.to(device))
 +
-+    def unload_controlnet_gpu(self, models):        
++    def unload_controlnet_gpu(self, control_models):
 +        with self._mutex:
 +            global vram_state
 +            if vram_state == VRAMState.CPU:
@@ -293,11 +322,14 @@ index 76455e4..44130b1 100644
 +                #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
 +                return
 +
++            models = []
++            for m in control_models:
++                models += m.get_models()
++
 +            for m in models:
 +                if m in self.current_gpu_controlnets:
 +                    m.cpu()
 +                    self.current_gpu_controlnets.remove(m)
-+                    #logger.warning(f"Unloaded controlnet {id(m):x} from GPU")
 +                    del m
 +
 +model_manager = ModelManager()
@@ -305,7 +337,7 @@ index 76455e4..44130b1 100644
  
  def load_if_low_vram(model):
 diff --git a/comfy/samplers.py b/comfy/samplers.py
-index ed36442..cbcc135 100644
+index 1552722..0ac5903 100644
 --- a/comfy/samplers.py
 +++ b/comfy/samplers.py
 @@ -6,6 +6,8 @@ import contextlib
@@ -315,9 +347,9 @@ index ed36442..cbcc135 100644
 +from loguru import logger
 +import threading
  
- class CFGDenoiser(torch.nn.Module):
-     def __init__(self, model):
-@@ -120,6 +122,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+ #The main sampling function shared by all the samplers
+ #Returns predicted noise
+@@ -126,6 +128,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
              return out
  
          def calc_cond_uncond_batch(model_function, cond, uncond, x_in, timestep, max_total_area, cond_concat_in, model_options):
@@ -325,7 +357,7 @@ index ed36442..cbcc135 100644
              out_cond = torch.zeros_like(x_in)
              out_count = torch.ones_like(x_in)/100000.0
  
-@@ -130,12 +133,14 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+@@ -136,12 +139,14 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
              UNCOND = 1
  
              to_run = []
@@ -340,7 +372,7 @@ index ed36442..cbcc135 100644
              for x in uncond:
                  p = get_area_and_mult(x, x_in, cond_concat_in, timestep)
                  if p is None:
-@@ -143,6 +148,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+@@ -149,6 +154,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
  
                  to_run += [(p, UNCOND)]
  
@@ -348,7 +380,7 @@ index ed36442..cbcc135 100644
              while len(to_run) > 0:
                  first = to_run[0]
                  first_shape = first[0][0].shape
-@@ -151,15 +157,18 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+@@ -157,15 +163,18 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                      if can_concat_cond(to_run[x][0], first[0]):
                          to_batch_temp += [x]
  
@@ -367,12 +399,9 @@ index ed36442..cbcc135 100644
                  input_x = []
                  mult = []
                  c = []
-@@ -186,12 +195,19 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+@@ -201,11 +210,16 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
  
-                 if 'transformer_options' in model_options:
-                     c['transformer_options'] = model_options['transformer_options']
-+                #logger.warning(f"{threading.current_thread().ident}: calc_cond_uncond_batch() 3d")
-+                #logger.warning(f"{threading.current_thread().ident}: {id(model_function):x}({id(input_x):x}, {id(timestep_):x}, {id(c):x})")
+                 c['transformer_options'] = transformer_options
  
 +                model_management.model_manager.sampler_mutex.acquire()
                  output = model_function(input_x, timestep_, cond=c).chunk(batch_chunks)
@@ -389,7 +418,7 @@ index ed36442..cbcc135 100644
                  for o in range(batch_chunks):
                      if cond_or_uncond[o] == COND:
                          out_cond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
-@@ -199,18 +215,26 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+@@ -213,17 +227,24 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                      else:
                          out_uncond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
                          out_uncond_count[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
@@ -413,11 +442,9 @@ index ed36442..cbcc135 100644
          max_total_area = model_management.maximum_batch_area()
 +        #logger.warning("Entering main shared sampling function 2")
          cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
-+        #logger.warning("Exiting main shared sampling function")
-         return uncond + (cond - uncond) * cond_scale
- 
- 
-@@ -440,12 +464,14 @@ class KSampler:
+         if "sampler_cfg_function" in model_options:
+             return model_options["sampler_cfg_function"](cond, uncond, cond_scale)
+@@ -458,12 +479,14 @@ class KSampler:
          sigmas = self.sigmas
          sigma_min = self.sigma_min
  
@@ -432,7 +459,7 @@ index ed36442..cbcc135 100644
          if start_step is not None:
              if start_step < (len(sigmas) - 1):
                  sigmas = sigmas[start_step:]
-@@ -455,6 +481,7 @@ class KSampler:
+@@ -473,6 +496,7 @@ class KSampler:
                  else:
                      return torch.zeros_like(noise)
  
@@ -440,12 +467,9 @@ index ed36442..cbcc135 100644
          positive = positive[:]
          negative = negative[:]
          #make sure each cond area has an opposite one with the same area
-@@ -463,13 +490,16 @@ class KSampler:
-         for c in negative:
-             create_cond_with_same_area_if_none(positive, c)
- 
-+        #logger.warning("sampler step 4")
-         apply_control_net_to_equal_area(positive, negative)
+@@ -484,11 +508,13 @@ class KSampler:
+         apply_empty_x_to_equal_area(positive, negative, 'control', lambda cond_cnets, x: cond_cnets[x])
+         apply_empty_x_to_equal_area(positive, negative, 'gligen', lambda cond_cnets, x: cond_cnets[x])
  
 +        #logger.warning("sampler step 5")
          if self.model.model.diffusion_model.dtype == torch.float16:
@@ -457,7 +481,7 @@ index ed36442..cbcc135 100644
          if hasattr(self.model, 'noise_augmentor'): #unclip
              positive = encode_adm(self.model.noise_augmentor, positive, noise.shape[0], self.device)
              negative = encode_adm(self.model.noise_augmentor, negative, noise.shape[0], self.device)
-@@ -497,7 +527,9 @@ class KSampler:
+@@ -516,7 +542,9 @@ class KSampler:
          else:
              max_denoise = True
  
@@ -467,7 +491,7 @@ index ed36442..cbcc135 100644
              if self.sampler == "uni_pc":
                  samples = uni_pc.sample_unipc(self.model_wrap, noise, latent_image, sigmas, sampling_function=sampling_function, max_denoise=max_denoise, extra_args=extra_args, noise_mask=denoise_mask)
              elif self.sampler == "uni_pc_bh2":
-@@ -513,22 +545,23 @@ class KSampler:
+@@ -532,22 +560,23 @@ class KSampler:
                  sampler.make_schedule_timesteps(ddim_timesteps=timesteps, verbose=False)
                  z_enc = sampler.stochastic_encode(latent_image, torch.tensor([len(timesteps) - 1] * noise.shape[0]).to(self.device), noise=noise, max_denoise=max_denoise)
                  samples, _ = sampler.sample_custom(ddim_timesteps=timesteps,
@@ -505,7 +529,7 @@ index ed36442..cbcc135 100644
                  extra_args["denoise_mask"] = denoise_mask
                  self.model_k.latent_image = latent_image
                  self.model_k.noise = noise
-@@ -538,10 +571,13 @@ class KSampler:
+@@ -557,10 +586,13 @@ class KSampler:
                  if latent_image is not None:
                      noise += latent_image
                  if self.sampler == "dpm_fast":
@@ -520,7 +544,7 @@ index ed36442..cbcc135 100644
  
          return samples.to(torch.float32)
 diff --git a/comfy/sd.py b/comfy/sd.py
-index 9c632e2..1b5d910 100644
+index 211acd7..7a499e2 100644
 --- a/comfy/sd.py
 +++ b/comfy/sd.py
 @@ -1,6 +1,7 @@
@@ -537,10 +561,10 @@ index 9c632e2..1b5d910 100644
  from . import clip_vision
 +from loguru import logger
 +import threading
+ from . import gligen
  
  def load_model_weights(model, sd, verbose=False, load_state_dict_to=[]):
-     m, u = model.load_state_dict(sd, strict=False)
-@@ -265,6 +268,7 @@ class ModelPatcher:
+@@ -269,6 +272,7 @@ class ModelPatcher:
      def patch_model(self):
          model_sd = self.model.state_dict()
          for p in self.patches:
@@ -548,7 +572,7 @@ index 9c632e2..1b5d910 100644
              for k in p[1]:
                  v = p[1][k]
                  key = k
-@@ -415,52 +419,72 @@ class VAE:
+@@ -423,52 +427,72 @@ class VAE:
          return output
  
      def decode(self, samples_in):
@@ -661,7 +685,7 @@ index 9c632e2..1b5d910 100644
  
  def resize_image_to(tensor, target_latent_tensor, batched_number):
      tensor = utils.common_upscale(tensor, target_latent_tensor.shape[3] * 8, target_latent_tensor.shape[2] * 8, 'nearest-exact', "center")
-@@ -568,8 +592,15 @@ class ControlNet:
+@@ -576,8 +600,15 @@ class ControlNet:
          out.append(self.control_model)
          return out
  
@@ -678,7 +702,7 @@ index 9c632e2..1b5d910 100644
      pth_key = 'control_model.input_blocks.1.1.transformer_blocks.0.attn2.to_k.weight'
      pth = False
      sd2 = False
-@@ -629,6 +660,7 @@ def load_controlnet(ckpt_path, model=None):
+@@ -637,6 +668,7 @@ def load_controlnet(ckpt_path, model=None):
              if model is not None:
                  m = model.patch_model()
                  model_sd = m.state_dict()
@@ -781,7 +805,7 @@ index 02c700e..507d1db 100644
  
  def prompt_worker(q, server):
 diff --git a/nodes.py b/nodes.py
-index c775da0..3d08090 100644
+index 48c3ee9..8257bd5 100644
 --- a/nodes.py
 +++ b/nodes.py
 @@ -26,6 +26,11 @@ import importlib
@@ -796,7 +820,7 @@ index c775da0..3d08090 100644
  def before_node_execution():
      comfy.model_management.throw_exception_if_processing_interrupted()
  
-@@ -676,7 +681,6 @@ class SetLatentNoiseMask:
+@@ -739,7 +744,6 @@ class SetLatentNoiseMask:
          s["noise_mask"] = mask
          return (s,)
  
@@ -804,7 +828,7 @@ index c775da0..3d08090 100644
  def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
      latent_image = latent["samples"]
      noise_mask = None
-@@ -695,16 +699,19 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
+@@ -765,16 +769,19 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
          noise_mask = torch.cat([noise_mask] * noise.shape[0])
          noise_mask = noise_mask.to(device)
  
@@ -824,16 +848,15 @@ index c775da0..3d08090 100644
  
 +    #logger.warning(f"Assembling control nets")
      control_nets = []
-     for p in positive:
-         t = p[0]
-@@ -726,21 +733,35 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
-     control_net_models = []
-     for x in control_nets:
-         control_net_models += x.get_control_models()
--    comfy.model_management.load_controlnet_gpu(control_net_models)
-+    if control_net_models:
-+        #logger.warning(f"Model {id(model):x} has {len(control_net_models)} control nets")
-+        comfy.model_management.model_manager.load_controlnet_gpu(control_net_models)
+     def get_models(cond):
+         models = []
+@@ -799,21 +806,35 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
+         negative_copy += [[t] + n[1:]]
+ 
+     models = get_models(positive) + get_models(negative)
+-    comfy.model_management.load_controlnet_gpu(models)
++    if models:
++        comfy.model_management.model_manager.load_controlnet_gpu(models)
 +        comfy.model_management.model_manager.sampler_mutex.acquire()
  
      if sampler_name in comfy.samplers.KSampler.SAMPLERS:
@@ -847,15 +870,18 @@ index c775da0..3d08090 100644
      samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
 +    #logger.warning("Done sampling")
      samples = samples.cpu()
+-    for m in models:
+-        m.cleanup()
++
 +    #logger.warning("Moved samples to cpu")
-+    if control_net_models:
++    if models:
 +        # XXX force unload models for controlnet
 +        #logger.warning("Forcing GPU unload of controlnet models")
-+        comfy.model_management.model_manager.unload_controlnet_gpu(control_net_models)
++        comfy.model_management.model_manager.unload_controlnet_gpu(models)
 +        comfy.model_management.model_manager.unload_model(model)
 +        comfy.model_management.model_manager.sampler_mutex.release()
-     for c in control_nets:
-         c.cleanup()
++        for m in models:
++            m.cleanup()
  
      out = latent.copy()
      out["samples"] = samples
@@ -863,7 +889,7 @@ index c775da0..3d08090 100644
      return (out, )
  
  class KSampler:
-@@ -903,6 +924,7 @@ class LoadImage:
+@@ -976,6 +997,7 @@ class LoadImage:
      def load_image(self, image):
          input_dir = folder_paths.get_input_directory()
          image_path = os.path.join(input_dir, image)
