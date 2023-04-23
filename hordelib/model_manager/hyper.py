@@ -18,9 +18,6 @@ from hordelib.model_manager.esrgan import EsrganModelManager
 from hordelib.model_manager.gfpgan import GfpganModelManager
 from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
 
-# from worker.util.voodoo import initialise_voodoo
-
-
 MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type[BaseModelManager]] = {
     # ModelCategoryNames.aitemplate: AITemplateModelManager,
     MODEL_CATEGORY_NAMES.blip: BlipModelManager,
@@ -104,7 +101,6 @@ class ModelManager:
         self,
     ):
         """Create a new instance of model manager."""
-        # logger.initialise_voodoo()
         self.cuda_available = torch.cuda.is_available()
         """DEPRECATED: Use `torch.cuda.is_available()` instead."""
 
@@ -316,7 +312,7 @@ class ModelManager:
         half_precision: bool = True,
         gpu_id: int = 0,
         cpu_only: bool = False,
-        voodoo: bool = False,
+        local: bool = False,
     ) -> bool | None:
         """_summary_
 
@@ -328,7 +324,7 @@ class ModelManager:
             gpu_id (int, optional): The id of the gpu to use. Defaults to 0.
             cpu_only (bool, optional): If should be loaded on the cpu.
             If True, half_precision will be set to False. Defaults to False.
-            voodoo (bool, optional): (compvis only) Voodoo ray. Defaults to False.
+            local (bool): model_name is a local filesystem filename of a model to load
 
         Returns:
             bool | None: The success of the load. If `None`, the model was not found.
@@ -337,13 +333,13 @@ class ModelManager:
             cpu_only = True
 
         for model_manager in self.active_model_managers:
-            if model_name in model_manager.model_reference:
+            if local or model_name in model_manager.model_reference:
                 return model_manager.load(
                     model_name=model_name,
                     half_precision=half_precision,
                     gpu_id=gpu_id,
                     cpu_only=cpu_only,
-                    voodoo=voodoo,
+                    local=local,
                 )
 
         logger.error(f"{model_name} not found")

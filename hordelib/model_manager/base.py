@@ -215,14 +215,15 @@ class BaseModelManager(ABC):
         half_precision: bool = True,
         gpu_id: int | None = 0,
         cpu_only: bool = False,
+        local: bool = False,
         **kwargs,
     ):  # XXX # FIXME
         with self._mutex:
             self.ensure_memory_available()
-            if model_name not in self.model_reference:
+            if not local and model_name not in self.model_reference:
                 logger.error(f"{model_name} not found")
                 return False
-            if model_name not in self.available_models:
+            if not local and model_name not in self.available_models:
                 logger.error(f"{model_name} not available")
                 download_succeeded = self.download_model(model_name)
                 if not download_succeeded:
@@ -230,9 +231,10 @@ class BaseModelManager(ABC):
                     return False
                 logger.init_ok(f"{model_name}", status="Downloaded")
             if model_name not in self.get_loaded_models():
-                model_validated = self.validate_model(model_name)
-                if not model_validated:
-                    return False
+                if not local:
+                    model_validated = self.validate_model(model_name)
+                    if not model_validated:
+                        return False
                 logger.init(f"{model_name}", status="Loading")
 
                 tic = time.time()
@@ -246,6 +248,7 @@ class BaseModelManager(ABC):
                             half_precision=half_precision,
                             gpu_id=gpu_id,
                             cpu_only=cpu_only,
+                            local=local,
                             **kwargs,
                         ),
                     )
