@@ -57,6 +57,7 @@ class HordeLib:
         "source_image": "image_loader.image",
         "source_mask": None,
         "source_processing": "source_processing",
+        "control_strength": "controlnet_apply.strength",
     }
 
     # Horde names on the left, our node names on the right
