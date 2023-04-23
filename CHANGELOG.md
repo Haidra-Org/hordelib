@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.11.1](https://github.com/jug-dev/hordelib/compare/v0.11.0...v0.11.1)
+
+23 April 2023
+
+- fix: parameter handling improvements [`#170`](https://github.com/jug-dev/hordelib/pull/170) (Jug)
+
 ## [v0.11.0](https://github.com/jug-dev/hordelib/compare/v0.10.1...v0.11.0)
 
 23 April 2023
