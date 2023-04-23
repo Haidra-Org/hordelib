@@ -6,8 +6,6 @@ from hordelib.comfy_horde import horde_load_checkpoint
 from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES
 from hordelib.model_manager.base import BaseModelManager
 
-# from nataili.util.voodoo import push_diffusers_pipeline_to_plasma
-
 
 class DiffusersModelManager(BaseModelManager):
     def __init__(self, download_reference=False):

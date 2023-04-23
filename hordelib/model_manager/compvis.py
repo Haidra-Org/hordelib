@@ -31,8 +31,12 @@ class CompVisModelManager(BaseModelManager):
 
         embeddings_path = os.getenv("HORDE_MODEL_DIR_EMBEDDINGS", "./")
 
+        if not kwargs.get("local", False):
+            ckpt_path = self.getFullModelPath(model_name)
+        else:
+            ckpt_path = os.path.join(self.modelFolderPath, model_name)
         return horde_load_checkpoint(
-            ckpt_path=self.getFullModelPath(model_name),
+            ckpt_path=ckpt_path,
             embeddings_path=embeddings_path,
         )
 

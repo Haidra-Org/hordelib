@@ -2,27 +2,39 @@
 # Call with: python -m test.run_stress_test_txt2img
 # You need all the deps in whatever environment you are running this.
 import os
-import time
-
-if __name__ != "__main__":
-    exit(0)
 import random
-
-random.seed(999)
-
-import hordelib
-
-hordelib.initialise(setup_logging=False)
-
+import sys
 import threading
+import time
 
 from loguru import logger
 from PIL import Image
 
+if __name__ != "__main__":
+    exit(0)
+
+import hordelib
+
+hordelib.initialise(setup_logging=False)
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
-os.makedirs("images/stresstest/", exist_ok=True)
+random.seed(999)
+
+if len(sys.argv) > 2:
+    print(f"Usage: {sys.argv[0]} [<iterations>]")
+    sys.exit(1)
+if len(sys.argv) == 2:
+    try:
+        ITERATIONS = int(sys.argv[1])
+    except ValueError:
+        print("Please provide an integer as the argument.")
+        sys.exit(1)
+else:
+    ITERATIONS = 50
+
+out_dir = f"images/stresstest/{os.path.splitext(os.path.basename(sys.argv[0]))[0]}"
+os.makedirs(out_dir, exist_ok=True)
 
 generate = HordeLib()
 SharedModelManager.loadModelManagers(compvis=True, controlnet=True)
@@ -51,8 +63,6 @@ SAMPLERS_MAP = {
 }
 
 start_time = time.time()
-
-ITERATIONS = 50
 
 mutex = threading.Lock()
 count = 0
@@ -94,7 +104,7 @@ def generate_images():
     horde = HordeLib()
     pil_image = horde.basic_inference(data)
     pil_image.save(
-        f"images/stresstest/txt2img_{model}_{sampler}_{threading.current_thread().ident}_{i}.webp",
+        f"{out_dir}/txt2img_{model}_{sampler}_{threading.current_thread().ident}_{i}.webp",
         quality=80,
     )
 

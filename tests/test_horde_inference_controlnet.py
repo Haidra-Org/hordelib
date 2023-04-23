@@ -72,3 +72,31 @@ class TestHordeInference:
             pil_image = self.horde.basic_inference(data)
             assert pil_image is not None
             pil_image.save(f"images/horde_controlnet_{preproc}.webp", quality=90)
+
+    def test_controlnet_strength(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": 512,
+            "width": 512,
+            "karras": True,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": "canny",
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a man walking on the moon",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+        }
+        for strength in [1.0, 0.5, 0.2]:
+            data["control_strength"] = strength
+            pil_image = self.horde.basic_inference(data)
+            assert pil_image is not None
+            pil_image.save(f"images/horde_controlnet_strength_{strength}.webp", quality=90)
