@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v0.11.0](https://github.com/jug-dev/hordelib/compare/v0.10.1...v0.11.0)
+
+23 April 2023
+
+- feat: add control_strength parameter for cnet strength [`#167`](https://github.com/jug-dev/hordelib/pull/167) (Jug)
+- feat: add support for local models including safetensors [`#166`](https://github.com/jug-dev/hordelib/pull/166) (Jug)
+- feat: upgrade to latest comfyui backend [`#165`](https://github.com/jug-dev/hordelib/pull/165) (Jug)
+
 ## [v0.10.1](https://github.com/jug-dev/hordelib/compare/v0.10.0...v0.10.1)
 
 22 April 2023
