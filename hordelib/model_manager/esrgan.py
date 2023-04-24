@@ -1,3 +1,4 @@
+import os
 import typing
 
 from typing_extensions import override
@@ -13,6 +14,13 @@ class EsrganModelManager(BaseModelManager):
             models_db_name=MODEL_DB_NAMES[MODEL_CATEGORY_NAMES.esrgan],
             download_reference=download_reference,
         )
+
+    @override
+    def is_local_model(self, model_name):
+        parts = os.path.splitext(model_name.lower())
+        if parts[-1] in [".pth"]:
+            return True
+        return False
 
     @override
     def modelToRam(

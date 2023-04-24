@@ -1,4 +1,3 @@
-import gc
 import hashlib
 import importlib.resources as importlib_resources
 import json
@@ -215,11 +214,11 @@ class BaseModelManager(ABC):
         half_precision: bool = True,
         gpu_id: int | None = 0,
         cpu_only: bool = False,
-        local: bool = False,
         **kwargs,
     ):  # XXX # FIXME
         with self._mutex:
             self.ensure_memory_available()
+            local = self.is_local_model(model_name)
             if not local and model_name not in self.model_reference:
                 logger.error(f"{model_name} not found")
                 return False
@@ -248,7 +247,6 @@ class BaseModelManager(ABC):
                             half_precision=half_precision,
                             gpu_id=gpu_id,
                             cpu_only=cpu_only,
-                            local=local,
                             **kwargs,
                         ),
                     )
@@ -266,8 +264,15 @@ class BaseModelManager(ABC):
 
     def getFullModelPath(self, model_name: str):
         """Returns the fully qualified filename for the specified model."""
-        ckpt_path = self.get_model_files(model_name)[0]["path"]  # XXX Rework?
+        if not self.is_local_model(model_name):
+            ckpt_path = self.get_model_files(model_name)[0]["path"]  # XXX Rework?
+        else:
+            ckpt_path = model_name
+
         return f"{self.modelFolderPath}/{ckpt_path}"
+
+    def is_local_model(self, model_name):
+        return False
 
     @abstractmethod
     def modelToRam(
