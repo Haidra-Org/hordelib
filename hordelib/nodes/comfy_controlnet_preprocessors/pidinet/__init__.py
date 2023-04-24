@@ -15,7 +15,7 @@ modeldir = "pidinet"
 def download_if_not_existed():
     modelpath = os.path.join(builtins.annotator_ckpts_path, modeldir, "table5_pidinet.pth")
     if not os.path.exists(modelpath):
-        load_file_from_url(remote_model_path, model_dir=modeldir)
+        load_file_from_url(remote_model_path, model_dir=modelpath)
     return modelpath
 
 
