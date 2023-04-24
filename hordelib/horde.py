@@ -243,6 +243,15 @@ class HordeLib:
         if "hires_fix" in payload and (img_proc == "inpainting" or img_proc == "outpainting"):
             payload["hires_fix"] = False
 
+        # Remap "denoising" to "controlnet strength" if that's what we actually wanted
+        if payload.get("control_type"):
+            if payload.get("denoising_strength"):
+                if not payload.get("control_strength"):
+                    payload["control_strength"] = payload["denoising_strength"]
+                    del payload["denoising_strength"]
+                else:
+                    del payload["denoising_strength"]
+
     def _get_appropriate_pipeline(self, params):
         # Determine the correct pipeline based on the parameters we have
         pipeline = None
