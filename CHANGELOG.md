@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v0.14.0](https://github.com/jug-dev/hordelib/compare/v0.13.0...v0.14.0)
+
+24 April 2023
+
+- feat: encode prompt pipeline in raw output image metadata [`#181`](https://github.com/jug-dev/hordelib/pull/181) (Jug)
+- feat: add OS and VRAM to benchmark [`95fa03d`](https://github.com/jug-dev/hordelib/commit/95fa03da94f0940248b09743de91a94732a9118a)  (Jug)
+- fix: lint fixes [`c87f3b0`](https://github.com/jug-dev/hordelib/commit/c87f3b02ada9c7ee927636c1ebd1485c48891279)  (Jug)
+
 ## [v0.13.0](https://github.com/jug-dev/hordelib/compare/v0.12.1...v0.13.0)
 
 24 April 2023
