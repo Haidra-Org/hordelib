@@ -1,3 +1,4 @@
+import platform
 import time
 from io import BytesIO
 
@@ -32,6 +33,22 @@ def delta(desc):
     else:
         timings[desc]["end"] = time.time()
         return timings[desc]["end"] - timings[desc]["start"]
+
+
+def get_os():
+    os_name = platform.system()    
+    if os_name == 'Linux':
+        distro_name, distro_version, distro_id = platform.linux_distribution()
+        os_name = f"{os_name} ({distro_name} {distro_version} {distro_id})"
+    elif os_name == 'Windows':
+        win_version = "-".join(platform.win32_ver())
+        os_name = f"{os_name} ({win_version})"
+    elif os_name == 'Darwin':
+        mac_ver, _, _ = platform.mac_ver()
+        os_name = f"{os_name} ({mac_ver})"
+    else:
+        os_name = "Unknown OS"
+    return os_name
 
 
 def main():
@@ -136,7 +153,9 @@ def main():
         raise Exception("Image generation failed")
 
     try:
-        gpu = GPUInfo().get_info()["product"]
+        gpu = GPUInfo().get_info()
+        gpu_name = gpu["product"]
+        gpu_vram = gpu["vram_total"]
     except Exception:
         gpu = "unknown"
 
@@ -144,15 +163,16 @@ def main():
     print()
     print()
     print(f"--- hordelib {__version__} Benchmark ---")
-    print(f"    GPU: {gpu}")
-    print()
-    print(f"{model_load:>{9}}s model load speed")
+    print(f"    GPU: {gpu_name} {gpu_vram}")
+    print(f"     OS: {get_os()}")
     print()
     print("    Iterations per second @ 512x512:")
     print(f"{its:>{9}} basic inference (empirical)")
     print(f"{its_raw:>{9}} basic inference (theoretical)")
     print(f"{cnet_its:>{9}} controlnet inference (empirical)")
     print(f"{cnet_raw_its:>{9}} controlnet inference (theoretical)")
+    print()
+    print(f"{model_load:>{9}}s model load speed")
     print()
     print("    Details:")
     for name, data in timings.items():
