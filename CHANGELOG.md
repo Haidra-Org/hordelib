@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v0.12.1](https://github.com/jug-dev/hordelib/compare/v0.12.0...v0.12.1)
+
+24 April 2023
+
+- fix: unload local models correctly [`d75ffb9`](https://github.com/jug-dev/hordelib/commit/d75ffb91985025a71cb5960d260df178f3dfd269)  (Jug)
+- fix: Clearer logging message for annotator check/download [`131d07f`](https://github.com/jug-dev/hordelib/commit/131d07fcc5142c28caaf451a440cd5d336ba1e3e)  (tazlin)
+- fix: pidinet annotator being downloaded to wrong location [`8b40b16`](https://github.com/jug-dev/hordelib/commit/8b40b169a5a69c1cbc01f3eca201eb959918c096)  (tazlin)
+
 ## [v0.12.0](https://github.com/jug-dev/hordelib/compare/v0.11.1...v0.12.0)
 
 24 April 2023
