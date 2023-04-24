@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.13.0](https://github.com/jug-dev/hordelib/compare/v0.12.1...v0.13.0)
+
+24 April 2023
+
+- feat: adds a hordelib benchmark test [`#179`](https://github.com/jug-dev/hordelib/pull/179) (Jug)
+
 ## [v0.12.1](https://github.com/jug-dev/hordelib/compare/v0.12.0...v0.12.1)
 
 24 April 2023
