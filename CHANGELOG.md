@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v0.12.0](https://github.com/jug-dev/hordelib/compare/v0.11.1...v0.12.0)
+
+24 April 2023
+
+- fix: model loaded/unloading stress test fixes [`#175`](https://github.com/jug-dev/hordelib/pull/175) (Jug)
+- feat: add support for controlnet hires fix [`#173`](https://github.com/jug-dev/hordelib/pull/173) (Jug)
+- fix: implicitly load local models [`#174`](https://github.com/jug-dev/hordelib/pull/174) (Jug)
+
 ## [v0.11.1](https://github.com/jug-dev/hordelib/compare/v0.11.0...v0.11.1)
 
 23 April 2023
