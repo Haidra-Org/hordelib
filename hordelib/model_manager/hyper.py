@@ -242,9 +242,8 @@ class ModelManager:
             model_manager: BaseModelManager = getattr(self, model_manager_type)
             if model_manager is None:
                 continue
-            if model_name not in model_manager.model_reference:
-                continue
-            return model_manager.unload_model(model_name)
+            if model_name in model_manager.model_reference or model_manager.is_local_model(model_name):
+                return model_manager.unload_model(model_name)
         return None
 
     def get_loaded_models_names(self) -> list:
