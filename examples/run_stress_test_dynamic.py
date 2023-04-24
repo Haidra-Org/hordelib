@@ -15,7 +15,7 @@ if __name__ != "__main__":
 
 import hordelib
 
-hordelib.initialise(setup_logging=False)
+hordelib.initialise(setup_logging=True)
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
@@ -39,11 +39,11 @@ os.makedirs(out_dir, exist_ok=True)
 generate = HordeLib()
 SharedModelManager.loadModelManagers(compvis=True, controlnet=True)
 
-models = [
+initmodels = [
     random.choice(SharedModelManager.manager.compvis.available_models),
     random.choice(SharedModelManager.manager.compvis.available_models),
 ]
-for model in models:
+for model in initmodels:
     SharedModelManager.manager.load(model)
 
 SAMPLERS_MAP = {
@@ -80,8 +80,13 @@ def inc():
 
 def generate_images():
     i = inc()
-    logger.info(f"Thread {threading.current_thread().ident} starting iteration {i}")
+    models = list(SharedModelManager.manager.loaded_models.keys())
+    print(models)
+    if not models:
+        time.sleep(1)
+        return
     model = random.choice(models)
+    print(f"Model chosen: {model}")
     sampler = random.choice(list(SAMPLERS_MAP.keys()))
     data = {
         "sampler_name": sampler,
@@ -105,7 +110,9 @@ def generate_images():
         "source_processing": "txt2img",
     }
     horde = HordeLib()
+    logger.warning(f"Starting job with model {model}")
     pil_image = horde.basic_inference(data)
+    logger.warning(f"Ended job with model {model}")
     pil_image.save(
         f"{out_dir}/txt2img_{model}_{sampler}_{threading.current_thread().ident}_{i}.webp",
         quality=80,
@@ -114,9 +121,14 @@ def generate_images():
 
 def generate_images_cnet():
     i = inc()
-    logger.info(f"Thread {threading.current_thread().ident} starting iteration {i}")
     cnet_type = random.choice(cnets)
+    models = list(SharedModelManager.manager.loaded_models.keys())
+    print(models)
+    if not models:
+        time.sleep(1)
+        return
     model = random.choice(models)
+    print(f"Model chosen: {model}")
     sampler = random.choice(list(SAMPLERS_MAP.keys()))
     data = {
         "sampler_name": sampler,
@@ -140,7 +152,9 @@ def generate_images_cnet():
         "source_processing": "img2img",
     }
     horde = HordeLib()
+    logger.warning(f"Starting cnet job with model {model}")
     pil_image = horde.basic_inference(data)
+    logger.warning(f"Ended job with model {model}")
     pil_image.save(
         f"{out_dir}/cnet_{model}_{sampler}_{cnet_type}_{threading.current_thread().ident}_{i}.webp",
         quality=80,
@@ -148,27 +162,27 @@ def generate_images_cnet():
 
 
 def swap_models():
-    global models
     while True:
         time.sleep(random.randint(30, 60))
-        # Load new models
+        # new models?
         newmodels = [
             random.choice(SharedModelManager.manager.compvis.available_models),
             random.choice(SharedModelManager.manager.compvis.available_models),
         ]
+        # Remove old models
+        for m in list(SharedModelManager.manager.loaded_models.keys()):
+            logger.warning(f"Unloading model {m}")
+            SharedModelManager.manager.unload_model(m)
+        # Load new ones
         for model in newmodels:
             logger.warning(f"Loading model {model}")
             SharedModelManager.manager.load(model)
-        # Remove old models
-        for m in models:
-            logger.warning(f"Loading model {m}")
-            SharedModelManager.manager.unload_model(m)
-        models = newmodels[:]
 
 
 def run_iterations():
+    random.seed()
     for i in range(ITERATIONS):
-        funcs = [generate_images, generate_images_cnet]
+        funcs = [generate_images, generate_images, generate_images_cnet]
         random.choice(funcs)()
 
 

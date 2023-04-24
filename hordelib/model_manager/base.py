@@ -58,9 +58,14 @@ class BaseModelManager(ABC):
             self._loaded_models[model_name] = model_data
 
     def remove_loaded_model(self, model_name):
+        logger.debug(f"Received request to remove loaded model {model_name}")
         with self._mutex:
+            logger.debug(f"Looking for loaded model {model_name}")
             if model_name in self._loaded_models:
+                logger.debug(f"Removing loaded model {model_name}")
                 del self._loaded_models[model_name]
+            else:
+                logger.debug(f"Could not find loaded model {model_name}")
 
     def __init__(
         self,
@@ -376,12 +381,19 @@ class BaseModelManager(ABC):
         be unloaded at the earliest opportunity.
         """
         with self._mutex:
+            logger.debug(f"Model Manager received unload model {model_name} request (mutex locked)")
             if model_name in self._loaded_models:
+                logger.debug(f"{model_name} is on loaded models list, trying to remove")
                 self.free_model_resources(model_name)
                 self.remove_loaded_model(model_name)
+                logger.debug("Model Manager done with model unload request (mutex released)")
                 return True
+            else:
+                logger.debug(f"Model {model_name} is not in loaded models list so can't unload")
+        logger.debug(f"Model manager done with unload request for model {model_name}")
 
     def free_model_resources(self, model_name: str):
+        logger.debug(f"Received request to free model resources for {model_name}")
         with self._mutex:
             remove_model_from_memory(model_name, self.get_loaded_model(model_name))
 
