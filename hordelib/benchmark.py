@@ -36,14 +36,14 @@ def delta(desc):
 
 
 def get_os():
-    os_name = platform.system()    
-    if os_name == 'Linux':
+    os_name = platform.system()
+    if os_name == "Linux":
         distro_name, distro_version, distro_id = platform.linux_distribution()
         os_name = f"{os_name} ({distro_name} {distro_version} {distro_id})"
-    elif os_name == 'Windows':
+    elif os_name == "Windows":
         win_version = "-".join(platform.win32_ver())
         os_name = f"{os_name} ({win_version})"
-    elif os_name == 'Darwin':
+    elif os_name == "Darwin":
         mac_ver, _, _ = platform.mac_ver()
         os_name = f"{os_name} ({mac_ver})"
     else:
