@@ -25,6 +25,11 @@ class HordeImageOutput:
 
     CATEGORY = "image"
 
+    def _json_hack(self, obj):
+        if hasattr(obj, "__class__"):
+            return f"{obj.__class__.__name__} instance"
+        return f"Object of type {type(obj).__name__}"
+
     def get_image(self, images, prompt=None, extra_pnginfo=None):
         results = []
         for image in images:
@@ -33,12 +38,11 @@ class HordeImageOutput:
             img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
             metadata = PngInfo()
             # Save the full pipeline and variables into the PNG metadata
-            # FIXME we don't have a model manager JSON serialiser
-            # if prompt is not None:
-            #     metadata.add_text("prompt", json.dumps(prompt))
-            # if extra_pnginfo is not None:
-            #     for x in extra_pnginfo:
-            #         metadata.add_text(x, json.dumps(extra_pnginfo[x]))
+            if prompt is not None:
+                metadata.add_text("prompt", json.dumps(prompt, default=self._json_hack))
+            if extra_pnginfo is not None:
+                for x in extra_pnginfo:
+                    metadata.add_text(x, json.dumps(extra_pnginfo[x], default=self._json_hack))
 
             byte_stream = BytesIO()
             img.save(byte_stream, format="PNG", pnginfo=metadata, compress_level=4)
