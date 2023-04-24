@@ -4,7 +4,7 @@ import random
 import sys
 
 from loguru import logger
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageOps, PngImagePlugin, UnidentifiedImageError
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
@@ -363,7 +363,29 @@ class HordeLib:
 
         return resized_image
 
-    def basic_inference(self, payload: dict[str, str | None]) -> Image.Image | None:
+    def _copy_image_metadata(self, src_image, dest_image):
+        metadata = src_image.info
+        pnginfo = PngImagePlugin.PngInfo()
+        for k, v in metadata.items():
+            if k not in ("dpi", "gamma", "transparency", "aspect"):
+                pnginfo.add_text(k, v)
+        dest_image.info["pnginfo"] = pnginfo
+        return dest_image
+
+    def _process_results(self, images, rawpng):
+        if images is None:
+            return None  # XXX Log error and/or raise Exception here
+        # Return image(s) or raw PNG bytestream
+        if not rawpng:
+            results = [Image.open(x["imagedata"]) for x in images]
+        else:
+            results = [x["imagedata"] for x in images]
+        if len(results) == 1:
+            return results[0]
+        else:
+            return results
+
+    def basic_inference(self, payload: dict[str, str | None], rawpng=False) -> Image.Image | None:
         # Check payload types
         self._check_payload(payload)
         # Validate our payload parameters
@@ -375,16 +397,9 @@ class HordeLib:
         pipeline = self._get_appropriate_pipeline(params)
         # Run the pipeline
         images = self.generator.run_image_pipeline(pipeline, params)
-        if images is None:
-            return None  # XXX Log error and/or raise Exception here
-        # Return image(s)
-        results = [Image.open(x["imagedata"]) for x in images]
-        if len(results) == 1:
-            return results[0]
-        else:
-            return results
+        return self._process_results(images, rawpng)
 
-    def image_upscale(self, payload: dict[str, str | None]) -> Image.Image | None:
+    def image_upscale(self, payload: dict[str, str | None], rawpng=False) -> Image.Image | None:
         # Check payload types
         self._check_payload(payload)
         # Determine our parameters
@@ -400,14 +415,9 @@ class HordeLib:
         height = payload.get("height")
         if width or height:
             return self._shrink_image(Image.open(images[0]["imagedata"]), width, height)
-        # Return image(s)
-        results = [Image.open(x["imagedata"]) for x in images]
-        if len(results) == 1:
-            return results[0]
-        else:
-            return results
+        return self._process_results(images, rawpng)
 
-    def image_facefix(self, payload: dict[str, str | None]) -> Image.Image | None:
+    def image_facefix(self, payload: dict[str, str | None], rawpng=False) -> Image.Image | None:
         # Check payload types
         self._check_payload(payload)
         # Determine our parameters
@@ -416,11 +426,4 @@ class HordeLib:
         pipeline = "image_facefix"
         # Run the pipeline
         images = self.generator.run_image_pipeline(pipeline, params)
-        if images is None:
-            return None  # XXX Log error and/or raise Exception here
-        # Return image(s)
-        results = [Image.open(x["imagedata"]) for x in images]
-        if len(results) == 1:
-            return results[0]
-        else:
-            return results
+        return self._process_results(images, rawpng)
