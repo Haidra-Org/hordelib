@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.14.1](https://github.com/jug-dev/hordelib/compare/v0.14.0...v0.14.1)
+
+24 April 2023
+
+- fix: use denoising as controlnet strength (compatibility hack) [`#183`](https://github.com/jug-dev/hordelib/pull/183) (Jug)
+
 ## [v0.14.0](https://github.com/jug-dev/hordelib/compare/v0.13.0...v0.14.0)
 
 24 April 2023
