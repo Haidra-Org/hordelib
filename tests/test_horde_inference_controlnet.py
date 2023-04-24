@@ -100,3 +100,32 @@ class TestHordeInference:
             pil_image = self.horde.basic_inference(data)
             assert pil_image is not None
             pil_image.save(f"images/horde_controlnet_strength_{strength}.webp", quality=90)
+
+    def test_controlnet_hires_fix(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 1234345378856789,
+            "height": 768,
+            "width": 768,
+            "karras": True,
+            "tiling": False,
+            "hires_fix": True,
+            "hires_fix_denoising_strength": 0.0,
+            "clip_skip": 1,
+            "control_type": "canny",
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a man walking in the jungle",
+            "ddim_steps": 15,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+        }
+        for denoise in [0.4, 0.5, 0.6]:
+            data["hires_fix_denoising_strength"] = denoise
+            pil_image = self.horde.basic_inference(data)
+            assert pil_image is not None
+            pil_image.save(f"images/horde_controlnet_hires_fix_denoise_{denoise}.webp", quality=90)

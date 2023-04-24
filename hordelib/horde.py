@@ -58,6 +58,7 @@ class HordeLib:
         "source_mask": None,
         "source_processing": "source_processing",
         "control_strength": "controlnet_apply.strength",
+        "hires_fix_denoising_strength": "upscale_sampler.denoise",
     }
 
     # Horde names on the left, our node names on the right
@@ -184,7 +185,8 @@ class HordeLib:
             params["upscale_sampler.cfg"] = params["sampler.cfg"]
             params["upscale_sampler.steps"] = params["sampler.steps"]
             params["upscale_sampler.sampler_name"] = params["sampler.sampler_name"]
-            params["upscale_sampler.denoise"] = 0.6  # XXX is this ok for latent upscale denoise?
+            if not params.get("upscale_sampler.denoise"):
+                params["upscale_sampler.denoise"] = 0.65  # XXX 0.65 default upscaler denoising strength
             # Adjust image sizes
             width = params.get("empty_latent_image.width", 0)
             height = params.get("empty_latent_image.height", 0)
@@ -245,6 +247,19 @@ class HordeLib:
         # Determine the correct pipeline based on the parameters we have
         pipeline = None
 
+        # ControlNet
+        if params.get("control_type"):
+            if params.get("return_control_map", False):
+                pipeline = "controlnet_annotator"
+            else:
+                if "hires_fix" in params:
+                    del params["hires_fix"]
+                    pipeline = "controlnet_hires_fix"
+                else:
+                    pipeline = "controlnet"
+
+            return pipeline
+
         # Hires fix
         if "hires_fix" in params:
             del params["hires_fix"]
@@ -266,10 +281,6 @@ class HordeLib:
             pipeline = "stable_diffusion_paint"
         elif source_proc == "outpainting":
             pipeline = "stable_diffusion_paint"
-
-        # ControlNet
-        if params.get("control_type"):
-            pipeline = "controlnet_annotator" if params.get("return_control_map", False) else "controlnet"
 
         return pipeline
 

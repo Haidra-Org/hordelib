@@ -23,6 +23,13 @@ class CompVisModelManager(BaseModelManager):
         )
 
     @override
+    def is_local_model(self, model_name):
+        parts = os.path.splitext(model_name.lower())
+        if parts[-1] in [".safetensors", ".ckpt"]:
+            return True
+        return False
+
+    @override
     def modelToRam(
         self,
         model_name: str,

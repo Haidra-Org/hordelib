@@ -333,13 +333,12 @@ class ModelManager:
             cpu_only = True
 
         for model_manager in self.active_model_managers:
-            if local or model_name in model_manager.model_reference:
+            if model_name in model_manager.model_reference or model_manager.is_local_model(model_name):
                 return model_manager.load(
                     model_name=model_name,
                     half_precision=half_precision,
                     gpu_id=gpu_id,
                     cpu_only=cpu_only,
-                    local=local,
                 )
 
         logger.error(f"{model_name} not found")

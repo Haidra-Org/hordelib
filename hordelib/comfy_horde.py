@@ -38,12 +38,15 @@ from comfy_extras.chainner_models import model_loading as _comfy_model_loading
 # isort: on
 
 __models_to_release = {}
+__model_load_mutex = threading.Lock()
 
 
 def cleanup():
-    with _comfy_model_manager.sampler_mutex:
+    locked = _comfy_model_manager.sampler_mutex.acquire(timeout=0)
+    if locked:
         # Do we have any models waiting to be released?
         if not __models_to_release:
+            _comfy_model_manager.sampler_mutex.release()
             return
 
         # Can we release any of them?
@@ -52,6 +55,7 @@ def cleanup():
                 # We're in the middle of using it, nothing we can do
                 continue
             # Unload the model from the GPU
+            logger.debug(f"Unloading {model_name} from GPU")
             unload_model_from_gpu(model_data["model"])
             # Free ram
             if "model" in model_data:
@@ -63,13 +67,19 @@ def cleanup():
             if "clipVisionModel" in model_data:
                 del model_data["clipVisionModel"]
             del model_data
-            del __models_to_release[model_name]
+            with __model_load_mutex:
+                del __models_to_release[model_name]
             gc.collect()
+            logger.debug(f"Removal of model {model_name} completed")
+
+        _comfy_model_manager.sampler_mutex.release()
 
 
 def remove_model_from_memory(model_name, model_data):
-    with _comfy_model_manager.sampler_mutex:
+    logger.debug(f"Comfy_Horde received request to unload {model_name}")
+    with __model_load_mutex:
         if model_name not in __models_to_release:
+            logger.debug(f"Model {model_name} queued for GPU/RAM unload")
             __models_to_release[model_name] = model_data
 
 
@@ -201,7 +211,9 @@ class Comfy_Horde:
     def __init__(self) -> None:
         self._client_id = {}
         self.pipelines = {}
-        self.exit_time = 0
+        self._exit_time = 0
+        self._callers = 0
+        self._counter_mutex = threading.Lock()
         # Set custom node path
         _comfy_folder_paths["custom_nodes"] = ([os.path.join(get_hordelib_path(), "nodes")], [])
         # Load our pipelines
@@ -491,13 +503,23 @@ class Comfy_Horde:
         #   },
         # ]
         # See node_image_output.py
-        if self.exit_time:
-            idle_time = time.time() - self.exit_time
+
+        # If no callers for a while, announce it
+        if self._callers == 0 and self._exit_time:
+            idle_time = time.time() - self._exit_time
             if idle_time > 1:
                 logger.warning(f"No job ran for {round(idle_time, 3)} seconds")
 
+        # We have just been entered
+        with self._counter_mutex:
+            self._callers += 1
+
         result = self.run_pipeline(pipeline_name, params)
-        self.exit_time = time.time()
+
+        # We are being exited
+        with self._counter_mutex:
+            self._exit_time = time.time()
+            self._callers -= 1
 
         if result:
             return result["output_image"]["images"]
