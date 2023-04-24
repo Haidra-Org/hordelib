@@ -33,8 +33,8 @@ def download_all_controlnet_annotators() -> bool:
     ]
 
     try:
+        logger.init("Downloading annotators if required...", status="Checking")
         for annotator_init_func in annotator_init_funcs:
-            logger.init(f"Downloading annotator: {annotator_init_func}", status="Downloading")
             annotator_init_func()
         return True
     except (OSError, requests.exceptions.RequestException) as e:
