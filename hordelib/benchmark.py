@@ -38,8 +38,11 @@ def delta(desc):
 def get_os():
     os_name = platform.system()
     if os_name == "Linux":
-        distro_name, distro_version, distro_id = platform.linux_distribution()
-        os_name = f"{os_name} ({distro_name} {distro_version} {distro_id})"
+        import distro
+
+        distro_name = distro.name()
+        distro_version = distro.version()
+        os_name = f"{os_name} ({distro_name} {distro_version})"
     elif os_name == "Windows":
         win_version = "-".join(platform.win32_ver())
         os_name = f"{os_name} ({win_version})"
