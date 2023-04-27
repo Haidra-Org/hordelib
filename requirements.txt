@@ -23,6 +23,7 @@ diffusers
 omegaconf
 psutil
 typing-extensions
+distro
 # face fixer custom nodes
 opencv-python
 # controlnet custom nodes
