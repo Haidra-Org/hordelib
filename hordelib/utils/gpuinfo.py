@@ -46,6 +46,30 @@ class GPUInfo:
             raw *= 1024
         return f"{round(mem)} {unit}"
 
+    def get_total_vram_mb(self):
+        """Get total VRAM in MB as an integer, or 0"""
+        value = 0
+        data = self._get_gpu_data()
+        if data:
+            value = self.get(data, "fb_memory_usage.total", "0")
+            try:
+                value = int(value)
+            except ValueError:
+                value = 0
+        return value
+
+    def get_free_vram_mb(self):
+        """Get free VRAM in MB as an integer, or 0"""
+        value = 0
+        data = self._get_gpu_data()
+        if data:
+            value = self.get(data, "fb_memory_usage.free", "0")
+            try:
+                value = int(value)
+            except ValueError:
+                value = 0
+        return value
+
     def get_info(self):
         data = self._get_gpu_data()
         if not data:

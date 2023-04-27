@@ -1,3 +1,4 @@
+import os
 import platform
 import time
 from io import BytesIO
@@ -55,6 +56,25 @@ def get_os():
 
 
 def main():
+    if not os.getenv("AIWORKER_CACHE_HOME"):
+        print("No model directory found. Environmental variable AIWORKER_CACHE_HOME is not set.")
+        exit(1)
+
+    try:
+        gpu = GPUInfo().get_info()
+        gpu_name = gpu["product"]
+        gpu_vram = gpu["vram_total"]
+        gpu_vram_mb = GPUInfo().get_total_vram_mb()
+    except Exception:
+        gpu = "unknown"
+        gpu_name = ""
+        gpu_vram = ""
+        gpu_vram_mb = 0
+
+    disable_controlnet = False
+    if gpu_vram_mb < 80000:
+        disable_controlnet = True
+
     delta("initialisation")
     import hordelib
 
@@ -71,7 +91,7 @@ def main():
 
     generate = HordeLib()
     delta("model-manager-load")
-    SharedModelManager.loadModelManagers(compvis=True, controlnet=True)
+    SharedModelManager.loadModelManagers(compvis=True, controlnet=not disable_controlnet)
     delta("model-manager-load")
     SharedModelManager.manager.load("stable_diffusion")
 
@@ -133,34 +153,28 @@ def main():
     last = delta("stable-diffusion-model-load-x3")
     model_load = round(last / 3, 1)
 
-    logger.warning("Benchmarking controlnet")
-    # approximate pipeline overhead
-    data["ddim_steps"] = 1
-    data["source_image"] = download_image(CONTROLNET_TEST_IMAGE)
-    data["control_type"] = "hed"
-    data["source_processing"] = "img2img"
-    delta("controlnet-overhead")
-    pil_image = generate.basic_inference(data)
-    cnet_overhead = round(delta("controlnet-overhead"), 2)
-    # inference
-    data["ddim_steps"] = max_iterations
-    data["source_image"] = download_image(CONTROLNET_TEST_IMAGE)
-    data["control_type"] = "hed"
-    data["source_processing"] = "img2img"
-    delta("controlnet-inference")
-    pil_image = generate.basic_inference(data)
-    last = delta("controlnet-inference")
-    cnet_its = round(max_iterations / last, 1)
-    cnet_raw_its = round(max_iterations / (last - cnet_overhead), 1)
-    if not pil_image:
-        raise Exception("Image generation failed")
-
-    try:
-        gpu = GPUInfo().get_info()
-        gpu_name = gpu["product"]
-        gpu_vram = gpu["vram_total"]
-    except Exception:
-        gpu = "unknown"
+    if not disable_controlnet:
+        logger.warning("Benchmarking controlnet")
+        # approximate pipeline overhead
+        data["ddim_steps"] = 1
+        data["source_image"] = download_image(CONTROLNET_TEST_IMAGE)
+        data["control_type"] = "hed"
+        data["source_processing"] = "img2img"
+        delta("controlnet-overhead")
+        pil_image = generate.basic_inference(data)
+        cnet_overhead = round(delta("controlnet-overhead"), 2)
+        # inference
+        data["ddim_steps"] = max_iterations
+        data["source_image"] = download_image(CONTROLNET_TEST_IMAGE)
+        data["control_type"] = "hed"
+        data["source_processing"] = "img2img"
+        delta("controlnet-inference")
+        pil_image = generate.basic_inference(data)
+        last = delta("controlnet-inference")
+        cnet_its = round(max_iterations / last, 1)
+        cnet_raw_its = round(max_iterations / (last - cnet_overhead), 1)
+        if not pil_image:
+            raise Exception("Image generation failed")
 
     # Display Results
     print()
@@ -172,8 +186,9 @@ def main():
     print("    Iterations per second @ 512x512:")
     print(f"{its:>{9}} basic inference (empirical)")
     print(f"{its_raw:>{9}} basic inference (theoretical)")
-    print(f"{cnet_its:>{9}} controlnet inference (empirical)")
-    print(f"{cnet_raw_its:>{9}} controlnet inference (theoretical)")
+    if not disable_controlnet:
+        print(f"{cnet_its:>{9}} controlnet inference (empirical)")
+        print(f"{cnet_raw_its:>{9}} controlnet inference (theoretical)")
     print()
     print(f"{model_load:>{9}}s model load speed")
     print()
