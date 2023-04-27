@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v0.15.0](https://github.com/jug-dev/hordelib/compare/v0.14.2...v0.15.0)
+
+27 April 2023
+
+- fix: remove unused file [`410923c`](https://github.com/jug-dev/hordelib/commit/410923cfb6880321c6532a7049a7f90aaefd95f4)  (Jug)
+- tests: new test for cuda [`4288273`](https://github.com/jug-dev/hordelib/commit/4288273590cc7681ced9d104e1b7caa45276c21e)  (db0)
+- fix: auto fix if width/height not divisible by 64 [`f89f889`](https://github.com/jug-dev/hordelib/commit/f89f889122bf3656c9c3706146863118c60bff9a)  (Jug)
+
 ## [v0.14.2](https://github.com/jug-dev/hordelib/compare/v0.14.1...v0.14.2)
 
 27 April 2023
