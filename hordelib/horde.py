@@ -128,6 +128,16 @@ class HordeLib:
 
         return params
 
+    def _calculate_source_image_size(self, width, height):
+        if width > 512 and height > 512:
+            final_width = width
+            final_height = height
+            first_pass_ratio = min(final_height / 512, final_width / 512)
+            width = (int(final_width / first_pass_ratio) // 64) * 64
+            height = (int(final_height / first_pass_ratio) // 64) * 64
+            return (width, height)
+        return (width, height)
+
     def _parameter_remap_basic_inference(
         self,
         payload: dict[str, str | None],
@@ -191,15 +201,11 @@ class HordeLib:
             width = params.get("empty_latent_image.width", 0)
             height = params.get("empty_latent_image.height", 0)
             if width > 512 and height > 512:
-                final_width = width
-                final_height = height
-                params["latent_upscale.width"] = final_width
-                params["latent_upscale.height"] = final_height
-                first_pass_ratio = min(final_height / 512, final_width / 512)
-                width = (int(final_width / first_pass_ratio) // 64) * 64
-                height = (int(final_height / first_pass_ratio) // 64) * 64
-                params["empty_latent_image.width"] = width
-                params["empty_latent_image.height"] = height
+                newwidth, newheight = self._calculate_source_image_size(width, height)
+                params["latent_upscale.width"] = width
+                params["latent_upscale.height"] = height
+                params["empty_latent_image.width"] = newwidth
+                params["empty_latent_image.height"] = newheight
                 # Finally mark that we are using hires fix
                 params["hires_fix"] = True
 
@@ -242,6 +248,11 @@ class HordeLib:
         # Turn off hires fix if we're painting as the dimensions are from the image
         if "hires_fix" in payload and (img_proc == "inpainting" or img_proc == "outpainting"):
             payload["hires_fix"] = False
+
+        # Use denoising strength for both samplers if no second denoiser specified in hires fix
+        if payload.get("hires_fix"):
+            if not payload.get("hires_fix_denoising_strength"):
+                payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
 
         # Remap "denoising" to "controlnet strength" if that's what we actually wanted
         if payload.get("control_type"):
@@ -312,13 +323,14 @@ class HordeLib:
         if not source_image:
             return
         try:
-            # We must not resize during hires_fix as it causes the final image to come out blurry
-            if source_image.size != (
-                payload["width"],
-                payload["height"],
-            ) and not payload.get("hires_fix"):
+            newwidth = payload["width"]
+            newheight = payload["height"]
+            if payload.get("hires_fix") or payload.get("control_type"):
+                newwidth, newheight = self._calculate_source_image_size(payload["width"], payload["height"])
+            if source_image.size != (newwidth, newheight):
                 payload["source_image"] = source_image.resize(
-                    (payload["width"], payload["height"]),
+                    (newwidth, newheight),
+                    Image.Resampling.LANCZOS,
                 )
         except (UnidentifiedImageError, AttributeError):
             logger.warning("Source image could not be parsed. Falling back to text2img")
