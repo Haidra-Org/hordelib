@@ -258,9 +258,11 @@ class HordeLib:
             payload["hires_fix"] = False
 
         # Use denoising strength for both samplers if no second denoiser specified in hires fix
+        # but not for txt2img where denoising will always generally be 1.0
         if payload.get("hires_fix"):
-            if not payload.get("hires_fix_denoising_strength"):
-                payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
+            if payload.get("source_processing") and payload.get("source_processing") != "txt2img":
+                if not payload.get("hires_fix_denoising_strength"):
+                    payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
 
         # Remap "denoising" to "controlnet strength" if that's what we actually wanted
         if payload.get("control_type"):
