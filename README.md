@@ -203,7 +203,7 @@ Here's an example:
 
 Start in a new empty directory. Create requirements.txt:
 ```
---extra-index-url https://download.pytorch.org/whl/cu117
+--extra-index-url https://download.pytorch.org/whl/cu118
 hordelib
 ```
 

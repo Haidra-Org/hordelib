@@ -31,7 +31,7 @@ def download_models():
 
 print("Installing requirements...")
 sleep(2)
-os.system(f'pip install -r "{EXT_PATH}/requirements.txt" --extra-index-url https://download.pytorch.org/whl/cu117 --no-warn-script-location')
+os.system(f'pip install -r "{EXT_PATH}/requirements.txt" --extra-index-url https://download.pytorch.org/whl/cu118 --no-warn-script-location')
 
 if args.no_download_ckpts: exit()
 
