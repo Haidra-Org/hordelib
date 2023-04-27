@@ -45,7 +45,7 @@ exclude = ["ComfyUI"]
 namespaces = false
 
 [options.index-client]
-extra-index-urls = ["https://download.pytorch.org/whl/cu117"]
+extra-index-urls = ["https://download.pytorch.org/whl/cu118"]
 
 [tool.pytest.ini_options]
 minversion = "7.0"

@@ -232,6 +232,14 @@ class HordeLib:
 
     # Fix any nonsensical requests
     def _validate_BASIC_INFERENCE_PARAMS(self, payload):
+
+        # Fix width/height not divisable by 65
+        if payload["width"] % 64 != 0:
+            payload["width"] = ((payload["width"] + 63) // 64) * 64
+
+        if payload["height"] % 64 != 0:
+            payload["height"] = ((payload["height"] + 63) // 64) * 64
+
         # Turn off hires fix if we're not generating a hires image
         if "hires_fix" in payload and (payload["width"] <= 512 or payload["height"] <= 512):
             payload["hires_fix"] = False
