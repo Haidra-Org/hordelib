@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v0.14.2](https://github.com/jug-dev/hordelib/compare/v0.14.1...v0.14.2)
+
+27 April 2023
+
+- fix: image sizing bugs with hires fix and controlnet [`ad0d6a9`](https://github.com/jug-dev/hordelib/commit/ad0d6a9551c5b3766c4c19bc08b994bf7e3589dc)  (Jug)
+- fix: benchmark on linux [`48de047`](https://github.com/jug-dev/hordelib/commit/48de0477261b5b7f5c01789658a15b161d7796c2)  (Jug)
+
 ## [v0.14.1](https://github.com/jug-dev/hordelib/compare/v0.14.0...v0.14.1)
 
 24 April 2023
