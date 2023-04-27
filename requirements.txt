@@ -1,5 +1,5 @@
 # Add this in for tox, comment out for build
---extra-index-url https://download.pytorch.org/whl/cu117
+--extra-index-url https://download.pytorch.org/whl/cu118
 torch>=2.0.0
 xformers>=0.0.18
 torchvision
