@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v0.15.1](https://github.com/jug-dev/hordelib/compare/v0.15.0...v0.15.1)
+
+27 April 2023
+
+- fix: disable controlnet on low vram gpus in benchmark [`#191`](https://github.com/jug-dev/hordelib/pull/191) (Jug)
+- fix: rectify txt2img highres denoising [`fd20e69`](https://github.com/jug-dev/hordelib/commit/fd20e691af566048df3032d42485dbc374101e51)  (Jug)
+
 ## [v0.15.0](https://github.com/jug-dev/hordelib/compare/v0.14.2...v0.15.0)
 
 27 April 2023
