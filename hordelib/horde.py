@@ -113,6 +113,26 @@ class HordeLib:
                     payload["height"] = 64
             except ValueError:
                 payload["height"] = 512
+        # Validate denoising
+        if payload.get("denoising_strength"):
+            try:
+                payload["denoising_strength"] = float(payload.get("denoising_strength"))
+                if payload["denoising_strength"] < 0.0:
+                    payload["denoising_strength"] = 0.0
+                elif payload["denoising_strength"] > 1.0:
+                    payload["denoising_strength"] = 1.0
+            except ValueError:
+                payload["denoising_strength"] = 1.0
+        if payload.get("hires_fix_denoising_strength"):
+            try:
+                payload["hires_fix_denoising_strength"] = float(payload.get("hires_fix_denoising_strength"))
+                if payload["hires_fix_denoising_strength"] < 0.0:
+                    payload["hires_fix_denoising_strength"] = 0.0
+                elif payload["hires_fix_denoising_strength"] > 1.0:
+                    payload["hires_fix_denoising_strength"] = 1.0
+            except ValueError:
+                payload["hires_fix_denoising_strength"] = 1.0
+
 
     def _parameter_remap(self, payload: dict[str, str | None]) -> dict[str, str | None]:
         params = {}
