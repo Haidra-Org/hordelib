@@ -133,7 +133,6 @@ class HordeLib:
             except ValueError:
                 payload["hires_fix_denoising_strength"] = 1.0
 
-
     def _parameter_remap(self, payload: dict[str, str | None]) -> dict[str, str | None]:
         params = {}
         # Extract from the payload things we understand
