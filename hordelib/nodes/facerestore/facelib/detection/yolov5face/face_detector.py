@@ -17,11 +17,14 @@ from facerestore.facelib.detection.yolov5face.utils.general import (
     scale_coords_landmarks,
 )
 
-IS_HIGH_VERSION = tuple(map(int, torch.__version__.split("+")[0].split("."))) >= (
-    1,
-    9,
-    0,
-)
+
+def is_high_version():
+    from packaging import version
+    try:
+        torch_v = version.parse(torch.__version__)
+        return torch_v > version.parse("1.9.0")
+    except Exception:
+        return True
 
 
 def isListempty(inList):
@@ -148,7 +151,7 @@ class YoloDetector:
 
         images = self._preprocess(images)
 
-        if IS_HIGH_VERSION:
+        if is_high_version():
             with torch.inference_mode():  # for pytorch>=1.9
                 pred = self.detector(images)[0]
         else:
