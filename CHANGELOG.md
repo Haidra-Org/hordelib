@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.16.2](https://github.com/jug-dev/hordelib/compare/v0.16.1...v0.16.2)
+
+29 April 2023
+
+- fix: ensure we manage ram when loading models from cache [`516f001`](https://github.com/jug-dev/hordelib/commit/516f001383f27c9d2e9b56dff42164213a8d0b96)  (Jug)
+
 ## [v0.16.1](https://github.com/jug-dev/hordelib/compare/v0.16.0...v0.16.1)
 
 29 April 2023
