@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.16.0](https://github.com/jug-dev/hordelib/compare/v0.15.3...v0.16.0)
+
+29 April 2023
+
+- feat: automatic resource management [`#186`](https://github.com/jug-dev/hordelib/pull/186) (Jug)
+
 ## [v0.15.3](https://github.com/jug-dev/hordelib/compare/v0.15.2...v0.15.3)
 
 29 April 2023
