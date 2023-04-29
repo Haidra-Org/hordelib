@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v0.15.2](https://github.com/jug-dev/hordelib/compare/v0.15.1...v0.15.2)
+
+29 April 2023
+
+- fix: validate denoising parameter bounds [`df1a369`](https://github.com/jug-dev/hordelib/commit/df1a369b612e7e960844ed5da7aee54fce42895e)  (Jug)
+- fix: facefix didn't work on dev versions of torch [`7cc212b`](https://github.com/jug-dev/hordelib/commit/7cc212b4fb7bc174307e2d8de960042628d06cef)  (Jug)
+- build: bump to xformers 0.0.19 [`1c0eb4a`](https://github.com/jug-dev/hordelib/commit/1c0eb4a094a5f88c2bcc3e61155141d743fdf92d)  (Jug)
+
 ## [v0.15.1](https://github.com/jug-dev/hordelib/compare/v0.15.0...v0.15.1)
 
 27 April 2023
