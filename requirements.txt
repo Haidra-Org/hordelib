@@ -1,7 +1,7 @@
 # Add this in for tox, comment out for build
 --extra-index-url https://download.pytorch.org/whl/cu118
 torch>=2.0.0
-xformers>=0.0.18
+xformers>=0.0.19
 torchvision
 torchaudio
 torchdiffeq
@@ -29,15 +29,15 @@ opencv-python
 # controlnet custom nodes
 opencv-contrib-python
 opencv-python
-timm==0.6.12
+timm>=0.6.12
 torchvision
 scipy
 matplotlib
 scikit-image
-prettytable==3.6.0
+prettytable>=3.6.0
 svglib
 reportlab
 addict
 yapf
-mediapipe==0.9.1.0
+mediapipe>=0.9.1.0
 fairscale
