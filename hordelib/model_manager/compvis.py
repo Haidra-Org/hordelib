@@ -104,3 +104,9 @@ class CompVisModelManager(BaseModelManager):
             self.free_model_resources(model_name)
             # Point the model to the cache
             self.add_loaded_model(model_name, model_data)
+
+    def move_from_disk_cache(self, model_name, model, clip, vae):
+        with self._mutex:
+            self._loaded_models[model_name]["model"] = model
+            self._loaded_models[model_name]["clip"] = clip
+            self._loaded_models[model_name]["vae"] = vae

@@ -241,6 +241,10 @@ class BaseModelManager(ABC):
     def move_to_disk_cache(self, model_name):
         pass
 
+    # @abstractmethod # TODO
+    def move_from_disk_cache(self, model_name, model, clip, vae):
+        pass
+
     def can_cache_on_disk(self):
         """Can this of type model be cached on disk?"""
         return False
