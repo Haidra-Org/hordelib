@@ -54,6 +54,8 @@ class HordeCheckpointLoader:
                     model = pickle.load(cache)
                     vae = pickle.load(cache)
                     clip = pickle.load(cache)
+                # Record this model as being in ram again
+                model_manager.manager.move_from_disk_cache(model_name, model, clip, vae)
                 logger.info(
                     f"Loaded model {model_name} from disk cache in {round(time.time() - start_time, 1)} seconds",
                 )

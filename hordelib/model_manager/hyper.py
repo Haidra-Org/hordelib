@@ -246,6 +246,23 @@ class ModelManager:
                 return model_manager.unload_model(model_name)
         return None
 
+    def move_from_disk_cache(self, model_name, model, clip, vae):
+        """Moves the given model back into ram.
+
+        Args:
+            model_name (str): The model name to remove.
+            model (model): the model data
+            clip (clip): the clip model data
+            var (var): the var model data
+        """
+        for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
+            model_manager: BaseModelManager = getattr(self, model_manager_type)
+            if model_manager is None:
+                continue
+            if model_name in model_manager.model_reference or model_manager.is_local_model(model_name):
+                return model_manager.move_from_disk_cache(model_name, model, clip, vae)
+        return None
+
     def get_loaded_models_names(self) -> list:
         """DEPRECATED: Use property self.loaded_models. Returns a list of all the currently loaded models.
 
