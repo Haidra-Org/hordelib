@@ -55,6 +55,19 @@ def get_os():
     return os_name
 
 
+def get_software_stack():
+    try:
+        import torch
+        import xformers
+        from packaging import version
+
+        torch_v = version.parse(torch.__version__)
+        xformers_v = version.parse(xformers.__version__)
+        return f"Torch {torch_v}, xFormers {xformers_v}"
+    except Exception:
+        return "Unknown torch and xformers version"
+
+
 def main():
     if not os.getenv("AIWORKER_CACHE_HOME"):
         print("No model directory found. Environmental variable AIWORKER_CACHE_HOME is not set.")
@@ -182,6 +195,7 @@ def main():
     print(f"--- hordelib {__version__} Benchmark ---")
     print(f"    GPU: {gpu_name} {gpu_vram}")
     print(f"     OS: {get_os()}")
+    print(f"  Torch: {get_software_stack()}")
     print()
     print("    Iterations per second @ 512x512:")
     print(f"{its:>{9}} basic inference (empirical)")
