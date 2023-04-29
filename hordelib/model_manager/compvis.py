@@ -106,6 +106,7 @@ class CompVisModelManager(BaseModelManager):
             self.add_loaded_model(model_name, model_data)
 
     def move_from_disk_cache(self, model_name, model, clip, vae):
+        self.ensure_ram_available()
         with self._mutex:
             self._loaded_models[model_name]["model"] = model
             self._loaded_models[model_name]["clip"] = clip
