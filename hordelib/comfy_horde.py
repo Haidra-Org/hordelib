@@ -420,7 +420,7 @@ class Comfy_Horde:
             return None
 
         # Update user settings
-        _comfy_model_manager.set_user_reserved_vram(UserSettings.vram_to_leave_free_mb)
+        _comfy_model_manager.set_user_reserved_vram(UserSettings.get_vram_to_leave_free_mb())
 
         logger.info(f"Running pipeline {pipeline_name}")
 

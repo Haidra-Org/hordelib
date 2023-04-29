@@ -49,7 +49,7 @@ index c809d39..9c9f6b8 100644
 +    # logger.warning(f"Done DPM-Solver++(2M) on model {id(model):x}")
      return x
 diff --git a/comfy/model_management.py b/comfy/model_management.py
-index a0d1313..2da5cca 100644
+index a0d1313..ba373dc 100644
 --- a/comfy/model_management.py
 +++ b/comfy/model_management.py
 @@ -1,6 +1,8 @@
@@ -76,7 +76,7 @@ index a0d1313..2da5cca 100644
          except:
              pass
      except:
-@@ -110,94 +112,171 @@ except:
+@@ -110,94 +112,172 @@ except:
  if args.cpu:
      vram_state = VRAMState.CPU
  
@@ -176,7 +176,6 @@ index a0d1313..2da5cca 100644
 +    _initialised = False
 +    _mutex = threading.RLock()
 +    sampler_mutex = threading.RLock()
-+    system_reserved_vram_mb = 6 * 1024
 +    user_reserved_vram_mb = 0
 +
 +    # We are a singleton
@@ -229,6 +228,7 @@ index a0d1313..2da5cca 100644
 +            model.model.cpu()
 +            model.unpatch_model()
 +            self.current_loaded_models.remove(model)
++            return True
 +            #logger.warning(f"Unload model {id(model):x}")
 +
 +    def done_with_model(self, model):
@@ -246,10 +246,11 @@ index a0d1313..2da5cca 100644
 +            if self.current_loaded_models:
 +                freemem = round(get_free_memory(get_torch_device()) / (1024 * 1024))
 +                logger.debug(f"Free VRAM is: {freemem}MB ({len(self.current_loaded_models)} models loaded on GPU)")
-+                if freemem < (self.system_reserved_vram_mb + self.user_reserved_vram_mb):
-+                    # release the least used model
-+                    #logger.warning("Will unload least used model")
-+                    self.unload_model(self.current_loaded_models[-1])
++                if freemem < self.user_reserved_vram_mb:
++                    # Release the first least used model that we can
++                    for release_model in reversed(self.current_loaded_models):
++                        if self.unload_model(release_model):
++                            break
 +                    freemem = round(get_free_memory(get_torch_device()) / (1024 * 1024))
 +                    logger.debug(f"Unloaded a model, free VRAM is now: {freemem}MB ({len(self.current_loaded_models)} models loaded on GPU)")
 +
@@ -805,7 +806,7 @@ index 02c700e..507d1db 100644
  
  def prompt_worker(q, server):
 diff --git a/nodes.py b/nodes.py
-index 48c3ee9..8257bd5 100644
+index 48c3ee9..5fe17c1 100644
 --- a/nodes.py
 +++ b/nodes.py
 @@ -26,6 +26,11 @@ import importlib
@@ -828,68 +829,131 @@ index 48c3ee9..8257bd5 100644
  def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive, negative, latent, denoise=1.0, disable_noise=False, start_step=None, last_step=None, force_full_denoise=False):
      latent_image = latent["samples"]
      noise_mask = None
-@@ -765,16 +769,19 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
+@@ -765,55 +769,74 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
          noise_mask = torch.cat([noise_mask] * noise.shape[0])
          noise_mask = noise_mask.to(device)
  
 -    real_model = None
 -    comfy.model_management.load_model_gpu(model)
-+    comfy.model_management.model_manager.set_model_in_use(model)
-+    comfy.model_management.model_manager.load_model_gpu(model)
-     real_model = model.model
- 
-+    #logger.warning(f"Moving noise {id(noise):x} to device {device}")
-     noise = noise.to(device)
-+    #logger.warning(f"Moving latest image {id(latent_image):x} to device {device}")
-     latent_image = latent_image.to(device)
- 
-     positive_copy = []
-     negative_copy = []
- 
-+    #logger.warning(f"Assembling control nets")
-     control_nets = []
-     def get_models(cond):
-         models = []
-@@ -799,21 +806,35 @@ def common_ksampler(model, seed, steps, cfg, sampler_name, scheduler, positive,
-         negative_copy += [[t] + n[1:]]
- 
-     models = get_models(positive) + get_models(negative)
+-    real_model = model.model
+-
+-    noise = noise.to(device)
+-    latent_image = latent_image.to(device)
+-
+-    positive_copy = []
+-    negative_copy = []
+-
+-    control_nets = []
+-    def get_models(cond):
+-        models = []
+-        for c in cond:
+-            if 'control' in c[1]:
+-                models += [c[1]['control']]
+-            if 'gligen' in c[1]:
+-                models += [c[1]['gligen'][1]]
+-        return models
+-
+-    for p in positive:
+-        t = p[0]
+-        if t.shape[0] < noise.shape[0]:
+-            t = torch.cat([t] * noise.shape[0])
+-        t = t.to(device)
+-        positive_copy += [[t] + p[1:]]
+-    for n in negative:
+-        t = n[0]
+-        if t.shape[0] < noise.shape[0]:
+-            t = torch.cat([t] * noise.shape[0])
+-        t = t.to(device)
+-        negative_copy += [[t] + n[1:]]
+-
+-    models = get_models(positive) + get_models(negative)
 -    comfy.model_management.load_controlnet_gpu(models)
-+    if models:
-+        comfy.model_management.model_manager.load_controlnet_gpu(models)
-+        comfy.model_management.model_manager.sampler_mutex.acquire()
- 
-     if sampler_name in comfy.samplers.KSampler.SAMPLERS:
-+        #logger.warning(f"Creating KSampler for real model {id(real_model):x}")
-         sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
-     else:
-         #other samplers
-         pass
- 
-+    #logger.warning(f"Sampling")
-     samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
-+    #logger.warning("Done sampling")
-     samples = samples.cpu()
+-
+-    if sampler_name in comfy.samplers.KSampler.SAMPLERS:
+-        sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
+-    else:
+-        #other samplers
+-        pass
+-
+-    samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
+-    samples = samples.cpu()
 -    for m in models:
 -        m.cleanup()
+-
+-    out = latent.copy()
+-    out["samples"] = samples
++    comfy.model_management.model_manager.set_model_in_use(model)
++    try:
++        comfy.model_management.model_manager.load_model_gpu(model)
++        real_model = model.model
 +
-+    #logger.warning("Moved samples to cpu")
-+    if models:
-+        # XXX force unload models for controlnet
-+        #logger.warning("Forcing GPU unload of controlnet models")
-+        comfy.model_management.model_manager.unload_controlnet_gpu(models)
-+        comfy.model_management.model_manager.unload_model(model)
-+        comfy.model_management.model_manager.sampler_mutex.release()
-+        for m in models:
-+            m.cleanup()
- 
-     out = latent.copy()
-     out["samples"] = samples
-+    comfy.model_management.model_manager.done_with_model(model)
++        #logger.warning(f"Moving noise {id(noise):x} to device {device}")
++        noise = noise.to(device)
++        #logger.warning(f"Moving latest image {id(latent_image):x} to device {device}")
++        latent_image = latent_image.to(device)
++
++        positive_copy = []
++        negative_copy = []
++
++        #logger.warning(f"Assembling control nets")
++        control_nets = []
++        def get_models(cond):
++            models = []
++            for c in cond:
++                if 'control' in c[1]:
++                    models += [c[1]['control']]
++                if 'gligen' in c[1]:
++                    models += [c[1]['gligen'][1]]
++            return models
++
++        for p in positive:
++            t = p[0]
++            if t.shape[0] < noise.shape[0]:
++                t = torch.cat([t] * noise.shape[0])
++            t = t.to(device)
++            positive_copy += [[t] + p[1:]]
++        for n in negative:
++            t = n[0]
++            if t.shape[0] < noise.shape[0]:
++                t = torch.cat([t] * noise.shape[0])
++            t = t.to(device)
++            negative_copy += [[t] + n[1:]]
++
++        models = get_models(positive) + get_models(negative)
++        if models:
++            comfy.model_management.model_manager.load_controlnet_gpu(models)
++            comfy.model_management.model_manager.sampler_mutex.acquire()
++
++        if sampler_name in comfy.samplers.KSampler.SAMPLERS:
++            #logger.warning(f"Creating KSampler for real model {id(real_model):x}")
++            sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
++        else:
++            #other samplers
++            pass
++
++        #logger.warning(f"Sampling")
++        samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask)
++        #logger.warning("Done sampling")
++        samples = samples.cpu()
++
++        #logger.warning("Moved samples to cpu")
++        if models:
++            # XXX force unload models for controlnet
++            #logger.warning("Forcing GPU unload of controlnet models")
++            comfy.model_management.model_manager.unload_controlnet_gpu(models)
++            comfy.model_management.model_manager.unload_model(model)
++            comfy.model_management.model_manager.sampler_mutex.release()
++            for m in models:
++                m.cleanup()
++
++        out = latent.copy()
++        out["samples"] = samples
++    finally:
++        comfy.model_management.model_manager.done_with_model(model)
      return (out, )
  
  class KSampler:
-@@ -976,6 +997,7 @@ class LoadImage:
+@@ -976,6 +999,7 @@ class LoadImage:
      def load_image(self, image):
          input_dir = folder_paths.get_input_directory()
          image_path = os.path.join(input_dir, image)

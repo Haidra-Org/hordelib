@@ -302,7 +302,7 @@ class ModelManager:
             model_manager: BaseModelManager = getattr(self, model_manager_type)
             if model_manager is None:
                 continue
-            model_manager.ensure_memory_available()
+            model_manager.ensure_ram_available()
         return
 
     def load(

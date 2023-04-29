@@ -155,6 +155,7 @@ images/index.html
 hordelib/_comfyui
 _version.py
 _comfyui
+tmp/
 
 .vscode
 *.ckpt
