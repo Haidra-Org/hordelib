@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v0.15.3](https://github.com/jug-dev/hordelib/compare/v0.15.2...v0.15.3)
+
+29 April 2023
+
+- fix: removed extraoneous clip debug messages [`#194`](https://github.com/jug-dev/hordelib/pull/194) (Divided by Zer0)
+- feat: add torch and xformers versions to benchmark [`559f198`](https://github.com/jug-dev/hordelib/commit/559f1989e2ec3b42c95ee0e2947bf248f01a92f5)  (Jug)
+- fix: exclude `build/` folder from linting [`5f38c3f`](https://github.com/jug-dev/hordelib/commit/5f38c3feecacb7e6a12af598b4a42bee8c00f43a)  (tazlin)
+
 ## [v0.15.2](https://github.com/jug-dev/hordelib/compare/v0.15.1...v0.15.2)
 
 29 April 2023
