@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.16.1](https://github.com/jug-dev/hordelib/compare/v0.16.0...v0.16.1)
+
+29 April 2023
+
+- fix: disk cache model load optimisation [`#198`](https://github.com/jug-dev/hordelib/pull/198) (Jug)
+
 ## [v0.16.0](https://github.com/jug-dev/hordelib/compare/v0.15.3...v0.16.0)
 
 29 April 2023
