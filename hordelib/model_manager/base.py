@@ -21,7 +21,7 @@ from tqdm import tqdm
 from transformers import logging
 
 from hordelib.cache import get_cache_directory
-from hordelib.comfy_horde import get_models_on_gpu, remove_model_from_memory
+from hordelib.comfy_horde import cleanup, get_models_on_gpu, remove_model_from_memory
 from hordelib.comfy_horde import get_torch_device as _get_torch_device
 from hordelib.config_path import get_hordelib_path
 from hordelib.consts import REMOTE_MODEL_DB
@@ -104,6 +104,7 @@ class BaseModelManager(ABC):
         self.remote_db = f"{REMOTE_MODEL_DB}{self.models_db_name}.json"
         self.download_reference = download_reference
         self.loadModelDatabase()
+        self.load_disk_cached_models()
 
     def loadModelDatabase(self, list_models=False):
         if self.model_reference:
@@ -150,6 +151,17 @@ class BaseModelManager(ABC):
             for model in self.available_models:
                 logger.info(model)
 
+    def load_disk_cached_models(self):
+        """Assume we've already loaded any disk cached models"""
+        if not self.can_cache_on_disk():
+            return
+        for model_name in self.available_models:
+            if self.have_model_cache(model_name):
+                self.add_loaded_model(model_name, self.load_from_disk_cache(model_name))
+
+    def load_from_disk_cache(self, model_name):
+        return False
+
     def download_model_reference(self):
         try:
             logger.init("Model Reference", status="Downloading")
@@ -172,37 +184,58 @@ class BaseModelManager(ABC):
                     return name
             return None
 
-    def ensure_memory_available(self):
-        # Can this type of model be cached?
+    def get_free_ram_mb(self):
+        return int(psutil.virtual_memory().available / (1024 * 1024))
+
+    def ensure_ram_available(self):
+        # Don't even consider this for models that can't be disk cached
         if not self.can_cache_on_disk():
             return
         with self._mutex:
             # If we have less than the minimum RAM free, free some up
-            freemem = round(psutil.virtual_memory().available / (1024 * 1024))
-            logger.debug(f"Free RAM is: {freemem} MB, ({len(self.get_loaded_models())} models loaded in RAM)")
-            if freemem > UserSettings.ram_to_leave_free_mb + 4096:
-                return
-            logger.debug("Not enough free RAM attempting to free some")
-            # Grab a list of models (ModelPatcher) that are loaded on the gpu
-            # These are actually returned with the least important at the bottom of the list
-            busy_models = get_models_on_gpu()
-            # Try to find one we have in ram that isn't on the gpu
-            idle_model = None
-            for ram_model_name, ram_model_data in self.get_loaded_models().items():
-                if type(ram_model_data["model"]) is not str and ram_model_data["model"] not in busy_models:
-                    idle_model = ram_model_name
-                    break
-            # If we didn't have one hanging around in ram not on the gpu
-            # pick the least used gpu model
-            if not idle_model and busy_models:
-                idle_model = self._modelref_to_name(busy_models[-1])
+            attempts = 2  # if ram isn't being released yet, no point keep trying
+            while (
+                self.get_free_ram_mb() < UserSettings.get_ram_to_leave_free_mb()
+                and attempts
+                and len(self.get_loaded_models()) > 0
+            ):
+                logger.debug(
+                    f"Free RAM is: {self.get_free_ram_mb()} MB, "
+                    "({len(self.get_loaded_models())} models loaded in RAM)",
+                )
+                logger.debug("Not enough free RAM attempting to free some")
+                # Grab a list of models (ModelPatcher) that are loaded on the gpu
+                # These are actually returned with the least important at the bottom of the list
+                busy_models = get_models_on_gpu()
+                # Try to find one we have in ram that isn't on the gpu
+                idle_model = None
+                for ram_model_name, ram_model_data in self.get_loaded_models().items():
+                    if type(ram_model_data["model"]) is not str and ram_model_data["model"] not in busy_models:
+                        idle_model = ram_model_name
+                        break
+                # If we didn't have one hanging around in ram not on the gpu
+                # pick the least used gpu model
+                if not idle_model and busy_models:
+                    idle_model = self._modelref_to_name(busy_models[-1])
 
-            if idle_model:
-                logger.debug(f"Moving model {idle_model} to disk to free up RAM")
-                self.move_to_disk_cache(idle_model)
-            else:
-                # Nothing else to release
-                logger.debug("Could not find a model to free RAM")
+                if idle_model:
+                    # Can this type of model be cached?
+                    if self.can_cache_on_disk():
+                        logger.debug(f"Moving model {idle_model} to disk to free up RAM")
+                        self.move_to_disk_cache(idle_model)
+                        # Try to release ram right now
+                        cleanup()
+                    else:
+                        # Unload the model to free ram
+                        self.unload_model(idle_model)
+                        # Try to release ram right now
+                        cleanup()
+                else:
+                    # Nothing else to release
+                    logger.debug("Could not find a model to free RAM")
+
+                # Try again if we must
+                attempts -= 1
 
     # @abstractmethod # TODO
     def move_to_disk_cache(self, model_name):
@@ -222,7 +255,7 @@ class BaseModelManager(ABC):
         **kwargs,
     ):  # XXX # FIXME
         with self._mutex:
-            self.ensure_memory_available()
+            self.ensure_ram_available()
             local = self.is_local_model(model_name)
             if not local and model_name not in self.model_reference:
                 logger.error(f"{model_name} not found")
@@ -393,7 +426,7 @@ class BaseModelManager(ABC):
         logger.debug(f"Model manager done with unload request for model {model_name}")
 
     def free_model_resources(self, model_name: str):
-        logger.debug(f"Received request to free model resources for {model_name}")
+        logger.debug(f"Received request to free model memory resources for {model_name}")
         with self._mutex:
             remove_model_from_memory(model_name, self.get_loaded_model(model_name))
 

@@ -48,8 +48,7 @@ jobs:
     - name: "🛠 Install pypa/build"
       if: ${{ steps.release.outputs.version != '' }}
       run: >-
-        python -m pip install build typing-extensions loguru --user
-        
+        python -m pip install build psutil typing-extensions loguru --user
 
     - name: "✏️ Install changelog dependencies"
       if: ${{ steps.release.outputs.version != '' }}

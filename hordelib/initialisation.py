@@ -14,11 +14,16 @@ from hordelib.consts import (
 )
 from hordelib.utils.logger import HordeLog
 
+_is_initialised = False
+
 
 def initialise(
     model_managers_to_load: dict[MODEL_CATEGORY_NAMES, bool] = DEFAULT_MODEL_MANAGERS,
     setup_logging=True,
 ):  # XXX # TODO Do we need `model_managers_to_load`?
+
+    global _is_initialised
+
     # Setup logging if requested
     HordeLog.initialise(setup_logging)
 
@@ -45,3 +50,9 @@ def initialise(
     SharedModelManager()
 
     sys.argv = sys_arg_bkp
+
+    _is_initialised = True
+
+
+def is_initialised():
+    return _is_initialised
