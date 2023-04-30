@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.16.4](https://github.com/jug-dev/hordelib/compare/v0.16.3...v0.16.4)
+
+30 April 2023
+
+- fix: support the latest model database format [`a986d06`](https://github.com/jug-dev/hordelib/commit/a986d0699edf3d299a0c8b9b8b75382fcebb1e39)  (Jug)
+
 ## [v0.16.3](https://github.com/jug-dev/hordelib/compare/v0.16.2...v0.16.3)
 
 29 April 2023
