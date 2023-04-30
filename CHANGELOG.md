@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v0.16.3](https://github.com/jug-dev/hordelib/compare/v0.16.2...v0.16.3)
+
+29 April 2023
+
+- style: stable_diffusion.json whitespace [`d5dbd95`](https://github.com/jug-dev/hordelib/commit/d5dbd95ff1267ddb47c633ef13e0bece8a5044c3)  (tazlin)
+- fix: update civitai links out of date, adds two safetensors [`70a675e`](https://github.com/jug-dev/hordelib/commit/70a675e8d7cc5a930664d2b94be3d97b6b995246)  (tazlin)
+- fix: don't allow dynamic prompts to interfere with the random seed. [`5643490`](https://github.com/jug-dev/hordelib/commit/5643490d8fea6070074232b6623ef6c6f98b21e5)  (Jug)
+
 ## [v0.16.2](https://github.com/jug-dev/hordelib/compare/v0.16.1...v0.16.2)
 
 29 April 2023
