@@ -347,7 +347,7 @@ class BaseModelManager(ABC):
         :param model_name: Name of the model
         Returns the files for a model
         """
-        return self.model_reference[model_name]["config"]["files"]
+        return self.model_reference.get(model_name, {}).get("config", {}).get("files", [])
 
     def get_model_download(self, model_name: str):
         """
