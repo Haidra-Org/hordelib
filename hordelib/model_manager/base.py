@@ -201,7 +201,7 @@ class BaseModelManager(ABC):
             ):
                 logger.debug(
                     f"Free RAM is: {self.get_free_ram_mb()} MB, "
-                    "({len(self.get_loaded_models())} models loaded in RAM)",
+                    f"({len(self.get_loaded_models())} models loaded in RAM)",
                 )
                 logger.debug("Not enough free RAM attempting to free some")
                 # Grab a list of models (ModelPatcher) that are loaded on the gpu

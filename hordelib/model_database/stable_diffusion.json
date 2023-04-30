@@ -250,7 +250,9 @@
         "description": "Minimalist coloring book style images",
         "version": "2",
         "style": "artistic",
-        "trigger": ["colr_001"],
+        "trigger": [
+            "colr_001"
+        ],
         "homepage": "https://civitai.com/models/5153/coloring-book",
         "nsfw": false,
         "download_all": false,
@@ -269,7 +271,7 @@
                 {
                     "file_name": "coloringbook.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/5978?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/5978?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -2370,7 +2372,7 @@
                 {
                     "file_name": "seek-art-mega.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/22808?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/22808?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3030,7 +3032,7 @@
                 {
                     "file_name": "liberty.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/6908?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/6908?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3133,7 +3135,7 @@
                 {
                     "file_name": "moedel.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/2410?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/2410?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3172,7 +3174,7 @@
                 {
                     "file_name": "DreamLikeSamKuvshinov.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/1642"
+                    "file_url": "https://civitai.com/api/download/models/1642?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3240,7 +3242,7 @@
                 {
                     "file_name": "MoistMix.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/5955?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/5955?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3277,7 +3279,7 @@
                 {
                     "file_name": "Healys.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/1498"
+                    "file_url": "https://huggingface.co/BlancOfficial/Healy_AnimeBlend/resolve/main/healySAnimeBlend_17.ckpt"
                 }
             ]
         },
@@ -3311,7 +3313,7 @@
                 {
                     "file_name": "Elldreths_Lucid_Mix.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/1450?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/1450?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3450,7 +3452,7 @@
                 {
                     "file_name": "PPP.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/1304"
+                    "file_url": "https://civitai.com/api/download/models/1304?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3705,7 +3707,7 @@
                 {
                     "file_name": "t-shirt_diffusion.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/5365?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/5365?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3816,7 +3818,7 @@
                 {
                     "file_name": "RealisticVision.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/6987?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/6987?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3889,7 +3891,7 @@
                 {
                     "file_name": "PFG.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/1291"
+                    "file_url": "https://civitai.com/api/download/models/1291?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3923,7 +3925,7 @@
                 {
                     "file_name": "EpicDiffusion.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/5677?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/5677?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3963,6 +3965,37 @@
         },
         "available": false
     },
+    "Edge Of Realism": {
+        "name": "Edge Of Realism",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "A spin off from Level4. Built to produce high quality photos. Sometimes photos will come out as uncanny as they are on the edge of realism.",
+        "version": "2",
+        "style": "realistic",
+        "homepage": "https://civitai.com/models/21813/edge-of-realism",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "edgeOfRealism.safetensors",
+                    "md5sum": "bda9e9b98d88c27f9256623147523d64",
+                    "sha256sum": "7f6146b8a9ad2a92b739954c1d5ef34e26fb0b65eef2d70ffd128e6046a3d0ab"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "edgeOfRealism.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/51913"
+                }
+            ]
+        },
+        "available": false
+    },
     "Concept Sheet": {
         "name": "Concept Sheet",
         "baseline": "stable diffusion 2",
@@ -3994,7 +4027,7 @@
                 {
                     "file_name": "ConceptSheet.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/5635?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/5635?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -4298,7 +4331,7 @@
                 {
                     "file_name": "pulp_vectorart.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/5859?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/5859?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -4335,7 +4368,7 @@
                 {
                     "file_name": "rainbowpatch.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/6432?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/6432?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -4372,7 +4405,7 @@
                 {
                     "file_name": "vector_art.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/5265?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/5265?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -4409,7 +4442,7 @@
                 {
                     "file_name": "tshirt-print-designs.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/6098?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/6098?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -4514,7 +4547,7 @@
                 {
                     "file_name": "URPM.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/15640?type=Pruned%20Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/15640?type=Pruned%20Model&format=PickleTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -4548,7 +4581,7 @@
                 {
                     "file_name": "CDLandscapeMix.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/7304?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/7304?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -4696,7 +4729,7 @@
                 {
                     "file_name": "PRMJ.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/7592?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/7592?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -4736,7 +4769,7 @@
                 {
                     "file_name": "Elldreths_Retro_Mix.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/1575?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/1575?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -5610,6 +5643,37 @@
         },
         "available": false
     },
+    "Neurogen": {
+        "name": "Neurogen",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "This model gives a very good detail of skin and textures. Great for close-up photorealistic portraits as well as various characters and models.",
+        "version": "1.1",
+        "style": "realistic",
+        "homepage": "https://civitai.com/models/21616/neurogen-v11",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "neurogen.safetensors",
+                    "md5sum": "95ce431e83ae9d8488e9989b39a14724",
+                    "sha256sum": "7ce537a0b7cca96f6862dda000b0d4054b8b996ae5859ddb2c196211447f99fc"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "neurogen.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/29681"
+                }
+            ]
+        },
+        "available": false
+    },
     "NeverEnding Dream": {
         "name": "NeverEnding Dream",
         "baseline": "stable diffusion 1",
@@ -5676,7 +5740,7 @@
                 {
                     "file_name": "Protogen_Anime.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/4007?type=Pruned%20Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/4007?type=Pruned%20Model&format=PickleTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -5707,7 +5771,7 @@
                 {
                     "file_name": "Synthpunk.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/1144?format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/1144?type=Model&format=PickleTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -5741,7 +5805,7 @@
                 {
                     "file_name": "graphic-art.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/9297?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/9297?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -5944,7 +6008,7 @@
                 {
                     "file_name": "OrbAI.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/16595?type=Model&format=PickleTensor"
+                    "file_url": "https://civitai.com/api/download/models/16595?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -6238,242 +6302,248 @@
         "nsfw": false,
         "download_all": false,
         "config": {
-          "files": [
-          {
-            "path": "Something.ckpt",
-            "md5sum": "c1e54c46ab021267745a34ce70f61621",
-            "sha256sum" : "6fa3590a5baf5881dc67084977ca6987f4aae367c59b3678988589234b9cd40f"
-          },
-          {
-            "path": "v1-inference.yaml"
-          }
-          ],
-          "download": [
-          {
-            "file_name": "Something.ckpt",
-            "file_path": "",
-            "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/Something_v22_inclk8VAE.ckpt"
-          }
-          ]
-        },
-        "available": false
-      },
-      "RCNZ Dumb Monkey": {
-          "name": "RCNZ Dumb Monkey",
-          "baseline": "stable diffusion 1",
-          "type": "ckpt",
-          "description": "They let the monkey loose at the 'Merge Model' tab, and smashed models together and this awesome generalist model came out!",
-          "version": "1.0",
-          "style": "anime",
-          "homepage": "https://civitai.com/models/21695",
-          "nsfw": false,
-          "download_all": false,
-          "config": {
             "files": [
-            {
-              "path": "DumbMonkey.ckpt",
-              "md5sum": "d08051e4d09d450de183e91b584476f2",
-              "sha256sum": "8869ba1cc1667df34b1bc08cee8fd3c9007db3c1122a1711ad2ebb11572016a2"
-            },
-            {
-              "path": "v1-inference.yaml"
-            }
+                {
+                    "path": "Something.ckpt",
+                    "md5sum": "c1e54c46ab021267745a34ce70f61621",
+                    "sha256sum": "6fa3590a5baf5881dc67084977ca6987f4aae367c59b3678988589234b9cd40f"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
             ],
             "download": [
-            {
-              "file_name": "DumbMonkey.ckpt",
-              "file_path": "",
-              "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/DumbMonkey.ckpt"
-            }
+                {
+                    "file_name": "Something.ckpt",
+                    "file_path": "",
+                    "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/Something_v22_inclk8VAE.ckpt"
+                }
             ]
-          },
-          "available": false
         },
-        "PIXHELL": {
-            "name": "PIXHELL",
-            "baseline": "stable diffusion 2",
-            "type": "ckpt",
-            "description": "The model recreates Pixelart style but with more modern take on the 8bit style. This model is great for side scroller environments but it works great for characters when using controlnet for 2.1 for openpose and also it's great for props and other things",
-            "version": "1.0",
-            "style": "other",
-            "trigger": ["pixelart"],
-            "homepage": "https://civitai.com/models/21276/pixhell",
-            "nsfw": false,
-            "download_all": false,
-            "config": {
-              "files": [
-              {
-                "path": "PIXHELL.ckpt",
-                "md5sum": "383058abdb9d3ac107af09e8ea888133",
-                "sha256sum": "61128ac31f9145d3835dc8b2bc8497262b588c70cade4108d4c3b82ed7f1a506"
-              },
-              {
-                "path": "v2-inference-v.yaml"
-              }
-              ],
-              "download": [
-              {
-                "file_name": "PIXHELL.ckpt",
-                "file_path": "",
-                "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/pixhell_v10.ckpt"
-              }
-              ]
-            },
-            "available": false
-          },
-          "Korestyle": {
-              "name": "Korestyle",
-              "baseline": "stable diffusion 1",
-              "type": "ckpt",
-              "description": "A model for semi-realistic comic book style sketches",
-              "version": "1.0",
-              "style": "anime",
-              "nsfw": false,
-              "download_all": false,
-              "config": {
-                "files": [
+        "available": false
+    },
+    "RCNZ Dumb Monkey": {
+        "name": "RCNZ Dumb Monkey",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "They let the monkey loose at the 'Merge Model' tab, and smashed models together and this awesome generalist model came out!",
+        "version": "1.0",
+        "style": "anime",
+        "homepage": "https://civitai.com/models/21695",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
                 {
-                  "path": "Korestyle.ckpt",
-                  "md5sum": "a575e57f7239ce0570a4ef12bc1c45aa",
-                  "sha256sum": "b0cf5c6c109fbf555cafedb033928b6eccd32939dd43e32aa55f9b5693b2b7ac"
+                    "path": "DumbMonkey.ckpt",
+                    "md5sum": "d08051e4d09d450de183e91b584476f2",
+                    "sha256sum": "8869ba1cc1667df34b1bc08cee8fd3c9007db3c1122a1711ad2ebb11572016a2"
                 },
                 {
-                  "path": "v1-inference.yaml"
+                    "path": "v1-inference.yaml"
                 }
-                ],
-                "download": [
+            ],
+            "download": [
                 {
-                  "file_name": "Korestyle.ckpt",
-                  "file_path": "",
-                  "file_url": "https://huggingface.co/magicalgirl/korestyle1999/resolve/main/korestyle1999.ckpt"
+                    "file_name": "DumbMonkey.ckpt",
+                    "file_path": "",
+                    "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/DumbMonkey.ckpt"
                 }
-                ]
-              },
-              "available": false
-          },
-          "PVC": {
-              "name": "PVC",
-              "baseline": "stable diffusion 2",
-              "type": "ckpt",
-              "description": "This model is a latent diffusion model finetuned on Waifu Diffusion v1.5 beta 2 with PVC figure images. You can use Danbooru tags to generate images",
-              "version": "3",
-              "style": "other",
-              "trigger": ["pvc", "figma", "nendoroid"],
-              "homepage": "https://huggingface.co/p1atdev/pvc-v3",
-              "nsfw": false,
-              "download_all": false,
-              "config": {
-                "files": [
+            ]
+        },
+        "available": false
+    },
+    "PIXHELL": {
+        "name": "PIXHELL",
+        "baseline": "stable diffusion 2",
+        "type": "ckpt",
+        "description": "The model recreates Pixelart style but with more modern take on the 8bit style. This model is great for side scroller environments but it works great for characters when using controlnet for 2.1 for openpose and also it's great for props and other things",
+        "version": "1.0",
+        "style": "other",
+        "trigger": [
+            "pixelart"
+        ],
+        "homepage": "https://civitai.com/models/21276/pixhell",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
                 {
-                  "path": "PVC.ckpt",
-                  "md5sum": "c9da91b133f39d7ca82f43ad4bc30de1",
-                  "sha256sum": "b207d9930d98d971f4a3baf30a08225211eb9573e081cea60db398ed3ea46d42"
+                    "path": "PIXHELL.ckpt",
+                    "md5sum": "383058abdb9d3ac107af09e8ea888133",
+                    "sha256sum": "61128ac31f9145d3835dc8b2bc8497262b588c70cade4108d4c3b82ed7f1a506"
                 },
                 {
-                  "path": "v2-inference-v.yaml"
+                    "path": "v2-inference-v.yaml"
                 }
-                ],
-                "download": [
+            ],
+            "download": [
                 {
-                  "file_name": "PVC.ckpt",
-                  "file_path": "",
-                  "file_url": "https://huggingface.co/p1atdev/pvc-v3/resolve/checkpoints/pvc-v3-fp16.ckpt"
+                    "file_name": "PIXHELL.ckpt",
+                    "file_path": "",
+                    "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/pixhell_v10.ckpt"
                 }
-                ]
-              },
-              "available": false
-          },
-          "Char": {
-            "name": "Char",
-            "baseline": "stable diffusion 1",
-            "type": "ckpt",
-            "description": "A 1024 res SD v1.5 trained (not merged) resolution model for various high-quality artstyles. NOTE: There are 42 different possible triggers depending on what you want to create, please see the homepage for the full list",
-            "version": "3",
-            "style": "generalist",
-            "homepage": "https://civitai.com/models/20842",
-            "nsfw": false,
-            "download_all": false,
-            "config": {
-              "files": [
-              {
-                "path": "Char.ckpt",
-                "md5sum": "bc457a17eca7b57c0d7fa11489a5dab8",
-                "sha256sum": "20fd9992efbb5dab68d054932d228865a1bc11965a285e84f82cef667ad6e3c7"
-              },
-              {
-                "path": "v1-inference.yaml"
-              }
-              ],
-              "download": [
-              {
-                "file_name": "Char.ckpt",
-                "file_path": "",
-                "file_url": "https://civitai.com/api/download/models/24806?type=Pruned%20Model&format=PickleTensor"
-              }
-              ]
-            },
-            "available": false
-          },
-          "Perfect World": {
-            "name": "Perfect World",
-            "baseline": "stable diffusion 1",
-            "type": "ckpt",
-            "description": "The pursuit of perfect balance between realism and anime, a semi-realistic model aimed to achieve beautiful realistic faces with sexy hentai bodies.",
-            "version": "2",
-            "style": "anime",
-            "homepage": "https://civitai.com/models/8281/perfect-world",
-            "nsfw": true,
-            "download_all": false,
-            "config": {
-              "files": [
-              {
-                "path": "PerfectWorld.ckpt",
-                "md5sum": "955d60d2bc1055dc4d7ce472e663e679",
-                "sha256sum": "ba38c834f6eca6f4dfa81b531237e576f89a7403f5d7fa911ea181d0b2976a13"
-              },
-              {
-                "path": "v1-inference.yaml"
-              }
-              ],
-              "download": [
-              {
-                "file_name": "PerfectWorld.ckpt",
-                "file_path": "",
-                "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/PerfectWorld_incl840kVAE.ckpt"
-              }
-              ]
-            },
-            "available": false
-          },
-          "RCNZ Gorilla With A Brick": {
-              "name": "RCNZ Gorilla With A Brick",
-              "baseline": "stable diffusion 1",
-              "type": "ckpt",
-              "description": "This time its a Gorilla at the 'Merge Model' tab, and smashed photorealism models together and this awesome generalist model came out!",
-              "version": "2.0",
-              "style": "generalist",
-              "homepage": "https://civitai.com/models/22747/rcnz-gorilla-with-a-brick",
-              "nsfw": false,
-              "download_all": false,
-              "config": {
-                "files": [
+            ]
+        },
+        "available": false
+    },
+    "Korestyle": {
+        "name": "Korestyle",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "A model for semi-realistic comic book style sketches",
+        "version": "1.0",
+        "style": "anime",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
                 {
-                  "path": "GorillaWithABrick.ckpt",
-                  "md5sum": "5fa7112502991c450c3aa803fa0134db",
-                  "sha256sum": "6fa466c33e7fc64f4e0e3710564c0afe86da7e157ec4e460d295a5cea5a308ec"
+                    "path": "Korestyle.ckpt",
+                    "md5sum": "a575e57f7239ce0570a4ef12bc1c45aa",
+                    "sha256sum": "b0cf5c6c109fbf555cafedb033928b6eccd32939dd43e32aa55f9b5693b2b7ac"
                 },
                 {
-                  "path": "v1-inference.yaml"
+                    "path": "v1-inference.yaml"
                 }
-                ],
-                "download": [
+            ],
+            "download": [
                 {
-                  "file_name": "GorillaWithABrick.ckpt",
-                  "file_path": "",
-                  "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/rcnzGorillaWithA_v20.ckpt"
+                    "file_name": "Korestyle.ckpt",
+                    "file_path": "",
+                    "file_url": "https://huggingface.co/magicalgirl/korestyle1999/resolve/main/korestyle1999.ckpt"
                 }
-                ]
-              },
-              "available": false
-          }
-  }
+            ]
+        },
+        "available": false
+    },
+    "PVC": {
+        "name": "PVC",
+        "baseline": "stable diffusion 2",
+        "type": "ckpt",
+        "description": "This model is a latent diffusion model finetuned on Waifu Diffusion v1.5 beta 2 with PVC figure images. You can use Danbooru tags to generate images",
+        "version": "3",
+        "style": "other",
+        "trigger": [
+            "pvc",
+            "figma",
+            "nendoroid"
+        ],
+        "homepage": "https://huggingface.co/p1atdev/pvc-v3",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "PVC.ckpt",
+                    "md5sum": "c9da91b133f39d7ca82f43ad4bc30de1",
+                    "sha256sum": "b207d9930d98d971f4a3baf30a08225211eb9573e081cea60db398ed3ea46d42"
+                },
+                {
+                    "path": "v2-inference-v.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "PVC.ckpt",
+                    "file_path": "",
+                    "file_url": "https://huggingface.co/p1atdev/pvc-v3/resolve/checkpoints/pvc-v3-fp16.ckpt"
+                }
+            ]
+        },
+        "available": false
+    },
+    "Char": {
+        "name": "Char",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "A 1024 res SD v1.5 trained (not merged) resolution model for various high-quality artstyles. NOTE: There are 42 different possible triggers depending on what you want to create, please see the homepage for the full list",
+        "version": "3",
+        "style": "generalist",
+        "homepage": "https://civitai.com/models/20842",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "Char.ckpt",
+                    "md5sum": "bc457a17eca7b57c0d7fa11489a5dab8",
+                    "sha256sum": "20fd9992efbb5dab68d054932d228865a1bc11965a285e84f82cef667ad6e3c7"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "Char.ckpt",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/24806?type=Pruned%20Model&format=PickleTensor&size=pruned&fp=fp16"
+                }
+            ]
+        },
+        "available": false
+    },
+    "Perfect World": {
+        "name": "Perfect World",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "The pursuit of perfect balance between realism and anime, a semi-realistic model aimed to achieve beautiful realistic faces with sexy hentai bodies.",
+        "version": "2",
+        "style": "anime",
+        "homepage": "https://civitai.com/models/8281/perfect-world",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "PerfectWorld.ckpt",
+                    "md5sum": "955d60d2bc1055dc4d7ce472e663e679",
+                    "sha256sum": "ba38c834f6eca6f4dfa81b531237e576f89a7403f5d7fa911ea181d0b2976a13"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "PerfectWorld.ckpt",
+                    "file_path": "",
+                    "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/PerfectWorld_incl840kVAE.ckpt"
+                }
+            ]
+        },
+        "available": false
+    },
+    "RCNZ Gorilla With A Brick": {
+        "name": "RCNZ Gorilla With A Brick",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "This time its a Gorilla at the 'Merge Model' tab, and smashed photorealism models together and this awesome generalist model came out!",
+        "version": "2.0",
+        "style": "generalist",
+        "homepage": "https://civitai.com/models/22747/rcnz-gorilla-with-a-brick",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "GorillaWithABrick.ckpt",
+                    "md5sum": "5fa7112502991c450c3aa803fa0134db",
+                    "sha256sum": "6fa466c33e7fc64f4e0e3710564c0afe86da7e157ec4e460d295a5cea5a308ec"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "GorillaWithABrick.ckpt",
+                    "file_path": "",
+                    "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/rcnzGorillaWithA_v20.ckpt"
+                }
+            ]
+        },
+        "available": false
+    }
+}
