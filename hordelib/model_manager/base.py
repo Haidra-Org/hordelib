@@ -569,10 +569,11 @@ class BaseModelManager(ABC):
         # Default to sha256 hashes
         if "sha256sum" in file_details:
             logger.debug(f"Getting sha256sum of {full_path}")
-            sha256_file_hash = self.get_file_sha256_hash(full_path)
+            sha256_file_hash = self.get_file_sha256_hash(full_path).lower()
+            expected_hash = file_details["sha256sum"].lower()
             logger.debug(f"sha256sum: {sha256_file_hash}")
-            logger.debug(f"Expected: {file_details['sha256sum']}")
-            return file_details["sha256sum"] == sha256_file_hash
+            logger.debug(f"Expected: {expected_hash}")
+            return expected_hash == sha256_file_hash
 
         # If sha256 is not available, fall back to md5
         if "md5sum" in file_details:

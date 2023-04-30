@@ -113,5 +113,28 @@
 			]
 		},
 		"available": false
+	},
+	"4x_NMKD_Superscale_SP": {
+		"name": "4x_NMKD_Superscale_SP",
+		"type": "esrgan",
+		"description": "Realistic, multipurpose upscaler",
+		"version": "1.0.0",
+		"style": "generalist",
+		"config": {
+			"files": [
+				{
+					"path": "4x_NMKD-Superscale-SP_178000_G.pth",
+					"sha256sum": "1d1b0078fe71446e0469d8d4df59e96baa80d83cda600d68237d655830821bcc"
+				}
+			],
+			"download": [
+				{
+					"file_name": "4x_NMKD-Superscale-SP_178000_G.pth",
+					"file_path": "",
+					"file_url": "https://nmkd.de/shared/ESRGAN/Models/Realistic%2C%20Multipurpose/4x_NMKD-Superscale-SP_178000_G.pth"
+				}
+			]
+		},
+		"available": false
 	}
 }
