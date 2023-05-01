@@ -1,5 +1,15 @@
 ## hordelib Changelog
 
+## [v0.19.3](https://github.com/jug-dev/hordelib/compare/v0.19.2...v0.19.3)
+
+1 May 2023
+
+- ci: update some bits of the release ci [`1add1db`](https://github.com/jug-dev/hordelib/commit/1add1db011ed43d23cda10ac46709a2c7cf83fda)  (Jug)
+
+## [v0.19.2](https://github.com/jug-dev/hordelib/compare/v0.19.1...v0.19.2)
+
+1 May 2023
+
 ## [v0.19.1](https://github.com/jug-dev/hordelib/compare/v0.19.0...v0.19.1)
 
 1 May 2023
