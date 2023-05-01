@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v0.19.4](https://github.com/jug-dev/hordelib/compare/v0.19.3...v0.19.4)
+
+1 May 2023
+
+- fix: update to latest model database [`2f037cf`](https://github.com/jug-dev/hordelib/commit/2f037cf2bbd64b6cc784bfa8c1b57138b3a29941)  (Jug)
+- fix: fix some model download links [`4e6743c`](https://github.com/jug-dev/hordelib/commit/4e6743c57d5026ef7f9b7d94b32f950fd4b6ad0c)  (Jug)
+- ci: change tests to abort after first failure [`d80613c`](https://github.com/jug-dev/hordelib/commit/d80613cc35a86d5b299cb70f70607e19785672a3)  (Jug)
+
 ## [v0.19.3](https://github.com/jug-dev/hordelib/compare/v0.19.2...v0.19.3)
 
 1 May 2023
