@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v0.19.5](https://github.com/jug-dev/hordelib/compare/v0.19.4...v0.19.5)
+
+1 May 2023
+
+- fix: remove Ether Real model due to bad hash [`a671924`](https://github.com/jug-dev/hordelib/commit/a671924d00431b507a00ebbe97e3affe24084a38)  (Jug)
+- ci: try upgrading pip before tests [`68cbd9d`](https://github.com/jug-dev/hordelib/commit/68cbd9df1e8f46741f3e652a38aacdafff199d27)  (Jug)
+
 ## [v0.19.4](https://github.com/jug-dev/hordelib/compare/v0.19.3...v0.19.4)
 
 1 May 2023
