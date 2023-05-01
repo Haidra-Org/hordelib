@@ -6711,36 +6711,6 @@
         },
         "available": false
     },
-    "Ether Real Mix": {
-        "name": "Ether Real Mix",
-        "baseline": "stable diffusion 1",
-        "type": "ckpt",
-        "description": "Ether Real Mix is a realistic to semi-realistic anime style model tuned with the flexibility for general purpose use (hopefully). It still has some shortcomings inherit to anime models such as biases in generating females and humans.",
-        "version": "1.1",
-        "style": "other",
-        "homepage": "https://civitai.com/models/18207?modelVersionId=23036",
-        "nsfw": false,
-        "download_all": false,
-        "config": {
-            "files": [
-                {
-                    "path": "etherRealMix.safetensors",
-                    "sha256sum": "bfcaa69ad9ef9d7ecca9a2251a5c5a84f31da7bb66f093e185006435026de787"
-                },
-                {
-                    "path": "v1-inference.yaml"
-                }
-            ],
-            "download": [
-                {
-                    "file_name": "etherRealMix.safetensors",
-                    "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/23036?type=Model&format=SafeTensor&size=pruned&fp=fp16"
-                }
-            ]
-        },
-        "available": false
-    },
     "Lyriel": {
         "name": "Lyriel",
         "baseline": "stable diffusion 1",
