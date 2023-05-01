@@ -1,7 +1,7 @@
 {
     "3": {
         "inputs": {
-            "seed": 1094518095629290,
+            "seed": 1096039238624618,
             "steps": 12,
             "cfg": 8.0,
             "sampler_name": "dpmpp_sde",
@@ -69,7 +69,7 @@
     },
     "11": {
         "inputs": {
-            "seed": 1016912243210385,
+            "seed": 347776641452924,
             "steps": 14,
             "cfg": 8.0,
             "sampler_name": "dpmpp_2m",
@@ -98,24 +98,11 @@
         "inputs": {
             "filename_prefix": "ComfyUI",
             "images": [
-                "13",
+                "21",
                 0
             ]
         },
         "class_type": "SaveImage"
-    },
-    "13": {
-        "inputs": {
-            "samples": [
-                "11",
-                0
-            ],
-            "vae": [
-                "16",
-                2
-            ]
-        },
-        "class_type": "VAEDecode"
     },
     "16": {
         "inputs": {
@@ -152,5 +139,18 @@
             ]
         },
         "class_type": "VAEEncode"
+    },
+    "21": {
+        "inputs": {
+            "samples": [
+                "11",
+                0
+            ],
+            "vae": [
+                "16",
+                2
+            ]
+        },
+        "class_type": "VAEDecodeTiled"
     }
 }

@@ -1,6 +1,6 @@
 {
-  "last_node_id": 48,
-  "last_link_id": 95,
+  "last_node_id": 49,
+  "last_link_id": 99,
   "nodes": [
     {
       "id": 5,
@@ -48,7 +48,7 @@
         "1": 76
       },
       "flags": {},
-      "order": 4,
+      "order": 13,
       "mode": 0,
       "inputs": [
         {
@@ -87,7 +87,7 @@
         "1": 110.00003051757812
       },
       "flags": {},
-      "order": 5,
+      "order": 14,
       "mode": 0,
       "inputs": [
         {
@@ -115,133 +115,6 @@
       ]
     },
     {
-      "id": 41,
-      "type": "Reroute",
-      "pos": [
-        304,
-        77
-      ],
-      "size": [
-        82,
-        26
-      ],
-      "flags": {},
-      "order": 15,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "",
-          "type": "*",
-          "link": 95
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            94
-          ],
-          "slot_index": 0
-        }
-      ],
-      "properties": {
-        "showOutputText": true,
-        "horizontal": false
-      }
-    },
-    {
-      "id": 47,
-      "type": "CheckpointLoaderSimple",
-      "pos": [
-        -71,
-        -471
-      ],
-      "size": {
-        "0": 315,
-        "1": 98
-      },
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            79,
-            80
-          ],
-          "slot_index": 0
-        },
-        {
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            81,
-            82
-          ],
-          "slot_index": 1
-        },
-        {
-          "name": "VAE",
-          "type": "VAE",
-          "links": [
-            83
-          ],
-          "slot_index": 2
-        }
-      ],
-      "title": "model_loader",
-      "properties": {
-        "Node name for S&R": "CheckpointLoaderSimple"
-      },
-      "widgets_values": [
-        "Deliberate.ckpt"
-      ]
-    },
-    {
-      "id": 8,
-      "type": "VAEDecode",
-      "pos": [
-        1321,
-        -444
-      ],
-      "size": {
-        "0": 210,
-        "1": 46
-      },
-      "flags": {},
-      "order": 18,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "samples",
-          "type": "LATENT",
-          "link": 91
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": 83
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            9
-          ],
-          "slot_index": 0
-        }
-      ],
-      "title": "vae_decode",
-      "properties": {
-        "Node name for S&R": "VAEDecode"
-      }
-    },
-    {
       "id": 23,
       "type": "ControlNetApply",
       "pos": [
@@ -253,7 +126,7 @@
         "1": 98
       },
       "flags": {},
-      "order": 16,
+      "order": 15,
       "mode": 0,
       "inputs": [
         {
@@ -269,7 +142,7 @@
         {
           "name": "image",
           "type": "IMAGE",
-          "link": 94
+          "link": 99
         }
       ],
       "outputs": [
@@ -302,7 +175,7 @@
         "1": 64.53327941894531
       },
       "flags": {},
-      "order": 3,
+      "order": 12,
       "mode": 0,
       "inputs": [
         {
@@ -341,13 +214,13 @@
         "1": 595.1390380859375
       },
       "flags": {},
-      "order": 19,
+      "order": 18,
       "mode": 0,
       "inputs": [
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 9
+          "link": 98
         }
       ],
       "title": "output_image",
@@ -368,7 +241,7 @@
         "1": 102
       },
       "flags": {},
-      "order": 2,
+      "order": 1,
       "mode": 0,
       "outputs": [
         {
@@ -414,7 +287,7 @@
         "1": 26
       },
       "flags": {},
-      "order": 8,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
@@ -437,45 +310,6 @@
       }
     },
     {
-      "id": 34,
-      "type": "CannyEdgePreprocessor",
-      "pos": [
-        28,
-        380
-      ],
-      "size": {
-        "0": 210,
-        "1": 106
-      },
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 48
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [],
-          "slot_index": 0
-        }
-      ],
-      "title": "canny",
-      "properties": {
-        "Node name for S&R": "CannyEdgePreprocessor"
-      },
-      "widgets_values": [
-        100,
-        200,
-        "disable"
-      ]
-    },
-    {
       "id": 37,
       "type": "LeReS-DepthMapPreprocessor",
       "pos": [
@@ -487,7 +321,7 @@
         "1": 82
       },
       "flags": {},
-      "order": 7,
+      "order": 4,
       "mode": 0,
       "inputs": [
         {
@@ -525,7 +359,7 @@
         "1": 82
       },
       "flags": {},
-      "order": 9,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
@@ -563,7 +397,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 10,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -600,7 +434,7 @@
         "1": 26
       },
       "flags": {},
-      "order": 11,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -634,7 +468,7 @@
         "1": 26
       },
       "flags": {},
-      "order": 12,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -668,7 +502,7 @@
         "1": 26
       },
       "flags": {},
-      "order": 13,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -681,9 +515,7 @@
         {
           "name": "IMAGE",
           "type": "IMAGE",
-          "links": [
-            95
-          ],
+          "links": [],
           "slot_index": 0
         }
       ],
@@ -704,7 +536,7 @@
         "1": 82
       },
       "flags": {},
-      "order": 14,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -726,8 +558,58 @@
         "Node name for S&R": "M-LSDPreprocessor"
       },
       "widgets_values": [
-        0.150,
-        1.0
+        0.15,
+        1
+      ]
+    },
+    {
+      "id": 47,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        -71,
+        -471
+      ],
+      "size": {
+        "0": 315,
+        "1": 98
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            79,
+            80
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            81,
+            82
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            96
+          ],
+          "slot_index": 2
+        }
+      ],
+      "title": "model_loader",
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "Deliberate.ckpt"
       ]
     },
     {
@@ -742,7 +624,7 @@
         "1": 262
       },
       "flags": {},
-      "order": 17,
+      "order": 16,
       "mode": 0,
       "inputs": [
         {
@@ -771,7 +653,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            91
+            97
           ],
           "slot_index": 0
         }
@@ -782,12 +664,94 @@
       },
       "widgets_values": [
         123456789,
-        false,
+        "fixed",
         25,
         7.5,
         "dpmpp_2m",
         "karras",
         1
+      ]
+    },
+    {
+      "id": 49,
+      "type": "VAEDecodeTiled",
+      "pos": [
+        1314,
+        -538
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 97
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 96
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            98
+          ],
+          "slot_index": 0
+        }
+      ],
+      "title": "vae_decode",
+      "properties": {
+        "Node name for S&R": "VAEDecodeTiled"
+      }
+    },
+    {
+      "id": 34,
+      "type": "CannyEdgePreprocessor",
+      "pos": [
+        28,
+        380
+      ],
+      "size": {
+        "0": 210,
+        "1": 106
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 48
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            99
+          ],
+          "slot_index": 0
+        }
+      ],
+      "title": "canny",
+      "properties": {
+        "Node name for S&R": "CannyEdgePreprocessor"
+      },
+      "widgets_values": [
+        100,
+        200,
+        "disable"
       ]
     }
   ],
@@ -807,14 +771,6 @@
       3,
       2,
       "CONDITIONING"
-    ],
-    [
-      9,
-      8,
-      0,
-      9,
-      0,
-      "IMAGE"
     ],
     [
       40,
@@ -945,36 +901,36 @@
       "CLIP"
     ],
     [
-      83,
+      96,
       47,
       2,
-      8,
+      49,
       1,
       "VAE"
     ],
     [
-      91,
+      97,
       3,
       0,
-      8,
+      49,
       0,
       "LATENT"
     ],
     [
-      94,
-      41,
+      98,
+      49,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      99,
+      34,
       0,
       23,
       2,
       "IMAGE"
-    ],
-    [
-      95,
-      45,
-      0,
-      41,
-      0,
-      "*"
     ]
   ],
   "groups": [],
