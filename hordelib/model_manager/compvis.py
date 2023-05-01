@@ -91,13 +91,15 @@ class CompVisModelManager(BaseModelManager):
             model_data = copy.copy(self.get_loaded_model(model_name))
             components = ["model", "vae", "clip"]
             if not self.have_model_cache(model_name):
-                with open(cache_file, "wb") as cache:
-                    for component in components:
-                        pickle.dump(
-                            self.get_loaded_model(model_name)[component],
-                            cache,
-                            protocol=pickle.HIGHEST_PROTOCOL,
-                        )
+                # Only do one sequential write at a time
+                with self._disk_write_mutex:
+                    with open(cache_file, "wb") as cache:
+                        for component in components:
+                            pickle.dump(
+                                self.get_loaded_model(model_name)[component],
+                                cache,
+                                protocol=pickle.HIGHEST_PROTOCOL,
+                            )
             for component in components:
                 model_data[component] = cache_file
             # Remove from vram/ram

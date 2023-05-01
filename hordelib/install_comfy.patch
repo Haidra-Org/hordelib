@@ -49,19 +49,20 @@ index c809d39..9c9f6b8 100644
 +    # logger.warning(f"Done DPM-Solver++(2M) on model {id(model):x}")
      return x
 diff --git a/comfy/model_management.py b/comfy/model_management.py
-index a0d1313..ba373dc 100644
+index a0d1313..38650be 100644
 --- a/comfy/model_management.py
 +++ b/comfy/model_management.py
-@@ -1,6 +1,8 @@
+@@ -1,6 +1,9 @@
  import psutil
  from enum import Enum
  from cli_args import args
 +import threading
 +from loguru import logger
++from contextlib import nullcontext
  
  class VRAMState(Enum):
      CPU = 0
-@@ -59,10 +61,10 @@ else:
+@@ -59,10 +62,10 @@ else:
              print("xformers version:", XFORMERS_VERSION)
              if XFORMERS_VERSION.startswith("0.0.18"):
                  print()
@@ -76,48 +77,83 @@ index a0d1313..ba373dc 100644
          except:
              pass
      except:
-@@ -110,94 +112,172 @@ except:
+@@ -110,94 +113,177 @@ except:
  if args.cpu:
      vram_state = VRAMState.CPU
  
 -print(f"Set vram state to: {vram_state.name}")
--
--
++# print(f"Set vram state to: {vram_state.name}")
+ 
+ 
 -current_loaded_model = None
 -current_gpu_controlnets = []
--
++class ModelManager:
++    _instance = None
++    _initialised = False
++    _load_mutex = threading.RLock()
++    _property_mutex = threading.RLock()
++    sampler_mutex = threading.RLock()
++    vae_mutex = threading.RLock()
+ 
 -model_accelerated = False
--
--
++    _property_mutex = nullcontext()
+ 
++    user_reserved_vram_mb = 0
+ 
 -def unload_model():
 -    global current_loaded_model
 -    global model_accelerated
 -    global current_gpu_controlnets
 -    global vram_state
--
++    # We are a singleton
++    def __new__(cls):
++        if cls._instance is None:
++            cls._instance = super().__new__(cls)
++        return cls._instance
+ 
 -    if current_loaded_model is not None:
 -        if model_accelerated:
 -            accelerate.hooks.remove_hook_from_submodules(current_loaded_model.model)
 -            model_accelerated = False
--
++    # We initialise only ever once (in the lifetime of the singleton)
++    def __init__(self):
++        if not self._initialised:
++            self.models_in_use = []
++            self.current_loaded_models = []
++            self.current_gpu_controlnets = []
++            self.models_accelerated = []
++            self.__class__._initialised = True    
+ 
 -        #never unload models from GPU on high vram
 -        if vram_state != VRAMState.HIGH_VRAM:
 -            current_loaded_model.model.cpu()
 -        current_loaded_model.unpatch_model()
 -        current_loaded_model = None
--
++    def set_user_reserved_vram(self, vram_mb):
++        with self._property_mutex:
++            self.user_reserved_vram_mb = vram_mb
+ 
 -    if vram_state != VRAMState.HIGH_VRAM:
 -        if len(current_gpu_controlnets) > 0:
 -            for n in current_gpu_controlnets:
 -                n.cpu()
 -            current_gpu_controlnets = []
--
--
++    def get_models_on_gpu(self):
++        with self._property_mutex:
++            return self.current_loaded_models[:]
+ 
++    def set_model_in_use(self, model):
++        with self._property_mutex:
++            self.models_in_use.append(model)
+ 
 -def load_model_gpu(model):
 -    global current_loaded_model
 -    global vram_state
 -    global model_accelerated
--
++    def is_model_in_use(self, model):
++        with self._property_mutex:
++            return model in self.models_in_use
+ 
 -    if model is current_loaded_model:
 -        return
 -    unload_model()
@@ -141,21 +177,34 @@ index a0d1313..ba373dc 100644
 -            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
 -        elif vram_state == VRAMState.LOW_VRAM:
 -            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(total_vram_available_mb), "cpu": "16GiB"})
--
++    def unload_model(self, model):
++        global vram_state
++        with self._property_mutex:
++            if model not in self.current_loaded_models:
++                logger.debug("Skip GPU unload as not on the GPU")
++                return
+ 
 -        accelerate.dispatch_model(real_model, device_map=device_map, main_device=get_torch_device())
 -        model_accelerated = True
 -    return current_loaded_model
--
++            if model in self.models_in_use:
++                logger.debug("Not unloaded model as it is in use right now")
++                return
+ 
 -def load_controlnet_gpu(control_models):
 -    global current_gpu_controlnets
 -    global vram_state
 -    if vram_state == VRAMState.CPU:
 -        return
--
++            if model in self.models_accelerated:
++                accelerate.hooks.remove_hook_from_submodules(model.model)
++                self.models_accelerated.remove(model)
+ 
 -    if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
 -        #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
 -        return
--
++            self.current_loaded_models.remove(model)
+ 
 -    models = []
 -    for m in control_models:
 -        models += m.get_models()
@@ -163,83 +212,24 @@ index a0d1313..ba373dc 100644
 -    for m in current_gpu_controlnets:
 -        if m not in models:
 -            m.cpu()
--
++        # Unload to RAM
++        model.model.cpu()
++        model.unpatch_model()
++        return True
+ 
 -    device = get_torch_device()
 -    current_gpu_controlnets = []
 -    for m in models:
 -        current_gpu_controlnets.append(m.to(device))
-+# print(f"Set vram state to: {vram_state.name}")
-+
-+
-+class ModelManager:
-+    _instance = None
-+    _initialised = False
-+    _mutex = threading.RLock()
-+    sampler_mutex = threading.RLock()
-+    user_reserved_vram_mb = 0
-+
-+    # We are a singleton
-+    def __new__(cls):
-+        if cls._instance is None:
-+            cls._instance = super().__new__(cls)
-+        return cls._instance
-+
-+    # We initialise only ever once (in the lifetime of the singleton)
-+    def __init__(self):
-+        if not self._initialised:
-+            self.models_in_use = []
-+            self.current_loaded_models = []
-+            self.current_gpu_controlnets = []
-+            self.models_accelerated = []
-+            self.__class__._initialised = True    
-+
-+    def set_user_reserved_vram(self, vram_mb):
-+        with self._mutex:
-+            self.user_reserved_vram_mb = vram_mb
-+
-+    def get_models_on_gpu(self):
-+        with self._mutex:
-+            return self.current_loaded_models[:]
-+
-+    def set_model_in_use(self, model):
-+        with self._mutex:
-+            self.models_in_use.append(model)
-+
-+    def is_model_in_use(self, model):
-+        with self._mutex:
-+            return model in self.models_in_use
-+
-+    def unload_model(self, model):
-+        global vram_state
-+        with self._mutex:
-+            if model not in self.current_loaded_models:
-+                logger.debug("Skip GPU unload as not on the GPU")
-+                return
-+
-+            if model in self.models_in_use:
-+                logger.debug("Not unloaded model as it is in use right now")
-+                return
-+
-+            if model in self.models_accelerated:
-+                accelerate.hooks.remove_hook_from_submodules(model.model)
-+                self.models_accelerated.remove(model)
-+
-+            # Unload to RAM
-+            model.model.cpu()
-+            model.unpatch_model()
-+            self.current_loaded_models.remove(model)
-+            return True
-+            #logger.warning(f"Unload model {id(model):x}")
-+
 +    def done_with_model(self, model):
-+        with self._mutex:
++        with self._property_mutex:
 +            if model in self.models_in_use:
 +                self.models_in_use.remove(model)
 +
 +    def load_model_gpu(self, model):
 +        global vram_state
 +        
-+        with self._mutex:
++        with self._load_mutex:
 +            #logger.warning(f"load_model_gpu( {id(model):x} )")
 +
 +            # Don't run out of vram
@@ -294,7 +284,7 @@ index a0d1313..ba373dc 100644
 +            return model
 +
 +    def load_controlnet_gpu(self, control_models):
-+        with self._mutex:
++        with self._load_mutex:
 +            global vram_state
 +            if vram_state == VRAMState.CPU:
 +                return
@@ -314,7 +304,7 @@ index a0d1313..ba373dc 100644
 +                    self.current_gpu_controlnets.append(m.to(device))
 +
 +    def unload_controlnet_gpu(self, control_models):
-+        with self._mutex:
++        with self._load_mutex:
 +            global vram_state
 +            if vram_state == VRAMState.CPU:
 +                return
@@ -545,7 +535,7 @@ index 1552722..0ac5903 100644
  
          return samples.to(torch.float32)
 diff --git a/comfy/sd.py b/comfy/sd.py
-index 211acd7..7a499e2 100644
+index 211acd7..b175da5 100644
 --- a/comfy/sd.py
 +++ b/comfy/sd.py
 @@ -1,6 +1,7 @@
@@ -595,7 +585,7 @@ index 211acd7..7a499e2 100644
 -        self.first_stage_model = self.first_stage_model.cpu()
 -        pixel_samples = pixel_samples.cpu().movedim(1,-1)
 -        return pixel_samples
-+        with model_management.model_manager.sampler_mutex:
++        with model_management.model_manager.vae_mutex:
 +            tid = threading.current_thread().ident
 +            #logger.warning(f"VAE.decode({tid}) would unload model")
 +            # model_management.unload_model()
@@ -634,7 +624,7 @@ index 211acd7..7a499e2 100644
 -        output = self.decode_tiled_(samples, tile_x, tile_y, overlap)
 -        self.first_stage_model = self.first_stage_model.cpu()
 -        return output.movedim(1,-1)
-+        with model_management.model_manager.sampler_mutex:
++        with model_management.model_manager.vae_mutex:
 +            #logger.warning("VAE.decode_tiled() would unload model")
 +            # model_management.unload_model()
 +            self.first_stage_model = self.first_stage_model.to(self.device)
@@ -652,7 +642,7 @@ index 211acd7..7a499e2 100644
 -        return samples
 +        #logger.warning("VAE.encode() would unload model")
 +        # model_management.unload_model()
-+        with model_management.model_manager.sampler_mutex:
++        with model_management.model_manager.vae_mutex:
 +            self.first_stage_model = self.first_stage_model.to(self.device)
 +            pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
 +            samples = self.first_stage_model.encode(2. * pixel_samples - 1.).sample() * self.scale_factor
@@ -673,7 +663,7 @@ index 211acd7..7a499e2 100644
 -        return samples
 +        #logger.warning("VAE.decode() would unload model")
 +        # model_management.unload_model()
-+        with model_management.model_manager.sampler_mutex:
++        with model_management.model_manager.vae_mutex:
 +            self.first_stage_model = self.first_stage_model.to(self.device)
 +            pixel_samples = pixel_samples.movedim(-1,1).to(self.device)
 +            samples = utils.tiled_scale(pixel_samples, lambda a: self.first_stage_model.encode(2. * a - 1.).sample() * self.scale_factor, tile_x, tile_y, overlap, upscale_amount = (1/8), out_channels=4)
