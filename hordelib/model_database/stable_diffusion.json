@@ -3285,6 +3285,39 @@
         },
         "available": false
     },
+    "GuFeng": {
+        "name": "GuFeng",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "This is a model of ancient Chinese style, and it also belongs to the model series with ink and water orientation",
+        "tags": [
+            "anime"
+        ],
+        "version": "2.0",
+        "style": "anime",
+        "homepage": "https://civitai.com/models/12903/gufeng",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "GuFeng.safetensors",
+                    "sha256sum": "1f4fd502679cdbddb168f36ca11de3787097497eeb0e4f85bd1102618178e332"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "GuFeng.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/42796"
+                }
+            ]
+        },
+        "available": false
+    },
     "Elldreth's Lucid Mix": {
         "name": "Elldreth's Lucid Mix",
         "baseline": "stable diffusion 1",
@@ -5311,9 +5344,9 @@
             "anime",
             "character"
         ],
-        "version": "1.1",
+        "version": "1.2.2",
         "style": "anime",
-        "homepage": "https://civitai.com/models/7371/rev-animated",
+        "homepage": "https://civitai.com/models/7371?modelVersionId=46846",
         "nsfw": true,
         "download_all": false,
         "showcases": [
@@ -5322,9 +5355,8 @@
         "config": {
             "files": [
                 {
-                    "path": "Rev-animated.ckpt",
-                    "md5sum": "67fb60349b3b2fc98a7b7c6fa1d02e4a",
-                    "sha256sum": "669b5c04f0ac98b225b2e8d53259748fdf07ef7a8d7e6ea7b6359783ced855e2"
+                    "path": "Rev-animated.safetensors",
+                    "sha256sum": "4199bcdd147e11328d5f3560301d5a7ab4ac7eeefbf49dc3eb663cb3e772b9ac"
                 },
                 {
                     "path": "v1-inference.yaml"
@@ -5332,9 +5364,43 @@
             ],
             "download": [
                 {
-                    "file_name": "Rev-animated.ckpt",
+                    "file_name": "Rev-animated.safetensors",
                     "file_path": "",
-                    "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/RevAnimated_v11_inclVAE.ckpt"
+                    "file_url": "https://civitai.com/api/download/models/46846"
+                }
+            ]
+        },
+        "available": false
+    },
+    "526Mix-Animated": {
+        "name": "526Mix-Animated",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "The goal of this model was to anchor 526Mix's whimsical and artistic personality into anime. 526Mix can do a pretty cool anime style (and other 2D styles), but it can be a bit unreliable at times. This simple mix increases the reliability, depth, and nuance in 526Mix's anime and anime-esque capabilities.",
+        "tags": [
+            "anime",
+            "character"
+        ],
+        "version": "1.0",
+        "style": "anime",
+        "homepage": "https://civitai.com/models/35893/526mix-animated",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "526mixAnimated.safetensors",
+                    "sha256sum": "5c0b94405672bff73bb16fc9f2b4335695021494de16ddb1709ea7ee0f2e1b74"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "526mixAnimated.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/42086"
                 }
             ]
         },
@@ -6453,6 +6519,41 @@
         },
         "available": false
     },
+    "Aurora": {
+        "name": "Aurora",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "Aurora is a Stable Diffusion model, similar to its predecessor Kenshi, with the goal of capturing my own feelings towards the anime styles I desire.The name Aurora, which means 'dawn' in Latin, represents the idea of a new beginning and a fresh start.",
+        "version": "1.0",
+        "style": "anime",
+        "trigger": [
+            "sle",
+            "mksks style",
+            "detailed background"
+        ],
+        "homepage": "https://civitai.com/models/40199/aurora",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "aurora.safetensors",
+                    "sha256sum": "1b5f8211ec04926035ac81033518c802db9964e93630ab4698b6365b9811c7eb"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "aurora.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/45601"
+                }
+            ]
+        },
+        "available": false
+    },
     "Char": {
         "name": "Char",
         "baseline": "stable diffusion 1",
@@ -6479,6 +6580,36 @@
                     "file_name": "Char.ckpt",
                     "file_path": "",
                     "file_url": "https://civitai.com/api/download/models/24806?type=Pruned%20Model&format=PickleTensor&size=pruned&fp=fp16"
+                }
+            ]
+        },
+        "available": false
+    },
+    "CamelliaMix 2.5D": {
+        "name": "CamelliaMix 2.5D",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "Semi-realistic model, Camellia Mix 2.5D V2",
+        "version": "2.0",
+        "style": "anime",
+        "homepage": "https://civitai.com/models/44219",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "camelliamix25D.safetensors",
+                    "sha256sum": "ed4f26c284bc9baaeee63f10ad823486bcc0dd6fcc03c9472fd8c44e508889a1"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "camelliamix25D.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/48859"
                 }
             ]
         },
@@ -6515,6 +6646,40 @@
         },
         "available": false
     },
+    "JoMad Diffusion": {
+        "name": "JoMad Diffusion",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "SD 1.5 model trained on a sample of Joe Madureiras artwork, this model was combined with another anime style model to create the blend uploaded here.",
+        "version": "1.0",
+        "trigger": [
+            "style of joemadureira"
+        ],
+        "style": "anime",
+        "homepage": "https://civitai.com/models/1223/jomad-diffusion",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "jomadDiffusion.ckpt",
+                    "md5sum": "43aa66b9ef9b799b155cd5d905d6ef88",
+                    "sha256sum": "bfdb1bc07f86a37363bdf04b778e0d528d28f25d2b78becc66f5b725452e4e62"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "jomadDiffusion.ckpt",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/1286?type=Model&format=PickleTensor&size=full&fp=fp16"
+                }
+            ]
+        },
+        "available": false
+    },
     "RCNZ Gorilla With A Brick": {
         "name": "RCNZ Gorilla With A Brick",
         "baseline": "stable diffusion 1",
@@ -6541,6 +6706,129 @@
                     "file_name": "GorillaWithABrick.ckpt",
                     "file_path": "",
                     "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/rcnzGorillaWithA_v20.ckpt"
+                }
+            ]
+        },
+        "available": false
+    },
+    "Ether Real Mix": {
+        "name": "Ether Real Mix",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "Ether Real Mix is a realistic to semi-realistic anime style model tuned with the flexibility for general purpose use (hopefully). It still has some shortcomings inherit to anime models such as biases in generating females and humans.",
+        "version": "1.1",
+        "style": "other",
+        "homepage": "https://civitai.com/models/18207?modelVersionId=23036",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "etherRealMix.safetensors",
+                    "sha256sum": "0ec84979f876e0de9e11a3fa2856c16607df6ff14896c6660cbeda0f792d5134"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "etherRealMix.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/23036"
+                }
+            ]
+        },
+        "available": false
+    },
+    "Lyriel": {
+        "name": "Lyriel",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "This model is generally designed for portraits and full-length anime style photos. Fantastic landscapes are quite decent. And it doesn't require kilometer-long queries to get a high-quality result.",
+        "version": "1.5",
+        "style": "artistic",
+        "homepage": "https://civitai.com/models/22922/lyriel",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "lyriel.safetensors",
+                    "sha256sum": "4d91c4c2174557c2211ba32c54798b19a14c74d84f937d904a481f9b42a9e2ad"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "lyriel.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/50127"
+                }
+            ]
+        },
+        "available": false
+    },  
+    "DnD Map Generator": {
+        "name": "DnD Map Generator",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "This model is trained on various D&D Battlemaps. Use the negative prompt: 'grid' to improve some maps, or use the gridless version. Try to experiment with the CFG scale, 10 can create some amazing results but to each their own.",
+        "version": "3.0",
+        "style": "other",
+        "trigger": [
+            "2d dnd battlemap"
+        ],
+        "homepage": "https://civitai.com/models/5012/dnd-map-generator",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "dndMapGenerator.safetensors",
+                    "sha256sum": "535d3a621d9ce06392cc554ac0d5ba1f0e68974a52902bf0c1f22eccf516ff28"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "dndMapGenerator.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/19517"
+                }
+            ]
+        },
+        "available": false
+    },
+    "Beautiful Realistic Asians": {
+        "name": "Beautiful Realistic Asians",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "Trained on countless pictures of Beautiful Asian women. (some nsfw images included)",
+        "version": "4.0",
+        "style": "realistic",
+        "homepage": "https://civitai.com/models/25494/brabeautiful-realistic-asians-v3",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "braBeautifulRealistic.safetensors",
+                    "sha256sum": "9c03252bea886e921a10f6b5f61b2d60565c32d02bbbb40cb59944c0218c5e90"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "braBeautifulRealistic.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/51395"
                 }
             ]
         },
