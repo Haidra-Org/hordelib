@@ -1,5 +1,14 @@
 ## hordelib Changelog
 
+## [v0.17.0](https://github.com/jug-dev/hordelib/compare/v0.16.4...v0.17.0)
+
+1 May 2023
+
+- feat: minor performance tweaking [`#205`](https://github.com/jug-dev/hordelib/pull/205) (Jug)
+- feat: update model database [`a80846e`](https://github.com/jug-dev/hordelib/commit/a80846e2f7b791f496bd3042e968b8b67ddbb7bf)  (Jug)
+- fix: adds ersgan upscaler, SHA check now case insensitive [`1d82e30`](https://github.com/jug-dev/hordelib/commit/1d82e30aac4ce3207a034b184e7a7406b3206962)  (tazlin)
+- docs: update readme [`26c3b62`](https://github.com/jug-dev/hordelib/commit/26c3b6268e5f8041a193a9967605d0843cee6884)  (Jug)
+
 ## [v0.16.4](https://github.com/jug-dev/hordelib/compare/v0.16.3...v0.16.4)
 
 30 April 2023
