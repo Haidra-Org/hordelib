@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v0.18.0](https://github.com/jug-dev/hordelib/compare/v0.17.0...v0.18.0)
+
+1 May 2023
+
+- feat: use less vram with large images (tiled vae decode) [`#207`](https://github.com/jug-dev/hordelib/pull/207) (Jug)
+- fix: suppress some clip debug [`9849955`](https://github.com/jug-dev/hordelib/commit/98499553b367bb8c9fad3ab2c66a1d557cbb539b)  (Jug)
+
 ## [v0.17.0](https://github.com/jug-dev/hordelib/compare/v0.16.4...v0.17.0)
 
 1 May 2023
