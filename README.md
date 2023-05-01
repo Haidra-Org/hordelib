@@ -13,7 +13,7 @@
 
 The developers of `hordelib` can be found in the AI Horde Discord server: [https://discord.gg/3DxrhksKzn](https://discord.gg/3DxrhksKzn)
 
-NOTE: This project is in development and is in beta test by Stable Horde.
+NOTE: This project is in development and is in a test phase by Stable Horde.
 
 ## Purpose
 
