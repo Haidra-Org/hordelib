@@ -398,10 +398,10 @@
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/archer_diffusion/01_bigdowg.webp"
         ],
         "version": "1",
+        "style": "artistic",
         "trigger": [
             "archer style"
         ],
-        "style": "artistic",
         "homepage": "https://huggingface.co/nitrosocke/archer-diffusion",
         "nsfw": false,
         "download_all": false,
@@ -3151,12 +3151,12 @@
         ],
         "version": "1",
         "style": "artistic",
-        "homepage": "https://civitai.com/models/1473/dreamlikesamkuvshinov",
         "trigger": [
             "dreamlikeart",
             "samdoesart",
             "kuvshinov"
         ],
+        "homepage": "https://civitai.com/models/1473/dreamlikesamkuvshinov",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -3312,7 +3312,7 @@
                 {
                     "file_name": "GuFeng.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/42796"
+                    "file_url": "https://civitai.com/api/download/models/42796?type=Model&format=SafeTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -3394,10 +3394,10 @@
         ],
         "version": "0.9",
         "style": "realistic",
-        "homepage": "https://huggingface.co/VegaKH/Ultraskin",
         "trigger": [
             "ultraskin"
         ],
+        "homepage": "https://huggingface.co/VegaKH/Ultraskin",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -3431,10 +3431,10 @@
         ],
         "version": "2",
         "style": "other",
-        "homepage": "https://huggingface.co/Metal079/SonicDiffusionV2",
         "trigger": [
             "mobian"
         ],
+        "homepage": "https://huggingface.co/Metal079/SonicDiffusionV2",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -3645,10 +3645,10 @@
         ],
         "version": "1",
         "style": "artistic",
-        "homepage": "https://huggingface.co/s3nh/zelda-botw-stable-diffusion",
         "trigger": [
             "botw style"
         ],
+        "homepage": "https://huggingface.co/s3nh/zelda-botw-stable-diffusion",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -3682,10 +3682,10 @@
         ],
         "version": "2",
         "style": "artistic",
-        "homepage": "https://huggingface.co/ItsJayQz/Marvel_WhatIf_Diffusion",
         "trigger": [
             "whatif style"
         ],
+        "homepage": "https://huggingface.co/ItsJayQz/Marvel_WhatIf_Diffusion",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -3719,10 +3719,10 @@
         ],
         "version": "1",
         "style": "other",
-        "homepage": "https://civitai.com/models/4694/lessmagifactorygreater-t-shirt-diffusion",
         "trigger": [
             "as a t-shirt logo in the style of <MAGIFACTORY> art"
         ],
+        "homepage": "https://civitai.com/models/4694/lessmagifactorygreater-t-shirt-diffusion",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -3751,14 +3751,14 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "Based on yiffy-e18 and Anything, produces sfw/nsfw furry anthro artworks of different styles with consistant quality, while maintaining details on stuff like clothes, background, etc. with simpler prompts.",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/lawlas/01_lawlas.webp"
+        ],
         "version": "2",
         "style": "furry",
         "homepage": "https://civitai.com/models/12979/lawlass-yiffymix-20-furry-model",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/lawlas/01_lawlas.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -3790,7 +3790,6 @@
         ],
         "version": "1",
         "style": "artistic",
-        "homepage": "https://huggingface.co/DGSpitzer/DGSpitzer-Art-Diffusion",
         "trigger": [
             "painting",
             "arts, dgspitzer",
@@ -3800,6 +3799,7 @@
             "sketch",
             "landscape"
         ],
+        "homepage": "https://huggingface.co/DGSpitzer/DGSpitzer-Art-Diffusion",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -3828,14 +3828,14 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "Model for creating photorealistic humans",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/realisticvision/01_realisticvision.webp"
+        ],
         "version": "1.3",
         "style": "realistic",
         "homepage": "https://civitai.com/models/4201/realistic-vision-v13",
         "nsfw": true,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/realisticvision/01_realisticvision.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -3867,12 +3867,12 @@
         ],
         "version": "2",
         "style": "artistic",
-        "homepage": "https://civitai.com/models/4567/v2-updated-flonixs-dan-mumford-style",
         "trigger": [
             "by dan mumford",
             "in the style of dan mumford",
             "DanMumford Style"
         ],
+        "homepage": "https://civitai.com/models/4567/v2-updated-flonixs-dan-mumford-style",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -3935,14 +3935,14 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "Epic Diffusion is a general purpose model based on Stable Diffusion 1.x intended to replace the official SD releases as your default model. It is focused on providing high quality output in a wide range of different styles, with support for NFSW content.",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/epic_diffusion/01_epic.webp"
+        ],
         "version": "1.1",
         "style": "generalist",
         "homepage": "https://civitai.com/models/3855/epic-diffusion",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/epic_diffusion/01_epic.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -3969,14 +3969,14 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "This model provides you the ability to create anything you want. The more power of prompt knowledges you have, the better results you'll get. It basically means that you'll never get a perfect result with just a few words. You have to fill out your prompt line extremely detailed",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/deliberate/01_deliberate.webp"
+        ],
         "version": "2",
         "style": "generalist",
         "homepage": "https://civitai.com/models/4823/deliberate",
         "nsfw": true,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/deliberate/01_deliberate.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4023,7 +4023,7 @@
                 {
                     "file_name": "edgeOfRealism.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/51913"
+                    "file_url": "https://civitai.com/api/download/models/51913?type=Model&format=SafeTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -4034,17 +4034,17 @@
         "baseline": "stable diffusion 2",
         "type": "ckpt",
         "description": "This model is just the first dreambooth iteration for concept-sheet/old-books style. Based on SD 2.1",
-        "version": "alpha",
-        "style": "artistic",
-        "homepage": "https://civitai.com/models/4897/concept-sheet",
-        "trigger": [
-            "concept-art"
-        ],
-        "nsfw": false,
-        "download_all": false,
         "showcases": [
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/conceptsheet/01_concept.webp"
         ],
+        "version": "alpha",
+        "style": "artistic",
+        "trigger": [
+            "concept-art"
+        ],
+        "homepage": "https://civitai.com/models/4897/concept-sheet",
+        "nsfw": false,
+        "download_all": false,
         "config": {
             "files": [
                 {
@@ -4076,7 +4076,6 @@
         ],
         "version": "4",
         "style": "artistic",
-        "homepage": "https://huggingface.co/ManglerFTW/CharHelper",
         "trigger": [
             "CHV3CZombie",
             "CHV3CAlien",
@@ -4085,6 +4084,7 @@
             "CHV3SCute",
             "CHV3SMacro"
         ],
+        "homepage": "https://huggingface.co/ManglerFTW/CharHelper",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -4122,12 +4122,12 @@
         ],
         "version": "1",
         "style": "anime",
-        "homepage": "https://huggingface.co/Timmahw/SD2.1_Pokemon3D",
         "trigger": [
             "GMAX",
             "Mega",
             "<PokemonName>"
         ],
+        "homepage": "https://huggingface.co/Timmahw/SD2.1_Pokemon3D",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -4192,17 +4192,17 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "The model is trained with beautiful, artist-agnostic watercolor images using the midjourney method",
-        "version": "1",
-        "style": "artistic",
-        "homepage": "https://huggingface.co/Evel/VividWatercolors",
-        "trigger": [
-            "wtrcolor style"
-        ],
-        "nsfw": false,
-        "download_all": false,
         "showcases": [
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/vividwatercolors/01_vivid.webp"
         ],
+        "version": "1",
+        "style": "artistic",
+        "trigger": [
+            "wtrcolor style"
+        ],
+        "homepage": "https://huggingface.co/Evel/VividWatercolors",
+        "nsfw": false,
+        "download_all": false,
         "config": {
             "files": [
                 {
@@ -4232,14 +4232,14 @@
         "tags": [
             "anime"
         ],
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/counterfeit/01_counterfeit.webp"
+        ],
         "version": "2.5",
         "style": "anime",
         "homepage": "https://huggingface.co/gsdf/Counterfeit-V2.0",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/counterfeit/01_counterfeit.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4303,14 +4303,14 @@
         "tags": [
             "anime"
         ],
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/pastelmix/01_pastelmix.webp"
+        ],
         "version": "1",
         "style": "anime",
         "homepage": "https://huggingface.co/andite/pastel-mix",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/pastelmix/01_pastelmix.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4342,11 +4342,11 @@
         ],
         "version": "beta",
         "style": "other",
-        "homepage": "https://civitai.com/models/4618/vector-art",
         "trigger": [
             "vector-art",
             "pulp-diffusion"
         ],
+        "homepage": "https://civitai.com/models/4618/vector-art",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -4375,17 +4375,17 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "Rainbowpatch is a fine-tuned model specifically trained to generate high-quality stylized images, this model doesn't require complicated detailed text prompts.",
-        "version": "1.2",
-        "style": "artistic",
-        "homepage": "https://civitai.com/models/5528/rainbowpatch-12",
-        "trigger": [
-            "rainbowpatch"
-        ],
-        "nsfw": false,
-        "download_all": false,
         "showcases": [
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/rainbowpatch/01_rainbow.webp"
         ],
+        "version": "1.2",
+        "style": "artistic",
+        "trigger": [
+            "rainbowpatch"
+        ],
+        "homepage": "https://civitai.com/models/5528/rainbowpatch-12",
+        "nsfw": false,
+        "download_all": false,
         "config": {
             "files": [
                 {
@@ -4417,10 +4417,10 @@
         ],
         "version": "beta",
         "style": "other",
-        "homepage": "https://civitai.com/models/4618/vector-art",
         "trigger": [
             "vector-art"
         ],
+        "homepage": "https://civitai.com/models/4618/vector-art",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -4454,10 +4454,10 @@
         ],
         "version": "0.1",
         "style": "other",
-        "homepage": "https://civitai.com/models/5256/t-shirt-print-designs-test-model",
         "trigger": [
             "printdesign"
         ],
+        "homepage": "https://civitai.com/models/5256/t-shirt-print-designs-test-model",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -4486,14 +4486,14 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "Model mix based on any4.5, Elysium, Dreamlike and few more models",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/gorynichmix/01_gory.webp"
+        ],
         "version": "1.2",
         "style": "artistic",
         "homepage": "https://civitai.com/models/4815/gorynichmix",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/gorynichmix/01_gory.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4558,13 +4558,13 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "Model for creating photorealistic humans",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/urpm/01_urpm.webp"
+        ],
         "version": "1.3",
         "style": "realistic",
         "nsfw": true,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/urpm/01_urpm.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4631,10 +4631,10 @@
         ],
         "version": "1.2",
         "style": "artistic",
-        "homepage": "https://civitai.com/models/1122/rachel-walker-style-watercolor",
         "trigger": [
             "rachelwalker style"
         ],
+        "homepage": "https://civitai.com/models/1122/rachel-walker-style-watercolor",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -4663,14 +4663,14 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "This checkpoint is trained to look like Unreal Engine 5 renders",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/project_unreal_engine5/01_unreal.webp"
+        ],
         "version": "2.0",
         "style": "artistic",
         "homepage": "https://civitai.com/models/4752/project-unreal-engine-5",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/project_unreal_engine5/01_unreal.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4697,9 +4697,11 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "Create a variety of styles including realistic photos, realistic drawings, and animations like last three fig",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/unstableinkdream/01_inkdream.webp"
+        ],
         "version": "6.0",
         "style": "artistic",
-        "homepage": "https://huggingface.co/Oosayam/UnstableSamInkDream",
         "trigger": [
             "nvinkpunk",
             "kuvshinov",
@@ -4708,11 +4710,9 @@
             "analog style",
             "modelshoot style"
         ],
+        "homepage": "https://huggingface.co/Oosayam/UnstableSamInkDream",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/unstableinkdream/01_inkdream.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4739,14 +4739,14 @@
         "baseline": "stable diffusion 2",
         "type": "ckpt",
         "description": "Custom built SD2.1 generalist model from 28k SFW images ",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/prmj/01_prmj.webp"
+        ],
         "version": "1",
         "style": "generalist",
         "homepage": "https://civitai.com/models/6465/prmj",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/prmj/01_prmj.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4773,20 +4773,20 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "A retro twist on Elldreths other models",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/elldreths_retro_mix/01_elldreth.webp"
+        ],
         "version": "1",
         "style": "generalist",
-        "homepage": "https://civitai.com/models/1474/elldreths-retro-mix",
         "trigger": [
             "glen orbik",
             "eagle bergey",
             "robert maguire",
             "gil elvgren"
         ],
+        "homepage": "https://civitai.com/models/1474/elldreths-retro-mix",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/elldreths_retro_mix/01_elldreth.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4882,14 +4882,14 @@
             "anime",
             "booru"
         ],
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/anythingv3/01_anythingv3.webp"
+        ],
         "version": "3",
         "style": "anime",
         "homepage": "https://huggingface.co/Linaqruf/anything-v3.0",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/anythingv3/01_anythingv3.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4916,14 +4916,14 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "A model trained to make detailed, anatomically-accurate (hands, faces, genitals, etc) illustrations of humans and non-humans alike",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/woopwoop/001_muted001.webp"
+        ],
         "version": "1.2",
         "style": "realistic",
         "homepage": "https://civitai.com/models/4041/woopwoop-photo",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/woopwoop/001_muted001.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4955,14 +4955,14 @@
             "character",
             "cg"
         ],
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/abyss_orange_mix/01_abyss.webp"
+        ],
         "version": "3",
         "style": "anime",
         "homepage": "https://huggingface.co/WarriorMama777/OrangeMixs",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/abyss_orange_mix/01_abyss.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -4994,14 +4994,14 @@
             "hentai",
             "character"
         ],
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/cyrious_mix/01_cyrious.webp"
+        ],
         "version": "1.4",
         "style": "anime",
         "homepage": "https://civitai.com/models/6260/cyriousmix",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/cyrious_mix/01_cyrious.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -5028,14 +5028,14 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "A cross of knollingcase and microworlds, for creating tiny worlds in a case",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/microcasing/01_microcasing.webp"
+        ],
         "version": "1.0",
         "style": "other",
         "homepage": "https://civitai.com/models/8232/microcasing-merge",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/microcasing/01_microcasing.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -5062,13 +5062,13 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "For creating images of nude solo women",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/chillout_mix/01_chilloutmix.webp"
+        ],
         "version": "1.0",
         "style": "realistic",
         "nsfw": true,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/chillout_mix/01_chilloutmix.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -5095,16 +5095,16 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "A cross of Cute Rich Style and microworlds, for creating tiny 3d figurines",
-        "version": "1.0",
-        "style": "other",
-        "homepage": "https://civitai.com/models/8057/microchars-merge",
-        "nsfw": false,
-        "download_all": false,
         "showcases": [
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/microchars/01_people.webp",
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/microchars/02_chars.webp",
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/microchars/03_classes.webp"
         ],
+        "version": "1.0",
+        "style": "other",
+        "homepage": "https://civitai.com/models/8057/microchars-merge",
+        "nsfw": false,
+        "download_all": false,
         "config": {
             "files": [
                 {
@@ -5200,14 +5200,14 @@
             "anime",
             "hentai"
         ],
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/grapefruit_hentai/01_grapefruit.webp"
+        ],
         "version": "4.1",
         "style": "anime",
         "homepage": "https://civitai.com/models/2583/grapefruit-hentai-model",
         "nsfw": true,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/grapefruit_hentai/01_grapefruit.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -5234,14 +5234,14 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "A generalist model with a slight leaning towards science-fiction and 3d renders",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/experience/01_experience.webp"
+        ],
         "version": "6.5",
         "style": "generalist",
         "homepage": "https://civitai.com/models/5952/experience",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/experience/01_experience.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -5306,14 +5306,14 @@
             "anime",
             "retro"
         ],
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/duchaiten_classic_anime/01_anon.webp"
+        ],
         "version": "1.0",
         "style": "anime",
         "homepage": "https://huggingface.co/DucHaiten/DH_ClassicAnime",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/duchaiten_classic_anime/01_anon.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -5344,14 +5344,14 @@
             "anime",
             "character"
         ],
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/rev_animated/001_muted.webp"
+        ],
         "version": "1.2.2",
         "style": "anime",
         "homepage": "https://civitai.com/models/7371?modelVersionId=46846",
         "nsfw": true,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/rev_animated/001_muted.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -5366,7 +5366,7 @@
                 {
                     "file_name": "Rev-animated.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/46846"
+                    "file_url": "https://civitai.com/api/download/models/46846?type=Model&format=SafeTensor&size=full&fp=fp32"
                 }
             ]
         },
@@ -5400,7 +5400,7 @@
                 {
                     "file_name": "526mixAnimated.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/42086"
+                    "file_url": "https://civitai.com/api/download/models/42086?type=Model&format=SafeTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -5539,6 +5539,9 @@
             "anime",
             "sketch"
         ],
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/anime_pencil_diffusion/01_anipen.webp"
+        ],
         "version": "5",
         "style": "anime",
         "trigger": [
@@ -5547,9 +5550,6 @@
         "homepage": "https://huggingface.co/yehiaserag/anime-pencil-diffusion",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/anime_pencil_diffusion/01_anipen.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -5734,7 +5734,7 @@
                 {
                     "file_name": "neurogen.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/29681"
+                    "file_url": "https://civitai.com/api/download/models/29681?type=Pruned%20Model&format=SafeTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -5748,15 +5748,15 @@
         "tags": [
             "booru"
         ],
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/neverending_dream/01_anon.webp",
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/neverending_dream/02_muted001.webp"
+        ],
         "version": "1.0",
         "style": "artistic",
         "homepage": "https://civitai.com/models/10028",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/neverending_dream/01_anon.webp",
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/neverending_dream/02_muted001.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -5882,16 +5882,16 @@
         "baseline": "stable diffusion 2",
         "type": "ckpt",
         "description": "Illuminati Diffusion is a latent text-to-image diffusion model that has been conditioned on high aesthetic synthetic images through fine-tuning. It was trained on 82,000 images locally with a single 3090ti, taking over 100 hours.",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/illuminati/001_muted001.webp",
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/illuminati/002_blank.webp"
+        ],
         "version": "1.1",
         "style": "generalist",
         "homepage": "https://civitai.com/models/11193",
         "nsfw": false,
         "download_all": false,
         "config": {
-            "showcases": [
-                "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/illuminati/001_muted001.webp",
-                "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/illuminati/002_blank.webp"
-            ],
             "files": [
                 {
                     "path": "Illuminati.ckpt",
@@ -5948,18 +5948,18 @@
         "baseline": "stable diffusion 2",
         "type": "ckpt",
         "description": "Trained on 666 images, hand captioned, general, but limited sci-fi model. It has been trained on armour concepts, futuristic backgrounds, androids and robots, as well as some fantasy stuff, like werecreatures.",
-        "version": "2",
-        "style": "artistic",
-        "homepage": "https://civitai.com/models/2107/fkingscifiv2",
-        "trigger": [
-            "fking_scifi_v2"
-        ],
-        "nsfw": false,
-        "download_all": false,
         "showcases": [
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/scifi_diffusion/01_scifi.webp",
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/scifi_diffusion/02_voodoo.webp"
         ],
+        "version": "2",
+        "style": "artistic",
+        "trigger": [
+            "fking_scifi_v2"
+        ],
+        "homepage": "https://civitai.com/models/2107/fkingscifiv2",
+        "nsfw": false,
+        "download_all": false,
         "config": {
             "files": [
                 {
@@ -5986,14 +5986,14 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "This blend model aims to achieve versatility in generating images that are almost realistic but with a touch of fantasy and a polished aesthetic. It performs well with both illustrations and simulated photographs, but it particularly excels with the latter",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/realbiter/001_voodoocode.webp"
+        ],
         "version": "29",
         "style": "realistic",
         "homepage": "https://civitai.com/models/16592/realbiter",
         "nsfw": true,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/realbiter/001_voodoocode.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -6053,10 +6053,10 @@
         "description": "This model gives you the possibilty to have an orb and put awesome stuff inside of it like animals, universe, solarsystems, fractal images whatever you can think of",
         "version": "1.0",
         "style": "other",
-        "homepage": "https://civitai.com/models/14102/orbai",
         "trigger": [
             "orbai"
         ],
+        "homepage": "https://civitai.com/models/14102/orbai",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -6085,14 +6085,14 @@
         "baseline": "stable diffusion 2",
         "type": "ckpt",
         "description": "This new model was fine-tuned using a vast collection of public domain images, ensuring that it can generate images across a wide range of contexts. While it may not be as strong in generating abstract or highly stylized images, it excels in generating images that are true to life, visually compelling and that accurately reflect the input textual description",
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/realism_engine/001_muted001.webp"
+        ],
         "version": "1.0",
         "style": "generalist",
         "homepage": "https://civitai.com/models/17277",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/realism_engine/001_muted001.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -6290,14 +6290,14 @@
         "tags": [
             "anime"
         ],
+        "showcases": [
+            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/expmix/01_muted001.webp"
+        ],
         "version": "2",
         "style": "artistic",
         "homepage": "https://civitai.com/models/12865/expmixline",
         "nsfw": false,
         "download_all": false,
-        "showcases": [
-            "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/expmix/01_muted001.webp"
-        ],
         "config": {
             "files": [
                 {
@@ -6548,7 +6548,7 @@
                 {
                     "file_name": "aurora.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/45601"
+                    "file_url": "https://civitai.com/api/download/models/45601?type=Model&format=SafeTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -6609,7 +6609,7 @@
                 {
                     "file_name": "camelliamix25D.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/48859"
+                    "file_url": "https://civitai.com/api/download/models/48859?type=Model&format=SafeTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -6652,10 +6652,10 @@
         "type": "ckpt",
         "description": "SD 1.5 model trained on a sample of Joe Madureiras artwork, this model was combined with another anime style model to create the blend uploaded here.",
         "version": "1.0",
+        "style": "anime",
         "trigger": [
             "style of joemadureira"
         ],
-        "style": "anime",
         "homepage": "https://civitai.com/models/1223/jomad-diffusion",
         "nsfw": false,
         "download_all": false,
@@ -6725,7 +6725,7 @@
             "files": [
                 {
                     "path": "etherRealMix.safetensors",
-                    "sha256sum": "0ec84979f876e0de9e11a3fa2856c16607df6ff14896c6660cbeda0f792d5134"
+                    "sha256sum": "bfcaa69ad9ef9d7ecca9a2251a5c5a84f31da7bb66f093e185006435026de787"
                 },
                 {
                     "path": "v1-inference.yaml"
@@ -6735,7 +6735,7 @@
                 {
                     "file_name": "etherRealMix.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/23036"
+                    "file_url": "https://civitai.com/api/download/models/23036?type=Model&format=SafeTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -6765,12 +6765,12 @@
                 {
                     "file_name": "lyriel.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/50127"
+                    "file_url": "https://civitai.com/api/download/models/50127?type=Model&format=SafeTensor&size=full&fp=fp16"
                 }
             ]
         },
         "available": false
-    },  
+    },
     "DnD Map Generator": {
         "name": "DnD Map Generator",
         "baseline": "stable diffusion 1",
@@ -6798,7 +6798,7 @@
                 {
                     "file_name": "dndMapGenerator.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/19517"
+                    "file_url": "https://civitai.com/api/download/models/19517?type=Model&format=SafeTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -6828,7 +6828,7 @@
                 {
                     "file_name": "braBeautifulRealistic.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/51395"
+                    "file_url": "https://civitai.com/api/download/models/51395?type=Model&format=SafeTensor&size=full&fp=fp32"
                 }
             ]
         },
