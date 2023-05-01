@@ -64,43 +64,45 @@ def get_available_models():
     return models
 
 
-def do_inference(model_name):
+def do_inference(model_name, iterations=1):
     """Do some work on the GPU"""
     horde = HordeLib()
-    data = {
-        "sampler_name": "k_euler",
-        "cfg_scale": 7.5,
-        "denoising_strength": 1.0,
-        "seed": 123456789,
-        "height": 512,
-        "width": 512,
-        "karras": True,
-        "tiling": False,
-        "hires_fix": False,
-        "clip_skip": 1,
-        "control_type": None,
-        "image_is_control": False,
-        "return_control_map": False,
-        "prompt": "an ancient llamia monster",
-        "ddim_steps": 15,
-        "n_iter": 1,
-        "model": model_name,
-    }
-    pil_image = horde.basic_inference(data)
-    if not pil_image:
-        logger.error("Inference is failing to generate images")
-    else:
-        pil_image.save(f"images/stresstest/{model_name}.webp", quality=90)
+    for i in range(iterations):
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": 512,
+            "width": 512,
+            "karras": True,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "an ancient llamia monster",
+            "ddim_steps": 15,
+            "n_iter": 1,
+            "model": model_name,
+        }
+        pil_image = horde.basic_inference(data)
+        if not pil_image:
+            logger.error("Inference is failing to generate images")
+        else:
+            pil_image.save(f"images/stresstest/{model_name}.webp", quality=90)
 
 
 def do_background_inference():
     """Keep doing inference using random loaded models. To be run in a background thread."""
     count = 1
+    random.seed()
     while True:
         models = SharedModelManager.manager.get_loaded_models_names()
         model = random.choice(models)
-        logger.info(f"Doing inference iteraton {count} with model {model} ({len(models)} models loaded)")
-        do_inference(model)
+        logger.info(f"Doing inference iteration {count} with model {model} ({len(models)} models loaded)")
+        do_inference(model, 3)
         count += 1
 
 
@@ -113,8 +115,13 @@ def main():
 
     add_model("Papercut Diffusion")
     SharedModelManager.manager.compvis.move_to_disk_cache("Papercut Diffusion")
+
     add_model("Graphic-Art")
     SharedModelManager.manager.compvis.move_to_disk_cache("Graphic-Art")
+
+    # while True:
+    #     SharedModelManager.manager.load("Papercut Diffusion")
+    #     do_inference("Papercut Diffusion")
 
     # We may have just fast-loaded a bunch of cached models, do some inference with each of them
     if VALIDATE_ALL_CACHED_MODELS:

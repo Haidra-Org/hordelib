@@ -1,5 +1,7 @@
 # initialisation.py
 # Initialise hordelib.
+import os
+import shutil
 import sys
 
 from loguru import logger
@@ -20,9 +22,14 @@ _is_initialised = False
 def initialise(
     model_managers_to_load: dict[MODEL_CATEGORY_NAMES, bool] = DEFAULT_MODEL_MANAGERS,
     setup_logging=True,
+    clear_logs=False,
 ):  # XXX # TODO Do we need `model_managers_to_load`?
 
     global _is_initialised
+
+    # Wipe existing logs if requested
+    if clear_logs and os.path.exists("./logs"):
+        shutil.rmtree("./logs")
 
     # Setup logging if requested
     HordeLog.initialise(setup_logging)
