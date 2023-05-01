@@ -44,24 +44,11 @@
         },
         "class_type": "CLIPTextEncode"
     },
-    "8": {
-        "inputs": {
-            "samples": [
-                "3",
-                0
-            ],
-            "vae": [
-                "47",
-                2
-            ]
-        },
-        "class_type": "VAEDecode"
-    },
     "9": {
         "inputs": {
             "filename_prefix": "ComfyUI",
             "images": [
-                "8",
+                "49",
                 0
             ]
         },
@@ -86,7 +73,7 @@
                 0
             ],
             "image": [
-                "45",
+                "34",
                 0
             ]
         },
@@ -194,8 +181,8 @@
     },
     "46": {
         "inputs": {
-            "score_threshold": 0.150,
-            "dist_threshold": 1.0,
+            "score_threshold": 0.15,
+            "dist_threshold": 1,
             "image": [
                 "20",
                 0
@@ -208,5 +195,18 @@
             "ckpt_name": "Deliberate.ckpt"
         },
         "class_type": "CheckpointLoaderSimple"
+    },
+    "49": {
+        "inputs": {
+            "samples": [
+                "3",
+                0
+            ],
+            "vae": [
+                "47",
+                2
+            ]
+        },
+        "class_type": "VAEDecodeTiled"
     }
 }
