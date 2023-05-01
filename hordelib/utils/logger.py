@@ -111,6 +111,8 @@ class HordeLog:
         else:
             cls.setup_compatibility()
 
+        logger.disable("hordelib.clip.interrogate")
+
     @classmethod
     def setup_compatibility(cls):
         logger.__class__.generation = partialmethod(logger.__class__.log, "INFO")

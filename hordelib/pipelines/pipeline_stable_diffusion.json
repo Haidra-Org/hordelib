@@ -1,7 +1,7 @@
 {
     "3": {
         "inputs": {
-            "seed": 549947196061527,
+            "seed": 843159458049729,
             "steps": 20,
             "cfg": 8.0,
             "sampler_name": "euler",
@@ -60,24 +60,11 @@
         },
         "class_type": "CLIPTextEncode"
     },
-    "8": {
-        "inputs": {
-            "samples": [
-                "3",
-                0
-            ],
-            "vae": [
-                "4",
-                2
-            ]
-        },
-        "class_type": "VAEDecode"
-    },
     "9": {
         "inputs": {
             "filename_prefix": "ComfyUI",
             "images": [
-                "8",
+                "14",
                 0
             ]
         },
@@ -112,5 +99,18 @@
             ]
         },
         "class_type": "VAEEncode"
+    },
+    "14": {
+        "inputs": {
+            "samples": [
+                "3",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        },
+        "class_type": "VAEDecodeTiled"
     }
 }

@@ -60,24 +60,11 @@
         },
         "class_type": "CLIPTextEncode"
     },
-    "8": {
-        "inputs": {
-            "samples": [
-                "3",
-                0
-            ],
-            "vae": [
-                "4",
-                2
-            ]
-        },
-        "class_type": "VAEDecode"
-    },
     "9": {
         "inputs": {
             "filename_prefix": "ComfyUI",
             "images": [
-                "8",
+                "15",
                 0
             ]
         },
@@ -116,5 +103,18 @@
             ]
         },
         "class_type": "VAEEncodeForInpaint"
+    },
+    "15": {
+        "inputs": {
+            "samples": [
+                "3",
+                0
+            ],
+            "vae": [
+                "4",
+                2
+            ]
+        },
+        "class_type": "VAEDecodeTiled"
     }
 }

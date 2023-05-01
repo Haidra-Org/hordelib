@@ -1,48 +1,7 @@
 {
-  "last_node_id": 13,
-  "last_link_id": 18,
+  "last_node_id": 14,
+  "last_link_id": 21,
   "nodes": [
-    {
-      "id": 8,
-      "type": "VAEDecode",
-      "pos": [
-        1384,
-        398
-      ],
-      "size": {
-        "0": 210,
-        "1": 46
-      },
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "samples",
-          "type": "LATENT",
-          "link": 7
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": 8
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": [
-            9
-          ],
-          "slot_index": 0
-        }
-      ],
-      "title": "vae_decode",
-      "properties": {
-        "Node name for S&R": "VAEDecode"
-      }
-    },
     {
       "id": 7,
       "type": "CLIPTextEncode",
@@ -180,7 +139,7 @@
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 9
+          "link": 21
         }
       ],
       "title": "output_image",
@@ -263,6 +222,93 @@
       ]
     },
     {
+      "id": 11,
+      "type": "LoadImage",
+      "pos": [
+        66,
+        755
+      ],
+      "size": {
+        "0": 315,
+        "1": 102
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            15
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null
+        }
+      ],
+      "title": "image_loader",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ]
+    },
+    {
+      "id": 4,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        23,
+        254
+      ],
+      "size": {
+        "0": 315,
+        "1": 98
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            1
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            12
+          ],
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            14,
+            19
+          ],
+          "slot_index": 2
+        }
+      ],
+      "title": "model_loader",
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "Deliberate.ckpt"
+      ]
+    },
+    {
       "id": 3,
       "type": "KSampler",
       "pos": [
@@ -303,7 +349,7 @@
           "name": "LATENT",
           "type": "LATENT",
           "links": [
-            7
+            20
           ],
           "slot_index": 0
         }
@@ -313,8 +359,8 @@
         "Node name for S&R": "KSampler"
       },
       "widgets_values": [
-        843159458049729,
-        true,
+        62706718437716,
+        "randomize",
         20,
         8,
         "euler",
@@ -323,91 +369,45 @@
       ]
     },
     {
-      "id": 4,
-      "type": "CheckpointLoaderSimple",
+      "id": 14,
+      "type": "VAEDecodeTiled",
       "pos": [
-        23,
-        254
+        1370,
+        527
       ],
       "size": {
-        "0": 315,
-        "1": 98
+        "0": 210,
+        "1": 46
       },
       "flags": {},
-      "order": 1,
+      "order": 8,
       "mode": 0,
-      "outputs": [
+      "inputs": [
         {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            1
-          ],
-          "slot_index": 0
+          "name": "samples",
+          "type": "LATENT",
+          "link": 20
         },
         {
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            12
-          ],
-          "slot_index": 1
-        },
-        {
-          "name": "VAE",
+          "name": "vae",
           "type": "VAE",
-          "links": [
-            8,
-            14
-          ],
-          "slot_index": 2
+          "link": 19
         }
       ],
-      "title": "model_loader",
-      "properties": {
-        "Node name for S&R": "CheckpointLoaderSimple"
-      },
-      "widgets_values": [
-        "Deliberate.ckpt"
-      ]
-    },
-    {
-      "id": 11,
-      "type": "LoadImage",
-      "pos": [
-        66,
-        755
-      ],
-      "size": {
-        "0": 315,
-        "1": 102
-      },
-      "flags": {},
-      "order": 2,
-      "mode": 0,
       "outputs": [
         {
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            15
+            21
           ],
           "slot_index": 0
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null
         }
       ],
-      "title": "image_loader",
+      "title": "vae_decode",
       "properties": {
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "example.png",
-        "image"
-      ]
+        "Node name for S&R": "VAEDecodeTiled"
+      }
     }
   ],
   "links": [
@@ -434,30 +434,6 @@
       3,
       2,
       "CONDITIONING"
-    ],
-    [
-      7,
-      3,
-      0,
-      8,
-      0,
-      "LATENT"
-    ],
-    [
-      8,
-      4,
-      2,
-      8,
-      1,
-      "VAE"
-    ],
-    [
-      9,
-      8,
-      0,
-      9,
-      0,
-      "IMAGE"
     ],
     [
       11,
@@ -506,6 +482,30 @@
       3,
       3,
       "LATENT"
+    ],
+    [
+      19,
+      4,
+      2,
+      14,
+      1,
+      "VAE"
+    ],
+    [
+      20,
+      3,
+      0,
+      14,
+      0,
+      "LATENT"
+    ],
+    [
+      21,
+      14,
+      0,
+      9,
+      0,
+      "IMAGE"
     ]
   ],
   "groups": [],
