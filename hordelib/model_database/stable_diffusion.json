@@ -3312,7 +3312,7 @@
                 {
                     "file_name": "GuFeng.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/42796"
+                    "file_url": "https://civitai.com/api/download/models/42796?type=Model&format=SafeTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -4023,7 +4023,7 @@
                 {
                     "file_name": "edgeOfRealism.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/51913"
+                    "file_url": "https://civitai.com/api/download/models/51913?type=Model&format=SafeTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -5366,7 +5366,7 @@
                 {
                     "file_name": "Rev-animated.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/46846"
+                    "file_url": "https://civitai.com/api/download/models/46846?type=Model&format=SafeTensor&size=full&fp=fp32"
                 }
             ]
         },
@@ -5400,7 +5400,7 @@
                 {
                     "file_name": "526mixAnimated.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/42086"
+                    "file_url": "https://civitai.com/api/download/models/42086?type=Model&format=SafeTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -5734,7 +5734,7 @@
                 {
                     "file_name": "neurogen.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/29681"
+                    "file_url": "https://civitai.com/api/download/models/29681?type=Pruned%20Model&format=SafeTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -6548,7 +6548,7 @@
                 {
                     "file_name": "aurora.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/45601"
+                    "file_url": "https://civitai.com/api/download/models/45601?type=Model&format=SafeTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -6609,7 +6609,7 @@
                 {
                     "file_name": "camelliamix25D.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/48859"
+                    "file_url": "https://civitai.com/api/download/models/48859?type=Model&format=SafeTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -6735,7 +6735,7 @@
                 {
                     "file_name": "etherRealMix.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/23036"
+                    "file_url": "https://civitai.com/api/download/models/23036?type=Model&format=SafeTensor&size=pruned&fp=fp16"
                 }
             ]
         },
@@ -6765,7 +6765,7 @@
                 {
                     "file_name": "lyriel.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/50127"
+                    "file_url": "https://civitai.com/api/download/models/50127?type=Model&format=SafeTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -6798,7 +6798,7 @@
                 {
                     "file_name": "dndMapGenerator.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/19517"
+                    "file_url": "https://civitai.com/api/download/models/19517?type=Model&format=SafeTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -6828,7 +6828,7 @@
                 {
                     "file_name": "braBeautifulRealistic.safetensors",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/51395"
+                    "file_url": "https://civitai.com/api/download/models/51395?type=Model&format=SafeTensor&size=full&fp=fp32"
                 }
             ]
         },
