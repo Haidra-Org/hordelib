@@ -50,10 +50,11 @@ class HordeCheckpointLoader:
             logger.info(f"Loading from disk cache model {model_name}")
             model_cache = model
             try:
-                with open(model, "rb") as cache:
-                    model = pickle.load(cache)
-                    vae = pickle.load(cache)
-                    clip = pickle.load(cache)
+                with model_manager.manager.disk_read_mutex:
+                    with open(model, "rb") as cache:
+                        model = pickle.load(cache)
+                        vae = pickle.load(cache)
+                        clip = pickle.load(cache)
                 # Record this model as being in ram again
                 model_manager.manager.move_from_disk_cache(model_name, model, clip, vae)
                 logger.info(

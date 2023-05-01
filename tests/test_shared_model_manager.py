@@ -89,12 +89,15 @@ class TestSharedModelManager:
         assert SharedModelManager.manager.is_model_loaded("Deliberate") is False
         assert SharedModelManager.manager.is_model_loaded("GFPGAN") is False
         assert SharedModelManager.manager.is_model_loaded("RealESRGAN_x4plus") is False
+        assert SharedModelManager.manager.is_model_loaded("4x_NMKD_Superscale_SP") is False
         SharedModelManager.manager.load("Deliberate")
         SharedModelManager.manager.load("GFPGAN")
         SharedModelManager.manager.load("RealESRGAN_x4plus")
+        SharedModelManager.manager.load("4x_NMKD_Superscale_SP")
         assert SharedModelManager.manager.is_model_loaded("Deliberate") is True
         assert SharedModelManager.manager.is_model_loaded("GFPGAN") is True
         assert SharedModelManager.manager.is_model_loaded("RealESRGAN_x4plus") is True
+        assert SharedModelManager.manager.is_model_loaded("4x_NMKD_Superscale_SP") is True
 
     def test_check_sha(self):
         """Check the sha256 hashes of all models. If the .sha file doesn't exist, this will write it out."""
