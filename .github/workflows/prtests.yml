@@ -49,7 +49,7 @@ jobs:
       - name: Run a direct run test
         run: python -m examples.run_upscale
       - name: Create CI webpage of results
-        run: python -m tests.make_index
+        run: python -m examples.make_index
       - name: Upload to S3
         uses: shallwefootball/s3-upload-action@master
         id: S3
