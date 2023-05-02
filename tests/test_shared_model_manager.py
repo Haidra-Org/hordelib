@@ -5,6 +5,7 @@ import pathlib
 import pytest
 
 from hordelib.cache import get_cache_directory
+from hordelib.consts import EXCLUDED_MODEL_NAMES
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.logger import HordeLog
@@ -103,11 +104,10 @@ class TestSharedModelManager:
         assert SharedModelManager.manager.is_model_loaded("RealESRGAN_x4plus") is True
         assert SharedModelManager.manager.is_model_loaded("4x_NMKD_Superscale_SP") is True
 
-    def test_safetensor_loading(self):
+    def test_model_excluding(self):
         assert SharedModelManager.manager is not None
-        assert SharedModelManager.manager.is_model_loaded("Ether Real Mix") is False
-        SharedModelManager.manager.load("Ether Real Mix")
-        assert SharedModelManager.manager.is_model_loaded("Ether Real Mix") is True
+        for excluded_model in EXCLUDED_MODEL_NAMES:
+            assert not SharedModelManager.manager.load(excluded_model)
 
     def test_check_sha(self):
         """Check the sha256 hashes of all models. If the .sha file doesn't exist, this will write it out."""
