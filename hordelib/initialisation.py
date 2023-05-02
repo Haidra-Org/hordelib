@@ -20,9 +20,11 @@ _is_initialised = False
 
 
 def initialise(
-    model_managers_to_load: dict[MODEL_CATEGORY_NAMES, bool] = DEFAULT_MODEL_MANAGERS,
+    # model_managers_to_load: dict[MODEL_CATEGORY_NAMES, bool] = DEFAULT_MODEL_MANAGERS,
+    *,
     setup_logging=True,
     clear_logs=False,
+    debug_logging=False,
 ):  # XXX # TODO Do we need `model_managers_to_load`?
 
     global _is_initialised
@@ -32,7 +34,10 @@ def initialise(
         shutil.rmtree("./logs")
 
     # Setup logging if requested
-    HordeLog.initialise(setup_logging)
+    HordeLog.initialise(setup_logging=setup_logging)
+    if debug_logging:
+        HordeLog.set_logger_verbosity(5)
+        HordeLog.quiesce_logger(0)
 
     # If developer mode, don't permit some things
     if not RELEASE_VERSION and " " in get_hordelib_path():

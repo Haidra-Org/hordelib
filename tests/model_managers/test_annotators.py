@@ -9,7 +9,7 @@ class TestHordePreloadAnnotators:
     def test_preload_annotators(self):
         import hordelib
 
-        hordelib.initialise({}, True)
+        hordelib.initialise(setup_logging=True)
 
         from hordelib.shared_model_manager import SharedModelManager
 

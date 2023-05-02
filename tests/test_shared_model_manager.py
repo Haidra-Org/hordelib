@@ -5,8 +5,10 @@ import pathlib
 import pytest
 
 from hordelib.cache import get_cache_directory
+from hordelib.consts import EXCLUDED_MODEL_NAMES
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
+from hordelib.utils.logger import HordeLog
 
 
 class TestSharedModelManager:
@@ -16,6 +18,9 @@ class TestSharedModelManager:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         self.horde = HordeLib()
+        HordeLog.initialise(True)
+        HordeLog.set_logger_verbosity(5)
+        HordeLog.quiesce_logger(0)
 
         self.default_model_manager_args = {  # XXX # TODO
             # aitemplate
@@ -98,6 +103,11 @@ class TestSharedModelManager:
         assert SharedModelManager.manager.is_model_loaded("GFPGAN") is True
         assert SharedModelManager.manager.is_model_loaded("RealESRGAN_x4plus") is True
         assert SharedModelManager.manager.is_model_loaded("4x_NMKD_Superscale_SP") is True
+
+    def test_model_excluding(self):
+        assert SharedModelManager.manager is not None
+        for excluded_model in EXCLUDED_MODEL_NAMES:
+            assert not SharedModelManager.manager.load(excluded_model)
 
     def test_check_sha(self):
         """Check the sha256 hashes of all models. If the .sha file doesn't exist, this will write it out."""
