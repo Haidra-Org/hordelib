@@ -10,7 +10,7 @@ class TestCompvis:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         if not self._initialised:
-            hordelib.initialise({consts.MODEL_CATEGORY_NAMES.compvis: True})
+            hordelib.initialise()
         from hordelib.model_manager.compvis import CompVisModelManager
 
         self.compvis_model_manager = CompVisModelManager()
