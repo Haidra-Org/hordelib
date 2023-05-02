@@ -5,7 +5,7 @@ import threading
 import torch
 from loguru import logger
 
-from hordelib.consts import MODEL_CATEGORY_NAMES, EXCLUDED_MODEL_NAMES
+from hordelib.consts import EXCLUDED_MODEL_NAMES, MODEL_CATEGORY_NAMES
 
 # from hordelib.model_manager.aitemplate import AITemplateModelManager
 from hordelib.model_manager.base import BaseModelManager
