@@ -37,6 +37,8 @@ jobs:
         run: tox -e lint-weak-check
       - name: Check build_helper.py hordelib imports have no breaking dependency changes
         run: tox -e test-build-helper
+      - name: Build unit test environment, confirm CUDA is available on host
+        run: tox -e tests -- -k test_cuda
       - name: Run unit tests
         run: tox -e tests
       - name: Run a direct run test
