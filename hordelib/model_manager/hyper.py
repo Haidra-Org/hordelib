@@ -5,7 +5,7 @@ import threading
 import torch
 from loguru import logger
 
-from hordelib.consts import MODEL_CATEGORY_NAMES
+from hordelib.consts import MODEL_CATEGORY_NAMES, EXCLUDED_MODEL_NAMES
 
 # from hordelib.model_manager.aitemplate import AITemplateModelManager
 from hordelib.model_manager.base import BaseModelManager
@@ -350,6 +350,13 @@ class ModelManager:
         Returns:
             bool | None: The success of the load. If `None`, the model was not found.
         """
+        if model_name in EXCLUDED_MODEL_NAMES:
+            logger.init_warn(
+                f"{model_name} is excluded from loading at this time. If this is unexpected, let us know on discord.",
+                status="Skipping",
+            )
+            return False
+
         if not self.cuda_available:
             cpu_only = True
 
