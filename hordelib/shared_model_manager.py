@@ -56,13 +56,13 @@ class SharedModelManager:
             try:
                 logger.debug(f"Unlinking {hordelib_model_db_path} if it exists.")
                 hordelib_model_db_path.unlink()
-                hordelib_model_db_path.hardlink_to(file_path)
+                hordelib_model_db_path.symlink_to(file_path)
             except OSError as e:
-                logger.init_error(
+                logger.init_err(
                     f"Failed to hard link {file_path} to {hordelib_model_db_path}.",
                     status="Error",
                 )
-                logger.init_error(
+                logger.init_err(
                     "If you continue to get the error, please delete the file and try again.",
                     status="Error",
                 )
