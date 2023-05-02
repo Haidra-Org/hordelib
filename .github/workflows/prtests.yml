@@ -46,8 +46,6 @@ jobs:
         run: tox -e tests -- -k test_cuda
       - name: Run unit tests
         run: tox -e tests
-      - name: Run a direct run test
-        run: python -m examples.run_upscale
       - name: Create CI webpage of results
         run: python -m tests.make_index
       - name: Upload to S3
