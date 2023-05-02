@@ -55,7 +55,7 @@ class SharedModelManager:
             )
             try:
                 logger.debug(f"Unlinking {hordelib_model_db_path} if it exists.")
-                hordelib_model_db_path.unlink()
+                hordelib_model_db_path.unlink(missing_ok=True)
                 hordelib_model_db_path.symlink_to(file_path)
             except OSError as e:
                 logger.init_err(
