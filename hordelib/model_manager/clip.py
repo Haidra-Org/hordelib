@@ -158,7 +158,7 @@ class ClipModelManager(BaseModelManager):
             )
             return {}  # XXX # FIXME
         if not loaded_model_info:
-            logger.init_error(f"Failed to load {model_name}", status="Error")
+            logger.init_err(f"Failed to load {model_name}", status="Error")
             return {}  # XXX # FIXME
 
         logger.init_ok(f"Loading {model_name}", status="Success")  # logger.init_ok

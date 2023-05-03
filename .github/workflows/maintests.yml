@@ -37,12 +37,12 @@ jobs:
         run: tox -e lint-weak-check
       - name: Check build_helper.py hordelib imports have no breaking dependency changes
         run: tox -e test-build-helper
+      - name: Build unit test environment, confirm CUDA is available on host
+        run: tox -e tests -- -k test_cuda
       - name: Run unit tests
         run: tox -e tests
-      - name: Run a direct run test
-        run: python -m examples.run_upscale
       - name: Create CI webpage of results
-        run: python -m tests.make_index
+        run: python -m examples.make_index
       - name: Upload to S3
         uses: shallwefootball/s3-upload-action@master
         id: S3

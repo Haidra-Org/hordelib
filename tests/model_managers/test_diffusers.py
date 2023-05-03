@@ -10,7 +10,7 @@ class TestDiffusers:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self):
         if not self._initialised:
-            hordelib.initialise({consts.MODEL_CATEGORY_NAMES.diffusers: True})
+            hordelib.initialise()
         from hordelib.model_manager.diffusers import DiffusersModelManager
 
         self.diffusers_model_manager = DiffusersModelManager()

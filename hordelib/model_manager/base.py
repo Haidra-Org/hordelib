@@ -267,7 +267,7 @@ class BaseModelManager(ABC):
                 logger.error(f"{model_name} not found")
                 return False
             if not local and model_name not in self.available_models:
-                logger.error(f"{model_name} not available")
+                logger.init_warn(f"{model_name} may need to be downloaded, checking...", status="Loading")
                 download_succeeded = self.download_model(model_name)
                 if not download_succeeded:
                     logger.init_err(f"{model_name} failed to download", status="Error")
