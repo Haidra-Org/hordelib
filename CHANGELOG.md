@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v0.19.6](https://github.com/jug-dev/hordelib/compare/v0.19.5...v0.19.6)
+
+3 May 2023
+
+- feat: get model db from legacy model reference repo [`b3dd5a4`](https://github.com/jug-dev/hordelib/commit/b3dd5a4ed122170f514e986187cfe10764779fc1)  (tazlin)
+- fix: the disaster with linking [`1de6e06`](https://github.com/jug-dev/hordelib/commit/1de6e061441ad0b19e29eb1eff29093c9a8847fe)  (tazlin)
+- feat: add a model exclusion list to `consts.py` [`b7e8b46`](https://github.com/jug-dev/hordelib/commit/b7e8b4682feb5bd8712d11b8369038b22cfe5c24)  (tazlin)
+
 ## [v0.19.5](https://github.com/jug-dev/hordelib/compare/v0.19.4...v0.19.5)
 
 1 May 2023
