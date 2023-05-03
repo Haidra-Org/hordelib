@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.19.7](https://github.com/jug-dev/hordelib/compare/v0.19.6...v0.19.7)
+
+3 May 2023
+
+- fix: remove ether real from exclude list [`92b5794`](https://github.com/jug-dev/hordelib/commit/92b5794f68947a51b94433f7a3b8fa38bec8745a)  (tazlin)
+
 ## [v0.19.6](https://github.com/jug-dev/hordelib/compare/v0.19.5...v0.19.6)
 
 3 May 2023
