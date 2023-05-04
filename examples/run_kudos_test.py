@@ -25,7 +25,8 @@ UserSettings.disable_disk_cache.activate()
 
 BASE_KUDOS = 10
 
-BAD_PROMPT="a tree in a field with stars and fire and grass and rain and lightning and birds and a monkey jumping on a lion which is running away from a rhino in a painting on the wall of a haunted house which itself is in a 3d game created by ai image generation software which is trying to exceed the token length of stable diffusion which is hard to keep coming up with"
+BAD_PROMPT = "a tree in a field with stars and fire and grass and rain and lightning and birds and a monkey jumping on a lion which is running away from a rhino in a painting on the wall of a haunted house which itself is in a 3d game created by ai image generation software which is trying to exceed the token length of stable diffusion which is hard to keep coming up with"
+
 
 def add_model(model_name):
     logger.warning(f"Loading model {model_name}")
