@@ -25,7 +25,7 @@ UserSettings.disable_disk_cache.activate()
 
 BASE_KUDOS = 10
 
-BAD_PROMPT = "a tree in a field with stars and fire and grass and rain and lightning and birds and a monkey jumping on a lion which is running away from a rhino in a painting on the wall of a haunted house which itself is in a 3d game created by ai image generation software which is trying to exceed the token length of stable diffusion which is hard to keep coming up with"
+BAD_PROMPT = "a tree in a field with stars and fire and grass and rain and lightning and birds and a monkey jumping on a lion which is running away from a rhino in a painting on the wall of a haunted house which itself is in a 3d game created by ai image generation software which is trying to exceed the token length of stable diffusion which is hard to keep coming up with ideas"
 
 
 def add_model(model_name):
@@ -158,7 +158,7 @@ def main():
         logger.info(f"{sampler}: {kudos}")
 
     for sampler, kudos in bad_samplers.items():
-        logger.info(f"bad prompt: {sampler}: {kudos}")
+        logger.info(f"long prompt: {sampler}: {kudos}")
 
     for controltype, kudos in controltypes.items():
         logger.info(f"{controltype}: {kudos}")
