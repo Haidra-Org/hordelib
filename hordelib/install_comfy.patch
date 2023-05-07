@@ -49,7 +49,7 @@ index c809d39..9c9f6b8 100644
 +    # logger.warning(f"Done DPM-Solver++(2M) on model {id(model):x}")
      return x
 diff --git a/comfy/model_management.py b/comfy/model_management.py
-index a0d1313..38650be 100644
+index a0d1313..05ba193 100644
 --- a/comfy/model_management.py
 +++ b/comfy/model_management.py
 @@ -1,6 +1,9 @@
@@ -327,6 +327,15 @@ index a0d1313..38650be 100644
  
  
  def load_if_low_vram(model):
+@@ -272,6 +358,8 @@ def get_free_memory(dev=None, torch_free_too=False):
+         return mem_free_total
+ 
+ def maximum_batch_area():
++    return 0
++    # See https://github.com/jug-dev/hordelib/issues/225
+     global vram_state
+     if vram_state == VRAMState.NO_VRAM:
+         return 0
 diff --git a/comfy/samplers.py b/comfy/samplers.py
 index 1552722..0ac5903 100644
 --- a/comfy/samplers.py
