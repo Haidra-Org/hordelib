@@ -1,5 +1,14 @@
 ## hordelib Changelog
 
+## [v0.19.8](https://github.com/jug-dev/hordelib/compare/v0.19.7...v0.19.8)
+
+7 May 2023
+
+- fix: faster startup with many models cached [`#224`](https://github.com/jug-dev/hordelib/pull/224) (Jug)
+- fix: cuts 25+ seconds from load time [`f1a453c`](https://github.com/jug-dev/hordelib/commit/f1a453c3fb1a40863ef79a9456ff2dfe06aeea5e)  (tazlin)
+- fix: updates kudos test [`2102588`](https://github.com/jug-dev/hordelib/commit/210258860612ffcf623ec2841979a1850904c8b8)  (Jug)
+- hack: disable optimizations for n_iter &gt; 1 [`89c4aac`](https://github.com/jug-dev/hordelib/commit/89c4aac1a2839336a00a57d8b50eb51f06678c27)  (tazlin)
+
 ## [v0.19.7](https://github.com/jug-dev/hordelib/compare/v0.19.6...v0.19.7)
 
 3 May 2023
