@@ -744,7 +744,7 @@ index d875469..08e54ad 100644
  NODE_CLASS_MAPPINGS = {
      "UpscaleModelLoader": UpscaleModelLoader,
 diff --git a/execution.py b/execution.py
-index 73be6db..b637eb9 100644
+index 73be6db..2c31fd9 100644
 --- a/execution.py
 +++ b/execution.py
 @@ -7,6 +7,7 @@ import heapq
@@ -764,6 +764,17 @@ index 73be6db..b637eb9 100644
                  to_delete = []
                  for o in self.outputs:
                      if o not in current_outputs:
+@@ -203,8 +204,8 @@ class PromptExecutor:
+                 if self.server.client_id is not None:
+                     self.server.send_sync("executing", { "node": None }, self.server.client_id)
+ 
+-        gc.collect()
+-        comfy.model_management.soft_empty_cache()
++        # gc.collect()
++        # comfy.model_management.soft_empty_cache()
+ 
+ 
+ def validate_inputs(prompt, item):
 @@ -280,7 +281,7 @@ def validate_prompt(prompt):
          if valid == True:
              good_outputs.add(x)
