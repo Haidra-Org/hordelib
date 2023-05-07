@@ -25,6 +25,8 @@ UserSettings.disable_disk_cache.activate()
 
 BASE_KUDOS = 10
 
+BAD_PROMPT = "a tree in a field with stars and fire and grass and rain and lightning and birds and a monkey jumping on a lion which is running away from a rhino in a painting on the wall of a haunted house which itself is in a 3d game created by ai image generation software which is trying to exceed the token length of stable diffusion which is hard to keep coming up with ideas"
+
 
 def add_model(model_name):
     logger.warning(f"Loading model {model_name}")
@@ -116,9 +118,19 @@ def main():
     for sampler in horde.SAMPLERS_MAP.keys():
         logger.info(f"Calculating kudos for sampler {sampler}")
         data = get_base_data()
-        data["sampler"] = sampler
+        data["sampler_name"] = sampler
         kudos = calculate_kudos_cost(base_time, data)
         samplers[sampler] = kudos
+
+    # Benchmark all samplers with bad prompt
+    bad_samplers = {}
+    for sampler in horde.SAMPLERS_MAP.keys():
+        logger.info(f"Calculating kudos for sampler {sampler}")
+        data = get_base_data()
+        data["sampler_name"] = sampler
+        data["prompt"] = BAD_PROMPT
+        kudos = calculate_kudos_cost(base_time, data)
+        bad_samplers[sampler] = kudos
 
     # Benchmark all controlnet types
     controltypes = {}
@@ -144,6 +156,9 @@ def main():
 
     for sampler, kudos in samplers.items():
         logger.info(f"{sampler}: {kudos}")
+
+    for sampler, kudos in bad_samplers.items():
+        logger.info(f"long prompt: {sampler}: {kudos}")
 
     for controltype, kudos in controltypes.items():
         logger.info(f"{controltype}: {kudos}")

@@ -62,7 +62,6 @@ class BaseModelManager(ABC):
     def remove_loaded_model(self, model_name):
         logger.debug(f"Received request to remove loaded model {model_name}")
         with self._mutex:
-            logger.debug(f"Looking for loaded model {model_name}")
             if model_name in self._loaded_models:
                 logger.debug(f"Removing loaded model {model_name}")
                 del self._loaded_models[model_name]
@@ -422,8 +421,11 @@ class BaseModelManager(ABC):
         with self._mutex:
             logger.debug(f"Model Manager received unload model {model_name} request (mutex locked)")
             if model_name in self._loaded_models:
-                logger.debug(f"{model_name} is on loaded models list, trying to remove")
-                self.free_model_resources(model_name)
+                # If this model is not in ram, just on disk cache don't try to free memory resources
+                model_data = self._loaded_models[model_name].get("model")
+                if not isinstance(model_data, str):
+                    logger.debug(f"{model_name} is on loaded models list, trying free resources")
+                    self.free_model_resources(model_name)
                 self.remove_loaded_model(model_name)
                 logger.debug("Model Manager done with model unload request (mutex released)")
                 return True
