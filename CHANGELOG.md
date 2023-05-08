@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.19.9](https://github.com/jug-dev/hordelib/compare/v0.19.8...v0.19.9)
+
+8 May 2023
+
+- fix: handle image / mask size mismatch [`#229`](https://github.com/jug-dev/hordelib/pull/229) (Jug)
+
 ## [v0.19.8](https://github.com/jug-dev/hordelib/compare/v0.19.7...v0.19.8)
 
 7 May 2023
