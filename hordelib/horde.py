@@ -338,6 +338,9 @@ class HordeLib:
         source_image = source_image.convert("RGBA")
         # Convert alpha image to greyscale
         alpha_image = alpha_image.convert("L")
+        # Resize alpha_image if its size is different from source_image
+        if alpha_image.size != source_image.size:
+            alpha_image = alpha_image.resize(source_image.size)
         # Create a new alpha channel from the second image
         alpha_image = ImageOps.invert(alpha_image)
         alpha_data = alpha_image.split()[0]
