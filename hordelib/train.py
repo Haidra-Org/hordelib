@@ -59,27 +59,28 @@ VALIDATION_DATA_FILENAME = "f:/ai/dev/AI-Horde-Worker/inference-time-data-valida
 
 # Number of trials to run.
 # Each trial generates a new neural network topology with new hyper parameters and trains it.
-NUMBER_OF_STUDY_TRIALS = 200
+NUMBER_OF_STUDY_TRIALS = 2000
 
 # The version number of our study. Bump for different model versions.
-STUDY_VERSION = "v20"
+STUDY_VERSION = "v21"
 
 # Hyper parameter search bounds
 MIN_NUMBER_OF_EPOCHS = 50
 MAX_NUMBER_OF_EPOCHS = 2000
-MAX_HIDDEN_LAYERS = 10
+MAX_HIDDEN_LAYERS = 6
 MIN_NODES_IN_LAYER = 4
-MAX_NODES_IN_LAYER = 64
+MAX_NODES_IN_LAYER = 128
 MIN_LEARNING_RATE = 1e-5
 MAX_LEARNING_RATE = 1e-1
-MIN_WEIGHT_DECAY = 1e-5
-MAX_WEIGHT_DECAY = 1e-2
+MIN_WEIGHT_DECAY = 1e-6
+MAX_WEIGHT_DECAY = 1e-1
 MIN_DATA_BATCH_SIZE = 32
 MAX_DATA_BATCH_SIZE = 512
 
 # The study sampler to use
-# OPTUNA_SAMPLER = optuna.samplers.TPESampler()  # default
-OPTUNA_SAMPLER = optuna.samplers.NSGAIISampler()  # genetic algorithm
+if ENABLE_TRAINING:
+    OPTUNA_SAMPLER = optuna.samplers.TPESampler(n_startup_trials=30, n_ei_candidates=30)
+    # OPTUNA_SAMPLER = optuna.samplers.NSGAIISampler()  # genetic algorithm
 
 # We have the following 14 inputs to our kudos calculation, for example:
 PAYLOAD_EXAMPLE = {
@@ -348,15 +349,16 @@ if ENABLE_TRAINING:
 
 if __name__ == "__main__":
 
+    if len(sys.argv) > 1:
+        test_one_by_one(sys.argv[1])
+        exit(0)
+
     if not ENABLE_TRAINING:
         exit(0)
 
     # Make our model output dir
     os.makedirs("kudos_models", exist_ok=True)
 
-    if len(sys.argv) > 1:
-        test_one_by_one(sys.argv[1])
-        exit(0)
 
     study = optuna.create_study(
         direction="minimize",
