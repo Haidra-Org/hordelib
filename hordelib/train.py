@@ -359,7 +359,6 @@ if __name__ == "__main__":
     # Make our model output dir
     os.makedirs("kudos_models", exist_ok=True)
 
-
     study = optuna.create_study(
         direction="minimize",
         study_name=f"kudos_model_{STUDY_VERSION}",
