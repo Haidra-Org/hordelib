@@ -52,7 +52,7 @@ class TestHordeSamplers:
             assert pil_image is not None
             pil_image.save(f"images/horde_sampler_30_steps_{sampler}.webp", quality=90)
 
-    def test_samplers(self):
+    def test_slow_samplers(self):
         data = {
             "sampler_name": "",
             "cfg_scale": 6.5,
