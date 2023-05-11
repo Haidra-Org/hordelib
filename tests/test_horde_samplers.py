@@ -57,7 +57,7 @@ class TestHordeSamplers:
             "sampler_name": "",
             "cfg_scale": 6.5,
             "denoising_strength": 1.0,
-            "seed": 3688490319,
+            "seed": 3688390309,
             "height": 512,
             "width": 512,
             "karras": True,
@@ -68,7 +68,7 @@ class TestHordeSamplers:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": (
-                "a woman closeup made out of metal, (cyborg:1.1), realistic skin, (detailed wire:1.3), "
+                "an old man closeup, (hr giger:1.1), (detailed wire:1.3), "
                 "(intricate details), hdr, (intricate details, hyperdetailed:1.2), cinematic shot, "
                 "vignette, centered"
             ),
