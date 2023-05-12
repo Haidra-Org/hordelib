@@ -7,6 +7,7 @@
 			"files": [
 				{
 					"path": "pytorch_model.bin",
+					"sha256sum": "64b8393f1afd5a0c1ed2aa5f341fa7c08286839a48f3743162a76a2835c808bd",
 					"md5sum": "dbbcb50d4df4572a720b104fae1e8187"
 				},
 				{

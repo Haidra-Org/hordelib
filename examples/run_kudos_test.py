@@ -88,32 +88,32 @@ def main():
     logger.info(f"Calculating time for base of {BASE_KUDOS} kudos")
     base_time = do_inference(get_base_data())
 
-    logger.info("Calculating time for steps 10")
-    base_steps_10 = calculate_kudos_cost(base_time, get_base_data(steps=10))
-    logger.info("Calculating time for steps 100")
-    base_steps_100 = calculate_kudos_cost(base_time, get_base_data(steps=100))
+    # logger.info("Calculating time for steps 10")
+    # base_steps_10 = calculate_kudos_cost(base_time, get_base_data(steps=10))
+    # logger.info("Calculating time for steps 100")
+    # base_steps_100 = calculate_kudos_cost(base_time, get_base_data(steps=100))
 
-    logger.info("Calculating kudos for karras")
-    base_karras = calculate_kudos_cost(base_time, get_base_data(karras=True))
+    # logger.info("Calculating kudos for karras")
+    # base_karras = calculate_kudos_cost(base_time, get_base_data(karras=True))
 
-    logger.info("Calculating kudos for weights")
-    tmpdata = get_base_data()
-    tmpdata["prompt"] = "(dog:1.5) and (cat:1.5) and (mouse:1.2) and (bird:1.6) and (owl:1.9)"
-    base_weights = calculate_kudos_cost(base_time, tmpdata)
-    tmpdata = get_base_data()
-    tmpdata["prompt"] = "dog and cat and mouse and bird and owl"
-    base_no_weights = calculate_kudos_cost(base_time, tmpdata)
+    # logger.info("Calculating kudos for weights")
+    # tmpdata = get_base_data()
+    # tmpdata["prompt"] = "(dog:1.5) and (cat:1.5) and (mouse:1.2) and (bird:1.6) and (owl:1.9)"
+    # base_weights = calculate_kudos_cost(base_time, tmpdata)
+    # tmpdata = get_base_data()
+    # tmpdata["prompt"] = "dog and cat and mouse and bird and owl"
+    # base_no_weights = calculate_kudos_cost(base_time, tmpdata)
 
-    logger.info("Calculating kudos for 1024x1024")
-    base_1024 = calculate_kudos_cost(base_time, get_base_data(1024, 1024))
+    # logger.info("Calculating kudos for 1024x1024")
+    # base_1024 = calculate_kudos_cost(base_time, get_base_data(1024, 1024))
 
-    logger.info("Calculating kudos for 2048x2048")
-    base_2048 = calculate_kudos_cost(base_time, get_base_data(2048, 2048))
+    # logger.info("Calculating kudos for 2048x2048")
+    # base_2048 = calculate_kudos_cost(base_time, get_base_data(2048, 2048))
 
-    logger.info("Calculating kudos for 1024x1024")
-    tmpdata = get_base_data(1024, 1024)
-    tmpdata["hires_fix"] = True
-    base_hires_fix = calculate_kudos_cost(base_time, tmpdata)
+    # logger.info("Calculating kudos for 1024x1024")
+    # tmpdata = get_base_data(1024, 1024)
+    # tmpdata["hires_fix"] = True
+    # base_hires_fix = calculate_kudos_cost(base_time, tmpdata)
 
     # Benchmark all samplers
     samplers = {}
@@ -124,33 +124,33 @@ def main():
         kudos = calculate_kudos_cost(base_time, data)
         samplers[sampler] = kudos
 
-    # Benchmark all controlnet types
-    controltypes = {}
-    for controltype in horde.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
-        logger.info(f"Calculating kudos for controlnet {controltype}")
-        data = get_base_data()
-        data["control_type"] = controltype
-        data["source_processing"] = "img2img"
-        data["source_image"] = Image.open("images/test_db0.jpg")
-        kudos = calculate_kudos_cost(base_time, data)
-        controltypes[controltype] = kudos
+    # # Benchmark all controlnet types
+    # controltypes = {}
+    # for controltype in horde.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
+    #     logger.info(f"Calculating kudos for controlnet {controltype}")
+    #     data = get_base_data()
+    #     data["control_type"] = controltype
+    #     data["source_processing"] = "img2img"
+    #     data["source_image"] = Image.open("images/test_db0.jpg")
+    #     kudos = calculate_kudos_cost(base_time, data)
+    #     controltypes[controltype] = kudos
 
     # Results
     logger.info(f"Base time {base_time} == 10 kudos")
-    logger.info(f"10 steps: {base_steps_10}")
-    logger.info(f"100 steps: {base_steps_100}")
-    logger.info(f"Karras: {base_karras}")
-    logger.info(f"No weights: {base_no_weights}")
-    logger.info(f"Weights: {base_weights}")
-    logger.info(f"Kudos 1024x1024: {base_1024}")
-    logger.info(f"Hires fix 1024x1024: {base_hires_fix}")
-    logger.info(f"Kudos 2048x2048: {base_2048}")
+    # logger.info(f"10 steps: {base_steps_10}")
+    # logger.info(f"100 steps: {base_steps_100}")
+    # logger.info(f"Karras: {base_karras}")
+    # logger.info(f"No weights: {base_no_weights}")
+    # logger.info(f"Weights: {base_weights}")
+    # logger.info(f"Kudos 1024x1024: {base_1024}")
+    # logger.info(f"Hires fix 1024x1024: {base_hires_fix}")
+    # logger.info(f"Kudos 2048x2048: {base_2048}")
 
     for sampler, kudos in samplers.items():
         logger.info(f"{sampler}: {kudos}")
 
-    for controltype, kudos in controltypes.items():
-        logger.info(f"{controltype}: {kudos}")
+    # for controltype, kudos in controltypes.items():
+    #     logger.info(f"{controltype}: {kudos}")
 
 
 if __name__ == "__main__":

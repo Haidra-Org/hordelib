@@ -183,6 +183,7 @@
         ],
         "version": "1",
         "style": "furry",
+        "homepage": "https://huggingface.co/Zack3D/Zack3D_Kinky-v1",
         "nsfw": true,
         "download_all": true,
         "config": {
@@ -271,7 +272,7 @@
                 {
                     "file_name": "coloringbook.ckpt",
                     "file_path": "",
-                    "file_url": "https://civitai.com/api/download/models/5978?type=Model&format=PickleTensor&size=full&fp=fp16"
+                    "file_url": "https://huggingface.co/MrHup/coloring-book/resolve/main/COLR_001.ckpt"
                 }
             ]
         },
@@ -625,6 +626,7 @@
         "trigger": [
             "charliebo artstyle",
             "holliemengert artstyle",
+            "marioalberti artstyle",
             "pepelarraz artstyle",
             "andreasrocha artstyle",
             "jamesdaly artstyle"
@@ -704,7 +706,7 @@
         "trigger": [
             "microworld"
         ],
-        "homepage": "https://civitai.com/models/5434/microworlds-remake-notext",
+        "homepage": "https://civitai.com/models/19/microworlds",
         "nsfw": false,
         "download_all": false,
         "config": {
@@ -738,7 +740,7 @@
         ],
         "version": "222",
         "style": "realistic",
-        "homepage": "https://ai.zeipher.com/",
+        "homepage": "https://huggingface.co/Reachout/F222",
         "nsfw": true,
         "download_all": false,
         "config": {
@@ -880,28 +882,27 @@
         },
         "available": false
     },
-    "Midjourney Diffusion": {
-        "name": "Midjourney Diffusion",
+    "OpenJourney Diffusion": {
+        "name": "OpenJourney Diffusion",
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "Stable Diffusion fine tuned on Midjourney v4 images",
         "showcases": [
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/midjourney_diffusion/01_bigdowg.webp"
         ],
-        "version": "1",
+        "version": "4",
         "style": "generalist",
         "trigger": [
             "mdjrny-v4 style"
         ],
-        "homepage": "https://huggingface.co/prompthero/openjourney",
+        "homepage": "https://huggingface.co/prompthero/openjourney-v4",
         "nsfw": false,
         "download_all": false,
         "config": {
             "files": [
                 {
                     "path": "mdjrny-v4.ckpt",
-                    "md5sum": "241bfa51943fe0b52aa695bcaa142b3b",
-                    "sha256sum": "5d5ad06cc24170b32f25f0180a357e315848000c5f400ffda350e59142fabd68"
+                    "sha256sum": "02e37aad9f74f574808ad456043b89e8c6b24e22828743fcf002168f76493d9b"
                 },
                 {
                     "path": "v1-inference.yaml"
@@ -911,7 +912,7 @@
                 {
                     "file_name": "mdjrny-v4.ckpt",
                     "file_path": "",
-                    "file_url": "https://huggingface.co/prompthero/openjourney/resolve/main/mdjrny-v4.ckpt"
+                    "file_url": "https://huggingface.co/prompthero/openjourney-v4/resolve/main/openjourney-v4.ckpt"
                 }
             ]
         },
@@ -1256,13 +1257,16 @@
         "name": "Dungeons and Diffusion",
         "baseline": "stable diffusion 1",
         "type": "ckpt",
-        "description": "Generates D&D styled characters, trained on art commissions",
+        "description": "Generates D&D styled characters, trained on art commissions. *many* species and classes available, see homepage",
         "showcases": [
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/dungeons_and_diffusion/01_bigdowg.webp",
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/dungeons_and_diffusion/02_bigdowg.webp"
         ],
         "version": "3",
         "style": "artistic",
+        "trigger": [
+            "D&D character"
+        ],
         "homepage": "https://huggingface.co/0xJustin/Dungeons-and-Diffusion",
         "nsfw": false,
         "download_all": false,
@@ -1796,7 +1800,7 @@
         "name": "RPG",
         "baseline": "stable diffusion 1",
         "type": "ckpt",
-        "description": "portraits of charecters in the style of the game Baldur's Gate",
+        "description": "portraits of charecters in the style of the game Baldur's Gate. check homepage for a massive prompt guide",
         "showcases": [
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/rpg/01_gigachad.webp"
         ],
@@ -2649,6 +2653,9 @@
         ],
         "version": "2.0",
         "style": "realistic",
+        "trigger": [
+            "photo"
+        ],
         "homepage": "https://huggingface.co/dreamlike-art/dreamlike-photoreal-2.0",
         "nsfw": false,
         "download_all": false,
@@ -3014,6 +3021,33 @@
         ],
         "version": "1.0",
         "style": "realistic",
+        "trigger": [
+            "erect penis",
+            "flaccid penis",
+            "wa-vy style",
+            "snthwve style",
+            "nvinkpunk",
+            "synthwave",
+            "sci-fi",
+            "caspian sci-fi",
+            "star atlas",
+            "star citizen",
+            "render",
+            "postapocalypse",
+            "wjqwizard",
+            "wjqknight",
+            "wjqtitan",
+            "wjqjester",
+            "wjqautoma",
+            "wjqdemon",
+            "knollingcase",
+            "elden ring style",
+            "cyborgdiffusion",
+            "cyborgdiffusion style",
+            "artificial-journey style",
+            "analog style",
+            "sks person"
+        ],
         "homepage": "https://civitai.com/models/5935/liberty",
         "nsfw": true,
         "download_all": false,
@@ -3048,6 +3082,9 @@
         ],
         "version": "5.3",
         "style": "generalist",
+        "trigger": [
+            "modelshoot style"
+        ],
         "homepage": "https://huggingface.co/darkstorm2150/Protogen_v5.3_Official_Release",
         "nsfw": false,
         "download_all": false,
@@ -3117,6 +3154,11 @@
         ],
         "version": "2",
         "style": "other",
+        "trigger": [
+            "masterpiece",
+            "best quality",
+            "mdjrny-v4"
+        ],
         "homepage": "https://civitai.com/models/2034/moedel",
         "nsfw": false,
         "download_all": false,
@@ -3359,6 +3401,14 @@
         "description": "A Sci-Fi themed model trained on SD 1.5 with a 26K+ image dataset",
         "version": "1.0",
         "style": "generalist",
+        "trigger": [
+            "Sci-Fi",
+            "caspian Sci-Fi",
+            "Star Citizen",
+            "Star Atlas",
+            "Spaceship",
+            "Render"
+        ],
         "homepage": "https://huggingface.co/Corruptlake/Sci-Fi-Diffusion",
         "nsfw": false,
         "download_all": false,
@@ -3395,7 +3445,17 @@
         "version": "0.9",
         "style": "realistic",
         "trigger": [
-            "ultraskin"
+            "ultraskin",
+            "twenties",
+            "thirties",
+            "thirty year old",
+            "eighties",
+            "eighty year old",
+            "elderly",
+            "moles",
+            "freckles",
+            "scar",
+            "skin detail"
         ],
         "homepage": "https://huggingface.co/VegaKH/Ultraskin",
         "nsfw": false,
@@ -3468,6 +3528,7 @@
         ],
         "version": "1.0",
         "style": "realistic",
+        "homepage": "https://civitai.com/models/1235",
         "nsfw": true,
         "download_all": false,
         "config": {
@@ -3538,6 +3599,27 @@
         ],
         "version": "8.6",
         "style": "generalist",
+        "trigger": [
+            "modelshoot style",
+            "mdjrny-v4 style",
+            "nousr robot",
+            "dreamlikeart",
+            "nvinkpunk",
+            "snthwve style",
+            "charliebo artstyle",
+            "holliemengert artstyle",
+            "marioalberti artstyle",
+            "pepelarraz artstyle",
+            "andreasrocha artstyle",
+            "jamesdaly artstyle",
+            "elden ring style",
+            "postapocalypse",
+            "analog style",
+            "knollingcase",
+            "swpunk",
+            "synthwave",
+            "cyborgdiffusion"
+        ],
         "homepage": "https://civitai.com/models/4398/protogen-infinity-official-release",
         "nsfw": false,
         "download_all": false,
@@ -3575,17 +3657,16 @@
         "showcases": [
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/duchaiten/01_gigachad.webp"
         ],
-        "version": "2",
+        "version": "4.5.3",
         "style": "anime",
-        "homepage": "https://huggingface.co/DucHaiten/DucHaitenAIart",
-        "nsfw": false,
+        "homepage": "https://civitai.com/models/3079?modelVersionId=50724",
+        "nsfw": true,
         "download_all": false,
         "config": {
             "files": [
                 {
                     "path": "DucHaiten.ckpt",
-                    "md5sum": "f60df3dea87b54ad45d87bc64278ddf6",
-                    "sha256sum": "6965ff319389af404f04bfe3a8d8dc5da742330b55fa5374095e317139f5e4f6"
+                    "sha256sum": "CE4D987A0E8BCF5253D2D0B045F9B12B1264DD440F4D4B05BE6B56F646995B0F"
                 },
                 {
                     "path": "v1-inference.yaml"
@@ -3595,7 +3676,7 @@
                 {
                     "file_name": "DucHaiten.ckpt",
                     "file_path": "",
-                    "file_url": "https://huggingface.co/Airic/DucHaiten/resolve/main/DucHaitenAIart_v2.ckpt"
+                    "file_url": "https://huggingface.co/DucHaiten/DucHaitenAIart/resolve/main/DucHaitenAIart-v4.5.3.safetensors"
                 }
             ]
         },
@@ -3609,7 +3690,7 @@
         "showcases": [
             "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/showcase/dreamshaper/01_gigachad.webp"
         ],
-        "version": "4",
+        "version": "5",
         "style": "artistic",
         "homepage": "https://civitai.com/models/4384/dreamshaper",
         "nsfw": false,
@@ -3618,8 +3699,7 @@
             "files": [
                 {
                     "path": "Dreamshaper.ckpt",
-                    "md5sum": "b70fb850249d59f254a2e532c17910d4",
-                    "sha256sum": "437abd54cbfa4c60e9180e4994e9d47bccbc14b1b4ad34a1c385eb736528e3a9"
+                    "sha256sum": "ffad8f3da766de2a56343e388df43941ee27143a03c596e0b8f06976d4fa52e9"
                 },
                 {
                     "path": "v1-inference.yaml"
@@ -3629,7 +3709,7 @@
                 {
                     "file_name": "Dreamshaper.ckpt",
                     "file_path": "",
-                    "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/Dreamshaper_v4.ckpt"
+                    "file_url": "https://civitai.com/api/download/models/43888?type=Model&format=PickleTensor&size=full&fp=fp16"
                 }
             ]
         },
@@ -4563,6 +4643,7 @@
         ],
         "version": "1.3",
         "style": "realistic",
+        "homepage": "https://civitai.com/models/2661/uber-realistic-porn-merge-urpm",
         "nsfw": true,
         "download_all": false,
         "config": {
@@ -4632,7 +4713,8 @@
         "version": "1.2",
         "style": "artistic",
         "trigger": [
-            "rachelwalker style"
+            "rachelwalker style",
+            "a watercolor painting with a white background rachelwalker style [your image subject]"
         ],
         "homepage": "https://civitai.com/models/1122/rachel-walker-style-watercolor",
         "nsfw": false,
@@ -5311,6 +5393,10 @@
         ],
         "version": "1.0",
         "style": "anime",
+        "trigger": [
+            "(80s anime style)",
+            "(gtav style)"
+        ],
         "homepage": "https://huggingface.co/DucHaiten/DH_ClassicAnime",
         "nsfw": false,
         "download_all": false,
@@ -6313,7 +6399,7 @@
                 {
                     "file_name": "expmix.ckpt",
                     "file_path": "",
-                    "file_url": "https://huggingface.co/Airic/mirrors/resolve/main/expmix_inclVAE.ckpt"
+                    "file_url": "https://huggingface.co/jug-dev/mirror/resolve/main/expmix.ckpt"
                 }
             ]
         },
@@ -6559,7 +6645,7 @@
         "baseline": "stable diffusion 1",
         "type": "ckpt",
         "description": "A 1024 res SD v1.5 trained (not merged) resolution model for various high-quality artstyles. NOTE: There are 42 different possible triggers depending on what you want to create, please see the homepage for the full list",
-        "version": "3",
+        "version": "1",
         "style": "generalist",
         "homepage": "https://civitai.com/models/20842",
         "nsfw": false,
@@ -6711,6 +6797,36 @@
         },
         "available": false
     },
+    "Ether Real Mix": {
+        "name": "Ether Real Mix",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "Ether Real Mix is a realistic to semi-realistic anime style model tuned with the flexibility for general purpose use (hopefully). It still has some shortcomings inherit to anime models such as biases in generating females and humans.",
+        "version": "1.1",
+        "style": "other",
+        "homepage": "https://civitai.com/models/18207?modelVersionId=23036",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "etherRealMix.safetensors",
+                    "sha256sum": "bfcaa69ad9ef9d7ecca9a2251a5c5a84f31da7bb66f093e185006435026de787"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "etherRealMix.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/23036?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+                }
+            ]
+        },
+        "available": false
+    },
     "Lyriel": {
         "name": "Lyriel",
         "baseline": "stable diffusion 1",
@@ -6799,6 +6915,306 @@
                     "file_name": "braBeautifulRealistic.safetensors",
                     "file_path": "",
                     "file_url": "https://civitai.com/api/download/models/51395?type=Model&format=SafeTensor&size=full&fp=fp32"
+                }
+            ]
+        },
+        "available": false
+    },
+    "MoonMix Fantasy": {
+        "name": "MoonMix Fantasy",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "This model is the result of merging several checkpoint models. See homepage for details.",
+        "version": "2.0",
+        "style": "other",
+        "homepage": "https://civitai.com/models/43977?modelVersionId=51550",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "moonmix_fantasy.safetensors",
+                    "sha256sum": "7458ea41046e57032a8f1bccd4dd6d3cc3c15104f16dd1198d650a0a83cc0072"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "moonmix_fantasy.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/51550?type=Model&format=SafeTensor&size=full&fp=fp16"
+                }
+            ]
+        },
+        "available": false
+    },
+    "ICBINP - I Can't Believe It's Not Photography": {
+        "name": "ICBINP - I Can't Believe It's Not Photography",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "Following on from Gorilla With A Brick, merged in 10 more photorealistic models at various weights, and some more noise offset to create something that when prompted for photorealism will make you go 'I Can't Believe It's Not Photography'. It will happily create CGI characters and awesome landscapes as well.",
+        "version": "4.0",
+        "style": "realistic",
+        "homepage": "https://civitai.com/models/28059/icbinp-i-cant-believe-its-not-photography",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "icbinp.ckpt",
+                    "sha256sum": "1d5fad85a8b0c3c63ce0e25f5b5cfb4beed18e9dbae093866125ea97f1413482"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "icbinp.ckpt",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/60899?type=Model&format=PickleTensor&size=pruned&fp=fp16"
+                }
+            ]
+        },
+        "available": false
+    },
+    "BB95 Furry Mix": {
+        "name": "BB95 Furry Mix",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "This model is a mix of various furry models.",
+        "version": "4.1",
+        "style": "furry",
+        "homepage": "https://civitai.com/models/17649/bb95-furry-mix",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "bb95FurryMix.safetensors",
+                    "sha256sum": "3ff38a9cc3cbaab56c4e8be0908920e95ce0f16b5b456c2ec99113a8aa9ffb05"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "bb95FurryMix.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/53885?type=Model&format=SafeTensor&size=full&fp=fp32"
+                }
+            ]
+        },
+        "available": false
+    },
+    "MeinaMix": {
+        "name": "MeinaMix",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "MeinaMix objective is to be able to do good art with little prompting.",
+        "version": "9.0",
+        "style": "artistic",
+        "homepage": "https://civitai.com/models/7240/meinamix",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "meinamix.safetensors",
+                    "sha256sum": "eac6c08a199c4953f80ae5b4ea5f9b2d88c7f3c6f2546e14a57851e3e4a1c5cb"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "meinamix.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/46137?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+                }
+            ]
+        },
+        "available": false
+    },
+    "Mistoon Amethyst": {
+        "name": "Mistoon Amethyst",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "It creates realistic and expressive characters with a disney twist.",
+        "version": "2.0",
+        "style": "anime",
+        "homepage": "https://civitai.com/models/33707/mistoonamethyst",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "mistoonAmethyst.safetensors",
+                    "sha256sum": "fc896c44f11404efbb59b73bbf08a9265afb7a905104ca9626b92e5998f078d2"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "mistoonAmethyst.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/56710?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+                }
+            ]
+        },
+        "available": false
+    },
+    "Art Of Mtg": {
+        "name": "Art Of Mtg",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "Experimenal model, based on ~5000 arts for cards from Magic: the Gathering game on top of SD1.5 model. Large variety of cards from 2014 to 2022 was used. Logos, guild/clan icons and mana symbols were not part of training set as Fan Content Policy explicitly prohibits their use.",
+        "version": "1.0",
+        "style": "other",
+        "homepage": "https://huggingface.co/TopdeckingLands/ArtOfMtg_V1",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "ArtOfMtg.ckpt",
+                    "sha256sum": "e0947d2d736d9f31494f4c4ee4e00cf0396930a3e46309c5e95623e47e0993ed"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "ArtOfMtg.ckpt",
+                    "file_path": "",
+                    "file_url": "https://huggingface.co/TopdeckingLands/ArtOfMtg_V1/resolve/main/ArtOfMtg_V1_16.ckpt"
+                }
+            ]
+        },
+        "available": false
+    },
+    "Galena Redux": {
+        "name": "Galena Redux",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "This is an NSFW prone model. It is meant to generate primarily women and NSFW scenarios. This was made with the new base model merged together, alongside several style LoRA's.",
+        "version": "1.0",
+        "style": "anime",
+        "homepage": "https://civitai.com/models/53360/galena-redux",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "galenaREDUX.safetensors",
+                    "sha256sum": "a45ad8b3865aa11a6de9e35b435628792c66782064926939c8e21db48fc647b7"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "galenaREDUX.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/57724?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+                }
+            ]
+        },
+        "available": false
+    },
+    "Analog Madness": {
+        "name": "Analog Madness",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "A very versatile model, the more powerfull prompts you give, the better results. Capable of creating both NSFW and SFW images but also great scenery, both in landscape and portrait.",
+        "version": "4.0",
+        "style": "realistic",
+        "homepage": "https://civitai.com/models/8030?modelVersionId=56498",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "analogMadness.safetensors",
+                    "sha256sum": "0b914c246e8aba8d7c91d66669fee78f391f9f5e851181aa57125e92ccde6438"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "analogMadness.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/56498?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+                }
+            ]
+        },
+        "available": false
+    },
+    "Henmix Real": {
+        "name": "Henmix Real",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "A realistic model, see homepage for details.",
+        "version": "3.0",
+        "style": "realistic",
+        "homepage": "https://civitai.com/models/20282",
+        "nsfw": true,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "henmixReal.safetensors",
+                    "sha256sum": "9B213F38F8AAD6A3E8EF899EA264E13C8CA5FAB2690653BCCD47165C53A91985"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "henmixReal.safetensors",
+                    "file_path": "",
+                    "file_url": "https://civitai.com/api/download/models/58992?type=Model&format=SafeTensor&size=pruned&fp=fp16"
+                }
+            ]
+        },
+        "available": false
+    },
+    "Elysium Anime": {
+        "name": "Elysium Anime",
+        "baseline": "stable diffusion 1",
+        "type": "ckpt",
+        "description": "Anime version of Elysium, detailed versatile anime style.",
+        "version": "3.0",
+        "style": "anime",
+        "homepage": "https://civitai.com/models/8602?modelVersionId=10500",
+        "nsfw": false,
+        "download_all": false,
+        "config": {
+            "files": [
+                {
+                    "path": "Elysium_Anime.safetensors",
+                    "sha256sum": "50265e48dfa0b53c6fa242e66c10106c85d1d68f1f188109475f6b70043d5497"
+                },
+                {
+                    "path": "v1-inference.yaml"
+                }
+            ],
+            "download": [
+                {
+                    "file_name": "Elysium_Anime.safetensors",
+                    "file_path": "",
+                    "file_url": "https://huggingface.co/hesw23168/SD-Elysium-Model/resolve/main/Elysium_Anime_V3.safetensors"
                 }
             ]
         },
