@@ -1,5 +1,16 @@
 ## hordelib Changelog
 
+## [v0.19.10](https://github.com/jug-dev/hordelib/compare/v0.19.9...v0.19.10)
+
+12 May 2023
+
+- fix: check underlying model before warm loading from cache [`#236`](https://github.com/jug-dev/hordelib/pull/236) (tazlin)
+- test: add sampler tests [`#233`](https://github.com/jug-dev/hordelib/pull/233) (Jug)
+- feat: build a payload to inference time prediction model [`#231`](https://github.com/jug-dev/hordelib/pull/231) (Jug)
+- fix: pin timm version to 0.6.13 [`bc4f862`](https://github.com/jug-dev/hordelib/commit/bc4f862d0416d2905a660b7492f9229d9ffca5c4)  (Jug)
+- test: add 10 step sampler tests [`363cbc2`](https://github.com/jug-dev/hordelib/commit/363cbc2ae5ed50c38a87f437c4afd38f6a309f7c)  (Jug)
+- fix: fix kudos model validation [`e103518`](https://github.com/jug-dev/hordelib/commit/e1035183701a8fb7a3f8c06db45e25fa8f5c41b5)  (Jug)
+
 ## [v0.19.9](https://github.com/jug-dev/hordelib/compare/v0.19.8...v0.19.9)
 
 8 May 2023
