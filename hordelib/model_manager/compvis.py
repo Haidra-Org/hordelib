@@ -37,7 +37,6 @@ class CompVisModelManager(BaseModelManager):
         model_name: str,
         **kwargs,
     ) -> dict[str, typing.Any]:
-
         embeddings_path = os.getenv("HORDE_MODEL_DIR_EMBEDDINGS", "./")
 
         if not kwargs.get("local", False):
@@ -67,6 +66,12 @@ class CompVisModelManager(BaseModelManager):
         model_filename = self.getFullModelPath(model_name)
         cache_file = self.get_model_cache_filename(model_name)
         if os.path.exists(cache_file):
+            if not self.validate_model(model_name):
+                # The model is invalid, so delete the cache file because that's almost certainly no good either
+                # This should only happen if the model was updated on disk manually, or the model reference changed
+                logger.error(f"The model {model_name} is invalid, deleting the cache file.")
+                os.remove(path=cache_file)
+                return False
             # We have a cache file but only consider it valid if it's up to date
             model_timestamp = os.path.getmtime(model_filename)
             cache_timestamp = os.path.getmtime(cache_file)
