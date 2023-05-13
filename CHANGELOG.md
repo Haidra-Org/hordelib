@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.19.11](https://github.com/jug-dev/hordelib/compare/v0.19.10...v0.19.11)
+
+13 May 2023
+
+- fix: pin timm library to v0.6.12 [`ae2e8b0`](https://github.com/jug-dev/hordelib/commit/ae2e8b0d7764b6e1076c4443a378f5275d1c6066)  (Jug)
+
 ## [v0.19.10](https://github.com/jug-dev/hordelib/compare/v0.19.9...v0.19.10)
 
 12 May 2023
