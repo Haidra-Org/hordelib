@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.19.12](https://github.com/jug-dev/hordelib/compare/v0.19.11...v0.19.12)
+
+13 May 2023
+
+- fix: remove some pointless dependencies like libcario [`#240`](https://github.com/jug-dev/hordelib/pull/240) (Jug)
+
 ## [v0.19.11](https://github.com/jug-dev/hordelib/compare/v0.19.10...v0.19.11)
 
 13 May 2023
