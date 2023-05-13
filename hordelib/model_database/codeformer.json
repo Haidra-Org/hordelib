@@ -8,8 +8,7 @@
 		"config": {
 			"files": [
 				{
-					"path": "CodeFormers.pth",
-					"sha256sum": "1009e537e0c2a07d4cabce6355f53cb66767cd4b4297ec7a4a64ca4b8a5684b7"
+					"path": "CodeFormers.pth"
 				}
 			],
 			"download": [
