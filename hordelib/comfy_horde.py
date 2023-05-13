@@ -32,6 +32,7 @@ from comfy.sd import load_checkpoint_guess_config as __comfy_load_checkpoint_gue
 from comfy.sd import load_controlnet as __comfy_load_controlnet
 from comfy.model_management import model_manager as _comfy_model_manager
 from comfy.model_management import get_torch_device as __comfy_get_torch_device
+from comfy.model_management import get_free_memory as __comfy_get_free_memory
 from comfy.utils import load_torch_file as __comfy_load_torch_file
 from comfy_extras.chainner_models import model_loading as _comfy_model_loading
 
@@ -91,14 +92,31 @@ def get_torch_device():
     return __comfy_get_torch_device()
 
 
+def get_torch_free_vram_mb():
+    return round(__comfy_get_free_memory() / (1024 * 1024))
+
+
 def unload_model_from_gpu(model):
-    _comfy_model_manager.unload_model(model)
+    _comfy_model_manager.load_model_gpu(model)
+    garbage_collect()
+
+
+def garbage_collect():
     gc.collect()
     if not torch.cuda.is_available():
         return None
     if torch.version.cuda:
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
+
+
+def load_model_to_gpu(model):
+    # Don't bother if there isn't any space
+    if not _comfy_model_manager.have_free_vram():
+        return
+    # Load the model to the GPU. This would normally be done just before
+    # the model is used for sampling, the caller must want more free ram.
+    return _comfy_model_manager.load_model_gpu(model)
 
 
 def is_model_in_use(model):
@@ -193,6 +211,9 @@ class Comfy_Horde:
         "latent_upscale.height": (64, 8192),
     }
 
+    # Approximate number of seconds to force garbage collection
+    GC_TIME = 30
+
     _property_mutex = threading.Lock()
 
     # We maintain one "client_id" per thread
@@ -213,6 +234,7 @@ class Comfy_Horde:
         self.pipelines = {}
         self._exit_time = 0
         self._callers = 0
+        self._gc_timer = time.time()
         self._counter_mutex = threading.Lock()
         # Set custom node path
         _comfy_folder_paths["custom_nodes"] = ([os.path.join(get_hordelib_path(), "nodes")], [])
@@ -489,6 +511,9 @@ class Comfy_Horde:
 
         # Check if there are any resource to clean up
         cleanup()
+        if time.time() - self._gc_timer > Comfy_Horde.GC_TIME:
+            self._gc_timer = time.time()
+            garbage_collect()
 
         return inference.outputs
 
