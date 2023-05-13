@@ -1,4 +1,3 @@
-import matplotlib.pyplot as plt
 import comfy_controlnet_preprocessors.uniformer.mmcv as mmcv
 import torch
 from comfy_controlnet_preprocessors.uniformer.mmcv.parallel import collate, scatter

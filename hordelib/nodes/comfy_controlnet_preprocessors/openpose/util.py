@@ -1,7 +1,7 @@
 import math
 import numpy as np
-import matplotlib
 import cv2
+import colorsys
 
 
 def padRightDownCorner(img, stride, padValue):
@@ -80,7 +80,7 @@ def draw_handpose(canvas, all_hand_peaks, show_number=False):
             if np.sum(np.all(peaks[e], axis=1)==0)==0:
                 x1, y1 = peaks[e[0]]
                 x2, y2 = peaks[e[1]]
-                cv2.line(canvas, (x1, y1), (x2, y2), matplotlib.colors.hsv_to_rgb([ie/float(len(edges)), 1.0, 1.0])*255, thickness=2)
+                cv2.line(canvas, (x1, y1), (x2, y2), colorsys.hsv_to_rgb([ie/float(len(edges)), 1.0, 1.0])*255, thickness=2)
 
         for i, keyponit in enumerate(peaks):
             x, y = keyponit
