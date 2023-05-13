@@ -49,7 +49,7 @@ index c809d39..9c9f6b8 100644
 +    # logger.warning(f"Done DPM-Solver++(2M) on model {id(model):x}")
      return x
 diff --git a/comfy/model_management.py b/comfy/model_management.py
-index a0d1313..05ba193 100644
+index a0d1313..f919f06 100644
 --- a/comfy/model_management.py
 +++ b/comfy/model_management.py
 @@ -1,6 +1,9 @@
@@ -62,7 +62,21 @@ index a0d1313..05ba193 100644
  
  class VRAMState(Enum):
      CPU = 0
-@@ -59,10 +62,10 @@ else:
+@@ -30,13 +33,6 @@ try:
+     except:
+         total_vram = torch.cuda.mem_get_info(torch.cuda.current_device())[1] / (1024 * 1024)
+     total_ram = psutil.virtual_memory().total / (1024 * 1024)
+-    if not args.normalvram and not args.cpu:
+-        if total_vram <= 4096:
+-            print("Trying to enable lowvram mode because your GPU seems to have 4GB or less. If you don't want this use: --normalvram")
+-            set_vram_to = VRAMState.LOW_VRAM
+-        elif total_vram > total_ram * 1.1 and total_vram > 14336:
+-            print("Enabling highvram mode because your GPU has more vram than your computer has ram. If you don't want this use: --normalvram")
+-            vram_state = VRAMState.HIGH_VRAM
+ except:
+     pass
+ 
+@@ -59,10 +55,10 @@ else:
              print("xformers version:", XFORMERS_VERSION)
              if XFORMERS_VERSION.startswith("0.0.18"):
                  print()
@@ -77,7 +91,7 @@ index a0d1313..05ba193 100644
          except:
              pass
      except:
-@@ -110,94 +113,177 @@ except:
+@@ -110,94 +106,180 @@ except:
  if args.cpu:
      vram_state = VRAMState.CPU
  
@@ -226,6 +240,11 @@ index a0d1313..05ba193 100644
 +            if model in self.models_in_use:
 +                self.models_in_use.remove(model)
 +
++    def have_free_vram(self):
++        freemem = round(get_free_memory(get_torch_device()) / (1024 * 1024))
++        logger.debug(f"Free VRAM is: {freemem}MB ({len(self.current_loaded_models)} models loaded on GPU)")
++        return freemem > self.user_reserved_vram_mb
++
 +    def load_model_gpu(self, model):
 +        global vram_state
 +        
@@ -234,9 +253,7 @@ index a0d1313..05ba193 100644
 +
 +            # Don't run out of vram
 +            if self.current_loaded_models:
-+                freemem = round(get_free_memory(get_torch_device()) / (1024 * 1024))
-+                logger.debug(f"Free VRAM is: {freemem}MB ({len(self.current_loaded_models)} models loaded on GPU)")
-+                if freemem < self.user_reserved_vram_mb:
++                if not self.have_free_vram():
 +                    # Release the first least used model that we can
 +                    for release_model in reversed(self.current_loaded_models):
 +                        if self.unload_model(release_model):
@@ -327,7 +344,7 @@ index a0d1313..05ba193 100644
  
  
  def load_if_low_vram(model):
-@@ -272,6 +358,8 @@ def get_free_memory(dev=None, torch_free_too=False):
+@@ -272,6 +354,8 @@ def get_free_memory(dev=None, torch_free_too=False):
          return mem_free_total
  
  def maximum_batch_area():

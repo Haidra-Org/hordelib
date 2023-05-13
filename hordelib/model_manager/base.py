@@ -22,7 +22,13 @@ from tqdm import tqdm
 from transformers import logging
 
 from hordelib.cache import get_cache_directory
-from hordelib.comfy_horde import cleanup, get_models_on_gpu, remove_model_from_memory
+from hordelib.comfy_horde import (
+    cleanup,
+    get_models_on_gpu,
+    get_torch_free_vram_mb,
+    load_model_to_gpu,
+    remove_model_from_memory,
+)
 from hordelib.comfy_horde import get_torch_device as _get_torch_device
 from hordelib.config_path import get_hordelib_path
 from hordelib.consts import REMOTE_MODEL_DB
@@ -189,11 +195,10 @@ class BaseModelManager(ABC):
         return int(psutil.virtual_memory().available / (1024 * 1024))
 
     def ensure_ram_available(self):
-        # Don't even consider this for models that can't be disk cached
-        if not self.can_cache_on_disk():
-            return
         with self._mutex:
             # If we have less than the minimum RAM free, free some up
+            # Although, perhaps we have plenty of available vram, in which case we
+            # can consider moving something from ram to vram.
             attempts = 2  # if ram isn't being released yet, no point keep trying
             while (
                 self.get_free_ram_mb() < UserSettings.get_ram_to_leave_free_mb()
@@ -210,10 +215,25 @@ class BaseModelManager(ABC):
                 busy_models = get_models_on_gpu()
                 # Try to find one we have in ram that isn't on the gpu
                 idle_model = None
+                idle_model_data = None
                 for ram_model_name, ram_model_data in self.get_loaded_models().items():
                     if type(ram_model_data["model"]) is not str and ram_model_data["model"] not in busy_models:
                         idle_model = ram_model_name
+                        idle_model_data = ram_model_data
                         break
+
+                # Should we move to vram rather than disk cache or free completely?
+                # First try to determine the headroom we have on vram and ram even though that requires
+                # that we brave entry into Tazlin's UserSettings trap...
+                vram_headroom = get_torch_free_vram_mb() - UserSettings.get_vram_to_leave_free_mb()
+                ram_headroom = self.get_free_ram_mb() - UserSettings.get_ram_to_leave_free_mb()
+                # Don't try this unless we have 1500MB head room at least
+                if vram_headroom > ram_headroom and vram_headroom > 1500:
+                    logger.debug("More free VRAM than RAM, consider RAM->VRAM migration")
+                    if self.can_move_to_vram() and idle_model and load_model_to_gpu(idle_model_data["model"]):
+                        return
+                    # We failed to move a model to vram, continue with plan A
+
                 # If we didn't have one hanging around in ram not on the gpu
                 # pick the least used gpu model
                 if not idle_model and busy_models:
@@ -226,7 +246,7 @@ class BaseModelManager(ABC):
                         self.move_to_disk_cache(idle_model)
                         # Try to release ram right now
                         cleanup()
-                    else:
+                    elif self.can_auto_unload():
                         # Unload the model to free ram
                         self.unload_model(idle_model)
                         # Try to release ram right now
@@ -246,8 +266,25 @@ class BaseModelManager(ABC):
     def move_from_disk_cache(self, model_name, model, clip, vae):
         pass
 
+    # @abstractmethod # TODO
     def can_cache_on_disk(self):
         """Can this of type model be cached on disk?"""
+        return False
+
+    # @abstractmethod # TODO
+    def can_auto_unload(self):
+        """Can/should we ever auto unload this model to release memory resources.
+
+        Not a great idea with something like the safety checker.
+        """
+        return False
+
+    # @abstractmethod # TODO
+    def can_move_to_vram(self):
+        """Can we move this model directly to the GPU to save ram?
+
+        XXX This is realistically only possible with compvis right now
+        """
         return False
 
     def load(
