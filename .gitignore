@@ -158,7 +158,6 @@ hordelib/_comfyui
 _version.py
 _comfyui
 tmp/
-profiles/
 
 .vscode
 *.ckpt
