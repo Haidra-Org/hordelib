@@ -1,9 +1,11 @@
+import glob
 import os
 import platform
 import time
 from io import BytesIO
 
 import requests
+import yaml
 from loguru import logger
 from PIL import Image
 
@@ -68,10 +70,40 @@ def get_software_stack():
         return "Unknown torch and xformers version"
 
 
+def is_model_dir(path):
+    # must exist
+    if os.path.exists(path):
+        # must have a ckpt
+        if len(glob.glob(os.path.join(path, "**/*.ckpt"))) > 0:
+            return True
+    return False
+
+
 def main():
-    if not os.getenv("AIWORKER_CACHE_HOME"):
-        print("No model directory found. Environmental variable AIWORKER_CACHE_HOME is not set.")
-        exit(1)
+    model_dir = os.getenv("AIWORKER_CACHE_HOME", "")
+    # Try looking about using our best guess
+    if not model_dir:
+        # old worker default
+        if is_model_dir("nataili/compvis"):
+            model_dir = os.path.join(os.getcwd())
+        # a rare possible old location
+        elif is_model_dir("nataili/compvis/nataili/compvis"):
+            model_dir = os.path.join(os.getcwd(), "nataili/compvis")
+        elif os.path.exists("bridgeData.yaml"):
+            # try the worker yaml
+            with open("bridgeData.yaml", "rt", encoding="utf-8") as configfile:
+                data = yaml.safe_load(configfile)
+                model_dir = data.get("cache_home", "")
+                if not model_dir:
+                    model_dir = data.get("nataili_cache_home", "")
+
+        if model_dir:
+            os.environ["AIWORKER_CACHE_HOME"] = model_dir
+        else:
+            print("No model directory found. Environmental variable AIWORKER_CACHE_HOME is not set.")
+            exit(1)
+
+    logger.info(f"Using model directory: {model_dir}")
 
     try:
         gpu = GPUInfo().get_info()
