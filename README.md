@@ -10,9 +10,11 @@
 [![All Models][all-model-images]][all-model-url]
 [![Release Changelog][changelog-image]][changelog-url]
 
-`hordelib` is a thin wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed visually in the ComfyUI GUI.
+`hordelib` is a wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed visually in the ComfyUI GUI.
 
 The developers of `hordelib` can be found in the AI Horde Discord server: [https://discord.gg/3DxrhksKzn](https://discord.gg/3DxrhksKzn)
+
+`hordelib` is the default inference backend library of the [AI Horde](https://aihorde.net/)
 
 ## Purpose
 
