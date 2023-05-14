@@ -97,7 +97,7 @@ def get_torch_free_vram_mb():
 
 
 def unload_model_from_gpu(model):
-    _comfy_model_manager.load_model_gpu(model)
+    _comfy_model_manager.unload_model(model)
     garbage_collect()
 
 

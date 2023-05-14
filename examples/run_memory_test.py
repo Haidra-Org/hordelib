@@ -25,7 +25,6 @@ os.environ["AIWORKER_TEMP_DIR"] = "d:/temp/ray"
 UserSettings.disable_disk_cache.activate()
 
 # Do inference with all cached models
-VALIDATE_ALL_CACHED_MODELS = False
 BACKGROUND_THREAD = False
 
 
@@ -114,23 +113,6 @@ def main():
 
     report_ram()
 
-    add_model("Papercut Diffusion")
-    SharedModelManager.manager.compvis.move_to_disk_cache("Papercut Diffusion")
-
-    add_model("Graphic-Art")
-    SharedModelManager.manager.compvis.move_to_disk_cache("Graphic-Art")
-
-    # while True:
-    #     SharedModelManager.manager.load("Papercut Diffusion")
-    #     do_inference("Papercut Diffusion")
-
-    # We may have just fast-loaded a bunch of cached models, do some inference with each of them
-    if VALIDATE_ALL_CACHED_MODELS:
-        logger.warning("Validating cached model files")
-        for model in SharedModelManager.manager.get_loaded_models_names():
-            do_inference(model)
-        logger.warning("Model cache files validation completed.")
-
     # Reserve 50% of our ram
     UserSettings.set_ram_to_leave_free_mb("50%")
     logger.warning(f"Keep {UserSettings.get_ram_to_leave_free_mb()} MB RAM free")
@@ -142,14 +124,16 @@ def main():
     # Get to our limits by loading models
     models = get_available_models()
     model_index = 0
-    while model_index < len(SharedModelManager.manager.get_available_models()):
+    logger.info(f"Found {len(models)} available models")
+    while model_index < len(models):
 
         # First we fill ram and vram
         logger.warning("Filling available memory")
-        if model_index < len(SharedModelManager.manager.get_available_models()):
+        if model_index < len(models):
             add_model(models[model_index])
             model_index += 1
         else:
+            logger.error("Exceeded available models")
             break
 
         if (
@@ -161,13 +145,16 @@ def main():
     # From this point, any model loading will push us past our configured resource limits
 
     # Start doing background inference
-    thread = threading.Thread(daemon=True, target=do_background_inference)
-    thread.start()
+    if BACKGROUND_THREAD:
+        thread = threading.Thread(daemon=True, target=do_background_inference)
+        thread.start()
 
     # Push us past our limits
-    if model_index < len(SharedModelManager.manager.get_available_models()):
+    how_far = 10
+    if model_index < len(models) and how_far:
         add_model(models[model_index])
         model_index += 1
+        how_far -= 1
     # That would have pushed something to disk, force a memory cleanup
     cleanup()
     report_ram()
@@ -186,7 +173,7 @@ def main():
         else:
             model = random.choice(models)
             logger.info(f"Doing inference with model {model} ({len(models)} models loaded)")
-            do_inference(model, 1, count)
+            do_inference(model)
             count += 1
         if count > 20000:
             break
