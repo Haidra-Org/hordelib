@@ -1,5 +1,21 @@
 ## hordelib Changelog
 
+## [v0.19.14](https://github.com/jug-dev/hordelib/compare/v0.19.13...v0.19.14)
+
+14 May 2023
+
+- fix: better memory management [`#239`](https://github.com/jug-dev/hordelib/pull/239) (Jug)
+- fix: remove some pointless dependencies like libcario [`#240`](https://github.com/jug-dev/hordelib/pull/240) (Jug)
+- Revert "fix: pin timm version to 0.6.13" [`407bee9`](https://github.com/jug-dev/hordelib/commit/407bee9deb997147c8b78a30f04df5171e28aa7b)  (Jug)
+- feat: adds code to generate all models test page [`6c8d882`](https://github.com/jug-dev/hordelib/commit/6c8d88253f820ae03e19a80492554905f90bb5ed)  (Jug)
+- doc: update readme with all models link [`f34bcce`](https://github.com/jug-dev/hordelib/commit/f34bcce43c4cd1b8de7125c5f435f333f3ec227e)  (Jug)
+
+## [v0.19.13](https://github.com/jug-dev/hordelib/compare/v0.19.12...v0.19.13)
+
+13 May 2023
+
+- fix: better memory management [`#243`](https://github.com/jug-dev/hordelib/pull/243) (Jug)
+
 ## [v0.19.12](https://github.com/jug-dev/hordelib/compare/v0.19.11...v0.19.12)
 
 13 May 2023
