@@ -7,6 +7,7 @@
 [![Build][build-image]][build-url]
 [![Test Images][main-test-image]][main-test-url]
 [![Test Images][pr-test-image]][pr-test-url]
+[![All Models][all-model-images]][all-model-url]
 [![Release Changelog][changelog-image]][changelog-url]
 
 `hordelib` is a thin wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed visually in the ComfyUI GUI.
@@ -262,10 +263,12 @@ Patches can be applied with the `hordelib.install_comfyui.Installer` classes `ap
 [downloads-url]: https://pepy.tech/project/hordelib
 [license-url]: https://img.shields.io/github/license/jug-dev/hordelib
 [build-image]: https://github.com/jug-dev/hordelib/actions/workflows/maintests.yml/badge.svg?branch=main
+[all-model-images]: https://badgen.net/badge/all-models/images/blue?icon=awesome
 [build-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/
 [main-test-image]: https://badgen.net/badge/main/latest-images/blue?icon=awesome
 [main-test-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/
 [pr-test-image]: https://badgen.net/badge/develop/latest-images/blue?icon=awesome
 [pr-test-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/unstable
+[all-model-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/all_models/
 [changelog-image]: https://img.shields.io/badge/Release-Changelog-yellow
 [changelog-url]: https://github.com/jug-dev/hordelib/blob/releases/CHANGELOG.md
