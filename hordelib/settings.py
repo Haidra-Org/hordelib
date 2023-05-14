@@ -110,5 +110,9 @@ class UserSettings:
     # Disable disk caching completely
     disable_disk_cache = Switch()
 
+    # Enable batch optimisations. If n_iter > 1 use fast batching. Makes prompts
+    # with more than 75 tokens slower.
+    enable_batch_optimisations = Switch(True)
+
 
 _UserSettings = UserSettings()

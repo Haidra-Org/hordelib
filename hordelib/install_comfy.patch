@@ -49,7 +49,7 @@ index c809d39..9c9f6b8 100644
 +    # logger.warning(f"Done DPM-Solver++(2M) on model {id(model):x}")
      return x
 diff --git a/comfy/model_management.py b/comfy/model_management.py
-index a0d1313..f919f06 100644
+index a0d1313..b09c59e 100644
 --- a/comfy/model_management.py
 +++ b/comfy/model_management.py
 @@ -1,6 +1,9 @@
@@ -62,7 +62,15 @@ index a0d1313..f919f06 100644
  
  class VRAMState(Enum):
      CPU = 0
-@@ -30,13 +33,6 @@ try:
+@@ -16,6 +19,7 @@ set_vram_to = VRAMState.NORMAL_VRAM
+ 
+ total_vram = 0
+ total_vram_available_mb = -1
++enable_batch_optimisations = True
+ 
+ accelerate_enabled = False
+ xpu_available = False
+@@ -30,13 +34,6 @@ try:
      except:
          total_vram = torch.cuda.mem_get_info(torch.cuda.current_device())[1] / (1024 * 1024)
      total_ram = psutil.virtual_memory().total / (1024 * 1024)
@@ -76,7 +84,7 @@ index a0d1313..f919f06 100644
  except:
      pass
  
-@@ -59,10 +55,10 @@ else:
+@@ -59,10 +56,10 @@ else:
              print("xformers version:", XFORMERS_VERSION)
              if XFORMERS_VERSION.startswith("0.0.18"):
                  print()
@@ -91,7 +99,7 @@ index a0d1313..f919f06 100644
          except:
              pass
      except:
-@@ -110,94 +106,180 @@ except:
+@@ -110,94 +107,186 @@ except:
  if args.cpu:
      vram_state = VRAMState.CPU
  
@@ -119,16 +127,22 @@ index a0d1313..f919f06 100644
 -    global model_accelerated
 -    global current_gpu_controlnets
 -    global vram_state
+-
+-    if current_loaded_model is not None:
+-        if model_accelerated:
+-            accelerate.hooks.remove_hook_from_submodules(current_loaded_model.model)
+-            model_accelerated = False
 +    # We are a singleton
 +    def __new__(cls):
 +        if cls._instance is None:
 +            cls._instance = super().__new__(cls)
 +        return cls._instance
  
--    if current_loaded_model is not None:
--        if model_accelerated:
--            accelerate.hooks.remove_hook_from_submodules(current_loaded_model.model)
--            model_accelerated = False
+-        #never unload models from GPU on high vram
+-        if vram_state != VRAMState.HIGH_VRAM:
+-            current_loaded_model.model.cpu()
+-        current_loaded_model.unpatch_model()
+-        current_loaded_model = None
 +    # We initialise only ever once (in the lifetime of the singleton)
 +    def __init__(self):
 +        if not self._initialised:
@@ -138,35 +152,26 @@ index a0d1313..f919f06 100644
 +            self.models_accelerated = []
 +            self.__class__._initialised = True    
  
--        #never unload models from GPU on high vram
--        if vram_state != VRAMState.HIGH_VRAM:
--            current_loaded_model.model.cpu()
--        current_loaded_model.unpatch_model()
--        current_loaded_model = None
-+    def set_user_reserved_vram(self, vram_mb):
-+        with self._property_mutex:
-+            self.user_reserved_vram_mb = vram_mb
- 
 -    if vram_state != VRAMState.HIGH_VRAM:
 -        if len(current_gpu_controlnets) > 0:
 -            for n in current_gpu_controlnets:
 -                n.cpu()
 -            current_gpu_controlnets = []
++    def set_user_reserved_vram(self, vram_mb):
++        with self._property_mutex:
++            self.user_reserved_vram_mb = vram_mb
+ 
 +    def get_models_on_gpu(self):
 +        with self._property_mutex:
 +            return self.current_loaded_models[:]
- 
-+    def set_model_in_use(self, model):
-+        with self._property_mutex:
-+            self.models_in_use.append(model)
  
 -def load_model_gpu(model):
 -    global current_loaded_model
 -    global vram_state
 -    global model_accelerated
-+    def is_model_in_use(self, model):
++    def set_model_in_use(self, model):
 +        with self._property_mutex:
-+            return model in self.models_in_use
++            self.models_in_use.append(model)
  
 -    if model is current_loaded_model:
 -        return
@@ -191,6 +196,13 @@ index a0d1313..f919f06 100644
 -            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
 -        elif vram_state == VRAMState.LOW_VRAM:
 -            device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "{}MiB".format(total_vram_available_mb), "cpu": "16GiB"})
++    def is_model_in_use(self, model):
++        with self._property_mutex:
++            return model in self.models_in_use
+ 
+-        accelerate.dispatch_model(real_model, device_map=device_map, main_device=get_torch_device())
+-        model_accelerated = True
+-    return current_loaded_model
 +    def unload_model(self, model):
 +        global vram_state
 +        with self._property_mutex:
@@ -198,31 +210,27 @@ index a0d1313..f919f06 100644
 +                logger.debug("Skip GPU unload as not on the GPU")
 +                return
  
--        accelerate.dispatch_model(real_model, device_map=device_map, main_device=get_torch_device())
--        model_accelerated = True
--    return current_loaded_model
-+            if model in self.models_in_use:
-+                logger.debug("Not unloaded model as it is in use right now")
-+                return
- 
 -def load_controlnet_gpu(control_models):
 -    global current_gpu_controlnets
 -    global vram_state
 -    if vram_state == VRAMState.CPU:
 -        return
-+            if model in self.models_accelerated:
-+                accelerate.hooks.remove_hook_from_submodules(model.model)
-+                self.models_accelerated.remove(model)
++            if model in self.models_in_use:
++                logger.debug("Not unloaded model as it is in use right now")
++                return
  
 -    if vram_state == VRAMState.LOW_VRAM or vram_state == VRAMState.NO_VRAM:
 -        #don't load controlnets like this if low vram because they will be loaded right before running and unloaded right after
 -        return
-+            self.current_loaded_models.remove(model)
++            if model in self.models_accelerated:
++                accelerate.hooks.remove_hook_from_submodules(model.model)
++                self.models_accelerated.remove(model)
  
 -    models = []
 -    for m in control_models:
 -        models += m.get_models()
--
++            self.current_loaded_models.remove(model)
+ 
 -    for m in current_gpu_controlnets:
 -        if m not in models:
 -            m.cpu()
@@ -340,16 +348,22 @@ index a0d1313..f919f06 100644
 +                    self.current_gpu_controlnets.remove(m)
 +                    del m
 +
++    def set_batch_optimisations(self, enable):
++        with self._property_mutex:
++            global enable_batch_optimisations
++            enable_batch_optimisations = enable
++
++
 +model_manager = ModelManager()
  
  
  def load_if_low_vram(model):
-@@ -272,6 +354,8 @@ def get_free_memory(dev=None, torch_free_too=False):
+@@ -272,6 +361,8 @@ def get_free_memory(dev=None, torch_free_too=False):
          return mem_free_total
  
  def maximum_batch_area():
-+    return 0
-+    # See https://github.com/jug-dev/hordelib/issues/225
++    if not enable_batch_optimisations:
++        return 0
      global vram_state
      if vram_state == VRAMState.NO_VRAM:
          return 0

@@ -443,6 +443,7 @@ class Comfy_Horde:
 
         # Update user settings
         _comfy_model_manager.set_user_reserved_vram(UserSettings.get_vram_to_leave_free_mb())
+        _comfy_model_manager.set_batch_optimisations(UserSettings.enable_batch_optimisations.active)
 
         logger.info(f"Running pipeline {pipeline_name}")
 
