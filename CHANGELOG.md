@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v1.0.2](https://github.com/jug-dev/hordelib/compare/v1.0.1...v1.0.2)
+
+14 May 2023
+
+- fix: correctly unload models from gpu under stress [`#249`](https://github.com/jug-dev/hordelib/pull/249) (Jug)
+
 ## [v1.0.1](https://github.com/jug-dev/hordelib/compare/v1.0.0...v1.0.1)
 
 14 May 2023
