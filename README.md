@@ -14,7 +14,7 @@
 
 The developers of `hordelib` can be found in the AI Horde Discord server: [https://discord.gg/3DxrhksKzn](https://discord.gg/3DxrhksKzn)
 
-`hordelib` is the default inference backend library of the [AI Horde](https://aihorde.net/)
+`hordelib` has been the default inference backend library of the [AI Horde](https://aihorde.net/) since `hordelib` v1.0.0.
 
 ## Purpose
 
