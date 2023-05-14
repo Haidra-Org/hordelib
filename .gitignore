@@ -148,6 +148,8 @@ images/hor*.webp
 images/pip*.webp
 images/test.webp
 images/run_*
+images/all_models
+profiles/
 images/perftest
 images/stresstest
 images/longprompts
