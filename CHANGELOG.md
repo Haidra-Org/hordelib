@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v0.19.15](https://github.com/jug-dev/hordelib/compare/v0.19.14...v0.19.15)
+
+14 May 2023
+
+- chore: prep for v1.0.0 [`#245`](https://github.com/jug-dev/hordelib/pull/245) (Jug)
+
 ## [v0.19.14](https://github.com/jug-dev/hordelib/compare/v0.19.13...v0.19.14)
 
 14 May 2023
