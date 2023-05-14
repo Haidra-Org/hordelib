@@ -14,8 +14,6 @@
 
 The developers of `hordelib` can be found in the AI Horde Discord server: [https://discord.gg/3DxrhksKzn](https://discord.gg/3DxrhksKzn)
 
-NOTE: This project is in development and is in a test phase by Stable Horde.
-
 ## Purpose
 
 The goal here is to be able to design inference pipelines in the excellent ComfyUI, and then call those inference pipelines programmatically. Whilst providing features that maintain compatibility with the existing horde implementation.
