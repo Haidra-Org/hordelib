@@ -50,7 +50,7 @@ if ENABLE_TRAINING:
 
 random.seed()
 
-# Database connection string for Optuna
+# Database connection string for Optuna - don't use root :)
 DB_CONNECTION_STRING = "mysql://root:root@localhost/optuna"
 
 # Where is our training data?
