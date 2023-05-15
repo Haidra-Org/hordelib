@@ -1,5 +1,16 @@
 ## hordelib Changelog
 
+## [v1.0.3](https://github.com/jug-dev/hordelib/compare/v1.0.2...v1.0.3)
+
+15 May 2023
+
+- When gathering loaded/available names, allows filtering by model manager type [`#254`](https://github.com/jug-dev/hordelib/pull/254) (Divided by Zer0)
+- feat: upgrade to the latest comfyui [`#255`](https://github.com/jug-dev/hordelib/pull/255) (Jug)
+- feat: add option to enable/disable batch optimisation [`#252`](https://github.com/jug-dev/hordelib/pull/252) (Jug)
+- fix: untrack automatically downloaded model reference jsons [`b7514e1`](https://github.com/jug-dev/hordelib/commit/b7514e13d33dd4c4a2c729808798f4cc3aa5b273)  (tazlin)
+- fix: remove unused model 'db.json' [`551f9bb`](https://github.com/jug-dev/hordelib/commit/551f9bba20e340627ec9ac432a6c6740eeab92d0)  (tazlin)
+- fix: ignore automatically downloaded model references [`4a00c71`](https://github.com/jug-dev/hordelib/commit/4a00c71b0d7d789e1489d1a3c5ce9a603d1f45ff)  (tazlin)
+
 ## [v1.0.2](https://github.com/jug-dev/hordelib/compare/v1.0.1...v1.0.2)
 
 14 May 2023
