@@ -10,6 +10,7 @@ import re
 import time
 import sys
 import typing
+import uuid
 import random
 import threading
 from pprint import pformat
@@ -27,6 +28,7 @@ from hordelib.config_path import get_hordelib_path
 # isort: off
 from execution import nodes as _comfy_nodes
 from execution import PromptExecutor as _comfy_PromptExecutor
+from execution import validate_prompt as _comfy_validate_prompt
 from folder_paths import folder_names_and_paths as _comfy_folder_paths
 from comfy.sd import load_checkpoint_guess_config as __comfy_load_checkpoint_guess_config
 from comfy.sd import load_controlnet as __comfy_load_controlnet
@@ -229,8 +231,22 @@ class Comfy_Horde:
             tid = threading.current_thread().ident
             self._client_id[tid] = client_id
 
+    # We maintain one "images" for outputs per thread
+    @property
+    def images(self):
+        with Comfy_Horde._property_mutex:
+            tid = threading.current_thread().ident
+            return self._images.get(tid)
+
+    @images.setter
+    def images(self, images):
+        with Comfy_Horde._property_mutex:
+            tid = threading.current_thread().ident
+            self._images[tid] = images
+
     def __init__(self) -> None:
         self._client_id = {}
+        self._images = {}
         self.pipelines = {}
         self._exit_time = 0
         self._callers = 0
@@ -429,9 +445,14 @@ class Comfy_Horde:
         current[0] = output
         return True
 
-    # This is the callback handler for comfy async events. We only use it for debugging.
-    def send_sync(self, p1, p2, p3):
-        logger.debug(f"{p1}, {p2}, {p3}")
+    # This is the callback handler for comfy async events.
+    def send_sync(self, label, data, _id):
+        # Get receive image outputs via this async mechanism
+        if "output" in data and "images" in data["output"]:
+            self.images = data["output"]["images"]
+            logger.debug("Received output image(s) from comfyui")
+        else:
+            logger.debug(f"{label}, {data}, {_id}")
 
     # Execute the named pipeline and pass the pipeline the parameter provided.
     # For the horde we assume the pipeline returns an array of images.
@@ -506,7 +527,11 @@ class Comfy_Horde:
         # We pretend we are a web client and want async callbacks.
         stdio = OutputCollector()
         with contextlib.redirect_stdout(stdio), contextlib.redirect_stderr(stdio):
-            inference.execute(pipeline, extra_data={"client_id": random.randint(0, sys.maxsize)})
+            # validate_prompt from comfy returns [bool, str, list]
+            # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
+            self.client_id = str(uuid.uuid4())
+            valid = _comfy_validate_prompt(pipeline)
+            inference.execute(pipeline, self.client_id, {"client_id": self.client_id}, valid[2])
 
         stdio.replay()
 
@@ -516,7 +541,7 @@ class Comfy_Horde:
             self._gc_timer = time.time()
             garbage_collect()
 
-        return inference.outputs
+        return self.images
 
     # Run a pipeline that returns an image in pixel space
     def run_image_pipeline(self, pipeline_name: str, params: dict) -> list[dict] | None:
@@ -548,6 +573,6 @@ class Comfy_Horde:
             self._callers -= 1
 
         if result:
-            return result["output_image"]["images"]
+            return result
 
         return None

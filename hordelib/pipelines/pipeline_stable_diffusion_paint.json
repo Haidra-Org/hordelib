@@ -1,7 +1,7 @@
 {
     "3": {
         "inputs": {
-            "seed": 843159458049729,
+            "seed": 77570063643350,
             "steps": 20,
             "cfg": 8.0,
             "sampler_name": "euler",
@@ -20,7 +20,7 @@
                 0
             ],
             "latent_image": [
-                "5",
+                "14",
                 0
             ]
         },
@@ -82,13 +82,14 @@
     },
     "11": {
         "inputs": {
-            "image": "example.png",
+            "image": "test_inpaint_alpha.png",
             "choose file to upload": "image"
         },
         "class_type": "LoadImage"
     },
     "14": {
         "inputs": {
+            "grow_mask_by": 6,
             "pixels": [
                 "11",
                 0

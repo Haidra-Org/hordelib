@@ -7,7 +7,7 @@ import hordelib
 
 
 def main():
-    hordelib.initialise()
+    hordelib.initialise(setup_logging=False)
 
     from hordelib.horde import HordeLib
     from hordelib.shared_model_manager import SharedModelManager
