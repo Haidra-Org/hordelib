@@ -137,7 +137,16 @@ cython_debug/
 # Local
 test-image.png
 hordelib/ComfyUI
-hordelib/model_database
+# hordelib/model_database
+hordelib/model_database/aitemplate.json
+hordelib/model_database/blip.json
+hordelib/model_database/clip.json
+hordelib/model_database/codeformer.json
+hordelib/model_database/controlnet.json
+hordelib/model_database/esrgan.json
+hordelib/model_database/gfpgan.json
+hordelib/model_database/safety_checker.json
+hordelib/model_database/stable_diffusion.json
 ComfyUI
 model.ckpt
 coverage.lcov

@@ -1,5 +1,6 @@
 class Switch:
-    active: bool = False
+    def __init__(self, initial_value=False):
+        self.active = initial_value
 
     def activate(self):
         self.active = True

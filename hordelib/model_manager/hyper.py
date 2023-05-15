@@ -58,21 +58,35 @@ class ModelManager:
             _models.update(model_manager.model_reference)
         return _models
 
-    @property
-    def available_models(self) -> list[str]:
+    def get_available_models(self, mm_include=None, mm_exclude=None) -> list[str]:
         """All models for which information exists, and for which a download attempt could be made."""
         all_available_models: list[str] = []
+        mm_include = self.get_mm_pointers(mm_include)
+        mm_exclude = self.get_mm_pointers(mm_exclude)
         for model_manager in self.active_model_managers:
+            if mm_include and model_manager not in mm_include:
+                continue
+            if mm_exclude and model_manager in mm_exclude:
+                continue
             all_available_models.extend(model_manager.available_models)
         return all_available_models
 
-    @property
-    def loaded_models(self) -> dict[str, dict]:
+    available_models = property(get_available_models)
+
+    def get_loaded_models(self, mm_include=None, mm_exclude=None) -> dict[str, dict]:
         """All models for which have successfully loaded across all `BaseModelManager` types."""
         all_loaded_models: dict[str, dict] = {}
+        mm_include = self.get_mm_pointers(mm_include)
+        mm_exclude = self.get_mm_pointers(mm_exclude)
         for model_manager in self.active_model_managers:
+            if mm_include and model_manager not in mm_include:
+                continue
+            if mm_exclude and model_manager in mm_exclude:
+                continue
             all_loaded_models.update(model_manager.get_loaded_models())
         return all_loaded_models
+
+    loaded_models = property(get_loaded_models)
 
     @property
     def active_model_managers(self) -> list[BaseModelManager]:
@@ -268,53 +282,31 @@ class ModelManager:
                 return model_manager.move_from_disk_cache(model_name, model, clip, vae)
         return None
 
-    def get_loaded_models_names(self) -> list:
-        """DEPRECATED: Use property self.loaded_models. Returns a list of all the currently loaded models.
-
+    def get_loaded_models_names(
+        self,
+        mm_include: list[str] | None = None,
+        mm_exclude: list[str] | None = None,
+    ) -> list:
+        """
         Returns:
             list: All currently loaded models.
         """
-        return list(self.loaded_models.keys())
+        loaded_models = self.get_loaded_models(mm_include, mm_exclude)
+        return list(loaded_models.keys())
 
     def is_model_loaded(self, model_name) -> bool:
         return model_name in self.loaded_models
 
-    def get_available_models_by_types(self, model_types: list[str] | None = None):
-        if not model_types:
-            model_types = ["ckpt", "diffusers"]
-        models_available = []
-        for model_type in model_types:
-            if model_type == "ckpt" and self.compvis is not None:
-                for model in self.compvis.model_reference:
-                    # We don't want to check the .yaml file as those exist in this repo instead
-                    model_files = [
-                        filename
-                        for filename in self.compvis.get_model_files(model)
-                        if not filename["path"].endswith(".yaml")
-                    ]
-                    if self.compvis.check_available(model_files):
-                        models_available.append(model)
-            if model_type == "diffusers" and self.diffusers is not None:
-                for model in self.diffusers.model_reference:
-                    if self.diffusers.check_available(
-                        self.diffusers.get_model_files(model),
-                    ):
-                        models_available.append(model)
-        return models_available
+    def get_available_models_by_types(self, mm_include: list[str] | None = None, mm_exclude: list[str] | None = None):
+        if not mm_include and not mm_exclude:
+            mm_include = ["ckpt", "diffusers"]
+        return self.get_available_models(mm_include, mm_exclude)
 
     def count_available_models_by_types(
         self,
         model_types: list[str] | None = None,
     ) -> int:
         return len(self.get_available_models_by_types(model_types))
-
-    def get_available_models(self) -> list:
-        """Returns a list of all available models.
-
-        Returns:
-            list: All available models.
-        """
-        return self.available_models
 
     def ensure_memory_available(self, specific_type: type[BaseModelManager] | None = None) -> None:
         """Asserts minimum amount of RAM is available. Unloads models if necessary."""
@@ -371,3 +363,27 @@ class ModelManager:
 
         logger.error(f"{model_name} not found")
         return None
+
+    def get_mm_pointers(self, mm_types: list[str] | None = None):
+        mm_pointers = set()
+        if not mm_types:
+            return mm_pointers
+        # If any value in the list is not a string, we assume it's a mm pointer already but we verify
+        if any(type(mm_type) != str for mm_type in mm_types):
+            for mm_type in mm_types:
+                for active_mm in self.active_model_managers:
+                    if active_mm == mm_type:
+                        mm_pointers.add(active_mm)
+                        break
+        for mm_type in mm_types:
+            if type(mm_type) != str:
+                continue
+            try:
+                mm_type = MODEL_MANAGERS_TYPE_LOOKUP[MODEL_CATEGORY_NAMES(mm_type)]
+            except Exception as err:
+                logger.warning(f"Exception when looking up model manager '{mm_type}': {err}")
+            for active_mm in self.active_model_managers:
+                if type(active_mm) == mm_type:
+                    mm_pointers.add(active_mm)
+                    break
+        return mm_pointers

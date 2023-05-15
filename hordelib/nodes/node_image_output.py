@@ -50,7 +50,7 @@ class HordeImageOutput:
 
             results.append({"imagedata": byte_stream, "type": "PNG"})
 
-        return {"images": results}
+        return {"ui": {"images": results}}
 
 
 NODE_CLASS_MAPPINGS = {"HordeImageOutput": HordeImageOutput}
