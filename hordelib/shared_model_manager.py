@@ -36,7 +36,7 @@ class SharedModelManager:
         codeformer: bool = False,
         compvis: bool = False,
         controlnet: bool = False,
-        diffusers: bool = False,
+        # diffusers: bool = False,
         esrgan: bool = False,
         gfpgan: bool = False,
         safety_checker: bool = False,

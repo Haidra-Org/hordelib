@@ -7,7 +7,6 @@ import hordelib
 
 
 def main():
-
     hordelib.initialise()
 
     from PIL import Image
@@ -23,7 +22,6 @@ def main():
         "codeformer": True,
         "compvis": True,
         "controlnet": True,
-        "diffusers": True,
         "esrgan": True,
         "gfpgan": True,
         "safety_checker": True,

@@ -8,13 +8,13 @@ from loguru import logger
 from hordelib.consts import EXCLUDED_MODEL_NAMES, MODEL_CATEGORY_NAMES
 
 # from hordelib.model_manager.aitemplate import AITemplateModelManager
+# from hordelib.model_manager.diffusers import DiffusersModelManager
 from hordelib.model_manager.base import BaseModelManager
 from hordelib.model_manager.blip import BlipModelManager
 from hordelib.model_manager.clip import ClipModelManager
 from hordelib.model_manager.codeformer import CodeFormerModelManager
 from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.controlnet import ControlNetModelManager
-from hordelib.model_manager.diffusers import DiffusersModelManager
 from hordelib.model_manager.esrgan import EsrganModelManager
 from hordelib.model_manager.gfpgan import GfpganModelManager
 from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
@@ -26,7 +26,7 @@ MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type[BaseModelManager]] =
     MODEL_CATEGORY_NAMES.codeformer: CodeFormerModelManager,
     MODEL_CATEGORY_NAMES.compvis: CompVisModelManager,
     MODEL_CATEGORY_NAMES.controlnet: ControlNetModelManager,
-    MODEL_CATEGORY_NAMES.diffusers: DiffusersModelManager,
+    # MODEL_CATEGORY_NAMES.diffusers: DiffusersModelManager,
     MODEL_CATEGORY_NAMES.esrgan: EsrganModelManager,
     MODEL_CATEGORY_NAMES.gfpgan: GfpganModelManager,
     MODEL_CATEGORY_NAMES.safety_checker: SafetyCheckerModelManager,
@@ -43,7 +43,7 @@ class ModelManager:
     codeformer: CodeFormerModelManager | None = None
     compvis: CompVisModelManager | None = None
     controlnet: ControlNetModelManager | None = None
-    diffusers: DiffusersModelManager | None = None
+    # diffusers: DiffusersModelManager | None = None
     esrgan: EsrganModelManager | None = None
     gfpgan: GfpganModelManager | None = None
     safety_checker: SafetyCheckerModelManager | None = None
@@ -96,7 +96,7 @@ class ModelManager:
             self.blip,
             self.clip,
             self.compvis,
-            self.diffusers,
+            # self.diffusers,
             self.esrgan,
             self.gfpgan,
             self.safety_checker,
@@ -137,7 +137,7 @@ class ModelManager:
         codeformer: bool = False,
         compvis: bool = False,
         controlnet: bool = False,
-        diffusers: bool = False,
+        # diffusers: bool = False,
         esrgan: bool = False,
         gfpgan: bool = False,
         safety_checker: bool = False,
@@ -299,7 +299,7 @@ class ModelManager:
 
     def get_available_models_by_types(self, mm_include: list[str] | None = None, mm_exclude: list[str] | None = None):
         if not mm_include and not mm_exclude:
-            mm_include = ["ckpt", "diffusers"]
+            mm_include = ["ckpt"]
         return self.get_available_models(mm_include, mm_exclude)
 
     def count_available_models_by_types(

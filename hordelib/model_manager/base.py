@@ -402,7 +402,7 @@ class BaseModelManager(ABC):
 
     def get_available_models_by_types(self, model_types: list[str] | None = None):
         if not model_types:
-            model_types = ["ckpt", "diffusers"]
+            model_types = ["ckpt"]
         models_available = []
         for model in self.model_reference:
             if self.model_reference[model]["type"] in model_types and self.check_available(

@@ -7,7 +7,6 @@ import hordelib
 
 
 def main():
-
     hordelib.initialise()
 
     from PIL import Image
@@ -16,7 +15,7 @@ def main():
     from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
-    SharedModelManager.loadModelManagers(diffusers=True)
+    SharedModelManager.loadModelManagers(compvis=True)
     SharedModelManager.manager.load("stable_diffusion_inpainting")
 
     data = {
