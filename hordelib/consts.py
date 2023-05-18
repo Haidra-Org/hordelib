@@ -7,6 +7,8 @@ from hordelib.config_path import get_hordelib_path
 COMFYUI_VERSION = "84ea21c815d426000c233e0c7b8c542764335cc8"
 """The exact version of ComfyUI version to load."""
 
+REMOTE_PROXY = ""
+
 REMOTE_MODEL_DB = "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/"
 """The default base endpoint where to find model databases. See MODEL_DB_NAMES for valid database names."""
 

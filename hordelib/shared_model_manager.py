@@ -10,6 +10,7 @@ from loguru import logger
 
 from hordelib.cache import get_cache_directory
 from hordelib.config_path import get_hordelib_path
+from hordelib.consts import REMOTE_PROXY
 from hordelib.model_manager.hyper import BaseModelManager, ModelManager
 from hordelib.preload import (
     ANNOTATOR_MODEL_SHA_LOOKUP,
@@ -47,7 +48,7 @@ class SharedModelManager:
         args_passed = locals().copy()  # XXX This is temporary
         args_passed.pop("cls")  # XXX This is temporary
         logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
-        db_reference_files_lookup = download_live_legacy_dbs(override_existing=True)
+        db_reference_files_lookup = download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
         for model_db, file_path in db_reference_files_lookup.items():
             hordelib_model_db_path = get_model_reference_filename(
                 model_db,
