@@ -545,7 +545,7 @@ class BaseModelManager(ABC):
         with open(file_name, "rb") as file_to_check:
             file_hash = hashlib.md5()
             while True:
-                chunk = file_to_check.read(8192)  # Changed just because it broke pylint
+                chunk = file_to_check.read(2**20)  # Changed just because it broke pylint
                 if not chunk:
                     break
                 file_hash.update(chunk)
@@ -582,7 +582,7 @@ class BaseModelManager(ABC):
         with open(file_name, "rb") as file_to_check:
             file_hash = hashlib.sha256()
             while True:
-                chunk = file_to_check.read(8192)
+                chunk = file_to_check.read(2**20)
                 if not chunk:
                     break
                 file_hash.update(chunk)
@@ -678,7 +678,7 @@ class BaseModelManager(ABC):
                 total=int(response.headers.get("content-length", 0)),
                 disable=UserSettings.disable_download_progress.active,
             ) as pbar:
-                for chunk in response.iter_content(chunk_size=16 * 1024):
+                for chunk in response.iter_content(chunk_size=1024 * 1024 * 10):
                     response.raise_for_status()
                     if chunk:
                         f.write(chunk)
