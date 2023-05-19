@@ -1,6 +1,6 @@
 # Add this in for tox, comment out for build
 --extra-index-url https://download.pytorch.org/whl/cu118
-horde_model_reference=>0.0.11
+horde_model_reference>=0.0.11
 pydantic
 torch>=2.0.0
 xformers>=0.0.19
