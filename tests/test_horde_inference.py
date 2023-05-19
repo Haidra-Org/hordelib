@@ -68,6 +68,7 @@ class TestHordeInference:
             "clip_skip.stop_at_clip_layer": -1,
             "model_loader.model_manager": SharedModelManager,
             "return_control_map": False,
+            "loras": [],
         }
         assert self.horde is not None
         result = self.horde._parameter_remap_basic_inference(data)
@@ -110,6 +111,7 @@ class TestHordeInference:
             "clip_skip.stop_at_clip_layer": -1,
             "model_loader.model_manager": SharedModelManager,
             "return_control_map": False,
+            "loras": [],
         }
         assert self.horde is not None
         result = self.horde._parameter_remap_basic_inference(data)

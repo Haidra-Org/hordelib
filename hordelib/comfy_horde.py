@@ -21,6 +21,7 @@ from loguru import logger
 from hordelib.settings import UserSettings
 from hordelib.utils.ioredirect import OutputCollector
 from hordelib.config_path import get_hordelib_path
+from hordelib.cache import get_cache_directory
 
 # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
 # that they should never call through this module into comfy directly. All calls into
@@ -248,10 +249,18 @@ class Comfy_Horde:
         self._client_id = {}
         self._images = {}
         self.pipelines = {}
+        self._model_locks = []
+        self._model_lock_mutex = threading.Lock()
         self._exit_time = 0
         self._callers = 0
         self._gc_timer = time.time()
         self._counter_mutex = threading.Lock()
+        # FIXME Temporary hack to set the model dir for LORAs
+        _comfy_folder_paths["loras"] = (
+            [os.path.join(get_cache_directory(), "loras")],
+            [".safetensors"],
+        )
+        logger.warning(_comfy_folder_paths["loras"])
         # Set custom node path
         _comfy_folder_paths["custom_nodes"] = ([os.path.join(get_hordelib_path(), "nodes")], [])
         # Load our pipelines
@@ -262,6 +271,33 @@ class Comfy_Horde:
             # Load our custom nodes
             self._load_custom_nodes()
         stdio.replay()
+
+    def lock_models(self, model_names):
+        """Lock the given model, or list of models.
+
+        Return True if the models could be locked, False indicates they are in use already
+        """
+        already_locked = False
+        with self._model_lock_mutex:
+            if isinstance(model_names, str):
+                model_names = [model_names]
+            for model in model_names:
+                if model in self._model_locks:
+                    already_locked = True
+                    break
+            if not already_locked:
+                self._model_locks.extend(model_names)
+
+        return not already_locked
+
+    def unlock_models(self, model_names):
+        """The reverse of _lock_models(). Although this can never fail so returns nothing."""
+        with self._model_lock_mutex:
+            if isinstance(model_names, str):
+                model_names = [model_names]
+            for model in model_names:
+                if model in self._model_locks:
+                    self._model_locks.remove(model)
 
     def _this_dir(self, filename: str, subdir="") -> str:
         target_dir = os.path.dirname(os.path.realpath(__file__))
@@ -507,6 +543,54 @@ class Comfy_Horde:
                     params["control_type"],
                 )
 
+        # XXX Also shouldn't be here, but I'm noticing the pattern of dynamic pipeline
+        # XXX modification now. Here we dynamically build a lora pipeline
+
+        if params.get("loras"):
+
+            for lora_index, lora in enumerate(params.get("loras")):
+
+                # Inject a lora node (first lora)
+                if lora_index == 0:
+                    pipeline[f"lora_{lora_index}"] = {
+                        "inputs": {
+                            "model": ["model_loader", 0],
+                            "clip": ["model_loader", 1],
+                            "lora_name": f"{lora['name']}.safetensors",
+                            "strength_model": lora["model"],
+                            "strength_clip": lora["clip"],
+                        },
+                        "class_type": "LoraLoader",
+                    }
+                else:
+                    # Subsequent chained loras
+                    pipeline[f"lora_{lora_index}"] = {
+                        "inputs": {
+                            "model": [f"lora_{lora_index-1}", 0],
+                            "clip": [f"lora_{lora_index-1}", 1],
+                            "lora_name": f"{lora['name']}.safetensors",
+                            "strength_model": lora["model"],
+                            "strength_clip": lora["clip"],
+                        },
+                        "class_type": "LoraLoader",
+                    }
+
+            for lora_index, lora in enumerate(params.get("loras")):
+
+                # The first LORA always connects to the model loader
+                if lora_index == 0:
+                    self.reconnect_input(pipeline, "lora_0.model", "model_loader")
+                    self.reconnect_input(pipeline, "lora_0.clip", "model_loader")
+                else:
+                    # Other loras connect to the previous lora
+                    self.reconnect_input(pipeline, f"lora_{lora_index}.model", f"lora_{lora_index-1}.model")
+                    self.reconnect_input(pipeline, f"lora_{lora_index}.clip", f"lora_{lora_index-1}.clip")
+
+                # The last LORA always connects to the sampler and clip text encoders
+                if lora_index == len(params.get("loras")) - 1:
+                    self.reconnect_input(pipeline, "sampler.model", f"lora_{lora_index}")
+                    self.reconnect_input(pipeline, "clip_skip.clip", f"lora_{lora_index}")
+
         # Enforce our parameter bounds
         self._assert_parameter_bounds(params)
 
@@ -530,7 +614,7 @@ class Comfy_Horde:
             # validate_prompt from comfy returns [bool, str, list]
             # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
             self.client_id = str(uuid.uuid4())
-            valid = _comfy_validate_prompt(pipeline)
+            valid = _comfy_validate_prompt(pipeline, True)
             inference.execute(pipeline, self.client_id, {"client_id": self.client_id}, valid[2])
 
         stdio.replay()

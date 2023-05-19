@@ -49,7 +49,7 @@ index c809d39..9c9f6b8 100644
 +    # logger.warning(f"Done DPM-Solver++(2M) on model {id(model):x}")
      return x
 diff --git a/comfy/model_management.py b/comfy/model_management.py
-index c153232..d802394 100644
+index c153232..92d1d14 100644
 --- a/comfy/model_management.py
 +++ b/comfy/model_management.py
 @@ -1,6 +1,9 @@
@@ -109,7 +109,7 @@ index c153232..d802394 100644
  
  def get_torch_device():
      global xpu_available
-@@ -154,97 +151,185 @@ except:
+@@ -154,97 +151,177 @@ except:
      print("Could not pick default device.")
  
  
@@ -282,7 +282,6 @@ index c153232..d802394 100644
 +        global vram_state
 +        
 +        with self._load_mutex:
-+            #logger.warning(f"load_model_gpu( {id(model):x} )")
 +
 +            # Don't run out of vram
 +            if self.current_loaded_models:
@@ -297,18 +296,15 @@ index c153232..d802394 100644
 +            if model in self.current_loaded_models:
 +                # Move this model to the top of the list
 +                self.current_loaded_models.insert(0, self.current_loaded_models.pop(self.current_loaded_models.index(model)))
-+                #logger.warning(f"Model {id(model):x} already on GPU so not loading")
 +                return model
 +            
 +            try:
-+                #logger.warning(f"Patching model {id(model):x}")
 +                real_model = model.patch_model()
 +            except Exception as e:
 +                logger.error("Patching failed")
 +                model.unpatch_model()
 +                raise e
 +            
-+            #logger.warning(f"Adding model to current_loaded_models {id(model):x}")
 +            self.current_loaded_models.insert(0, model)
 +            model.model_patches_to(get_torch_device())
 +
@@ -319,11 +315,8 @@ index c153232..d802394 100644
 +                real_model.to(mps_device)
 +            elif vram_state == VRAMState.NORMAL_VRAM or vram_state == VRAMState.HIGH_VRAM:
 +                if model in self.models_accelerated:
-+                    #logger.warning(f"removing model from accelerated list {id(model):x}")
 +                    self.models_accelerated.remove(model)
-+                #logger.warning(f"Moving model {id(model):x} / {id(real_model):x} to device {get_torch_device()}")
 +                real_model.to(get_torch_device())
-+                #logger.warning(f"Done moving model {id(model):x} / {id(real_model):x} to device {get_torch_device()}")
 +            else:
 +                if vram_state == VRAMState.NO_VRAM:
 +                    device_map = accelerate.infer_auto_device_map(real_model, max_memory={0: "256MiB", "cpu": "16GiB"})
@@ -351,7 +344,6 @@ index c153232..d802394 100644
 +            device = get_torch_device()
 +            for m in models:
 +                if m not in self.current_gpu_controlnets:
-+                    #logger.warning(f"Loaded controlnet {id(m):x} to GPU")
 +                    self.current_gpu_controlnets.append(m.to(device))
 +
 +    def unload_controlnet_gpu(self, control_models):
@@ -384,7 +376,7 @@ index c153232..d802394 100644
  
  
  def load_if_low_vram(model):
-@@ -326,6 +411,8 @@ def get_free_memory(dev=None, torch_free_too=False):
+@@ -326,6 +403,8 @@ def get_free_memory(dev=None, torch_free_too=False):
          return mem_free_total
  
  def maximum_batch_area():
@@ -394,7 +386,7 @@ index c153232..d802394 100644
      if vram_state == VRAMState.NO_VRAM:
          return 0
 diff --git a/comfy/sample.py b/comfy/sample.py
-index 284efca..76166d6 100644
+index 284efca..dd20c1c 100644
 --- a/comfy/sample.py
 +++ b/comfy/sample.py
 @@ -57,7 +57,7 @@ def load_additional_models(positive, negative):
@@ -415,7 +407,7 @@ index 284efca..76166d6 100644
      real_model = model.model
  
      noise = noise.to(device)
-@@ -82,11 +82,19 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
+@@ -82,11 +82,20 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
      negative_copy = broadcast_cond(negative, noise.shape[0], device)
  
      models = load_additional_models(positive, negative)
@@ -430,8 +422,9 @@ index 284efca..76166d6 100644
  
 +    if models:
 +        comfy.model_management.model_manager.unload_controlnet_gpu(models)
-+        comfy.model_management.model_manager.unload_model(model)
 +        comfy.model_management.model_manager.sampler_mutex.release()
++
++    model.unpatch_model()
 +
      cleanup_additional_models(models)
      return samples
@@ -472,7 +465,7 @@ index aa44fa8..c652399 100644
          cond, uncond = calc_cond_uncond_batch(model_function, cond, uncond, x, timestep, max_total_area, cond_concat, model_options)
          if "sampler_cfg_function" in model_options:
 diff --git a/comfy/sd.py b/comfy/sd.py
-index c6be900..5c4a4e0 100644
+index c6be900..5774786 100644
 --- a/comfy/sd.py
 +++ b/comfy/sd.py
 @@ -1,6 +1,7 @@
@@ -492,15 +485,7 @@ index c6be900..5c4a4e0 100644
  from . import gligen
  
  def load_model_weights(model, sd, verbose=False, load_state_dict_to=[]):
-@@ -342,6 +345,7 @@ class ModelPatcher:
-     def patch_model(self):
-         model_sd = self.model.state_dict()
-         for p in self.patches:
-+            #logger.warning(f"Patching model {id(self):x} {len(self.patches)} patches")
-             for k in p[1]:
-                 v = p[1][k]
-                 key = k
-@@ -528,58 +532,78 @@ class VAE:
+@@ -528,58 +531,78 @@ class VAE:
          return output
  
      def decode(self, samples_in):
@@ -625,10 +610,11 @@ index c6be900..5c4a4e0 100644
  
  def broadcast_image_to(tensor, target_batch_size, batched_number):
      current_batch_size = tensor.shape[0]
-@@ -686,8 +710,15 @@ class ControlNet:
+@@ -686,8 +709,16 @@ class ControlNet:
          out.append(self.control_model)
          return out
  
++# Cache the controlnet diff models, about 4GB RAM
 +_controlnet_models = {}
 +
  def load_controlnet(ckpt_path, model=None):
@@ -642,14 +628,6 @@ index c6be900..5c4a4e0 100644
      pth_key = 'control_model.input_blocks.1.1.transformer_blocks.0.attn2.to_k.weight'
      pth = False
      sd2 = False
-@@ -747,6 +778,7 @@ def load_controlnet(ckpt_path, model=None):
-             if model is not None:
-                 m = model.patch_model()
-                 model_sd = m.state_dict()
-+                #logger.warning(f"Modifying model {id(model):x} with controlnet {id(controlnet_data):x}")
-                 for x in controlnet_data:
-                     c_m = "control_model."
-                     if x.startswith(c_m):
 diff --git a/comfy_extras/nodes_upscale_model.py b/comfy_extras/nodes_upscale_model.py
 index f9252ea..ee35ffb 100644
 --- a/comfy_extras/nodes_upscale_model.py
@@ -703,7 +681,7 @@ index f9252ea..ee35ffb 100644
  NODE_CLASS_MAPPINGS = {
      "UpscaleModelLoader": UpscaleModelLoader,
 diff --git a/execution.py b/execution.py
-index dd88029..c2306f5 100644
+index dd88029..85d83ce 100644
 --- a/execution.py
 +++ b/execution.py
 @@ -8,6 +8,7 @@ import traceback
@@ -748,6 +726,15 @@ index dd88029..c2306f5 100644
          gc.collect()
          comfy.model_management.soft_empty_cache()
  
+@@ -341,7 +343,7 @@ def validate_inputs(prompt, item, validated):
+     validated[unique_id] = ret
+     return ret
+ 
+-def validate_prompt(prompt):
++def validate_prompt(prompt, horde=False):
+     outputs = set()
+     for x in prompt:
+         class_ = nodes.NODE_CLASS_MAPPINGS[prompt[x]['class_type']]
 @@ -349,6 +351,7 @@ def validate_prompt(prompt):
              outputs.add(x)
  
@@ -765,12 +752,13 @@ index dd88029..c2306f5 100644
              print("output will be ignored")
              errors += [(o, reason)]
  
-@@ -377,6 +380,8 @@ def validate_prompt(prompt):
+@@ -377,6 +380,9 @@ def validate_prompt(prompt):
          errors_list = "\n".join(set(map(lambda a: "{}".format(a[1]), errors)))
          return (False, "Prompt has no properly connected outputs\n {}".format(errors_list))
  
-+    # with open("../comfy-prompt.json", "wt", encoding="utf-8") as f:
-+    #     f.write(json.dumps(prompt, indent=4))
++    if not horde:
++        with open("../comfy-prompt.json", "wt", encoding="utf-8") as f:
++            f.write(json.dumps(prompt, indent=4))
      return (True, "", list(good_outputs))
  
  
