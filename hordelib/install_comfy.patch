@@ -681,7 +681,7 @@ index f9252ea..ee35ffb 100644
  NODE_CLASS_MAPPINGS = {
      "UpscaleModelLoader": UpscaleModelLoader,
 diff --git a/execution.py b/execution.py
-index dd88029..c2306f5 100644
+index dd88029..85d83ce 100644
 --- a/execution.py
 +++ b/execution.py
 @@ -8,6 +8,7 @@ import traceback
@@ -726,6 +726,15 @@ index dd88029..c2306f5 100644
          gc.collect()
          comfy.model_management.soft_empty_cache()
  
+@@ -341,7 +343,7 @@ def validate_inputs(prompt, item, validated):
+     validated[unique_id] = ret
+     return ret
+ 
+-def validate_prompt(prompt):
++def validate_prompt(prompt, horde=False):
+     outputs = set()
+     for x in prompt:
+         class_ = nodes.NODE_CLASS_MAPPINGS[prompt[x]['class_type']]
 @@ -349,6 +351,7 @@ def validate_prompt(prompt):
              outputs.add(x)
  
@@ -743,12 +752,13 @@ index dd88029..c2306f5 100644
              print("output will be ignored")
              errors += [(o, reason)]
  
-@@ -377,6 +380,8 @@ def validate_prompt(prompt):
+@@ -377,6 +380,9 @@ def validate_prompt(prompt):
          errors_list = "\n".join(set(map(lambda a: "{}".format(a[1]), errors)))
          return (False, "Prompt has no properly connected outputs\n {}".format(errors_list))
  
-+    # with open("../comfy-prompt.json", "wt", encoding="utf-8") as f:
-+    #     f.write(json.dumps(prompt, indent=4))
++    if not horde:
++        with open("../comfy-prompt.json", "wt", encoding="utf-8") as f:
++            f.write(json.dumps(prompt, indent=4))
      return (True, "", list(good_outputs))
  
  
