@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v1.1.0](https://github.com/Haidra-Org/hordelib/compare/v1.0.5...v1.1.0)
+
+19 May 2023
+
+- fix: correctly output pipeline json during development [`#284`](https://github.com/Haidra-Org/hordelib/pull/284) (Jug)
+- fix: auto fix bad cfg values [`#282`](https://github.com/Haidra-Org/hordelib/pull/282) (Jug)
+- feat: add lora support and reduce cnet memory requirements by 50% [`#270`](https://github.com/Haidra-Org/hordelib/pull/270) (Jug)
+
 ## [v1.0.5](https://github.com/Haidra-Org/hordelib/compare/v1.0.4...v1.0.5)
 
 19 May 2023
