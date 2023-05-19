@@ -60,8 +60,8 @@ class ModelManager:
 
     def get_available_models(
         self,
-        mm_include: list[str | BaseModelManager] = None,
-        mm_exclude: list[str, BaseModelManager] = None,
+        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
+        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
     ) -> list[str]:
         """All models for which information exists, and for which a download attempt could be made."""
         all_available_models: list[str] = []
@@ -79,8 +79,8 @@ class ModelManager:
 
     def get_loaded_models(
         self,
-        mm_include: list[str | BaseModelManager] = None,
-        mm_exclude: list[str, BaseModelManager] = None,
+        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
+        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
     ) -> dict[str, dict]:
         """All models for which have successfully loaded across all `BaseModelManager` types."""
         all_loaded_models: dict[str, dict] = {}
@@ -289,8 +289,8 @@ class ModelManager:
 
     def get_loaded_models_names(
         self,
-        mm_include: list[str] | None = None,
-        mm_exclude: list[str] | None = None,
+        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
     ) -> list:
         """
         Returns:
@@ -302,7 +302,11 @@ class ModelManager:
     def is_model_loaded(self, model_name) -> bool:
         return model_name in self.loaded_models
 
-    def get_available_models_by_types(self, mm_include: list[str] | None = None, mm_exclude: list[str] | None = None):
+    def get_available_models_by_types(
+        self,
+        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+    ):
         return self.get_available_models(mm_include, mm_exclude)
 
     def count_available_models_by_types(
@@ -367,7 +371,7 @@ class ModelManager:
         logger.error(f"{model_name} not found")
         return None
 
-    def get_mm_pointers(self, mm_types: list[str | MODEL_CATEGORY_NAMES | BaseModelManager] | None = None):
+    def get_mm_pointers(self, mm_types: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None):
         if not mm_types:
             return set()
 
