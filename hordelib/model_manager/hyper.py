@@ -58,7 +58,11 @@ class ModelManager:
             _models.update(model_manager.model_reference)
         return _models
 
-    def get_available_models(self, mm_include=None, mm_exclude=None) -> list[str]:
+    def get_available_models(
+        self,
+        mm_include: list[str | BaseModelManager] = None,
+        mm_exclude: list[str, BaseModelManager] = None,
+    ) -> list[str]:
         """All models for which information exists, and for which a download attempt could be made."""
         all_available_models: list[str] = []
         mm_include = self.get_mm_pointers(mm_include)
@@ -73,7 +77,11 @@ class ModelManager:
 
     available_models = property(get_available_models)
 
-    def get_loaded_models(self, mm_include=None, mm_exclude=None) -> dict[str, dict]:
+    def get_loaded_models(
+        self,
+        mm_include: list[str | BaseModelManager] = None,
+        mm_exclude: list[str, BaseModelManager] = None,
+    ) -> dict[str, dict]:
         """All models for which have successfully loaded across all `BaseModelManager` types."""
         all_loaded_models: dict[str, dict] = {}
         mm_include = self.get_mm_pointers(mm_include)
@@ -228,9 +236,6 @@ class ModelManager:
             model_manager: BaseModelManager = getattr(self, model_manager_type)
             if model_manager is None:
                 continue
-            if model_manager_type == "aitemplate":
-                continue
-                # XXX the special handling here predates me (@tazlin), unknown if needed
             if model_name in model_manager.model_reference:
                 return model_manager.validate_model(model_name, skip_checksum)
         return None
@@ -298,8 +303,6 @@ class ModelManager:
         return model_name in self.loaded_models
 
     def get_available_models_by_types(self, mm_include: list[str] | None = None, mm_exclude: list[str] | None = None):
-        if not mm_include and not mm_exclude:
-            mm_include = ["ckpt"]
         return self.get_available_models(mm_include, mm_exclude)
 
     def count_available_models_by_types(
@@ -364,26 +367,22 @@ class ModelManager:
         logger.error(f"{model_name} not found")
         return None
 
-    def get_mm_pointers(self, mm_types: list[str] | None = None):
-        mm_pointers = set()
+    def get_mm_pointers(self, mm_types: list[str | MODEL_CATEGORY_NAMES | BaseModelManager] | None = None):
         if not mm_types:
-            return mm_pointers
-        # If any value in the list is not a string, we assume it's a mm pointer already but we verify
-        if any(type(mm_type) != str for mm_type in mm_types):
-            for mm_type in mm_types:
-                for active_mm in self.active_model_managers:
-                    if active_mm == mm_type:
-                        mm_pointers.add(active_mm)
-                        break
+            return set()
+
+        active_model_managers_types = [type(model_manager) for model_manager in self.active_model_managers]
+
+        resolved_types = []
         for mm_type in mm_types:
-            if type(mm_type) != str:
+            if mm_type in active_model_managers_types:
+                resolved_types.append(mm_type)
                 continue
-            try:
-                mm_type = MODEL_MANAGERS_TYPE_LOOKUP[MODEL_CATEGORY_NAMES(mm_type)]
-            except Exception as err:
-                logger.warning(f"Exception when looking up model manager '{mm_type}': {err}")
-            for active_mm in self.active_model_managers:
-                if type(active_mm) == mm_type:
-                    mm_pointers.add(active_mm)
-                    break
-        return mm_pointers
+
+            if mm_type in MODEL_MANAGERS_TYPE_LOOKUP:
+                if MODEL_MANAGERS_TYPE_LOOKUP[mm_type] not in active_model_managers_types:
+                    logger.warning(f"Attempted to reference a model manager which isn't loaded: '{mm_type}'.")
+                else:
+                    resolved_types.append(MODEL_MANAGERS_TYPE_LOOKUP[mm_type])
+
+        return {mm for mm in self.active_model_managers if type(mm) in resolved_types}
