@@ -1,5 +1,9 @@
 ## hordelib Changelog
 
+## [v1.1.2](https://github.com/Haidra-Org/hordelib/compare/v1.1.1...v1.1.2)
+
+19 May 2023
+
 ## [v1.1.1](https://github.com/Haidra-Org/hordelib/compare/v1.1.0...v1.1.1)
 
 19 May 2023
