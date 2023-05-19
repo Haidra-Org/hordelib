@@ -29,9 +29,6 @@ class HordeDiffControlNetLoader:
             logger.error("controlnet model_manager appears to be missing!")
             raise RuntimeError  # XXX better guarantees need to be made
 
-        model = model.clone()
-        model.model = copy.deepcopy(model.model)
-
         merged_model = model_manager.manager.controlnet.merge_controlnet(
             control_net_name,
             model,
