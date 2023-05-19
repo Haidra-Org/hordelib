@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v1.1.1](https://github.com/Haidra-Org/hordelib/compare/v1.1.0...v1.1.1)
+
+19 May 2023
+
+- fix: minimum version of horde_model_reference [`27c003b`](https://github.com/Haidra-Org/hordelib/commit/27c003b6ba2635b074a6319092a33e787c4026e7)  (tazlin)
+- fix: typo in minimum requirement [`b54fc18`](https://github.com/Haidra-Org/hordelib/commit/b54fc180cb19293a22c0485e1fc9e9b6bd6458d4)  (tazlin)
+
 ## [v1.1.0](https://github.com/Haidra-Org/hordelib/compare/v1.0.5...v1.1.0)
 
 19 May 2023
