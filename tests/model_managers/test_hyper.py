@@ -2,7 +2,13 @@
 import pytest
 from PIL import Image
 
+import hordelib
+
+hordelib.initialise()
+
 from hordelib.horde import HordeLib
+from hordelib.model_manager.compvis import CompVisModelManager
+from hordelib.model_manager.esrgan import EsrganModelManager
 from hordelib.shared_model_manager import SharedModelManager
 
 
@@ -82,5 +88,12 @@ class TestHyperMM:
         # Any value other than a string or a mm pointer is ignored
         assert SharedModelManager.manager.get_mm_pointers([None]) == set()
         assert SharedModelManager.manager.get_mm_pointers(
-            [None, SharedModelManager.manager.compvis, "FAKE", "esrgan", "compvis"],
+            [None, "FAKE", "esrgan", "compvis"],
+        ) == {SharedModelManager.manager.compvis, SharedModelManager.manager.esrgan}
+
+        assert SharedModelManager.manager.get_mm_pointers(
+            [EsrganModelManager, CompVisModelManager],
+        ) == {SharedModelManager.manager.compvis, SharedModelManager.manager.esrgan}
+        assert SharedModelManager.manager.get_mm_pointers(
+            [None, "FAKE", EsrganModelManager, CompVisModelManager],
         ) == {SharedModelManager.manager.compvis, SharedModelManager.manager.esrgan}

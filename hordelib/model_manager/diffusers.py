@@ -9,6 +9,8 @@ from hordelib.model_manager.base import BaseModelManager
 
 class DiffusersModelManager(BaseModelManager):
     def __init__(self, download_reference=False):
+        raise NotImplementedError("Diffusers are not yet supported")
+
         super().__init__(
             models_db_name=MODEL_DB_NAMES[MODEL_CATEGORY_NAMES.diffusers],
             download_reference=download_reference,
@@ -20,6 +22,4 @@ class DiffusersModelManager(BaseModelManager):
         model_name: str,
         **kwargs,
     ) -> dict[str, typing.Any]:
-        return horde_load_checkpoint(
-            ckpt_path=self.getFullModelPath(model_name),
-        )
+        raise NotImplementedError("Diffusers are not yet supported")

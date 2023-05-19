@@ -19,6 +19,39 @@ from hordelib.preload import (
 )
 
 
+def do_migrations():
+    """This function should handle any moving of folders or other restructuring from previous versions."""
+
+    diffusers_dir = Path(get_cache_directory()).joinpath("diffusers")
+    sd_inpainting_v1_5_ckpt = diffusers_dir.joinpath("sd-v1-5-inpainting.ckpt").resolve()
+    sd_inpainting_v1_5_sha256 = diffusers_dir.joinpath("sd-v1-5-inpainting.sha256").resolve()
+    if diffusers_dir.exists() and sd_inpainting_v1_5_ckpt.exists():
+        logger.init_warn(
+            "stable_diffusion_inpainting found in diffusers folder and is being moved to compvis",
+            status="Warning",
+        )
+
+        target_ckpt_path = Path(get_cache_directory()).joinpath("compvis").joinpath("sd-v1-5-inpainting.ckpt")
+        target_sha_path = Path(get_cache_directory()).joinpath("compvis").joinpath("sd-v1-5-inpainting.sha256")
+
+        try:
+            sd_inpainting_v1_5_ckpt.rename(target_ckpt_path)
+            if sd_inpainting_v1_5_sha256.exists():
+                sd_inpainting_v1_5_sha256.rename(target_sha_path)
+        except OSError as e:
+            logger.init_err(
+                f"Failed to move {sd_inpainting_v1_5_ckpt} to {target_ckpt_path}. {e}",
+                status="Error",
+            )
+            logger.init_err("Please move this file manually and try again.", status="Error")
+            return
+
+        logger.init_warn(
+            "stable_diffusion_inpainting successfully moved to compvis. The diffusers directory can now be deleted.",
+            status="Warning",
+        )
+
+
 class SharedModelManager:
     _instance = None
     manager: ModelManager | None = None
@@ -37,7 +70,7 @@ class SharedModelManager:
         codeformer: bool = False,
         compvis: bool = False,
         controlnet: bool = False,
-        diffusers: bool = False,
+        # diffusers: bool = False,
         esrgan: bool = False,
         gfpgan: bool = False,
         safety_checker: bool = False,
@@ -55,7 +88,7 @@ class SharedModelManager:
                 base_path=Path(get_hordelib_path()).joinpath("model_database"),
             )
             try:
-                logger.debug(f"Unlinking {hordelib_model_db_path} if it exists.")
+                logger.debug(f"Downloading {hordelib_model_db_path.name}...")
                 hordelib_model_db_path.unlink(missing_ok=True)
                 with open(hordelib_model_db_path, "wb") as f:
                     f.write(file_path.read_bytes())
@@ -73,6 +106,7 @@ class SharedModelManager:
                         status="Error",
                     )
                 raise e
+        do_migrations()
         cls.manager.init_model_managers(**args_passed)
 
     @staticmethod

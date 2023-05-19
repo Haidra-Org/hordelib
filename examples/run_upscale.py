@@ -22,7 +22,7 @@ def main():
         "codeformer": True,
         "compvis": True,
         "controlnet": True,
-        "diffusers": True,
+        # "diffusers": True,
         "esrgan": True,
         "gfpgan": True,
         "safety_checker": True,
