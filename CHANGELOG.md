@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v1.0.5](https://github.com/Haidra-Org/hordelib/compare/v1.0.4...v1.0.5)
+
+19 May 2023
+
+- refactor: get_mm_pointers accommodates `type` as well [`1007d69`](https://github.com/Haidra-Org/hordelib/commit/1007d69c5f70bebc2f47f1b1fb41bb24e3282fc5)  (tazlin)
+- fix: unsupport 'diffusers' [`0c9592d`](https://github.com/Haidra-Org/hordelib/commit/0c9592d6579fe3fb1463ed0e2bbba79736d09462)  (tazlin)
+- feat: move stable_diffusion_inpainting if in diffusers directory [`d8ddb01`](https://github.com/Haidra-Org/hordelib/commit/d8ddb01b2ac4f3038098b0e08924aaee0c0b055b)  (tazlin)
+
 ## [v1.0.4](https://github.com/Haidra-Org/hordelib/compare/v1.0.3...v1.0.4)
 
 18 May 2023
