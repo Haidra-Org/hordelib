@@ -73,7 +73,8 @@ def main():
             "a dog in a field with a burning bird flying over a blue river with green fish swimming under the surface "
             "all part of an oil painting in the style of Picasso hanging on the wall in an abandoned museum "
             "with old wooden floor boards and a broken window in the background. Outside the window the sun "
-            "is setting and off in the distance can be seen a dog in a field with a burning bird flying over a blue river"
+            "is setting and off in the distance can be seen a dog in a field with a burning bird flying over "
+            "a blue river"
         ),
         "ddim_steps": 50,
         "n_iter": 1,
@@ -87,7 +88,6 @@ def main():
 
     # Do this a few times to be sure
     for _ in range(3):
-
         # let us enable comfyui's default behaviour of batch optimisations
         UserSettings.enable_batch_optimisations.activate()
         start_clock(f"{i}a. Inference with default comfyui")
@@ -104,7 +104,6 @@ def main():
 
     # Try the same thing with a really long prompt
     for _ in range(3):
-
         # let us enable comfyui's default behaviour of batch optimisations
         UserSettings.enable_batch_optimisations.activate()
         start_clock(f"{i}a. Long Prompt Inference with default comfyui")

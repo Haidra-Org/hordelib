@@ -33,7 +33,7 @@ class MODEL_CATEGORY_NAMES(str, Enum):
     codeformer = "codeformer"
     compvis = "compvis"
     controlnet = "controlnet"
-    diffusers = "diffusers"
+    # diffusers = "diffusers"
     esrgan = "esrgan"
     gfpgan = "gfpgan"
     safety_checker = "safety_checker"
@@ -46,7 +46,7 @@ DEFAULT_MODEL_MANAGERS = {
     MODEL_CATEGORY_NAMES.codeformer: True,
     MODEL_CATEGORY_NAMES.compvis: True,
     MODEL_CATEGORY_NAMES.controlnet: True,
-    MODEL_CATEGORY_NAMES.diffusers: True,
+    # MODEL_CATEGORY_NAMES.diffusers: True,
     MODEL_CATEGORY_NAMES.esrgan: True,
     MODEL_CATEGORY_NAMES.gfpgan: True,
     MODEL_CATEGORY_NAMES.safety_checker: True,
@@ -59,7 +59,7 @@ MODEL_DB_NAMES = {
     MODEL_CATEGORY_NAMES.codeformer: MODEL_CATEGORY_NAMES.codeformer,
     MODEL_CATEGORY_NAMES.compvis: "stable_diffusion",
     MODEL_CATEGORY_NAMES.controlnet: MODEL_CATEGORY_NAMES.controlnet,
-    MODEL_CATEGORY_NAMES.diffusers: MODEL_CATEGORY_NAMES.diffusers,
+    # MODEL_CATEGORY_NAMES.diffusers: MODEL_CATEGORY_NAMES.diffusers,
     MODEL_CATEGORY_NAMES.esrgan: MODEL_CATEGORY_NAMES.esrgan,
     MODEL_CATEGORY_NAMES.gfpgan: MODEL_CATEGORY_NAMES.gfpgan,
     MODEL_CATEGORY_NAMES.safety_checker: MODEL_CATEGORY_NAMES.safety_checker,
@@ -72,7 +72,7 @@ MODEL_FOLDER_NAMES = {
     MODEL_CATEGORY_NAMES.codeformer: MODEL_CATEGORY_NAMES.codeformer,
     MODEL_CATEGORY_NAMES.compvis: "compvis",
     MODEL_CATEGORY_NAMES.controlnet: MODEL_CATEGORY_NAMES.controlnet,
-    MODEL_CATEGORY_NAMES.diffusers: MODEL_CATEGORY_NAMES.diffusers,
+    # MODEL_CATEGORY_NAMES.diffusers: MODEL_CATEGORY_NAMES.diffusers,
     MODEL_CATEGORY_NAMES.esrgan: MODEL_CATEGORY_NAMES.esrgan,
     MODEL_CATEGORY_NAMES.gfpgan: MODEL_CATEGORY_NAMES.gfpgan,
     MODEL_CATEGORY_NAMES.safety_checker: MODEL_CATEGORY_NAMES.safety_checker,

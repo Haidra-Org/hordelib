@@ -16,9 +16,9 @@ class TestHordeInference:
             # "blip": True,
             # "clip": True,
             # "codeformer": True,
-            # "compvis": True,
+            "compvis": True,
             # "controlnet": True,
-            "diffusers": True,
+            # "diffusers": True,
             # "esrgan": True,
             # "gfpgan": True,
             # "safety_checker": True,
@@ -33,7 +33,7 @@ class TestHordeInference:
     def test_inpainting_alpha_mask(self):
         SharedModelManager.manager.load("stable_diffusion_inpainting")
         assert (
-            SharedModelManager.manager.diffusers.is_model_loaded(
+            SharedModelManager.manager.compvis.is_model_loaded(
                 "stable_diffusion_inpainting",
             )
             is True
@@ -62,7 +62,7 @@ class TestHordeInference:
     def test_inpainting_separate_mask(self):
         SharedModelManager.manager.load("stable_diffusion_inpainting")
         assert (
-            SharedModelManager.manager.diffusers.is_model_loaded(
+            SharedModelManager.manager.compvis.is_model_loaded(
                 "stable_diffusion_inpainting",
             )
             is True
