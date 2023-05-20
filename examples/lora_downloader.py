@@ -152,7 +152,7 @@ class LoraDownloader:
             return
         # Fixup A1111 centric triggers
         for i, trigger in enumerate(lora["triggers"]):
-            if matched := re.match("<lora:(.*):.*>", trigger):
+            if re.match("<lora:(.*):.*>", trigger):
                 lora["triggers"][i] = re.sub("<lora:(.*):.*>", "\\1", trigger)
         return lora
 

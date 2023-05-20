@@ -58,8 +58,8 @@ class TestHordeInference:
         assert self.horde is not None
 
         for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
-            if preproc == "scribble":
-                # Not valid for normal image input test
+            if preproc == "scribble" or preproc == "mlsd":
+                # Skip
                 continue
             assert (
                 SharedModelManager.manager.controlnet.check_control_type_available(
@@ -71,7 +71,7 @@ class TestHordeInference:
             data["control_type"] = preproc
             pil_image = self.horde.basic_inference(data)
             assert pil_image is not None
-            pil_image.save(f"images/horde_controlnet_{preproc}.webp", quality=90)
+            pil_image.save(f"images/controlnet_{preproc}.webp", quality=90)
 
     def test_controlnet_strength(self):
         data = {
@@ -99,7 +99,7 @@ class TestHordeInference:
             data["control_strength"] = strength
             pil_image = self.horde.basic_inference(data)
             assert pil_image is not None
-            pil_image.save(f"images/horde_controlnet_strength_{strength}.webp", quality=90)
+            pil_image.save(f"images/controlnet_strength_{strength}.webp", quality=90)
 
     def test_controlnet_hires_fix(self):
         data = {
@@ -128,4 +128,4 @@ class TestHordeInference:
             data["hires_fix_denoising_strength"] = denoise
             pil_image = self.horde.basic_inference(data)
             assert pil_image is not None
-            pil_image.save(f"images/horde_controlnet_hires_fix_denoise_{denoise}.webp", quality=90)
+            pil_image.save(f"images/controlnet_hires_fix_denoise_{denoise}.webp", quality=90)

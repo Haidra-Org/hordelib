@@ -47,7 +47,7 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         assert width == self.width * 4
         assert height == self.height * 4
-        pil_image.save("images/horde_image_upscale_RealESRGAN_x4plus.webp", quality=90)
+        pil_image.save("images/image_upscale_RealESRGAN_x4plus.webp", quality=90)
 
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_RealESRGAN_x2plus(self):
@@ -62,7 +62,7 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         assert width == self.width * 2
         assert height == self.height * 2
-        pil_image.save("images/horde_image_upscale_RealESRGAN_x2plus.webp", quality=90)
+        pil_image.save("images/image_upscale_RealESRGAN_x2plus.webp", quality=90)
 
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_NMKD_Siax(self):
@@ -77,7 +77,7 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         assert width == self.width * 4
         assert height == self.height * 4
-        pil_image.save("images/horde_image_upscale_NMKD_Siax.webp", quality=90)
+        pil_image.save("images/image_upscale_NMKD_Siax.webp", quality=90)
 
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_NMKD_Siax_resize(self):
@@ -89,7 +89,7 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         assert width == 1280
         assert height == 1280
-        pil_image.save("images/horde_image_upscale_NMKD_Siax_resize.webp", quality=90)
+        pil_image.save("images/image_upscale_NMKD_Siax_resize.webp", quality=90)
 
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_RealESRGAN_x4plus_anime_6B(self):
@@ -110,7 +110,7 @@ class TestHordeUpscaling:
         assert width == self.width * 4
         assert height == self.height * 4
         pil_image.save(
-            "images/horde_image_upscale_RealESRGAN_x4plus_anime_6B.webp",
+            "images/image_upscale_RealESRGAN_x4plus_anime_6B.webp",
             quality=90,
         )
 
@@ -127,7 +127,7 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         assert width == self.width * 4
         assert height == self.height * 4
-        pil_image.save("images/horde_image_upscale_4x_AnimeSharp.webp", quality=90)
+        pil_image.save("images/image_upscale_4x_AnimeSharp.webp", quality=90)
 
     @pytest.mark.mm_model("codeformer")
     def test_image_facefix_codeformers(self):
@@ -140,7 +140,7 @@ class TestHordeUpscaling:
         pil_image = self.horde.image_facefix(data)
         assert pil_image is not None
         width, height = pil_image.size
-        pil_image.save("images/horde_image_facefix_codeformers.webp", quality=90)
+        pil_image.save("images/image_facefix_codeformers.webp", quality=90)
 
     @pytest.mark.mm_model("gfpgan")
     def test_image_facefix_gfpgan(self):
@@ -153,4 +153,4 @@ class TestHordeUpscaling:
         pil_image = self.horde.image_facefix(data)
         assert pil_image is not None
         width, height = pil_image.size
-        pil_image.save("images/horde_image_facefix_gfpgan.webp", quality=90)
+        pil_image.save("images/image_facefix_gfpgan.webp", quality=90)

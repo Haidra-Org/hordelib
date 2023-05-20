@@ -21,7 +21,7 @@ class TestInference:
         SharedModelManager.manager = None
 
     def test_unknown_pipeline(self):
-        result = self.comfy.run_pipeline("non-existent-pipeline", {})
+        result = self.comfy.run_image_pipeline("non-existent-pipeline", {})
         assert result is None
 
     def test_stable_diffusion_pipeline(self):
@@ -39,6 +39,7 @@ class TestInference:
             "negative_prompt.text": "cat, black and white, deformed",
             "model_loader.model_name": "Deliberate",
             "clip_skip.stop_at_clip_layer": -1,
+            "model_loader.model_manager": SharedModelManager,
         }
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
         assert images is not None
@@ -61,6 +62,7 @@ class TestInference:
             "negative_prompt.text": "cat, black and white, deformed",
             "model_loader.model_name": "Deliberate",
             "clip_skip.stop_at_clip_layer": -2,
+            "model_loader.model_manager": SharedModelManager,
         }
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
         assert images is not None
@@ -70,14 +72,14 @@ class TestInference:
 
     def test_stable_diffusion_hires_fix_pipeline(self):
         params = {
-            "sampler.seed": 1003,
+            "sampler.seed": 1014,
             "sampler.cfg": 7.5,
             "sampler.scheduler": "normal",
-            "sampler.sampler_name": "dpmpp_sde",
+            "sampler.sampler_name": "euler",
             "sampler.denoise": 1.0,
-            "sampler.steps": 20,
+            "sampler.steps": 30,
             "prompt.text": (
-                "photograph of medusa, reverence princesss, cinematic, realistic, "
+                "photograph of medusa, snakes in hair, reverence princesss, cinematic, realistic, "
                 "hyperrealistic, very realistic, extremely detailed, detailed, sharp focus, "
                 "establishing shot, 8k resolution, dramatic lighting, award winning "
                 "photograph, masterpiece, very detailed, sharp focus, very realistic lighting"
@@ -86,18 +88,19 @@ class TestInference:
                 "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes"
             ),
             "model_loader.model_name": "Deliberate",
-            "empty_latent_image.width": 256,
-            "empty_latent_image.height": 256,
-            "latent_upscale.width": 512,
-            "latent_upscale.height": 512,
+            "model_loader.model_manager": SharedModelManager,
+            "empty_latent_image.width": 512,
+            "empty_latent_image.height": 512,
+            "latent_upscale.width": 768,
+            "latent_upscale.height": 768,
             "latent_upscale.crop": "disabled",
             "latent_upscale.upscale_method": "nearest-exact",
             "upscale_sampler.seed": 450089106307460,
-            "upscale_sampler.steps": 20,
+            "upscale_sampler.steps": 30,
             "upscale_sampler.cfg": 8.0,
-            "upscale_sampler.sampler_name": "dpmpp_2m",
+            "upscale_sampler.sampler_name": "euler",
             "upscale_sampler.scheduler": "simple",
-            "upscale_sampler.denoise": 0.5,
+            "upscale_sampler.denoise": 0.65,
             "clip_skip.stop_at_clip_layer": -1,
         }
         images = self.comfy.run_image_pipeline("stable_diffusion_hires_fix", params)
@@ -106,38 +109,7 @@ class TestInference:
         image = Image.open(images[0]["imagedata"])
         image.save("images/pipeline_stable_diffusion_hires_fix.webp", quality=90)
 
-    def test_stable_diffusion_hires_fix_pipeline_clip_skip_2(self):
-        params = {
-            "sampler.seed": 1003,
-            "sampler.cfg": 7.5,
-            "sampler.scheduler": "normal",
-            "sampler.sampler_name": "dpmpp_sde",
-            "sampler.denoise": 1.0,
-            "sampler.steps": 20,
-            "prompt.text": (
-                "photograph of medusa, reverence princesss, cinematic, realistic, "
-                "hyperrealistic, very realistic, extremely detailed, detailed, sharp focus, "
-                "establishing shot, 8k resolution, dramatic lighting, award winning "
-                "photograph, masterpiece, very detailed, sharp focus, very realistic lighting"
-            ),
-            "negative_prompt.text": (
-                "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes"
-            ),
-            "model_loader.model_name": "Deliberate",
-            "empty_latent_image.width": 256,
-            "empty_latent_image.height": 256,
-            "latent_upscale.width": 512,
-            "latent_upscale.height": 512,
-            "latent_upscale.crop": "disabled",
-            "latent_upscale.upscale_method": "nearest-exact",
-            "upscale_sampler.seed": 450089106307460,
-            "upscale_sampler.steps": 20,
-            "upscale_sampler.cfg": 8.0,
-            "upscale_sampler.sampler_name": "dpmpp_2m",
-            "upscale_sampler.scheduler": "simple",
-            "upscale_sampler.denoise": 0.5,
-            "clip_skip.stop_at_clip_layer": -1,
-        }
+        params["clip_skip.stop_at_clip_layer"] = -2
         images = self.comfy.run_image_pipeline("stable_diffusion_hires_fix", params)
         assert images is not None
 
