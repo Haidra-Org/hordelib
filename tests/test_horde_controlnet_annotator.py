@@ -73,4 +73,4 @@ class TestHordeInference:
             data["control_type"] = preproc
             pil_image = self.horde.basic_inference(data)
             assert pil_image is not None
-            pil_image.save(f"images/horde_annotator_{preproc}.webp", quality=90)
+            pil_image.save(f"images/annotator_{preproc}.webp", quality=90)

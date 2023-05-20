@@ -47,10 +47,10 @@ class TestHordeSamplers:
         }
         assert self.horde is not None
         for sampler in HordeLib.SAMPLERS_MAP.keys():
-            data["sampler_name"] = sampler
+            data["sampler_name"] = sampler.upper()  # force uppercase to ensure case insensitive
             pil_image = self.horde.basic_inference(data)
             assert pil_image is not None
-            pil_image.save(f"images/horde_sampler_30_steps_{sampler}.webp", quality=90)
+            pil_image.save(f"images/sampler_30_steps_{sampler}.webp", quality=90)
 
     def test_slow_samplers(self):
         data = {
@@ -81,4 +81,4 @@ class TestHordeSamplers:
             data["sampler_name"] = sampler
             pil_image = self.horde.basic_inference(data)
             assert pil_image is not None
-            pil_image.save(f"images/horde_sampler_10_steps_{sampler}.webp", quality=90)
+            pil_image.save(f"images/sampler_10_steps_{sampler}.webp", quality=90)

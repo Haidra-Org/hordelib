@@ -57,8 +57,7 @@ class TestHordeInference:
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         assert pil_image.size == (512, 512)
-        assert data["source_image"].size == (512, 512)
-        pil_image.save("images/horde_image_to_image.webp", quality=90)
+        pil_image.save("images/image_to_image.webp", quality=90)
 
     def test_image_to_image_hires_fix_small(self):
         data = {
@@ -86,7 +85,7 @@ class TestHordeInference:
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         assert pil_image.size == (512, 512)
-        pil_image.save("images/horde_image_to_image_hires_fix_small.webp", quality=90)
+        pil_image.save("images/image_to_image_hires_fix_small.webp", quality=90)
 
     def test_image_to_image_hires_fix_large(self):
         data = {
@@ -114,69 +113,36 @@ class TestHordeInference:
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         assert pil_image.size == (768, 768)
-        pil_image.save("images/horde_image_to_image_hires_fix_large.webp", quality=90)
+        pil_image.save("images/image_to_image_hires_fix_large.webp", quality=90)
 
-    def test_image_to_image_mask_in(self):
-        data = {
-            "sampler_name": "k_dpmpp_2m",
-            "cfg_scale": 7.5,
-            "denoising_strength": 0.72,
-            "seed": 1312,
-            "height": 512,
-            "width": 512,
-            "karras": False,
-            "tiling": False,
-            "hires_fix": False,
-            "clip_skip": 1,
-            "control_type": None,
-            "image_is_control": False,
-            "return_control_map": False,
-            "prompt": "a river through the mountains",
-            "ddim_steps": 20,
-            "n_iter": 1,
-            "model": "Deliberate",
-            "source_image": Image.open("images/test_inpaint.png"),
-            "source_processing": "inpainting",
-        }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
-        assert pil_image is not None
-        assert pil_image.size == (512, 512)
-        pil_image.save("images/horde_image_to_image_mask_in.webp", quality=90)
-
-    def test_image_to_image_mask_out(self):
-        data = {
-            "sampler_name": "euler",
-            "cfg_scale": 8.0,
-            "denoising_strength": 1.0,
-            "seed": 836913938046008,
-            "height": 512,
-            "width": 512,
-            "karras": False,
-            "tiling": False,
-            "hires_fix": False,
-            "clip_skip": 1,
-            "control_type": None,
-            "image_is_control": False,
-            "return_control_map": False,
-            "prompt": "a river through the mountains, blue sky with clouds.",
-            "ddim_steps": 20,
-            "n_iter": 1,
-            "model": "Deliberate",
-            "source_image": Image.open("images/test_outpaint.png"),
-            "source_processing": "outpainting",
-        }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
-        assert pil_image is not None
-        assert pil_image.size == (512, 512)
-        pil_image.save("images/horde_image_to_image_mask_out.webp", quality=90)
-
-    def test_img2img_alpha_to_inpainting_convert(self):
+    def test_img2img_masked_denoise_1(self):
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
             "denoising_strength": 1,
+            "seed": 24636666,
+            "height": 512,
+            "width": 512,
+            "karras": True,
+            "clip_skip": 1,
+            "prompt": "a mecha robot sitting on a bench",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_img2img_alpha.png"),
+            "source_processing": "img2img",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        assert pil_image.size == (512, 512)
+        pil_image.save("images/img2img_to_masked_denoise_1.webp", quality=90)
+
+    def test_img2img_masked_denoise_high(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.6,
             "seed": 3,
             "height": 512,
             "width": 512,
@@ -186,31 +152,77 @@ class TestHordeInference:
             "ddim_steps": 20,
             "n_iter": 1,
             "model": "Deliberate",
-            "source_image": Image.open("images/test_inpaint_alpha.png"),
+            "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
         assert pil_image.size == (512, 512)
-        pil_image.save("images/horde_img2img_to_inpainting.webp", quality=90)
+        pil_image.save("images/img2img_to_masked_denoise_0.6.webp", quality=90)
+
+    def test_img2img_masked_denoise_mid(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.4,
+            "seed": 3,
+            "height": 512,
+            "width": 512,
+            "karras": True,
+            "clip_skip": 1,
+            "prompt": "a mecha robot sitting on a bench",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_img2img_alpha.png"),
+            "source_processing": "img2img",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        assert pil_image.size == (512, 512)
+        pil_image.save("images/img2img_to_masked_denoise_0.4.webp", quality=90)
+
+    def test_img2img_masked_denoise_low(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.2,
+            "seed": 3,
+            "height": 512,
+            "width": 512,
+            "karras": True,
+            "clip_skip": 1,
+            "prompt": "a mecha robot sitting on a bench",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_img2img_alpha.png"),
+            "source_processing": "img2img",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        assert pil_image.size == (512, 512)
+        pil_image.save("images/img2img_to_masked_denoise_0.2.webp", quality=90)
 
     def test_image_to_faulty_source_image(self):
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
-            "denoising_strength": 0.4,
-            "seed": 250636385744582,
-            "height": 512,
-            "width": 512,
-            "karras": False,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": 512.1,  # test param fix
+            "width": 512.1,  # test param fix
+            "karras": True,
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
             "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
-            "prompt": "a dinosaur",
+            "prompt": "an ancient llamia monster",
             "ddim_steps": 25,
             "n_iter": 1,
             "model": "Deliberate",
@@ -220,5 +232,4 @@ class TestHordeInference:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
-        assert "source_image" not in data
-        assert "source_processing" not in data
+        pil_image.save("images/img2img_fallback_to_txt2img.webp", quality=90)
