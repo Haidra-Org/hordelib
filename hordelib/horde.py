@@ -348,10 +348,13 @@ class HordeLib:
             del params["source_processing"]
         if source_proc == "img2img":
             # FIXME: Probably will have a different name from BASIC_INFERENCE_PARAMS
-            if params.get("source_mask"):
-                pipeline = "stable_diffusion_paint"
-            elif len(params.get("image_loader.image").split()) == 4:
-                pipeline = "stable_diffusion_paint"
+            has_mask = params.get("source_mask") or len(params.get("image_loader.image").split()) == 4
+            if has_mask:
+                denoising_strength = params.get("sampler.denoise")
+                if denoising_strength < 1:
+                    pipeline = "stable_diffusion_img2img_mask"
+                else:
+                    pipeline = "stable_diffusion_paint"
         elif source_proc == "inpainting":
             pipeline = "stable_diffusion_paint"
         elif source_proc == "outpainting":

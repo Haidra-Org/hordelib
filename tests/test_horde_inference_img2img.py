@@ -195,6 +195,29 @@ class TestHordeInference:
         assert pil_image.size == (512, 512)
         pil_image.save("images/horde_img2img_to_inpainting.webp", quality=90)
 
+    def test_img2img_alpha_to_inpainting_low_denoise(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.6,
+            "seed": 3,
+            "height": 512,
+            "width": 512,
+            "karras": True,
+            "clip_skip": 1,
+            "prompt": "a mecha robot sitting on a bench",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_inpaint_alpha.png"),
+            "source_processing": "img2img",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        assert pil_image.size == (512, 512)
+        pil_image.save("images/horde_img2img_to_inpainting_low_denoise.webp", quality=90)
+
     def test_image_to_faulty_source_image(self):
         data = {
             "sampler_name": "k_dpmpp_2m",

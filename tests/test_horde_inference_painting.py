@@ -41,7 +41,7 @@ class TestHordeInference:
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
-            "denoising_strength": 0.6,
+            "denoising_strength": 1,
             "seed": 3,
             "height": 512,
             "width": 512,
