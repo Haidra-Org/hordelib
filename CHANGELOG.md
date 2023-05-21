@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v1.2.0](https://github.com/Haidra-Org/hordelib/compare/v1.1.2...v1.2.0)
+
+21 May 2023
+
+- fix: unit tests use about 6GB VRAM max now. [`#293`](https://github.com/Haidra-Org/hordelib/pull/293) (Jug)
+- feat: refactor for clarity, tweak img2img and inpainting, tidy tests [`#290`](https://github.com/Haidra-Org/hordelib/pull/290) (Jug)
+- Add alt pipeline design for img2img with mask [`#279`](https://github.com/Haidra-Org/hordelib/pull/279) (Wolfgang Meyers)
+
 ## [v1.1.2](https://github.com/Haidra-Org/hordelib/compare/v1.1.1...v1.1.2)
 
 19 May 2023
