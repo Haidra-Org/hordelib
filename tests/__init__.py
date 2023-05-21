@@ -1,5 +1,6 @@
 import hordelib
 
-# Remove any command line args passed to pytest. ComfyUI hates
-# the pytest args being in argv, we we hack them out purely for testing.
 hordelib.initialise()
+from hordelib.settings import UserSettings
+
+UserSettings.set_vram_to_leave_free_mb("90%")

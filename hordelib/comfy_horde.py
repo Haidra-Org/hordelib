@@ -201,19 +201,6 @@ class Comfy_Horde:
         },
     }
 
-    # Enforce min/max bounds on some parameters
-    PARAMETER_BOUNDS = {
-        "sampler.cfg": (1, 100),
-        "sampler.denoise": (0.1, 1.0),
-        "empty_latent_image.height": (64, 8192),
-        "empty_latent_image.width": (64, 8192),
-        "sampler.steps": (1, 500),
-        "empty_latent_image.batch_size": (1, 500),
-        "clip_skip.stop_at_clip_layer": (-10, -1),
-        "latent_upscale.width": (64, 8192),
-        "latent_upscale.height": (64, 8192),
-    }
-
     # Approximate number of seconds to force garbage collection
     GC_TIME = 30
 
@@ -260,7 +247,6 @@ class Comfy_Horde:
             [os.path.join(get_cache_directory(), "loras")],
             [".safetensors"],
         )
-        logger.warning(_comfy_folder_paths["loras"])
         # Set custom node path
         _comfy_folder_paths["custom_nodes"] = ([os.path.join(get_hordelib_path(), "nodes")], [])
         # Load our pipelines
@@ -312,6 +298,12 @@ class Comfy_Horde:
         executor = _comfy_PromptExecutor(self)
         return executor
 
+    def get_pipeline_data(self, pipeline_name):
+        pipeline_data = copy.deepcopy(self.pipelines.get(pipeline_name, {}))
+        if pipeline_data:
+            logger.info(f"Running pipeline {pipeline_name}")
+        return pipeline_data
+
     def _fix_pipeline_types(self, data: dict) -> dict:
         # We have a list of nodes and each node has a class type, which we may want to change
         for nodename, node in data.items():
@@ -355,16 +347,6 @@ class Comfy_Horde:
                     if type(input) is list and input and input[0] in renames:
                         input[0] = renames[input[0]]
         return newnodes
-
-    def _assert_parameter_bounds(self, params):
-        for key, value in params.items():
-            if key in self.PARAMETER_BOUNDS:
-                pmin, pmax = self.PARAMETER_BOUNDS[key]
-                if value < pmin:
-                    value = pmin
-                elif value > pmax:
-                    value = pmax
-                params[key] = value
 
     # We are passed a valid comfy pipeline and a design file from the comfyui web app.
     # Why?
@@ -492,113 +474,17 @@ class Comfy_Horde:
 
     # Execute the named pipeline and pass the pipeline the parameter provided.
     # For the horde we assume the pipeline returns an array of images.
-    def run_pipeline(self, pipeline_name: str, params: dict) -> dict | None:
-        # Sanity
-        if pipeline_name not in self.pipelines:
-            logger.error(f"Unknown inference pipeline: {pipeline_name}")
-            return None
+    def _run_pipeline(self, pipeline: dict, params: dict) -> dict | None:
 
         # Update user settings
         _comfy_model_manager.set_user_reserved_vram(UserSettings.get_vram_to_leave_free_mb())
         _comfy_model_manager.set_batch_optimisations(UserSettings.enable_batch_optimisations.active)
 
-        logger.info(f"Running pipeline {pipeline_name}")
-
-        # Grab a copy of the pipeline
-        pipeline = copy.deepcopy(self.pipelines[pipeline_name])
-
-        # Inject our model manager if required
-        from hordelib.shared_model_manager import SharedModelManager
-
-        if "model_loader.model_manager" not in params:
-            logger.debug("Injecting model manager")
-            params["model_loader.model_manager"] = SharedModelManager
-
-        # If we have a source image, use that rather than noise (i.e. img2img)
-        # XXX This probably shouldn't be here. But for the moment, it works.
-        if params.get("image_loader.image"):
-            self.reconnect_input(pipeline, "sampler.latent_image", "vae_encode")
-
-        # XXX This shouldn't be here either, but it's not clear to me yet where the
-        # XXX correct place for dynamic connection of nodes is. Need to do a few more
-        # XXX pipelines to see.
-        if params.get("control_type"):
-            # Inject control net model manager
-            if "controlnet_model_loader.model_manager" not in params:
-                logger.debug("Injecting controlnet model manager")
-                params["controlnet_model_loader.model_manager"] = SharedModelManager
-            # Connect to the correct pre-processor node
-            if params.get("return_control_map", False):
-                # Connect annotator to output image directly
-                self.reconnect_input(
-                    pipeline,
-                    "output_image.images",
-                    params["control_type"],
-                )
-            else:
-                # Connect annotator to controlnet apply node
-                self.reconnect_input(
-                    pipeline,
-                    "controlnet_apply.image",
-                    params["control_type"],
-                )
-
-        # XXX Also shouldn't be here, but I'm noticing the pattern of dynamic pipeline
-        # XXX modification now. Here we dynamically build a lora pipeline
-
-        if params.get("loras"):
-
-            for lora_index, lora in enumerate(params.get("loras")):
-
-                # Inject a lora node (first lora)
-                if lora_index == 0:
-                    pipeline[f"lora_{lora_index}"] = {
-                        "inputs": {
-                            "model": ["model_loader", 0],
-                            "clip": ["model_loader", 1],
-                            "lora_name": f"{lora['name']}.safetensors",
-                            "strength_model": lora["model"],
-                            "strength_clip": lora["clip"],
-                        },
-                        "class_type": "LoraLoader",
-                    }
-                else:
-                    # Subsequent chained loras
-                    pipeline[f"lora_{lora_index}"] = {
-                        "inputs": {
-                            "model": [f"lora_{lora_index-1}", 0],
-                            "clip": [f"lora_{lora_index-1}", 1],
-                            "lora_name": f"{lora['name']}.safetensors",
-                            "strength_model": lora["model"],
-                            "strength_clip": lora["clip"],
-                        },
-                        "class_type": "LoraLoader",
-                    }
-
-            for lora_index, lora in enumerate(params.get("loras")):
-
-                # The first LORA always connects to the model loader
-                if lora_index == 0:
-                    self.reconnect_input(pipeline, "lora_0.model", "model_loader")
-                    self.reconnect_input(pipeline, "lora_0.clip", "model_loader")
-                else:
-                    # Other loras connect to the previous lora
-                    self.reconnect_input(pipeline, f"lora_{lora_index}.model", f"lora_{lora_index-1}.model")
-                    self.reconnect_input(pipeline, f"lora_{lora_index}.clip", f"lora_{lora_index-1}.clip")
-
-                # The last LORA always connects to the sampler and clip text encoders
-                if lora_index == len(params.get("loras")) - 1:
-                    self.reconnect_input(pipeline, "sampler.model", f"lora_{lora_index}")
-                    self.reconnect_input(pipeline, "clip_skip.clip", f"lora_{lora_index}")
-
-        # Enforce our parameter bounds
-        self._assert_parameter_bounds(params)
-
         # Set the pipeline parameters
         self._set(pipeline, **params)
 
         # Create (or retrieve) our prompt executive
-        inference = self._get_executor(pipeline_name)
+        inference = self._get_executor(pipeline)
 
         # This is useful for dumping the entire pipeline to the terminal when
         # developing and debugging new pipelines. A badly structured pipeline
@@ -628,7 +514,7 @@ class Comfy_Horde:
         return self.images
 
     # Run a pipeline that returns an image in pixel space
-    def run_image_pipeline(self, pipeline_name: str, params: dict) -> list[dict] | None:
+    def run_image_pipeline(self, pipeline, params: dict) -> list[dict] | None:
         # From the horde point of view, let us assume the output we are interested in
         # is always in a HordeImageOutput node named "output_image". This is an array of
         # dicts of the form:
@@ -638,6 +524,17 @@ class Comfy_Horde:
         #   },
         # ]
         # See node_image_output.py
+
+        # We may be passed a pipeline name or a pipeline data structure
+        if isinstance(pipeline, str):
+            # Grab pipeline data structure
+            pipeline_data = self.get_pipeline_data(pipeline)
+            # Sanity
+            if not pipeline_data:
+                logger.error(f"Unknown inference pipeline: {pipeline}")
+                return None
+        else:
+            pipeline_data = pipeline
 
         # If no callers for a while, announce it
         if self._callers == 0 and self._exit_time:
@@ -649,7 +546,7 @@ class Comfy_Horde:
         with self._counter_mutex:
             self._callers += 1
 
-        result = self.run_pipeline(pipeline_name, params)
+        result = self._run_pipeline(pipeline_data, params)
 
         # We are being exited
         with self._counter_mutex:
