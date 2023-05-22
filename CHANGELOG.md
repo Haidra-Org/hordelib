@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v1.2.1](https://github.com/Haidra-Org/hordelib/compare/v1.2.0...v1.2.1)
+
+22 May 2023
+
+- fix: remove "No job ran for x seconds" warning [`#298`](https://github.com/Haidra-Org/hordelib/pull/298) (Jug)
+- fix: ignore unknown loras, search case insensitively for them [`#297`](https://github.com/Haidra-Org/hordelib/pull/297) (Jug)
+
 ## [v1.2.0](https://github.com/Haidra-Org/hordelib/compare/v1.1.2...v1.2.0)
 
 21 May 2023
