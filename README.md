@@ -38,7 +38,7 @@ Note if you only have 16GB of RAM and a default /tmp on tmpfs, you will likely n
 ```bash
 sudo mount -o remount,size=16G /tmp
 ```
-
+If you only have 16GB of RAM you will also need swap space. So if you typically run without swap, add some. You won't be able to run this library without it.
 
 ## Usage
 
