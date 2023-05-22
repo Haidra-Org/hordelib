@@ -13,7 +13,7 @@ def main():
     from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
-    SharedModelManager.loadModelManagers(compvis=True)
+    SharedModelManager.loadModelManagers(compvis=True, lora=True)
     SharedModelManager.manager.load("Deliberate")
 
     data = {

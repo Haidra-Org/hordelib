@@ -346,7 +346,9 @@ class HordeLib:
                 if SharedModelManager.manager.lora.is_local_model(str(lora["name"])):
                     # the fixed up and validated name
                     lora["name"] = SharedModelManager.manager.lora.get_lora_filename(str(lora["name"]))
-                    valid_loras.append(lora)
+                    if lora["name"]:
+                        logger.debug(f"Found valid lora {lora['name']}")
+                        valid_loras.append(lora)
             payload["loras"] = valid_loras
 
             for lora_index, lora in enumerate(payload.get("loras")):
