@@ -29,8 +29,8 @@ class HordeLoraLoader:
             logger.error("LoraLoader node was not passed a model manager")
             raise RuntimeError
 
-        lora_path = model_manager.manager.get_model_directory("loras")
-        lora_path = os.path.join(lora_path, lora_name.lower())
+        lora_path = model_manager.manager.get_model_directory("lora")
+        lora_path = os.path.join(lora_path, lora_name)
         # XXX This should call back to the hordelib model manager once it has support
         model_lora, clip_lora = load_lora_for_models(model, clip, lora_path, strength_model, strength_clip)
         return (model_lora, clip_lora)

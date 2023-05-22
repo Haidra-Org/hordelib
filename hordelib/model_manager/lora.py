@@ -58,6 +58,28 @@ class LoraModelManager(BaseModelManager):
         self._adhoc_mutex = {}
         self._download_wait = download_wait
 
+        # Example of how to inject mandatory LORAs, we use these two for our tests
+        self._download_queue.append(
+            {
+                "name": "GlowingRunesAI",
+                "sha256": "93B4029A1D5E20A3134A0FD77EEB294D2FF7D2183CDA9486694D467352463C3A",
+                "filename": "GlowingRunesAIV6.safetensors",
+                "url": "https://civitai.com/api/download/models/58262?type=Model&format=SafeTensor",
+                "triggers": ["GlowingRunesAI_red", "GlowingRunesAI_paleblue"],
+                "size_mb": 144,
+            },
+        )
+        self._download_queue.append(
+            {
+                "name": "Dra9onScaleAI",
+                "sha256": "E562FC8EE097774E2C6A48AA9F279DB78AE4D1BFE14EF52F6AA76450C188B92B",
+                "filename": "Dra9onScaleAI.safetensors",
+                "url": "https://civitai.com/api/download/models/70189?type=Model&format=SafeTensor",
+                "triggers": ["Dr490nSc4leAI"],
+                "size_mb": 144,
+            },
+        )
+
         super().__init__(
             modelFolder=MODEL_FOLDER_NAMES[MODEL_CATEGORY_NAMES.lora],
             models_db_name=MODEL_DB_NAMES[MODEL_CATEGORY_NAMES.lora],
