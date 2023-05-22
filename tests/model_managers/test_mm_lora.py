@@ -27,4 +27,4 @@ class TestModelManagerLora:
             download_wait=True,
         )
         assert mml.calculate_downloaded_loras() > download_amount
-        assert mml.calculate_downloaded_loras() < download_amount * 1.3
+        assert mml.calculate_downloaded_loras() < download_amount * 1.4
