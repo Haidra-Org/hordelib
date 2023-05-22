@@ -11,24 +11,21 @@ class TestSetup:
         assert comfyhash == COMFYUI_VERSION
 
     def test_run_without_subdir(self):
-        result = Installer._run(["echo", "1"])
+        result = Installer._run("echo 1")
         assert result
         assert result[0] is True
 
     def test_run_with_subdir(self):
-        result = Installer._run(["echo", "1"], "hordelib")
+        result = Installer._run("echo 1", "hordelib")
         assert result
         assert result[0] is True
 
     def test_run_with_missing_subdir(self):
-        result = Installer._run(["echo", "1"], "does-not-exist")
+        result = Installer._run("echo 1", "does-not-exist")
         assert result is None
 
     def test_bad_exitcode(self):
-        # XXX This test doesn't work on github for some reason
-        if os.getenv("HORDELIB_TESTING", "") == "no-cuda":
-            return
-        result = Installer._run(["exit", "1"])
+        result = Installer._run("exit 1")
         assert result is None
 
     def test_comfy_changes(self):
