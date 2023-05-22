@@ -147,6 +147,7 @@ hordelib/model_database/esrgan.json
 hordelib/model_database/gfpgan.json
 hordelib/model_database/safety_checker.json
 hordelib/model_database/stable_diffusion.json
+hordelib/model_database/lora.json
 ComfyUI
 model.ckpt
 coverage.lcov

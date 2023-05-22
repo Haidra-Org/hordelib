@@ -13,18 +13,35 @@ class TestHordeLora:
 
         TestHordeLora.default_model_manager_args = {
             "compvis": True,
+            "lora": True,
         }
         SharedModelManager.loadModelManagers(**self.default_model_manager_args)
         assert SharedModelManager.manager is not None
+        assert SharedModelManager.manager.lora is not None
         SharedModelManager.manager.load("Deliberate")
+        TestHordeLora.lora1 = None
+        for l in SharedModelManager.manager.lora.model_reference:
+            if len(SharedModelManager.manager.lora.model_reference[l]["triggers"]) >= 2:
+                TestHordeLora.lora1 = l
+        if TestHordeLora.lora1 is None:
+            TestHordeLora.lora1 = list(SharedModelManager.manager.lora.model_reference.keys())[0]
+        TestHordeLora.trigger11 = SharedModelManager.manager.lora.model_reference[TestHordeLora.lora1]["triggers"][0]
+        TestHordeLora.trigger12 = SharedModelManager.manager.lora.model_reference[TestHordeLora.lora1]["triggers"][1]
+        TestHordeLora.filename1 = SharedModelManager.manager.lora.get_lora_filename(TestHordeLora.lora1)
+        for l in SharedModelManager.manager.lora.model_reference:
+            if l != TestHordeLora.lora1:
+                TestHordeLora.lora2 = l
+                break
+        TestHordeLora.trigger21 = SharedModelManager.manager.lora.model_reference[TestHordeLora.lora2]["triggers"][0]
+        TestHordeLora.filename2 = SharedModelManager.manager.lora.get_lora_filename(TestHordeLora.lora2)
         yield
         del TestHordeLora.horde
         SharedModelManager._instance = None
         SharedModelManager.manager = None
 
-    def test_text_to_image_lora_red(self):
+    def test_text_to_image_lora_trigger1(self):
 
-        # Red
+        # Trigger1
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -39,8 +56,8 @@ class TestHordeLora:
             "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
-            "prompt": "a dark magical crystal, GlowingRunesAIV2_red",
-            "loras": [{"name": "GlowingRunesAIV6", "model": 1.0, "clip": 1.0}],
+            "prompt": f"an open field of flowers, {TestHordeLora.trigger11}",
+            "loras": [{"name": TestHordeLora.filename1, "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": "Deliberate",
@@ -48,11 +65,11 @@ class TestHordeLora:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
-        pil_image.save("images/lora_red.webp", quality=90)
+        pil_image.save("images/lora_trigger1.webp", quality=90)
 
-    def test_text_to_image_lora_blue(self):
+    def test_text_to_image_lora_trigger2(self):
 
-        # Blue
+        # Triggers
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -67,8 +84,8 @@ class TestHordeLora:
             "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
-            "prompt": "a dark magical crystal, GlowingRunesAIV2_paleblue",
-            "loras": [{"name": "GlowingRunesAIV6", "model": 1.0, "clip": 1.0}],
+            "prompt": f"an open field of flowers, {TestHordeLora.trigger12}",
+            "loras": [{"name": TestHordeLora.filename1, "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": "Deliberate",
@@ -76,7 +93,7 @@ class TestHordeLora:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
-        pil_image.save("images/lora_blue.webp", quality=90)
+        pil_image.save("images/lora_trigger2.webp", quality=90)
 
     def test_text_to_image_lora_chained(self):
 
@@ -94,10 +111,10 @@ class TestHordeLora:
             "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
-            "prompt": "a dark magical crystal, GlowingRunesAIV2_red, Dr490nSc4leAI",
+            "prompt": f"an open field of flowers, {TestHordeLora.trigger11}, {TestHordeLora.trigger21}",
             "loras": [
-                {"name": "GlowingRunesAIV6", "model": 1.0, "clip": 1.0},
-                {"name": "Dra9onScaleAI", "model": 1.0, "clip": 1.0},
+                {"name": TestHordeLora.filename1, "model": 1.0, "clip": 1.0},
+                {"name": TestHordeLora.filename2, "model": 1.0, "clip": 1.0},
             ],
             "ddim_steps": 20,
             "n_iter": 1,
@@ -124,10 +141,10 @@ class TestHordeLora:
             "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
-            "prompt": "a dark magical crystal, GlowingRunesAIV2_red, Dr490nSc4leAI",
+            "prompt": f"an open field of flowers, {TestHordeLora.trigger11}, {TestHordeLora.trigger21}",
             "loras": [
-                {"name": "GlowingRunesAIV6", "model": 1.0, "clip": 1.0},
-                {"name": "Dra9onScaleAI", "model": 1.0, "clip": 1.0},
+                {"name": TestHordeLora.filename1, "model": 1.0, "clip": 1.0},
+                {"name": TestHordeLora.filename2, "model": 1.0, "clip": 1.0},
                 {"name": "__TotallyDoesNotExist__", "model": 1.0, "clip": 1.0},
             ],
             "ddim_steps": 20,

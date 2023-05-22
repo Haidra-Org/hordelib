@@ -37,6 +37,7 @@ class MODEL_CATEGORY_NAMES(str, Enum):
     esrgan = "esrgan"
     gfpgan = "gfpgan"
     safety_checker = "safety_checker"
+    lora = "lora"
 
 
 # Default model managers to load
@@ -50,6 +51,7 @@ DEFAULT_MODEL_MANAGERS = {
     MODEL_CATEGORY_NAMES.esrgan: True,
     MODEL_CATEGORY_NAMES.gfpgan: True,
     MODEL_CATEGORY_NAMES.safety_checker: True,
+    MODEL_CATEGORY_NAMES.lora: True,
 }
 """The default model managers to load."""  # XXX Clarify
 
@@ -63,6 +65,7 @@ MODEL_DB_NAMES = {
     MODEL_CATEGORY_NAMES.esrgan: MODEL_CATEGORY_NAMES.esrgan,
     MODEL_CATEGORY_NAMES.gfpgan: MODEL_CATEGORY_NAMES.gfpgan,
     MODEL_CATEGORY_NAMES.safety_checker: MODEL_CATEGORY_NAMES.safety_checker,
+    MODEL_CATEGORY_NAMES.lora: MODEL_CATEGORY_NAMES.lora,
 }
 """The name of the json file (without the extension) of the corresponding model database."""
 
@@ -76,5 +79,6 @@ MODEL_FOLDER_NAMES = {
     MODEL_CATEGORY_NAMES.esrgan: MODEL_CATEGORY_NAMES.esrgan,
     MODEL_CATEGORY_NAMES.gfpgan: MODEL_CATEGORY_NAMES.gfpgan,
     MODEL_CATEGORY_NAMES.safety_checker: MODEL_CATEGORY_NAMES.safety_checker,
+    MODEL_CATEGORY_NAMES.lora: MODEL_CATEGORY_NAMES.lora,
 }
 """The folder name on disk where the models are stored in AIWORKER_CACHE_HOME."""
