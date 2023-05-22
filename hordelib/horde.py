@@ -1,6 +1,8 @@
 # horde.py
 # Main interface for the horde to this library.
+import glob
 import json
+import os
 import random
 import sys
 import time
@@ -336,6 +338,23 @@ class HordeLib:
         # plus the upscale sampler (used in hires fix) if there is one
         if payload.get("loras"):
 
+            # XXX We would ask the model manager these questions in an ideal world
+            # Get a list of LORAs we have
+            all_loras = glob.glob(
+                os.path.join(SharedModelManager.manager.get_model_directory("loras"), "*.safetensors"),
+            )
+            # Lowercase all of the lora filenames
+            all_loras = [os.path.basename(x.lower()) for x in all_loras]
+            # Remove any requested LORAs that we don't have
+            valid_loras = []
+            for lora in payload.get("loras"):
+                # Determine the actual lora filename
+                lora_filename = f"{str(lora['name']).lower()}.safetensors"
+                if lora_filename in all_loras:
+                    lora["name"] = lora_filename  # the fixed up and validated name
+                    valid_loras.append(lora)
+            payload["loras"] = valid_loras
+
             for lora_index, lora in enumerate(payload.get("loras")):
 
                 # Inject a lora node (first lora)
@@ -344,11 +363,12 @@ class HordeLib:
                         "inputs": {
                             "model": ["model_loader", 0],
                             "clip": ["model_loader", 1],
-                            "lora_name": f"{lora['name']}.safetensors",
+                            "lora_name": lora["name"],
                             "strength_model": lora["model"],
                             "strength_clip": lora["clip"],
+                            "model_manager": SharedModelManager,
                         },
-                        "class_type": "LoraLoader",
+                        "class_type": "HordeLoraLoader",
                     }
                 else:
                     # Subsequent chained loras
@@ -356,11 +376,12 @@ class HordeLib:
                         "inputs": {
                             "model": [f"lora_{lora_index-1}", 0],
                             "clip": [f"lora_{lora_index-1}", 1],
-                            "lora_name": f"{lora['name']}.safetensors",
+                            "lora_name": lora["name"],
                             "strength_model": lora["model"],
                             "strength_clip": lora["clip"],
+                            "model_manager": SharedModelManager,
                         },
-                        "class_type": "LoraLoader",
+                        "class_type": "HordeLoraLoader",
                     }
 
             for lora_index, lora in enumerate(payload.get("loras")):

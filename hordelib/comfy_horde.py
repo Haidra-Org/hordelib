@@ -190,6 +190,7 @@ class Comfy_Horde:
         "SaveImage": "HordeImageOutput",
         "LoadImage": "HordeImageLoader",
         "DiffControlNetLoader": "HordeDiffControlNetLoader",
+        "LoraLoader": "HordeLoraLoader",
     }
 
     # We may wish some ComfyUI standard nodes had different names for consistency. Here
@@ -539,7 +540,7 @@ class Comfy_Horde:
         # If no callers for a while, announce it
         if self._callers == 0 and self._exit_time:
             idle_time = time.time() - self._exit_time
-            if idle_time > 1:
+            if idle_time > 1 and UserSettings.enable_idle_time_warning.active:
                 logger.warning(f"No job ran for {round(idle_time, 3)} seconds")
 
         # We have just been entered

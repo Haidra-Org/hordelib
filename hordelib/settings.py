@@ -114,5 +114,9 @@ class UserSettings:
     # with more than 75 tokens slower.
     enable_batch_optimisations = Switch(True)
 
+    # Report idle time. If this is enabled a warning is issued if the time
+    # between hordelib calls exceeds 1 second.
+    enable_idle_time_warning = Switch()
+
 
 _UserSettings = UserSettings()
