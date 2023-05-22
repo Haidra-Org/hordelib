@@ -38,3 +38,5 @@ addict
 fairscale
 scikit-image
 mediapipe>=0.9.1.0
+unidecode
+fuzzywuzzy

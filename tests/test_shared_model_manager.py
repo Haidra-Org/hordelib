@@ -1,10 +1,6 @@
 # test_horde.py
-import glob
-import pathlib
-
 import pytest
 
-from hordelib.cache import get_cache_directory
 from hordelib.consts import EXCLUDED_MODEL_NAMES
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager

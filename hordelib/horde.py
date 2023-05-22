@@ -15,6 +15,7 @@ from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
 from hordelib.utils.image_utils import ImageUtils
+from hordelib.utils.sanitizer import Sanitizer
 
 
 class HordeLib:
@@ -336,23 +337,18 @@ class HordeLib:
         # to handle n LORA models which form chained nodes in the pipeline.
         # Note that we build this between several nodes, the model_loader, clip_skip and the sampler,
         # plus the upscale sampler (used in hires fix) if there is one
-        if payload.get("loras"):
+        if payload.get("loras") and SharedModelManager.manager.lora:
 
-            # XXX We would ask the model manager these questions in an ideal world
-            # Get a list of LORAs we have
-            all_loras = glob.glob(
-                os.path.join(SharedModelManager.manager.get_model_directory("loras"), "*.safetensors"),
-            )
-            # Lowercase all of the lora filenames
-            all_loras = [os.path.basename(x.lower()) for x in all_loras]
             # Remove any requested LORAs that we don't have
             valid_loras = []
             for lora in payload.get("loras"):
                 # Determine the actual lora filename
-                lora_filename = f"{str(lora['name']).lower()}.safetensors"
-                if lora_filename in all_loras:
-                    lora["name"] = lora_filename  # the fixed up and validated name
-                    valid_loras.append(lora)
+                if SharedModelManager.manager.lora.is_local_model(str(lora["name"])):
+                    # the fixed up and validated name
+                    lora["name"] = SharedModelManager.manager.lora.get_lora_filename(str(lora["name"]))
+                    if lora["name"]:
+                        logger.debug(f"Found valid lora {lora['name']}")
+                        valid_loras.append(lora)
             payload["loras"] = valid_loras
 
             for lora_index, lora in enumerate(payload.get("loras")):

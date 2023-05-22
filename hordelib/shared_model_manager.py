@@ -74,6 +74,7 @@ class SharedModelManager:
         esrgan: bool = False,
         gfpgan: bool = False,
         safety_checker: bool = False,
+        lora: bool = False,
     ):
         if cls.manager is None:
             cls.manager = ModelManager()
