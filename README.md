@@ -30,6 +30,8 @@ hordelib
 ...your other dependencies...
 ```
 
+On Linux you will need to install the Nvidia CUDA Toolkit. Linux installers are provided by Nvidia at https://developer.nvidia.com/cuda-downloads
+
 ## Usage
 
 Horde payloads can be processed simply with (for example):
