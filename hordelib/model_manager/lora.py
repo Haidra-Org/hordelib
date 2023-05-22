@@ -37,7 +37,7 @@ class LoraModelManager(BaseModelManager):
     def __init__(
         self,
         download_reference=True,
-        allowed_top_lora_storage=5120,
+        allowed_top_lora_storage=10240,
         allowed_adhoc_lora_storage=1024,
         download_wait=True,
     ):
