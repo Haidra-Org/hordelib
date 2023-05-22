@@ -1,10 +1,12 @@
 """Home for the controller class ModelManager, and related meta information."""
 import copy
+import os
 import threading
 
 import torch
 from loguru import logger
 
+from hordelib.cache import get_cache_directory
 from hordelib.consts import EXCLUDED_MODEL_NAMES, MODEL_CATEGORY_NAMES
 
 # from hordelib.model_manager.aitemplate import AITemplateModelManager
@@ -57,6 +59,10 @@ class ModelManager:
             model_manager.model_reference
             _models.update(model_manager.model_reference)
         return _models
+
+    def get_model_directory(self, suffix=""):
+        model_dir = os.path.join(get_cache_directory(), suffix) if suffix else get_cache_directory()
+        return model_dir
 
     def get_available_models(
         self,

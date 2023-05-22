@@ -190,6 +190,7 @@ class Comfy_Horde:
         "SaveImage": "HordeImageOutput",
         "LoadImage": "HordeImageLoader",
         "DiffControlNetLoader": "HordeDiffControlNetLoader",
+        "LoraLoader": "HordeLoraLoader",
     }
 
     # We may wish some ComfyUI standard nodes had different names for consistency. Here
