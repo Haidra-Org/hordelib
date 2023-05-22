@@ -57,7 +57,7 @@ class TestHordeLora:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "a dark magical crystal, GlowingRunesAIV2_red",
-            "loras": [{"name": "GlowingRunesAIV6", "model": 1.0, "clip": 1.0}],
+            "loras": [{"name": "GlowingRunesAI", "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": "Deliberate",
@@ -69,7 +69,7 @@ class TestHordeLora:
 
     def test_text_to_image_lora_blue(self):
 
-        # Blue
+        # Blue, fuzzy search on version
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
