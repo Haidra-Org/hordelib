@@ -19,12 +19,27 @@ class TestModelManagerLora:
         yield
         del self.horde
 
-    def test_downloading_top(self):
+    def test_downloading_default_sync(self):
         download_amount = 1024
         mml = LoraModelManager(
-            download_reference=True,
             allowed_top_lora_storage=download_amount,
             download_wait=True,
         )
+        assert mml.are_downloads_complete() is True
+        mml.download_default_loras()
+        assert mml.are_downloads_complete() is True
+        assert mml.calculate_downloaded_loras() > download_amount
+        assert mml.calculate_downloaded_loras() < download_amount * 1.4
+
+    def test_downloading_default_async(self):
+        download_amount = 1024
+        mml = LoraModelManager(
+            allowed_top_lora_storage=download_amount,
+            download_wait=False,
+        )
+        mml.download_default_loras()
+        assert mml.are_downloads_complete() is False
+        mml.wait_for_downloads()
+        assert mml.are_downloads_complete() is True
         assert mml.calculate_downloaded_loras() > download_amount
         assert mml.calculate_downloaded_loras() < download_amount * 1.4

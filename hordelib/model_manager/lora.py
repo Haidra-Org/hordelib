@@ -36,10 +36,10 @@ class LoraModelManager(BaseModelManager):
 
     def __init__(
         self,
-        download_reference=True,
+        download_reference=False,
         allowed_top_lora_storage=10240,
         allowed_adhoc_lora_storage=1024,
-        download_wait=True,
+        download_wait=False,
     ):
 
         self._max_top_disk = allowed_top_lora_storage
@@ -51,7 +51,7 @@ class LoraModelManager(BaseModelManager):
         self._download_threads = []
         self._download_queue = deque()
         self._thread = None
-        self.done = False
+        self.done = True
         self.model_data = []
         # Not yet handled, as we need a global reference to search through.
         self._adhoc_loras = set()
@@ -113,8 +113,9 @@ class LoraModelManager(BaseModelManager):
 
     def download_model_reference(self):
         # We have to wipe it, as we are going to be adding it it instead of replacing it
+        # We're not downloading now, as we need to be able to init without it
         self.model_reference = {}
-        self.download()
+        self.save_cached_reference_to_disk()
 
     def _get_json(self, url):
         retries = 0
@@ -334,9 +335,10 @@ class LoraModelManager(BaseModelManager):
             if self._data:
                 self._process_items()
 
-    def download(self):
+    def download_default_loras(self):
         """Start up a background thread downloading and return immediately"""
-
+        # TODO: Avoid clearing this out, until we know CivitAI is not dead.
+        self.model_reference = {}
         # Don't start if we're already busy doing something
         if self._thread:
             return
@@ -345,13 +347,23 @@ class LoraModelManager(BaseModelManager):
         self._thread = threading.Thread(target=self._start_processing, daemon=True)
         self._thread.start()
         # Wait for completion of our threads if requested
-        # rtr = 0
         if self._download_wait:
-            while self._thread.is_alive():
-                time.sleep(0.5)
-                # rtr += 1
-                # if rtr > 15:
-                #     raise Exception
+            self.wait_for_downloads()
+
+    def wait_for_downloads(self):
+        # rtr = 0
+        while self._thread and self._thread.is_alive():
+            time.sleep(0.5)
+            # rtr += 1
+            # if rtr > 15:
+            #     raise Exception
+
+    def are_downloads_complete(self):
+        # If we don't have any models in our reference, then we haven't downloaded anything
+        # perhaps faulty civitai?
+        if len(self.model_reference) == 0:
+            return False
+        return self.done
 
     def get_lora_filename(self, model_name: str):
         lora_name = self.fuzzy_find_lora(model_name)

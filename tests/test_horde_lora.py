@@ -19,6 +19,8 @@ class TestHordeLora:
         assert SharedModelManager.manager is not None
         assert SharedModelManager.manager.lora is not None
         SharedModelManager.manager.load("Deliberate")
+        SharedModelManager.manager.lora.download_default_loras()
+        SharedModelManager.manager.lora.wait_for_downloads()
         TestHordeLora.lora1 = None
         for lora in SharedModelManager.manager.lora.model_reference:
             if len(SharedModelManager.manager.lora.model_reference[lora]["triggers"]) >= 2:
