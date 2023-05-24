@@ -59,6 +59,8 @@ class LoraModelManager(BaseModelManager):
         self._download_wait = download_wait
 
         # Example of how to inject mandatory LORAs, we use these two for our tests
+        # We need to ensure their format is the same as after they are returned _parse_civitai_lora_data
+        # i.e. without versions in their names.
         self._download_queue.append(
             {
                 "name": "GlowingRunesAI",
@@ -66,16 +68,6 @@ class LoraModelManager(BaseModelManager):
                 "filename": "GlowingRunesAI.safetensors",
                 "url": "https://civitai.com/api/download/models/75193?type=Model&format=SafeTensor",
                 "triggers": ["GlowingRunesAIV3_green", "GlowingRunesAI_red", "GlowingRunesAI_paleblue"],
-                "size_mb": 144,
-            },
-        )
-        self._download_queue.append(
-            {
-                "name": "GlowingRunesAIV2",
-                "sha256": "93B4029A1D5E20A3134A0FD77EEB294D2FF7D2183CDA9486694D467352463C3A",
-                "filename": "GlowingRunesAIV2.safetensors",
-                "url": "https://civitai.com/api/download/models/58262?type=Model&format=SafeTensor",
-                "triggers": ["GlowingRunesAIV2_red", "GlowingRunesAIV2_paleblue"],
                 "size_mb": 144,
             },
         )
