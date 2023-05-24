@@ -14,6 +14,8 @@ def main():
 
     generate = HordeLib()
     SharedModelManager.loadModelManagers(compvis=True, lora=True)
+    SharedModelManager.manager.lora.download_default_loras()
+    SharedModelManager.manager.lora.wait_for_downloads()
     SharedModelManager.manager.load("Deliberate")
 
     data = {

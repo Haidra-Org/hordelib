@@ -19,6 +19,8 @@ class TestHordeLora:
         assert SharedModelManager.manager is not None
         assert SharedModelManager.manager.lora is not None
         SharedModelManager.manager.load("Deliberate")
+        SharedModelManager.manager.lora.download_default_loras()
+        SharedModelManager.manager.lora.wait_for_downloads()
         TestHordeLora.lora1 = None
         for lora in SharedModelManager.manager.lora.model_reference:
             if len(SharedModelManager.manager.lora.model_reference[lora]["triggers"]) >= 2:
@@ -57,7 +59,7 @@ class TestHordeLora:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "a dark magical crystal, GlowingRunesAIV2_red",
-            "loras": [{"name": "GlowingRunesAI", "model": 1.0, "clip": 1.0}],
+            "loras": [{"name": "GlowingRunesAIV6", "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": "Deliberate",

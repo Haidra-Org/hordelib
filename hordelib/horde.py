@@ -72,8 +72,8 @@ class HordeLib:
     PAYLOAD_SCHEMA = {
         "sampler_name": {"datatype": str, "values": list(SAMPLERS_MAP.keys()), "default": "k_euler"},
         "cfg_scale": {"datatype": float, "min": 1, "max": 100, "default": 8.0},
-        "denoising_strength": {"datatype": float, "min": 0.0, "max": 1.0, "default": 1.0},
-        "control_strength": {"datatype": float, "min": 0.0, "max": 1.0, "default": 1.0},
+        "denoising_strength": {"datatype": float, "min": 0.01, "max": 1.0, "default": 1.0},
+        "control_strength": {"datatype": float, "min": 0.01, "max": 1.0, "default": 1.0},
         "seed": {"datatype": int, "default": random.randint(0, sys.maxsize)},
         "width": {"datatype": int, "min": 64, "max": 8192, "default": 512, "divisible": 64},
         "height": {"datatype": int, "min": 64, "max": 8192, "default": 512, "divisible": 64},
