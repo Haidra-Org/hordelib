@@ -3,6 +3,7 @@ import importlib.resources as importlib_resources
 import json
 import os
 import shutil
+import sys
 import threading
 import time
 import typing
@@ -512,11 +513,11 @@ class BaseModelManager(ABC):
                 logger.debug(f"File {file_details['path']} not found")
                 return False
             if not skip_checksum and not self.validate_file(file_details):
-                logger.error(f"File {file_details['path']} has invalid checksum")
+                logger.warning(f"File {file_details['path']} has different contents to what we expected.")
                 try:
-                    modelPath = Path(self.modelFolderPath).joinpath(file_details["path"])
-                    logger.error(f"Deleting {file_details['path']}.")
-                    modelPath.unlink(True)
+                    # The file must have been considered valid once, or we wouldn't have renamed it from the ".part" download.
+                    # Likely there is an update, or a model database hash problem
+                    logger.warning(f"Likely updated, will attempt to re-download {file_details['path']}.")
                 except OSError as e:
                     logger.error(f"Unable to delete {file_details['path']}: {e}.")
                     logger.error(f"Please delete {file_details['path']} if this error persists.")
@@ -662,39 +663,107 @@ class BaseModelManager(ABC):
         :param file_path: Path of the model's file. File is from the model's files list.
         Downloads a file
         """
-        # XXX convert the path nonsense to pathlib
-        full_path = f"{self.modelFolderPath}/{filename}"
-        os.makedirs(os.path.dirname(full_path), exist_ok=True)
-        pbar_desc = full_path.split("/")[-1]
-        try:
-            response = requests.get(url, stream=True, allow_redirects=True)
-            with open(full_path, "wb") as f, tqdm(
-                # all optional kwargs
-                unit="B",
-                unit_scale=True,
-                unit_divisor=1024,
-                miniters=1,
-                desc=pbar_desc,
-                total=int(response.headers.get("content-length", 0)),
-                disable=UserSettings.disable_download_progress.active,
-            ) as pbar:
-                for chunk in response.iter_content(chunk_size=1024 * 1024 * 10):
+        final_pathname = f"{self.modelFolderPath}/{filename}"
+        partial_pathname = f"{self.modelFolderPath}/{filename}.part"
+        filename = os.path.basename(filename)
+        os.makedirs(os.path.dirname(final_pathname), exist_ok=True)
+
+        # Number of download attempts this time through
+        retries = 5
+
+        # Determine the remote file size
+        headreq = requests.head(url, allow_redirects=True)
+        if headreq.ok:
+            remote_file_size = int(headreq.headers.get("Content-length", 0))
+        else:
+            remote_file_size = 0
+
+        while retries:
+
+            if os.path.exists(partial_pathname):
+                # If file exists, find the size and append to it
+                partial_size = os.path.getsize(partial_pathname)
+                logger.info(f"Resuming download of file {filename}")
+            else:
+                # If file doesn't exist, start from beginning
+                logger.info(f"Starting download of file {filename}")
+                partial_size = 0
+
+            # Add the 'Range' header to start downloading from where we left off
+            headers = {}
+            if partial_size:
+                headers = {"Range": f"bytes={partial_size}-"}
+
+            try:
+                response = requests.get(url, stream=True, headers=headers, allow_redirects=True, timeout=20)
+
+                # If the response was 416 (invalid range) check if we already downloaded all the data?
+                if response.status_code == 416:
+                    response = requests.get(url, stream=True, allow_redirects=True)
+                    remote_file_size = int(response.headers.get("Content-length", 0))
+                    if partial_size == remote_file_size:
+                        # Successful download, swap the files
+                        logger.info(f"Successfully downloaded the file {filename}")
+                        if os.path.exists(final_pathname):
+                            os.remove(final_pathname)
+                        # Move the downloaded data into it's final location
+                        os.rename(partial_pathname, final_pathname)
+                        return True
+
+                if response.ok:
+                    remote_file_size = int(response.headers.get("Content-length", 0))
+
+                # If we requested a resumed download but the server didnt respond 206, that's a problem,
+                # the server didn't support resuming downloads
+                if partial_size and response.status_code != 206:
+                    if partial_size == remote_file_size:
+                        pass  # already downloaded
+                    else:
+                        logger.warning(
+                            f"Server did not support resuming download, restarting download {response.status_code}: {partial_size} != {remote_file_size}",
+                        )
+                        # try again without resuming, i.e. delete the partial download
+                        if os.path.exists(final_pathname):
+                            os.remove(final_pathname)
+                        continue
+
+                # Handle non-2XX status codes
+                if not response.ok:
                     response.raise_for_status()
-                    if chunk:
-                        f.write(chunk)
-                        pbar.update(len(chunk))
-            return True
-        except requests.exceptions.HTTPError as e:
-            logger.error(f"Error downloading {url}: {e}")
-            if os.path.exists(full_path):
-                os.remove(full_path)
-            return False
-        except requests.exceptions.RequestException as e:
-            logger.error(f"Error downloading {url}: {e}")
-            logger.error("Are you connected to the internet?")
-            if os.path.exists(full_path):
-                os.remove(full_path)
-            return False
+
+                # Write the content to file in chunks
+                with open(partial_pathname, "ab") as f, tqdm(
+                    # all optional kwargs
+                    unit="B",
+                    initial=partial_size,
+                    unit_scale=True,
+                    unit_divisor=1024,
+                    miniters=1,
+                    desc=filename,
+                    total=remote_file_size + partial_size,
+                    disable=UserSettings.disable_download_progress.active,
+                ) as pbar:
+                    for chunk in response.iter_content(chunk_size=1024 * 1024 * 16):
+                        response.raise_for_status()
+                        if chunk:
+                            f.write(chunk)
+                            pbar.update(len(chunk))
+                # Successful download, swap the files
+                logger.info(f"Successfully downloaded the file {filename}")
+                if os.path.exists(final_pathname):
+                    os.remove(final_pathname)
+                # Move the downloaded data into it's final location
+                os.rename(partial_pathname, final_pathname)
+                return True
+
+            except requests.RequestException:
+                logger.info(f"Download of file {filename} failed.")
+                retries -= 1
+                if retries:
+                    logger.info("Attempting download of file again")
+                    time.sleep(2)
+                else:
+                    return False
 
     def download_model(self, model_name: str):
         """
