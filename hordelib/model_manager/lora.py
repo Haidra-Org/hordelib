@@ -347,7 +347,7 @@ class LoraModelManager(BaseModelManager):
         # Don't start if we're already busy doing something
         if self._thread:
             return
-
+        os.makedirs(self.modelFolderPath, exist_ok=True)
         # Start processing in a background thread
         self._thread = threading.Thread(target=self._start_processing, daemon=True)
         self._thread.start()
@@ -366,7 +366,7 @@ class LoraModelManager(BaseModelManager):
     def are_downloads_complete(self):
         # If we don't have any models in our reference, then we haven't downloaded anything
         # perhaps faulty civitai?
-        if len(self.model_reference) == 0:
+        if self._thread and self._thread.is_alive():
             return False
         return self.done
 
