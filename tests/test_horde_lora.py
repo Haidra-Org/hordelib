@@ -108,7 +108,8 @@ class TestHordeLora:
             "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
-            "prompt": f"a dark magical crystal, {trigger}, {trigger2}, {trigger3}, 8K resolution###glow, blurry, out of focus",
+            "prompt": f"a dark magical crystal, {trigger}, {trigger2}, {trigger3}, "
+            "8K resolution###glow, blurry, out of focus",
             "loras": [
                 {"name": lora_name, "model": 1.0, "clip": 1.0},
                 {"name": lora_name2, "model": 1.0, "clip": 1.0},
