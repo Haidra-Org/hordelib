@@ -1,5 +1,16 @@
 ## hordelib Changelog
 
+## [v1.3.0](https://github.com/Haidra-Org/hordelib/compare/v1.2.1...v1.3.0)
+
+24 May 2023
+
+- fix: moved lora downloads outside of init [`#304`](https://github.com/Haidra-Org/hordelib/pull/304) (Divided by Zer0)
+- Lora Model Manager [`#302`](https://github.com/Haidra-Org/hordelib/pull/302) (Divided by Zer0)
+- fix: fix some tests and update docs for Linux [`#301`](https://github.com/Haidra-Org/hordelib/pull/301) (Jug)
+- feat: Added trigger injection to loras [`5080df8`](https://github.com/Haidra-Org/hordelib/commit/5080df8e8a50211f02a47837da279fc83499ace5)  (db0)
+- feat: allow searching triggers [`8f4c7d9`](https://github.com/Haidra-Org/hordelib/commit/8f4c7d98659abcdf6f34d29679bd2a7bac45f871)  (db0)
+- fix: tweak lora tests and node loader [`b986a98`](https://github.com/Haidra-Org/hordelib/commit/b986a98705a5130c4fe2f8e9576ec88a5952ab94)  (Jug)
+
 ## [v1.2.1](https://github.com/Haidra-Org/hordelib/compare/v1.2.0...v1.2.1)
 
 22 May 2023
