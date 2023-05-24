@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v1.3.2](https://github.com/Haidra-Org/hordelib/compare/v1.3.1...v1.3.2)
+
+25 May 2023
+
+- fix: hangs and random processing results with multiple threads regression [`#311`](https://github.com/Haidra-Org/hordelib/pull/311) (Jug)
+- fix: ensure lora folder exists before starting download [`#309`](https://github.com/Haidra-Org/hordelib/pull/309) (Divided by Zer0)
+
 ## [v1.3.1](https://github.com/Haidra-Org/hordelib/compare/v1.3.0...v1.3.1)
 
 24 May 2023
