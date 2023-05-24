@@ -61,17 +61,17 @@ class LoraModelManager(BaseModelManager):
         # Example of how to inject mandatory LORAs, we use these two for our tests
         self._download_queue.append(
             {
-                "name": "GlowingRunesAI",
+                "name": "GlowingRunesAIV6",
                 "sha256": "93B4029A1D5E20A3134A0FD77EEB294D2FF7D2183CDA9486694D467352463C3A",
                 "filename": "GlowingRunesAIV6.safetensors",
                 "url": "https://civitai.com/api/download/models/58262?type=Model&format=SafeTensor",
-                "triggers": ["GlowingRunesAI_red", "GlowingRunesAI_paleblue"],
+                "triggers": ["GlowingRunesAIV2_red", "GlowingRunesAIV2_paleblue"],
                 "size_mb": 144,
             },
         )
         self._download_queue.append(
             {
-                "name": "Dra9onScaleAI",
+                "name": "Dra9onScaleAIV6",
                 "sha256": "E562FC8EE097774E2C6A48AA9F279DB78AE4D1BFE14EF52F6AA76450C188B92B",
                 "filename": "Dra9onScaleAI.safetensors",
                 "url": "https://civitai.com/api/download/models/70189?type=Model&format=SafeTensor",
@@ -101,7 +101,10 @@ class LoraModelManager(BaseModelManager):
             self.download_model_reference()
             logger.info("Lora reference download begun asynchronously.")
         else:
-            self.model_reference = json.loads((self.models_db_path).read_text())
+            try:
+                self.model_reference = json.loads((self.models_db_path).read_text())
+            except FileNotFoundError:
+                self.model_reference = {}
             logger.info(
                 " ".join(
                     [
@@ -369,6 +372,8 @@ class LoraModelManager(BaseModelManager):
         lora_name = self.fuzzy_find_lora(model_name)
         if not lora_name:
             return None
+        if lora_name not in self.model_reference:
+            return None
         return self.model_reference[lora_name]["filename"]
 
     def get_model(self, model_name: str):
@@ -421,7 +426,8 @@ class LoraModelManager(BaseModelManager):
         del self._adhoc_loras[oldest_lora]
 
     def fuzzy_find_lora(self, lora_name):
-        sname = Sanitizer.remove_version(lora_name).lower()
+        # sname = Sanitizer.remove_version(lora_name).lower()
+        sname = lora_name.lower()
         if sname in self.model_reference:
             return sname
         for lora in self.model_reference:
