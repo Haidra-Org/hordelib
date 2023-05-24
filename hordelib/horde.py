@@ -506,9 +506,9 @@ class HordeLib:
             # Add prefix to loras to avoid name collisions with other models
             models = [f"lora-{x['name']}" for x in payload.get("loras", []) if x]
             # main model
-            models.append(payload.get("model"))
+            models.append(payload.get("model_loader.model_name"))
             # controlnet model
-            models.append(payload.get("control_type"))
+            models.append(payload.get("controlnet_model_loader.control_net_name"))
             # Acquire a lock on all these models
             self.lock_models(models)
             # Call the inference pipeline
@@ -534,10 +534,10 @@ class HordeLib:
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
         # Run the pipeline
         try:
-            self.lock_models([payload.get("model")])
+            self.lock_models([payload.get("model_loader.model_name")])
             images = self.generator.run_image_pipeline(pipeline_data, payload)
         finally:
-            self.unlock_models([payload.get("model")])
+            self.unlock_models([payload.get("model_loader.model_name")])
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # Allow arbitrary resizing by shrinking the image back down
@@ -556,8 +556,8 @@ class HordeLib:
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
         # Run the pipeline
         try:
-            self.lock_models([payload.get("model")])
+            self.lock_models([payload.get("model_loader.model_name")])
             images = self.generator.run_image_pipeline(pipeline_data, payload)
         finally:
-            self.unlock_models([payload.get("model")])
+            self.unlock_models([payload.get("model_loader.model_name")])
         return self._process_results(images, rawpng)
