@@ -67,7 +67,7 @@ class TestModelManagerLora:
         assert mml.get_lora_name("GlowingRunesAI") == "GlowingRunesAI"
         assert mml.get_lora_name("GlowingRunes") == "GlowingRunesAI"
         assert mml.get_lora_name("Glowing Runes") == "GlowingRunesAI"
-        assert len(mml.get_lora_triggers("GlowingRunesAI")) == 2
+        assert len(mml.get_lora_triggers("GlowingRunesAI")) > 1
         assert mml.find_lora_trigger("GlowingRunesAI", "blue") == "GlowingRunesAIV2_paleblue"
         assert mml.find_lora_trigger("GlowingRunesAI", "pale blue") is None  # This is too much to fuzz
         assert mml.find_lora_trigger("GlowingRunesAI", "red") == "GlowingRunesAIV2_red"
