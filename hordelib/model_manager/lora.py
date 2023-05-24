@@ -71,7 +71,7 @@ class LoraModelManager(BaseModelManager):
         )
         self._download_queue.append(
             {
-                "name": "Dra9onScaleAIV6",
+                "name": "Dra9onScaleAI",
                 "sha256": "E562FC8EE097774E2C6A48AA9F279DB78AE4D1BFE14EF52F6AA76450C188B92B",
                 "filename": "Dra9onScaleAI.safetensors",
                 "url": "https://civitai.com/api/download/models/70189?type=Model&format=SafeTensor",

@@ -116,7 +116,7 @@ class TestHordeLora:
             "prompt": "a dark magical crystal, GlowingRunesAIV2_red, Dr490nSc4leAI",
             "loras": [
                 {"name": "GlowingRunesAIV6", "model": 1.0, "clip": 1.0},
-                {"name": "Dra9onScaleAIv6", "model": 1.0, "clip": 1.0},
+                {"name": "Dra9onScaleAI", "model": 1.0, "clip": 1.0},
             ],
             "ddim_steps": 20,
             "n_iter": 1,
