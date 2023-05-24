@@ -15,6 +15,7 @@ from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
 from hordelib.utils.image_utils import ImageUtils
+from hordelib.utils.sanitizer import Sanitizer
 
 
 class HordeLib:
@@ -71,8 +72,8 @@ class HordeLib:
     PAYLOAD_SCHEMA = {
         "sampler_name": {"datatype": str, "values": list(SAMPLERS_MAP.keys()), "default": "k_euler"},
         "cfg_scale": {"datatype": float, "min": 1, "max": 100, "default": 8.0},
-        "denoising_strength": {"datatype": float, "min": 0.0, "max": 1.0, "default": 1.0},
-        "control_strength": {"datatype": float, "min": 0.0, "max": 1.0, "default": 1.0},
+        "denoising_strength": {"datatype": float, "min": 0.01, "max": 1.0, "default": 1.0},
+        "control_strength": {"datatype": float, "min": 0.01, "max": 1.0, "default": 1.0},
         "seed": {"datatype": int, "default": random.randint(0, sys.maxsize)},
         "width": {"datatype": int, "min": 64, "max": 8192, "default": 512, "divisible": 64},
         "height": {"datatype": int, "min": 64, "max": 8192, "default": 512, "divisible": 64},
@@ -98,6 +99,7 @@ class HordeLib:
         "name": {"datatype": str, "default": ""},
         "model": {"datatype": float, "min": 0.0, "max": 1.0, "default": 1.0},
         "clip": {"datatype": float, "min": 0.0, "max": 1.0, "default": 1.0},
+        "inject_trigger": {"datatype": str},
     }
 
     # pipeline parameter <- hordelib payload parameter mapping
@@ -283,78 +285,37 @@ class HordeLib:
         if payload.get("control_type"):
             payload["control_type"] = HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(payload.get("control_type"))
 
-        # Translate the payload parameters into pipeline parameters
-        pipeline_params = {}
-        for newkey, key in HordeLib.PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING.items():
-            if key in payload:
-                pipeline_params[newkey] = payload.get(key)
-            else:
-                logger.error(f"Parameter {key} not found")
-
-        # Inject our model manager
-        pipeline_params["model_loader.model_manager"] = SharedModelManager
-
-        # For hires fix, change the image sizes as we create an intermediate image first
-        if payload.get("hires_fix", False):
-            width = pipeline_params.get("empty_latent_image.width", 0)
-            height = pipeline_params.get("empty_latent_image.height", 0)
-            if width > 512 and height > 512:
-                newwidth, newheight = ImageUtils.calculate_source_image_size(width, height)
-                pipeline_params["latent_upscale.width"] = width
-                pipeline_params["latent_upscale.height"] = height
-                pipeline_params["empty_latent_image.width"] = newwidth
-                pipeline_params["empty_latent_image.height"] = newheight
-
-        # If we have a source image, use that rather than latent noise (i.e. img2img)
-        # We do this by reconnecting the nodes in the pipeline to make the input to the vae encoder
-        # the source image instead of the latent noise generator
-        if pipeline_params.get("image_loader.image"):
-            self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
-
         # Setup controlnet if required
-        if payload.get("control_type"):
-            # Inject control net model manager
-            pipeline_params["controlnet_model_loader.model_manager"] = SharedModelManager
-
-            # Dynamically reconnect nodes in the pipeline to connect the correct pre-processor node
-            if payload.get("return_control_map"):
-                # Connect annotator to output image directly if we need to return the control map
-                self.generator.reconnect_input(
-                    pipeline_data,
-                    "output_image.images",
-                    payload["control_type"],
-                )
-            else:
-                # Connect annotator to controlnet apply node
-                self.generator.reconnect_input(
-                    pipeline_data,
-                    "controlnet_apply.image",
-                    payload["control_type"],
-                )
-
         # For LORAs we completely build the LORA section of the pipeline dynamically, as we have
         # to handle n LORA models which form chained nodes in the pipeline.
         # Note that we build this between several nodes, the model_loader, clip_skip and the sampler,
         # plus the upscale sampler (used in hires fix) if there is one
-        if payload.get("loras"):
+        if payload.get("loras") and SharedModelManager.manager.lora:
 
-            # XXX We would ask the model manager these questions in an ideal world
-            # Get a list of LORAs we have
-            all_loras = glob.glob(
-                os.path.join(SharedModelManager.manager.get_model_directory("loras"), "*.safetensors"),
-            )
-            # Lowercase all of the lora filenames
-            all_loras = [os.path.basename(x.lower()) for x in all_loras]
             # Remove any requested LORAs that we don't have
             valid_loras = []
             for lora in payload.get("loras"):
                 # Determine the actual lora filename
-                lora_filename = f"{str(lora['name']).lower()}.safetensors"
-                if lora_filename in all_loras:
-                    lora["name"] = lora_filename  # the fixed up and validated name
-                    valid_loras.append(lora)
+                if SharedModelManager.manager.lora.is_local_model(str(lora["name"])):
+                    # We store the actual lora name to search for the trigger
+                    lora_name = SharedModelManager.manager.lora.get_lora_name(str(lora["name"]))
+                    if lora_name:
+                        logger.debug(f"Found valid lora {lora_name}")
+                        trigger_inject = lora.get("inject_trigger")
+                        trigger = None
+                        if trigger_inject == "any":
+                            triggers = SharedModelManager.manager.lora.get_lora_triggers(lora_name)
+                            if triggers:
+                                trigger = triggers[0]
+                        elif trigger_inject is not None:
+                            trigger = SharedModelManager.manager.lora.find_lora_trigger(lora_name, trigger_inject)
+                        if trigger:
+                            # We inject at the start, to avoid throwing it in a negative prompt
+                            payload["prompt"] = f'{trigger}, {payload["prompt"]}'
+                        # the fixed up and validated filename (Comfy expect the "name" key to be the filename)
+                        lora["name"] = SharedModelManager.manager.lora.get_lora_filename(lora_name)
+                        valid_loras.append(lora)
             payload["loras"] = valid_loras
-
             for lora_index, lora in enumerate(payload.get("loras")):
 
                 # Inject a lora node (first lora)
@@ -408,6 +369,54 @@ class HordeLib:
                     self.generator.reconnect_input(pipeline_data, "sampler.model", f"lora_{lora_index}")
                     self.generator.reconnect_input(pipeline_data, "upscale_sampler.model", f"lora_{lora_index}")
                     self.generator.reconnect_input(pipeline_data, "clip_skip.clip", f"lora_{lora_index}")
+
+        # Translate the payload parameters into pipeline parameters
+        pipeline_params = {}
+        for newkey, key in HordeLib.PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING.items():
+            if key in payload:
+                pipeline_params[newkey] = payload.get(key)
+            else:
+                logger.error(f"Parameter {key} not found")
+
+        # Inject our model manager
+        pipeline_params["model_loader.model_manager"] = SharedModelManager
+
+        # For hires fix, change the image sizes as we create an intermediate image first
+        if payload.get("hires_fix", False):
+            width = pipeline_params.get("empty_latent_image.width", 0)
+            height = pipeline_params.get("empty_latent_image.height", 0)
+            if width > 512 and height > 512:
+                newwidth, newheight = ImageUtils.calculate_source_image_size(width, height)
+                pipeline_params["latent_upscale.width"] = width
+                pipeline_params["latent_upscale.height"] = height
+                pipeline_params["empty_latent_image.width"] = newwidth
+                pipeline_params["empty_latent_image.height"] = newheight
+
+        if payload.get("control_type"):
+            # Inject control net model manager
+            pipeline_params["controlnet_model_loader.model_manager"] = SharedModelManager
+
+            # Dynamically reconnect nodes in the pipeline to connect the correct pre-processor node
+            if payload.get("return_control_map"):
+                # Connect annotator to output image directly if we need to return the control map
+                self.generator.reconnect_input(
+                    pipeline_data,
+                    "output_image.images",
+                    payload["control_type"],
+                )
+            else:
+                # Connect annotator to controlnet apply node
+                self.generator.reconnect_input(
+                    pipeline_data,
+                    "controlnet_apply.image",
+                    payload["control_type"],
+                )
+
+        # If we have a source image, use that rather than latent noise (i.e. img2img)
+        # We do this by reconnecting the nodes in the pipeline to make the input to the vae encoder
+        # the source image instead of the latent noise generator
+        if pipeline_params.get("image_loader.image"):
+            self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
 
         return pipeline_params
 
@@ -503,10 +512,10 @@ class HordeLib:
             # Acquire a lock on all these models
             self.lock_models(models)
             # Call the inference pipeline
+            # logger.info(payload)
             images = self.generator.run_image_pipeline(pipeline_data, payload)
         finally:
             self.unlock_models(models)
-
         return self._process_results(images, rawpng)
 
     def image_upscale(self, payload, rawpng=False) -> Image.Image | None:

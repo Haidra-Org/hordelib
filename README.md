@@ -30,6 +30,16 @@ hordelib
 ...your other dependencies...
 ```
 
+#### Linux Installation
+
+On Linux you will need to install the Nvidia CUDA Toolkit. Linux installers are provided by Nvidia at https://developer.nvidia.com/cuda-downloads
+
+Note if you only have 16GB of RAM and a default /tmp on tmpfs, you will likely need to increase the size of your temporary space to install the CUDA Toolkit or it may fail to extract the archive. One way to do that is just before installing the CUDA Toolkit:
+```bash
+sudo mount -o remount,size=16G /tmp
+```
+If you only have 16GB of RAM you will also need swap space. So if you typically run without swap, add some. You won't be able to run this library without it.
+
 ## Usage
 
 Horde payloads can be processed simply with (for example):

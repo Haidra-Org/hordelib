@@ -19,6 +19,7 @@ from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.controlnet import ControlNetModelManager
 from hordelib.model_manager.esrgan import EsrganModelManager
 from hordelib.model_manager.gfpgan import GfpganModelManager
+from hordelib.model_manager.lora import LoraModelManager
 from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
 
 MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type[BaseModelManager]] = {
@@ -32,6 +33,7 @@ MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type[BaseModelManager]] =
     MODEL_CATEGORY_NAMES.esrgan: EsrganModelManager,
     MODEL_CATEGORY_NAMES.gfpgan: GfpganModelManager,
     MODEL_CATEGORY_NAMES.safety_checker: SafetyCheckerModelManager,
+    MODEL_CATEGORY_NAMES.lora: LoraModelManager,
 }
 """Keys are `str` which represent attrs in `ModelManger`. Values are the corresponding `type`."""
 
@@ -49,6 +51,7 @@ class ModelManager:
     esrgan: EsrganModelManager | None = None
     gfpgan: GfpganModelManager | None = None
     safety_checker: SafetyCheckerModelManager | None = None
+    lora: LoraModelManager | None = None
     # XXX I think this can be reworked into an array of BaseModelManager instances
 
     @property
@@ -116,6 +119,7 @@ class ModelManager:
             self.safety_checker,
             self.codeformer,
             self.controlnet,
+            self.lora,
         ]
         # reset available models
 
@@ -155,6 +159,7 @@ class ModelManager:
         esrgan: bool = False,
         gfpgan: bool = False,
         safety_checker: bool = False,
+        lora: bool = False,
     ):  # XXX are we married to the name and/or the idea behind this function
         """For each arg which is true, attempt to load that `BaseModelManager` type."""
         args_passed: dict = locals().copy()  # XXX This is temporary
