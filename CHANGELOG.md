@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v1.3.1](https://github.com/Haidra-Org/hordelib/compare/v1.3.0...v1.3.1)
+
+24 May 2023
+
+- fix: more robust downloads; resume, retry, don't delete files so hastily.  [`#307`](https://github.com/Haidra-Org/hordelib/pull/307) (Jug)
+
 ## [v1.3.0](https://github.com/Haidra-Org/hordelib/compare/v1.2.1...v1.3.0)
 
 24 May 2023
