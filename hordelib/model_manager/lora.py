@@ -62,8 +62,18 @@ class LoraModelManager(BaseModelManager):
         self._download_queue.append(
             {
                 "name": "GlowingRunesAI",
+                "sha256": "1E7DF5F25B76B3D1B5FCEBB7AEB229FF33D805DC10B2F7CBB56F3A7BA0ED4686",
+                "filename": "GlowingRunesAI.safetensors",
+                "url": "https://civitai.com/api/download/models/75193?type=Model&format=SafeTensor",
+                "triggers": ["GlowingRunesAIV3_green", "GlowingRunesAI_red", "GlowingRunesAI_paleblue"],
+                "size_mb": 144,
+            },
+        )
+        self._download_queue.append(
+            {
+                "name": "GlowingRunesAIV2",
                 "sha256": "93B4029A1D5E20A3134A0FD77EEB294D2FF7D2183CDA9486694D467352463C3A",
-                "filename": "GlowingRunesAIV6.safetensors",
+                "filename": "GlowingRunesAIV2.safetensors",
                 "url": "https://civitai.com/api/download/models/58262?type=Model&format=SafeTensor",
                 "triggers": ["GlowingRunesAIV2_red", "GlowingRunesAIV2_paleblue"],
                 "size_mb": 144,
