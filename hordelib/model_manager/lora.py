@@ -61,7 +61,7 @@ class LoraModelManager(BaseModelManager):
         # Example of how to inject mandatory LORAs, we use these two for our tests
         self._download_queue.append(
             {
-                "name": "GlowingRunesAIV6",
+                "name": "GlowingRunesAI",
                 "sha256": "93B4029A1D5E20A3134A0FD77EEB294D2FF7D2183CDA9486694D467352463C3A",
                 "filename": "GlowingRunesAIV6.safetensors",
                 "url": "https://civitai.com/api/download/models/58262?type=Model&format=SafeTensor",
@@ -368,19 +368,73 @@ class LoraModelManager(BaseModelManager):
             return False
         return self.done
 
-    def get_lora_filename(self, model_name: str):
-        lora_name = self.fuzzy_find_lora(model_name)
-        if not lora_name:
-            return None
-        if lora_name not in self.model_reference:
-            return None
-        return self.model_reference[lora_name]["filename"]
+    def fuzzy_find_lora(self, lora_name):
+        # sname = Sanitizer.remove_version(lora_name).lower()
+        sname = lora_name.lower()
+        if sname in self.model_reference:
+            return sname
+        for lora in self.model_reference:
+            if sname in lora:
+                return lora
+        for lora in self.model_reference:
+            if fuzz.ratio(sname, lora) > 80:
+                return lora
+        return None
 
+    # Using `get_model` instead of `get_lora` as it exists in the base class
     def get_model(self, model_name: str):
+        """Returns the actual lora details dict for the specified model_name search string
+        Returns None if lora name not found"""
         lora_name = self.fuzzy_find_lora(model_name)
         if not lora_name:
             return None
         return self.model_reference[lora_name]
+
+    def get_lora_filename(self, model_name: str):
+        """Returns the actual lora filename for the specified model_name search string
+        Returns None if lora name not found"""
+        lora = self.get_model(model_name)
+        if not lora:
+            return None
+        return lora["filename"]
+
+    def get_lora_name(self, model_name: str):
+        """Returns the actual lora name for the specified model_name search string
+        Returns None if lora name not found"""
+        lora = self.get_model(model_name)
+        if not lora:
+            return None
+        return lora["name"]
+
+    def get_lora_triggers(self, model_name: str):
+        """Returns a list of triggers for a specified lora name
+        Returns an empty list if no triggers are found
+        Returns None if lora name not found"""
+        lora = self.get_model(model_name)
+        if not lora:
+            return None
+        triggers = lora.get("triggers")
+        if triggers:
+            return triggers
+        # We don't `return lora.get("triggers", [])`` to avoid the returned list object being modified
+        # and then we keep returning previous items
+        return []
+
+    def find_lora_trigger(self, model_name: str, trigger_search: str):
+        """Searches for a specific trigger for a specified lora name
+        Returns None if string not found even with fuzzy search"""
+        triggers = self.get_lora_triggers(model_name)
+        if triggers is None:
+            return None
+        if trigger_search.lower() in [trigger.lower() for trigger in triggers]:
+            return trigger_search
+        for trigger in triggers:
+            if trigger_search.lower() in trigger.lower():
+                return trigger
+        for trigger in triggers:
+            if fuzz.ratio(trigger_search.lower(), trigger.lower()) > 65:
+                return trigger
+        return None
 
     def save_cached_reference_to_disk(self):
         with open(self.models_db_path, "wt", encoding="utf-8", errors="ignore") as outfile:
@@ -424,19 +478,6 @@ class LoraModelManager(BaseModelManager):
         os.remove(filename)
         del self.model_reference[oldest_lora]
         del self._adhoc_loras[oldest_lora]
-
-    def fuzzy_find_lora(self, lora_name):
-        # sname = Sanitizer.remove_version(lora_name).lower()
-        sname = lora_name.lower()
-        if sname in self.model_reference:
-            return sname
-        for lora in self.model_reference:
-            if sname in lora:
-                return sname
-        for lora in self.model_reference:
-            if fuzz.ratio(lora, self.model_reference) > 90:
-                return sname
-        return None
 
     @override
     def is_local_model(self, model_name):
