@@ -78,3 +78,15 @@ class TestModelManagerLora:
         assert mml.get_lora_name("Dragon Scale AI") is not None
         assert mml.find_lora_trigger("Dra9onScaleAI", "Dr490nSc4leAI") is not None
         assert mml.find_lora_trigger("DragonScale", "DragonScaleAI") is not None
+
+    def test_lora_reference(self):
+        download_amount = 1024
+        mml = LoraModelManager(
+            allowed_top_lora_storage=download_amount,
+            download_wait=False,
+        )
+        mml.download_default_loras()
+        mml.wait_for_downloads()
+        assert len(mml.model_reference) > 0
+        mml.download_default_loras()
+        assert len(mml.model_reference) > 0
