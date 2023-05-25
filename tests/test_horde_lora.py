@@ -1,9 +1,12 @@
 # test_horde_lora.py
+import os
+
 import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
+from hordelib.utils.distance import are_images_identical
 
 
 class TestHordeLora:
@@ -21,6 +24,7 @@ class TestHordeLora:
         SharedModelManager.manager.load("Deliberate")
         SharedModelManager.manager.lora.download_default_loras()
         SharedModelManager.manager.lora.wait_for_downloads()
+        TestHordeLora.distance_threshold = int(os.getenv("IMAGE_DISTANCE_THRESHOLD", "100000"))
         yield
         del TestHordeLora.horde
         SharedModelManager._instance = None
@@ -38,7 +42,7 @@ class TestHordeLora:
             "seed": 304886399544324,
             "height": 512,
             "width": 512,
-            "karras": True,
+            "karras": False,
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
@@ -51,11 +55,12 @@ class TestHordeLora:
             "n_iter": 1,
             "model": "Deliberate",
         }
-        print(data)
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
-        pil_image.save("images/lora_red.webp", quality=90)
+        img_filename = "lora_red.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
     def test_text_to_image_lora_blue(self):
 
@@ -69,7 +74,7 @@ class TestHordeLora:
             "seed": 304886399544324,
             "height": 512,
             "width": 512,
-            "karras": True,
+            "karras": False,
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
@@ -85,7 +90,9 @@ class TestHordeLora:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
-        pil_image.save("images/lora_blue.webp", quality=90)
+        img_filename = "lora_blue.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
     def test_text_to_image_lora_chained(self):
         lora_name = SharedModelManager.manager.lora.get_lora_name("GlowingRunesAI")
@@ -101,7 +108,7 @@ class TestHordeLora:
             "seed": 304886399544324,
             "height": 512,
             "width": 512,
-            "karras": True,
+            "karras": False,
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
@@ -121,7 +128,9 @@ class TestHordeLora:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
-        pil_image.save("images/lora_multiple.webp", quality=90)
+        img_filename = "lora_multiple.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
     def test_text_to_image_lora_chained_bad(self):
         lora_name = SharedModelManager.manager.lora.get_lora_name("GlowingRunesAI")
@@ -135,7 +144,7 @@ class TestHordeLora:
             "seed": 304886399544324,
             "height": 512,
             "width": 512,
-            "karras": True,
+            "karras": False,
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
@@ -167,7 +176,7 @@ class TestHordeLora:
             "seed": 1312,
             "height": 512,
             "width": 512,
-            "karras": True,
+            "karras": False,
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
@@ -183,7 +192,9 @@ class TestHordeLora:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
-        pil_image.save("images/lora_inject_red.webp", quality=90)
+        img_filename = "lora_inject_red.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
     def test_lora_trigger_inject_any(self):
         # Red
@@ -195,7 +206,7 @@ class TestHordeLora:
             "seed": 1312,
             "height": 512,
             "width": 512,
-            "karras": True,
+            "karras": False,
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
@@ -211,4 +222,6 @@ class TestHordeLora:
         assert self.horde is not None
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
-        pil_image.save("images/lora_inject_any.webp", quality=90)
+        img_filename = "lora_inject_any.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)

@@ -1,9 +1,12 @@
 # test_horde.py
+import os
+
 import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
+from hordelib.utils.distance import are_images_identical
 
 
 class TestHordeInference:
@@ -27,7 +30,8 @@ class TestHordeInference:
         assert SharedModelManager.manager is not None
         SharedModelManager.manager.load("Deliberate")
         for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
-            SharedModelManager.manager.controlnet.download_control_type(preproc)
+            SharedModelManager.manager.controlnet.download_control_type(preproc, ["stable diffusion 1"])
+        TestHordeInference.distance_threshold = int(os.getenv("IMAGE_DISTANCE_THRESHOLD", "100000"))
         yield
         del self.horde
         SharedModelManager._instance = None
@@ -41,7 +45,7 @@ class TestHordeInference:
             "seed": 123456789,
             "height": 512,
             "width": 512,
-            "karras": True,
+            "karras": False,
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
@@ -56,7 +60,6 @@ class TestHordeInference:
             "source_processing": "img2img",
         }
         assert self.horde is not None
-
         for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
             if preproc == "scribble" or preproc == "mlsd":
                 # Skip
@@ -71,7 +74,37 @@ class TestHordeInference:
             data["control_type"] = preproc
             pil_image = self.horde.basic_inference(data)
             assert pil_image is not None
-            pil_image.save(f"images/controlnet_{preproc}.webp", quality=90)
+            # assert get_image_distance(expected_filename, pil_image) < 100
+            img_filename = f"controlnet_{preproc}.png"
+            pil_image.save(f"images/{img_filename}", quality=100)
+            assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+
+    def test_controlnet_fake_cn(self):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": "THIS_SHOULD_FAIL",
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a man walking in the snow",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+        }
+        assert self.horde is not None
+        with pytest.raises(Exception):
+            pil_image = self.horde.basic_inference(data)
+            assert pil_image is None
 
     def test_controlnet_strength(self):
         data = {
@@ -81,7 +114,7 @@ class TestHordeInference:
             "seed": 123456789,
             "height": 512,
             "width": 512,
-            "karras": True,
+            "karras": False,
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
@@ -99,7 +132,9 @@ class TestHordeInference:
             data["control_strength"] = strength
             pil_image = self.horde.basic_inference(data)
             assert pil_image is not None
-            pil_image.save(f"images/controlnet_strength_{strength}.webp", quality=90)
+            img_filename = f"controlnet_strength_{strength}.png"
+            pil_image.save(f"images/{img_filename}", quality=100)
+            assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
     def test_controlnet_hires_fix(self):
         data = {
@@ -109,7 +144,7 @@ class TestHordeInference:
             "seed": 1234345378856789,
             "height": 768,
             "width": 768,
-            "karras": True,
+            "karras": False,
             "tiling": False,
             "hires_fix": True,
             "hires_fix_denoising_strength": 0.0,
@@ -128,4 +163,6 @@ class TestHordeInference:
             data["hires_fix_denoising_strength"] = denoise
             pil_image = self.horde.basic_inference(data)
             assert pil_image is not None
-            pil_image.save(f"images/controlnet_hires_fix_denoise_{denoise}.webp", quality=90)
+            img_filename = f"controlnet_hires_fix_denoise_{denoise}.png"
+            pil_image.save(f"images/{img_filename}", quality=100)
+            assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)

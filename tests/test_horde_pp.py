@@ -1,9 +1,12 @@
 # test_horde.py
+import os
+
 import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
+from hordelib.utils.distance import are_images_identical
 
 
 class TestHordeUpscaling:
@@ -17,13 +20,13 @@ class TestHordeUpscaling:
             TestHordeUpscaling.width,
             TestHordeUpscaling.height,
         ) = TestHordeUpscaling.image.size
+        TestHordeUpscaling.distance_threshold = int(os.getenv("IMAGE_DISTANCE_THRESHOLD", "100000"))
         yield
         del TestHordeUpscaling.horde
 
     @pytest.fixture(autouse=True)
     def setup_model(self, request):
         mm_type = request.node.get_closest_marker("mm_model").args[0]
-        print(mm_type)
         self.default_model_manager_args = {
             mm_type: True,
         }
@@ -47,7 +50,9 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         assert width == self.width * 4
         assert height == self.height * 4
-        pil_image.save("images/image_upscale_RealESRGAN_x4plus.webp", quality=90)
+        img_filename = "image_upscale_RealESRGAN_x4plus.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
 
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_RealESRGAN_x2plus(self):
@@ -62,7 +67,9 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         assert width == self.width * 2
         assert height == self.height * 2
-        pil_image.save("images/image_upscale_RealESRGAN_x2plus.webp", quality=90)
+        img_filename = "image_upscale_RealESRGAN_x2plus.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
 
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_NMKD_Siax(self):
@@ -77,7 +84,9 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         assert width == self.width * 4
         assert height == self.height * 4
-        pil_image.save("images/image_upscale_NMKD_Siax.webp", quality=90)
+        img_filename = "image_upscale_NMKD_Siax.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
 
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_NMKD_Siax_resize(self):
@@ -89,7 +98,9 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         assert width == 1280
         assert height == 1280
-        pil_image.save("images/image_upscale_NMKD_Siax_resize.webp", quality=90)
+        img_filename = "image_upscale_NMKD_Siax_resize.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
 
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_RealESRGAN_x4plus_anime_6B(self):
@@ -109,10 +120,9 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         assert width == self.width * 4
         assert height == self.height * 4
-        pil_image.save(
-            "images/image_upscale_RealESRGAN_x4plus_anime_6B.webp",
-            quality=90,
-        )
+        img_filename = "image_upscale_RealESRGAN_x4plus_anime_6B.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
 
     @pytest.mark.mm_model("esrgan")
     def test_image_upscale_4x_AnimeSharp(self):
@@ -127,7 +137,9 @@ class TestHordeUpscaling:
         width, height = pil_image.size
         assert width == self.width * 4
         assert height == self.height * 4
-        pil_image.save("images/image_upscale_4x_AnimeSharp.webp", quality=90)
+        img_filename = "image_upscale_4x_AnimeSharp.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
 
     @pytest.mark.mm_model("codeformer")
     def test_image_facefix_codeformers(self):
@@ -139,8 +151,9 @@ class TestHordeUpscaling:
         }
         pil_image = self.horde.image_facefix(data)
         assert pil_image is not None
-        width, height = pil_image.size
-        pil_image.save("images/image_facefix_codeformers.webp", quality=90)
+        img_filename = "image_facefix_codeformers.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 2000)
 
     @pytest.mark.mm_model("gfpgan")
     def test_image_facefix_gfpgan(self):
@@ -152,5 +165,6 @@ class TestHordeUpscaling:
         }
         pil_image = self.horde.image_facefix(data)
         assert pil_image is not None
-        width, height = pil_image.size
-        pil_image.save("images/image_facefix_gfpgan.webp", quality=90)
+        img_filename = "image_facefix_gfpgan.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 2000)

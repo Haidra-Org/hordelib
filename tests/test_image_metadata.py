@@ -32,7 +32,7 @@ class TestHordeInference:
             "seed": 123456789,
             "height": 512,
             "width": 512,
-            "karras": True,
+            "karras": False,
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
