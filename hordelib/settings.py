@@ -118,5 +118,10 @@ class UserSettings:
     # between hordelib calls exceeds 1 second.
     enable_idle_time_warning = Switch()
 
+    # Callback for use to broadcast download progress updates
+    # Should be set to a method with a signature (description: str, current: int, total: int)
+    # And will be called with a description of the download, current bytes and total bytes.
+    download_progress_callback = None
+
 
 _UserSettings = UserSettings()

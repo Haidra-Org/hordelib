@@ -81,13 +81,13 @@ TEMPLATE = """
 def href(filename):
     return (
         f'<a href="{filename}"><figure><img class="thumbnail" src="{filename}">'
-        f'<figcaption>{filename.replace(".webp", "")}</figcaption></figure></a>'
+        f'<figcaption>{filename.replace(".png", "")}</figcaption></figure></a>'
     )
 
 
 def create_index():
     # Get a list of images
-    files = glob.glob("images/all_models/*.webp")
+    files = glob.glob("images/all_models/*.png")
     refs = []
     for imagefile in files:
         filename = os.path.basename(imagefile)

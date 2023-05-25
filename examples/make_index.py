@@ -77,7 +77,7 @@ def href(filename):
 
 def create_index():
     # Get a list of images
-    files = glob.glob("images/*.webp")
+    files = glob.glob("images/*.png")
     input_files = glob.glob("images/test_*")
     refs = []
     for imagefile in files:
