@@ -1,5 +1,15 @@
 ## hordelib Changelog
 
+## [v1.3.4](https://github.com/Haidra-Org/hordelib/compare/v1.3.3...v1.3.4)
+
+25 May 2023
+
+- tests: Compare test images with expected output [`#319`](https://github.com/Haidra-Org/hordelib/pull/319) (Divided by Zer0)
+- feat: add support for download progress indicators [`#318`](https://github.com/Haidra-Org/hordelib/pull/318) (Jug)
+- ci: set IMAGE_DISTANCE_THRESHOLD [`7a09e1a`](https://github.com/Haidra-Org/hordelib/commit/7a09e1afa8746ee25fc54647f40bb40e55afcf4e)  (db0)
+- doc: restore PR unit test image link [`bf00539`](https://github.com/Haidra-Org/hordelib/commit/bf005391d174be84de987b0fa96c697747a424e1)  (Jug)
+- doc: remove link to PR image tests which were removed [`c21453e`](https://github.com/Haidra-Org/hordelib/commit/c21453e706a2d5d516046fadca473e0815c94bd4)  (Jug)
+
 ## [v1.3.3](https://github.com/Haidra-Org/hordelib/compare/v1.3.2...v1.3.3)
 
 25 May 2023
