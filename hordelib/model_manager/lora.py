@@ -342,11 +342,11 @@ class LoraModelManager(BaseModelManager):
 
     def download_default_loras(self):
         """Start up a background thread downloading and return immediately"""
-        # TODO: Avoid clearing this out, until we know CivitAI is not dead.
-        self.model_reference = {}
         # Don't start if we're already busy doing something
         if self._thread:
             return
+        # TODO: Avoid clearing this out, until we know CivitAI is not dead.
+        self.model_reference = {}
         os.makedirs(self.modelFolderPath, exist_ok=True)
         # Start processing in a background thread
         self._thread = threading.Thread(target=self._start_processing, daemon=True)
