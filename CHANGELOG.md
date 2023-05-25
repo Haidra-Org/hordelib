@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v1.3.6](https://github.com/Haidra-Org/hordelib/compare/v1.3.5...v1.3.6)
+
+26 May 2023
+
+- tests: Added test for lora model_reference wipe [`eac465d`](https://github.com/Haidra-Org/hordelib/commit/eac465dd9d80f07e5878f749aa8b7a62d541229e)  (db0)
+- fix: wipe reference only when valid [`8b11641`](https://github.com/Haidra-Org/hordelib/commit/8b11641de44e4ac71e4f9745c1e7735aa01e736d)  (db0)
+- feat: add changelog link to release annoucement [`c577b8a`](https://github.com/Haidra-Org/hordelib/commit/c577b8a1268b01e334e19919412777b6299a9077)  (Jug)
+
 ## [v1.3.5](https://github.com/Haidra-Org/hordelib/compare/v1.3.4...v1.3.5)
 
 25 May 2023
