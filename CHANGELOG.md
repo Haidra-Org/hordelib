@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v1.3.5](https://github.com/Haidra-Org/hordelib/compare/v1.3.4...v1.3.5)
+
+25 May 2023
+
+- fix: allow all types of downloads to display progress [`#324`](https://github.com/Haidra-Org/hordelib/pull/324) (Jug)
+- fix: make index uses .png files [`#321`](https://github.com/Haidra-Org/hordelib/pull/321) (Divided by Zer0)
+
 ## [v1.3.4](https://github.com/Haidra-Org/hordelib/compare/v1.3.3...v1.3.4)
 
 25 May 2023
