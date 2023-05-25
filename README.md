@@ -6,6 +6,7 @@
 
 [![Build][build-image]][build-url]
 [![Test Images][main-test-image]][main-test-url]
+[![Test Images][pr-test-image]][pr-test-url]
 [![All Models][all-model-images]][all-model-url]
 [![Release Changelog][changelog-image]][changelog-url]
 
