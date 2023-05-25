@@ -59,6 +59,9 @@ class ControlNetModelManager(BaseModelManager):
         """
         # XXX would be nice to get the model name passed as a parameter
         controlnet_name = self.get_controlnet_name(control_type, model_baseline)
+        # HACK to rename the control name here which is wrong
+        if controlnet_name == "control_fakescribble":
+            controlnet_name = "control_fakescribbles"
         if controlnet_name not in self.model_reference:
             logger.error(f"{controlnet_name} not found")
             return False
