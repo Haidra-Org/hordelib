@@ -55,7 +55,6 @@ class BaseModelManager(ABC):
     remote_db: str
     _mutex = threading.RLock()
     _disk_write_mutex = threading.Lock()
-    _download_progress_callback = None
 
     def get_torch_device(self):
         return _get_torch_device()
@@ -116,21 +115,12 @@ class BaseModelManager(ABC):
         self.load_disk_cached_models()
 
     def progress(self, desc="done", current=0, total=0):
-        if self._download_progress_callback:
-            self._download_progress_callback(desc, current, total)
+        if UserSettings.download_progress_callback:
+            UserSettings.download_progress_callback(desc, current, total)
 
     @classmethod
     def set_download_callback(cls, callback):
-        """Set a callback function when files are downloaded.
-
-        Function signature must be (description: str, current: int, total: int)
-        and this will be called repeatedly during downloads and passed
-        the current download byte count and the total download byte count.
-
-        Called with current and total as None to indicate download has ended.
-        """
-        if callback:
-            cls._download_progress_callback = callback
+        UserSettings.download_progress_callback = callback
 
     def loadModelDatabase(self, list_models=False):
         if self.model_reference:
@@ -333,10 +323,8 @@ class BaseModelManager(ABC):
                     model_validated = self.validate_model(model_name)
                     if not model_validated:
                         return False
-                logger.init(f"{model_name}", status="Loading")
-
                 tic = time.time()
-                logger.init(f"{model_name}", status="Loading")
+                logger.init(f"Loading {model_name}", status="Loading")
 
                 try:
                     self.add_loaded_model(
@@ -761,7 +749,7 @@ class BaseModelManager(ABC):
                     miniters=1,
                     desc=filename,
                     total=remote_file_size + partial_size,
-                    disable=self._download_progress_callback is not None,
+                    disable=UserSettings.download_progress_callback is not None,
                 ) as pbar:
                     downloaded = partial_size
                     for chunk in response.iter_content(chunk_size=1024 * 1024 * 16):
