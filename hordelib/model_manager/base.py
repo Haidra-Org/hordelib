@@ -55,6 +55,7 @@ class BaseModelManager(ABC):
     remote_db: str
     _mutex = threading.RLock()
     _disk_write_mutex = threading.Lock()
+    _download_progress_callback = None
 
     def get_torch_device(self):
         return _get_torch_device()
@@ -113,6 +114,23 @@ class BaseModelManager(ABC):
         self.download_reference = download_reference
         self.loadModelDatabase()
         self.load_disk_cached_models()
+
+    def progress(self, desc="done", current=0, total=0):
+        if self._download_progress_callback:
+            self._download_progress_callback(desc, current, total)
+
+    @classmethod
+    def set_download_callback(cls, callback):
+        """Set a callback function when files are downloaded.
+
+        Function signature must be (description: str, current: int, total: int)
+        and this will be called repeatedly during downloads and passed
+        the current download byte count and the total download byte count.
+
+        Called with current and total as None to indicate download has ended.
+        """
+        if callback:
+            cls._download_progress_callback = callback
 
     def loadModelDatabase(self, list_models=False):
         if self.model_reference:
@@ -515,8 +533,8 @@ class BaseModelManager(ABC):
             if not skip_checksum and not self.validate_file(file_details):
                 logger.warning(f"File {file_details['path']} has different contents to what we expected.")
                 try:
-                    # The file must have been considered valid once, or we wouldn't have renamed it from the ".part" download.
-                    # Likely there is an update, or a model database hash problem
+                    # The file must have been considered valid once, or we wouldn't have renamed
+                    # it from the ".part" download. Likely there is an update, or a model database hash problem
                     logger.warning(f"Likely updated, will attempt to re-download {file_details['path']}.")
                 except OSError as e:
                     logger.error(f"Unable to delete {file_details['path']}: {e}.")
@@ -703,6 +721,7 @@ class BaseModelManager(ABC):
                     remote_file_size = int(response.headers.get("Content-length", 0))
                     if partial_size == remote_file_size:
                         # Successful download, swap the files
+                        self.progress()
                         logger.info(f"Successfully downloaded the file {filename}")
                         if os.path.exists(final_pathname):
                             os.remove(final_pathname)
@@ -720,7 +739,8 @@ class BaseModelManager(ABC):
                         pass  # already downloaded
                     else:
                         logger.warning(
-                            f"Server did not support resuming download, restarting download {response.status_code}: {partial_size} != {remote_file_size}",
+                            f"Server did not support resuming download, "
+                            f"restarting download {response.status_code}: {partial_size} != {remote_file_size}",
                         )
                         # try again without resuming, i.e. delete the partial download
                         if os.path.exists(final_pathname):
@@ -741,15 +761,19 @@ class BaseModelManager(ABC):
                     miniters=1,
                     desc=filename,
                     total=remote_file_size + partial_size,
-                    disable=UserSettings.disable_download_progress.active,
+                    disable=self._download_progress_callback is not None,
                 ) as pbar:
+                    downloaded = partial_size
                     for chunk in response.iter_content(chunk_size=1024 * 1024 * 16):
                         response.raise_for_status()
                         if chunk:
+                            downloaded += len(chunk)
                             f.write(chunk)
                             pbar.update(len(chunk))
+                            self.progress(filename, downloaded, remote_file_size + partial_size)
                 # Successful download, swap the files
                 logger.info(f"Successfully downloaded the file {filename}")
+                self.progress()
                 if os.path.exists(final_pathname):
                     os.remove(final_pathname)
                 # Move the downloaded data into it's final location
@@ -763,6 +787,7 @@ class BaseModelManager(ABC):
                     logger.info("Attempting download of file again")
                     time.sleep(2)
                 else:
+                    self.progress()
                     return False
 
     def download_model(self, model_name: str):
