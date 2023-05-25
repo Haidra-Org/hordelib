@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v1.3.3](https://github.com/Haidra-Org/hordelib/compare/v1.3.2...v1.3.3)
+
+25 May 2023
+
+- fix: make fakescribble controlnet work again [`#314`](https://github.com/Haidra-Org/hordelib/pull/314) (Jug)
+
 ## [v1.3.2](https://github.com/Haidra-Org/hordelib/compare/v1.3.1...v1.3.2)
 
 25 May 2023
