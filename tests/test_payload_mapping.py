@@ -21,7 +21,7 @@ class TestPayloadMapping:
             "seed": "23113",
             "height": 512,
             "width": 512,
-            "karras": True,
+            "karras": False,
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,

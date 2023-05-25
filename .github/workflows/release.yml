@@ -104,10 +104,9 @@ jobs:
         curl -X PURGE
         https://camo.githubusercontent.com/769edfb1778d4cbc3f93bc5ad0be9597bbd2d9c162cc1e9fb44172a5b660af01/68747470733a2f2f706570792e746563682f62616467652f686f7264656c6962
 
-    # # TODO: Once we make it official
-    # - name: "Inform with Discord Webhook"
-    #   if: ${{ steps.release.outputs.version != '' }}
-    #   uses: tsickert/discord-webhook@v5.3.0
-    #   with:
-    #     webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-    #     content: "New version of hordelib has been published to pypi: ${{ steps.release.outputs.version }}"
+    - name: "Inform with Discord Webhook"
+      if: ${{ steps.release.outputs.version != '' }}
+      uses: tsickert/discord-webhook@v5.3.0
+      with:
+        webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        content: "New version of hordelib has been published to pypi: ${{ steps.release.outputs.version }}. You can update your worker by running `./update-runtime.sh --hordelib` (Linux) or `update-runtime.cmd --hordelib` (Windows)"

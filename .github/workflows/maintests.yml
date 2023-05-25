@@ -17,6 +17,7 @@ jobs:
     runs-on: self-hosted
     env:
       HORDELIB_TESTING: "no-cuda"
+      IMAGE_DISTANCE_THRESHOLD: "10000"
     strategy:
       matrix:
         python: ["3.10"]

@@ -1,9 +1,12 @@
 # test_inference.py
+import os
+
 import pytest
 from PIL import Image
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
+from hordelib.utils.distance import are_images_identical
 
 
 class TestInference:
@@ -15,6 +18,7 @@ class TestInference:
         SharedModelManager.loadModelManagers(compvis=True)
         assert SharedModelManager.manager is not None
         SharedModelManager.manager.load("Deliberate")
+        TestInference.distance_threshold = int(os.getenv("IMAGE_DISTANCE_THRESHOLD", "100000"))
         yield
         del TestInference.comfy
         SharedModelManager._instance = None
@@ -44,8 +48,10 @@ class TestInference:
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
         assert images is not None
 
-        image = Image.open(images[0]["imagedata"])
-        image.save("images/pipeline_stable_diffusion.webp", quality=90)
+        pil_image = Image.open(images[0]["imagedata"])
+        img_filename = "pipeline_stable_diffusion.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
     def test_stable_diffusion_pipeline_clip_skip(self):
         params = {
@@ -67,8 +73,10 @@ class TestInference:
         images = self.comfy.run_image_pipeline("stable_diffusion", params)
         assert images is not None
 
-        image = Image.open(images[0]["imagedata"])
-        image.save("images/pipeline_stable_diffusion_clip_skip_2.webp", quality=90)
+        pil_image = Image.open(images[0]["imagedata"])
+        img_filename = "pipeline_stable_diffusion_clip_skip_2.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
     def test_stable_diffusion_hires_fix_pipeline(self):
         params = {
@@ -106,15 +114,16 @@ class TestInference:
         images = self.comfy.run_image_pipeline("stable_diffusion_hires_fix", params)
         assert images is not None
 
-        image = Image.open(images[0]["imagedata"])
-        image.save("images/pipeline_stable_diffusion_hires_fix.webp", quality=90)
+        pil_image = Image.open(images[0]["imagedata"])
+        img_filename = "pipeline_stable_diffusion_hires_fix.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
         params["clip_skip.stop_at_clip_layer"] = -2
         images = self.comfy.run_image_pipeline("stable_diffusion_hires_fix", params)
         assert images is not None
 
-        image = Image.open(images[0]["imagedata"])
-        image.save(
-            "images/pipeline_stable_diffusion_hires_fix_clip_skip_2.webp",
-            quality=90,
-        )
+        pil_image = Image.open(images[0]["imagedata"])
+        img_filename = "pipeline_stable_diffusion_hires_fix_clip_skip_2.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
