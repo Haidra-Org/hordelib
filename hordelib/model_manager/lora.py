@@ -281,7 +281,7 @@ class LoraModelManager(BaseModelManager):
                         # Maybe we're done
                         with self._mutex:
                             # We store as lower to allow case-insensitive search
-                            lora["last_used"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                            lora["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             self.model_reference[lora["name"].lower()] = lora
                             if len(self._adhoc_mutex) == 0:
                                 if self.is_default_cache_full():
@@ -559,7 +559,7 @@ class LoraModelManager(BaseModelManager):
                 logger.debug("Stopped processing thread")
                 return
             time.sleep(0.2)
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._adhoc_loras = set()
         try:
             sorted_items = sorted(
@@ -599,6 +599,16 @@ class LoraModelManager(BaseModelManager):
 
     def stop_all(self):
         self._stop_all_threads = True
+
+    def touch_lora(self, lora_name):
+        """Updates the "last_used" key in a lora entry to current UTC time"""
+        lora = self.get_model(lora_name)
+        lora["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    def get_lora_last_use(self, lora_name):
+        """Returns a dateimte object based on the "last_used" key in a lora entry"""
+        lora = self.get_model(lora_name)
+        return datetime.strptime(lora["last_used"], "%Y-%m-%d %H:%M:%S")
 
     @override
     def is_local_model(self, model_name):

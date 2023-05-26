@@ -314,6 +314,7 @@ class HordeLib:
                             payload["prompt"] = f'{trigger}, {payload["prompt"]}'
                         # the fixed up and validated filename (Comfy expect the "name" key to be the filename)
                         lora["name"] = SharedModelManager.manager.lora.get_lora_filename(lora_name)
+                        SharedModelManager.manager.lora.touch_lora(lora_name)
                         valid_loras.append(lora)
             payload["loras"] = valid_loras
             for lora_index, lora in enumerate(payload.get("loras")):

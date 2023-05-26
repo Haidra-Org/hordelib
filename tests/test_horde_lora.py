@@ -1,5 +1,6 @@
 # test_horde_lora.py
 import os
+from datetime import datetime, timedelta
 
 import pytest
 from PIL import Image
@@ -61,6 +62,9 @@ class TestHordeLora:
         img_filename = "lora_red.png"
         pil_image.save(f"images/{img_filename}", quality=100)
         assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+        assert SharedModelManager.manager.lora.get_lora_last_use("GlowingRunesAI") > datetime.now() - timedelta(
+            minutes=1,
+        )
 
     def test_text_to_image_lora_blue(self):
 

@@ -20,7 +20,7 @@ class TestModelManagerLora:
         del self.horde
 
     def test_downloading_default_sync(self):
-        download_amount = 1024
+        download_amount = 10240
         mml = LoraModelManager(
             allowed_top_lora_storage=download_amount,
             download_wait=True,
@@ -28,10 +28,10 @@ class TestModelManagerLora:
         mml.download_default_loras()
         assert mml.are_downloads_complete() is True
         assert mml.calculate_downloaded_loras() > download_amount
-        assert mml.calculate_downloaded_loras() < download_amount * 1.5
+        assert mml.calculate_downloaded_loras() < download_amount * 1.2
 
     def test_downloading_default_async(self):
-        download_amount = 1024
+        download_amount = 10240
         mml = LoraModelManager(
             allowed_top_lora_storage=download_amount,
             download_wait=False,
@@ -41,10 +41,10 @@ class TestModelManagerLora:
         mml.wait_for_downloads(120)
         assert mml.are_downloads_complete() is True
         assert mml.calculate_downloaded_loras() > download_amount
-        assert mml.calculate_downloaded_loras() < download_amount * 1.5
+        assert mml.calculate_downloaded_loras() < download_amount * 1.2
 
     def test_fuzzy_search(self):
-        download_amount = 1024
+        download_amount = 10240
         mml = LoraModelManager(
             allowed_top_lora_storage=download_amount,
             download_wait=False,
@@ -57,7 +57,7 @@ class TestModelManagerLora:
         assert mml.fuzzy_find_lora("GlowingRobotsAI") is None
 
     def test_lora_search(self):
-        download_amount = 1024
+        download_amount = 10240
         mml = LoraModelManager(
             allowed_top_lora_storage=download_amount,
             download_wait=False,
@@ -80,7 +80,7 @@ class TestModelManagerLora:
         assert mml.find_lora_trigger("DragonScale", "DragonScaleAI") is not None
 
     def test_lora_reference(self):
-        download_amount = 1024
+        download_amount = 10240
         mml = LoraModelManager(
             allowed_top_lora_storage=download_amount,
             download_wait=False,
@@ -102,7 +102,7 @@ class TestModelManagerLora:
         assert mml.find_lora_from_filename("GlowingRunesAI.safetensors") == "glowingrunesai"
         mml.stop_all()
         mml = LoraModelManager(
-            allowed_top_lora_storage=1024,
+            allowed_top_lora_storage=9500,
             download_wait=False,
             allowed_adhoc_lora_storage=100,
         )
@@ -120,7 +120,7 @@ class TestModelManagerLora:
         assert "dra9onscaleai" not in unused_loras
         mml.stop_all()
         mml = LoraModelManager(
-            allowed_top_lora_storage=1024,
+            allowed_top_lora_storage=9500,
             download_wait=False,
             allowed_adhoc_lora_storage=100,
         )
