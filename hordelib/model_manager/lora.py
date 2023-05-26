@@ -48,11 +48,11 @@ class LoraModelManager(BaseModelManager):
         self._next_page_url = None
         self._mutex = threading.Lock()
         self._file_count = 0
-        self._download_threads = []
+        self._download_threads = {}
         self._download_queue = deque()
         self._thread = None
-        self.done = True
-        self.model_data = []
+        self.stop_downloading = True
+        self._previous_model_reference = set()
         # Not yet handled, as we need a global reference to search through.
         self._adhoc_loras = set()
         self._adhoc_mutex = {}
@@ -156,7 +156,7 @@ class LoraModelManager(BaseModelManager):
         # This may be the end of the road, unlikely but...
         if not url:
             logger.warning("End of LORA data reached")
-            self.done = True
+            self.stop_downloading = True
         else:
             # Get the actual item data
             items = self._get_json(url)
@@ -209,19 +209,21 @@ class LoraModelManager(BaseModelManager):
                 lora["triggers"][i] = re.sub("<lora:(.*):.*>", "\\1", trigger)
         return lora
 
-    def _download_thread(self):
+    def _download_thread(self, thread_number):
         # We try to download the LORA. There are tens of thousands of these things, we aren't
         # picky if downloads fail, as they often will if civitai is the host, we just move on to
         # the next one
+        logger.debug(f"Started Download Thread {thread_number}")
         while True:
             # Endlessly look for files to download and download them
             try:
                 lora = self._download_queue.popleft()
+                self._download_threads[thread_number]["lora"] = lora
             except IndexError:
                 # Nothing in the queue
+                self._download_threads[thread_number]["lora"] = None
                 time.sleep(2)
                 continue
-
             # Download the lora
             retries = 0
             while retries <= self.MAX_RETRIES:
@@ -240,12 +242,10 @@ class LoraModelManager(BaseModelManager):
                             # we already have this lora, consider it downloaded
                             logger.debug(f"Already have LORA {lora['filename']}")
                             with self._mutex:
-                                self.model_data.append(lora)
                                 # We store as lower to allow case-insensitive search
                                 self.model_reference[lora["name"].lower()] = lora
-                                if len(self._adhoc_mutex) == 0:
-                                    if self.calculate_downloaded_loras(DOWNLOAD_SIZE_CHECK.top) > self._max_top_disk:
-                                        self.done = True
+                                if self.is_default_cache_full():
+                                    self.stop_downloading = True
                                 else:
                                     # Normally this should never happen unless the user manually
                                     # reduced their max size in the meantime
@@ -276,13 +276,12 @@ class LoraModelManager(BaseModelManager):
                         logger.info(f"Downloaded LORA {lora['filename']} ({lora['size_mb']} MB)")
                         # Maybe we're done
                         with self._mutex:
-                            self.model_data.append(lora)
                             # We store as lower to allow case-insensitive search
                             self.model_reference[lora["name"].lower()] = lora
                             lora["last_used"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
                             if len(self._adhoc_mutex) == 0:
-                                if self.calculate_downloaded_loras(DOWNLOAD_SIZE_CHECK.top) > self._max_top_disk:
-                                    self.done = True
+                                if self.is_default_cache_full():
+                                    self.stop_downloading = True
                             else:
                                 if self.calculate_downloaded_loras(DOWNLOAD_SIZE_CHECK.adhoc) > self._max_adhoc_disk:
                                     self.delete_oldest_lora()
@@ -290,18 +289,20 @@ class LoraModelManager(BaseModelManager):
                         break
                     else:
                         # We will retry
-                        logger.debug(f"Downloaded LORA file for {lora['filename']} didn't match hash")
+                        logger.debug(
+                            f"Downloaded LORA file for {lora['filename']} didn't match hash. "
+                            f"Retry {retries}/{self.MAX_RETRIES}",
+                        )
 
                 except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
                     # We will retry
-                    logger.debug(f"Error downloading {lora['filename']} {e}")
+                    logger.debug(f"Error downloading {lora['filename']} {e}. Retry {retries}/{self.MAX_RETRIES}")
 
                 except Exception as e:
                     # Failed badly, ignore and retry
-                    logger.debug(f"Fatal error downloading {lora['filename']} {e}")
+                    logger.debug(f"Fatal error downloading {lora['filename']} {e}. Retry {retries}/{self.MAX_RETRIES}")
 
                 retries += 1
-                logger.debug(f"Retry of LORA file download for {lora['filename']}")
                 if retries > self.MAX_RETRIES:
                     break  # fail
 
@@ -311,9 +312,10 @@ class LoraModelManager(BaseModelManager):
         with self._mutex:
             # Start download threads if they aren't already started
             while len(self._download_threads) < self.MAX_DOWNLOAD_THREADS:
-                thread = threading.Thread(target=self._download_thread, daemon=True)
+                thread_iter = len(self._download_threads)
+                thread = threading.Thread(target=self._download_thread, daemon=True, args=(thread_iter,))
+                self._download_threads[thread_iter] = {"thread": thread, "lora": None}
                 thread.start()
-                self._download_threads.append(thread)
 
             # Add this lora to the download queue
             self._download_queue.append(lora)
@@ -332,9 +334,9 @@ class LoraModelManager(BaseModelManager):
 
     def _start_processing(self):
 
-        self.done = False
+        self.stop_downloading = False
 
-        while not self.done:
+        while not self.stop_downloading:
 
             # Get some items to download
             self._get_more_items()
@@ -343,13 +345,14 @@ class LoraModelManager(BaseModelManager):
             if self._data:
                 self._process_items()
 
-    def download_default_loras(self, nsfw=True):
+    def download_default_loras(self, nsfw=True, timeout=None):
         """Start up a background thread downloading and return immediately"""
         # Don't start if we're already busy doing something
         if self._thread:
             return
         self.nsfw = nsfw
         # TODO: Avoid clearing this out, until we know CivitAI is not dead.
+        self._previous_model_reference = set(self.model_reference.keys())
         self.model_reference = {}
         os.makedirs(self.modelFolderPath, exist_ok=True)
         # Start processing in a background thread
@@ -357,22 +360,30 @@ class LoraModelManager(BaseModelManager):
         self._thread.start()
         # Wait for completion of our threads if requested
         if self._download_wait:
-            self.wait_for_downloads()
+            self.wait_for_downloads(timeout)
 
-    def wait_for_downloads(self):
-        # rtr = 0
-        while self._thread and self._thread.is_alive():
+    def wait_for_downloads(self, timeout=None):
+        rtr = 0
+        while not self.are_downloads_complete():
             time.sleep(0.5)
-            # rtr += 1
-            # if rtr > 15:
-            #     raise Exception
+            rtr += 0.5
+            if timeout and rtr > timeout:
+                raise Exception(f"Lora downloads exceeded specified timeout ({timeout})")
 
     def are_downloads_complete(self):
         # If we don't have any models in our reference, then we haven't downloaded anything
         # perhaps faulty civitai?
         if self._thread and self._thread.is_alive():
             return False
-        return self.done
+        if not self.are_download_threads_idle():
+            return False
+        return self.stop_downloading
+
+    def are_download_threads_idle(self):
+        for dthread in self._download_threads.values():
+            if dthread["lora"] is not None:
+                return False
+        return True
 
     def fuzzy_find_lora(self, lora_name):
         # sname = Sanitizer.remove_version(lora_name).lower()
@@ -461,6 +472,9 @@ class LoraModelManager(BaseModelManager):
         for lora in self._download_queue:
             total_queue += lora["size_mb"]
         return total_queue
+
+    def is_default_cache_full(self):
+        return self.calculate_downloaded_loras(DOWNLOAD_SIZE_CHECK.top) >= self._max_top_disk
 
     def find_oldest_adhoc_lora(self):
         oldest_lora: str = None
