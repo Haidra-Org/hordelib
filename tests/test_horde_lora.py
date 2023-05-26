@@ -27,6 +27,7 @@ class TestHordeLora:
         SharedModelManager.manager.lora.wait_for_downloads()
         TestHordeLora.distance_threshold = int(os.getenv("IMAGE_DISTANCE_THRESHOLD", "100000"))
         yield
+        SharedModelManager.manager.lora.stop_all()
         del TestHordeLora.horde
         SharedModelManager._instance = None
         SharedModelManager.manager = None
