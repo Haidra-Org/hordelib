@@ -90,3 +90,44 @@ class TestModelManagerLora:
         assert len(mml.model_reference) > 0
         mml.download_default_loras()
         assert len(mml.model_reference) > 0
+
+    def test_unused_loras(self):
+        mml = LoraModelManager(
+            allowed_top_lora_storage=1400,
+            download_wait=False,
+        )
+        mml.download_default_loras()
+        mml.wait_for_downloads(120)
+        mml.wait_for_adhoc_reset(15)
+        assert mml.find_lora_from_filename("GlowingRunesAI.safetensors") == "glowingrunesai"
+        mml.stop_all()
+        mml = LoraModelManager(
+            allowed_top_lora_storage=1024,
+            download_wait=False,
+            allowed_adhoc_lora_storage=100,
+        )
+        assert mml._thread is None
+        mml.download_default_loras()
+        mml.wait_for_downloads(15)
+        mml.wait_for_adhoc_reset(15)
+        assert len(mml._adhoc_loras) > 0
+        assert mml.is_adhoc_cache_full()
+        assert mml.calculate_adhoc_loras_cache() > 100
+        assert mml.calculate_adhoc_loras_cache() < 300
+        unused_loras = mml.find_unused_loras()
+        assert len(unused_loras) > 0
+        assert "glowingrunesai" not in unused_loras
+        assert "dra9onscaleai" not in unused_loras
+        mml.stop_all()
+        mml = LoraModelManager(
+            allowed_top_lora_storage=1024,
+            download_wait=False,
+            allowed_adhoc_lora_storage=100,
+        )
+        assert mml._thread is None
+        mml.download_default_loras()
+        with pytest.raises(Exception):
+            mml.delete_unused_loras(0)
+        deleted_loras = mml.delete_unused_loras(15)
+        assert len(deleted_loras) > 0
+        assert all("last_used" in lora for lora in mml.model_reference.values())

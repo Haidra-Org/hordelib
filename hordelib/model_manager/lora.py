@@ -1,3 +1,5 @@
+import copy
+import glob
 import hashlib
 import json
 import os
@@ -52,13 +54,15 @@ class LoraModelManager(BaseModelManager):
         self._download_queue = deque()
         self._thread = None
         self.stop_downloading = True
-        self._previous_model_reference = set()
         # Not yet handled, as we need a global reference to search through.
+        self._previous_model_reference = {}
         self._adhoc_loras = set()
         self._adhoc_mutex = {}
         self._download_wait = download_wait
         # If false, this MM will only download SFW loras
         self.nsfw = True
+        self._adhoc_reset_thread = None
+        self._stop_all_threads = False
 
         # Example of how to inject mandatory LORAs, we use these two for our tests
         # We need to ensure their format is the same as after they are returned _parse_civitai_lora_data
@@ -216,6 +220,9 @@ class LoraModelManager(BaseModelManager):
         logger.debug(f"Started Download Thread {thread_number}")
         while True:
             # Endlessly look for files to download and download them
+            if self._stop_all_threads:
+                logger.debug(f"Stopped Download Thread {thread_number}")
+                return
             try:
                 lora = self._download_queue.popleft()
                 self._download_threads[thread_number]["lora"] = lora
@@ -249,10 +256,7 @@ class LoraModelManager(BaseModelManager):
                                 else:
                                     # Normally this should never happen unless the user manually
                                     # reduced their max size in the meantime
-                                    if (
-                                        self.calculate_downloaded_loras(DOWNLOAD_SIZE_CHECK.adhoc)
-                                        > self._max_adhoc_disk
-                                    ):
+                                    if self.is_adhoc_cache_full():
                                         self.delete_oldest_lora()
                                 self.save_cached_reference_to_disk()
                             break
@@ -277,13 +281,13 @@ class LoraModelManager(BaseModelManager):
                         # Maybe we're done
                         with self._mutex:
                             # We store as lower to allow case-insensitive search
-                            self.model_reference[lora["name"].lower()] = lora
                             lora["last_used"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+                            self.model_reference[lora["name"].lower()] = lora
                             if len(self._adhoc_mutex) == 0:
                                 if self.is_default_cache_full():
                                     self.stop_downloading = True
                             else:
-                                if self.calculate_downloaded_loras(DOWNLOAD_SIZE_CHECK.adhoc) > self._max_adhoc_disk:
+                                if self.is_adhoc_cache_full():
                                     self.delete_oldest_lora()
                             self.save_cached_reference_to_disk()
                         break
@@ -337,7 +341,9 @@ class LoraModelManager(BaseModelManager):
         self.stop_downloading = False
 
         while not self.stop_downloading:
-
+            if self._stop_all_threads:
+                logger.debug("Stopped processing thread")
+                return
             # Get some items to download
             self._get_more_items()
 
@@ -348,11 +354,11 @@ class LoraModelManager(BaseModelManager):
     def download_default_loras(self, nsfw=True, timeout=None):
         """Start up a background thread downloading and return immediately"""
         # Don't start if we're already busy doing something
-        if self._thread:
+        if not self.are_downloads_complete():
             return
         self.nsfw = nsfw
+        self._previous_model_reference = copy.deepcopy(self.model_reference)
         # TODO: Avoid clearing this out, until we know CivitAI is not dead.
-        self._previous_model_reference = set(self.model_reference.keys())
         self.model_reference = {}
         os.makedirs(self.modelFolderPath, exist_ok=True)
         # Start processing in a background thread
@@ -361,6 +367,9 @@ class LoraModelManager(BaseModelManager):
         # Wait for completion of our threads if requested
         if self._download_wait:
             self.wait_for_downloads(timeout)
+        if self.is_adhoc_reset_complete():
+            self._adhoc_reset_thread = threading.Thread(target=self.reset_adhoc_loras, daemon=True)
+            self._adhoc_reset_thread.start()
 
     def wait_for_downloads(self, timeout=None):
         rtr = 0
@@ -380,6 +389,7 @@ class LoraModelManager(BaseModelManager):
         return self.stop_downloading
 
     def are_download_threads_idle(self):
+        # logger.debug([dthread["lora"] for dthread in self._download_threads.values()])
         for dthread in self._download_threads.values():
             if dthread["lora"] is not None:
                 return False
@@ -459,22 +469,32 @@ class LoraModelManager(BaseModelManager):
 
     def calculate_downloaded_loras(self, mode=DOWNLOAD_SIZE_CHECK.everything):
         total_size = 0
-        for lora in self.model_reference.values():
-            if mode == DOWNLOAD_SIZE_CHECK.top and lora["name"] in self._adhoc_loras:
+        for lora in self.model_reference:
+            if mode == DOWNLOAD_SIZE_CHECK.top and lora in self._adhoc_loras:
                 continue
-            if mode == DOWNLOAD_SIZE_CHECK.adhoc and lora["name"] not in self._adhoc_loras:
+            if mode == DOWNLOAD_SIZE_CHECK.adhoc and lora not in self._adhoc_loras:
                 continue
-            total_size += lora["size_mb"]
+            total_size += self.model_reference[lora]["size_mb"]
         return total_size
+
+    def calculate_default_loras_cache(self):
+        return self.calculate_downloaded_loras(DOWNLOAD_SIZE_CHECK.top)
+
+    def calculate_adhoc_loras_cache(self):
+        return self.calculate_downloaded_loras(DOWNLOAD_SIZE_CHECK.adhoc)
+
+    def is_default_cache_full(self):
+        return self.calculate_default_loras_cache() >= self._max_top_disk
+
+    def is_adhoc_cache_full(self):
+        logger.debug([self.calculate_adhoc_loras_cache(), self._max_adhoc_disk])
+        return self.calculate_adhoc_loras_cache() >= self._max_adhoc_disk
 
     def calculate_download_queue(self):
         total_queue = 0
         for lora in self._download_queue:
             total_queue += lora["size_mb"]
         return total_queue
-
-    def is_default_cache_full(self):
-        return self.calculate_downloaded_loras(DOWNLOAD_SIZE_CHECK.top) >= self._max_top_disk
 
     def find_oldest_adhoc_lora(self):
         oldest_lora: str = None
@@ -498,6 +518,87 @@ class LoraModelManager(BaseModelManager):
         os.remove(filename)
         del self.model_reference[oldest_lora]
         del self._adhoc_loras[oldest_lora]
+
+    def find_lora_from_filename(self, filename: str):
+        for lora in self.model_reference:
+            if self.model_reference[lora]["filename"] == filename:
+                return lora
+        return None
+
+    def find_unused_loras(self):
+        files = glob.glob(f"{self.modelFolderPath}/*.safetensors")
+        filesnames = set()
+        for stfile in files:
+            filename = os.path.basename(stfile)
+            if not self.find_lora_from_filename(filename):
+                filesnames.add(filename)
+        return filesnames
+
+    def delete_unused_loras(self, timeout=0):
+        """Deletes downloaded LoRas which do not appear in the model_reference
+        By default protects the user by not running if are_downloads_complete() is not done
+        """
+        waited = 0
+        while not self.are_downloads_complete():
+            if waited >= timeout:
+                raise Exception(f"Waiting for current LoRa downloads exceeded specified timeout ({timeout})")
+            waited += 0.2
+            time.sleep(0.2)
+        loras_to_delete = self.find_unused_loras()
+        for ulora in loras_to_delete:
+            filename = os.path.join(self.modelFolderPath, ulora)
+            os.remove(filename)
+            logger.info(f"Deleted unused LoRa file: {filename}")
+        return loras_to_delete
+
+    def reset_adhoc_loras(self):
+        """Compared the known loras from the previous run to the current one
+        Adds any definitions as adhoc loras, until we have as many Mb as self._max_adhoc_disk"""
+        while not self.are_downloads_complete():
+            if self._stop_all_threads:
+                logger.debug("Stopped processing thread")
+                return
+            time.sleep(0.2)
+        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        self._adhoc_loras = set()
+        try:
+            sorted_items = sorted(
+                self._previous_model_reference.items(),
+                key=lambda x: x[1].get("last_used", now),
+                reverse=True,
+            )
+        except Exception as err:
+            logger.error(err)
+        while not self.is_adhoc_cache_full():
+            prevlora_key, prevlora_value = sorted_items.pop()
+            if prevlora_key in self.model_reference:
+                continue
+            self.model_reference[prevlora_key] = prevlora_value
+            self._adhoc_loras.add(prevlora_key)
+        for lora_key in self.model_reference:
+            if lora_key in self._previous_model_reference:
+                self.model_reference[lora_key]["last_used"] = self._previous_model_reference[lora_key].get(
+                    "last_used",
+                    now,
+                )
+        self._previous_model_reference = {}
+        self.save_cached_reference_to_disk()
+
+    def is_adhoc_reset_complete(self):
+        if self._adhoc_reset_thread and self._adhoc_reset_thread.is_alive():
+            return False
+        return True
+
+    def wait_for_adhoc_reset(self, timeout=15):
+        rtr = 0
+        while not self.is_adhoc_reset_complete():
+            time.sleep(0.2)
+            rtr += 0.2
+            if timeout and rtr > timeout:
+                raise Exception(f"Lora adhoc reset exceeded specified timeout ({timeout})")
+
+    def stop_all(self):
+        self._stop_all_threads = True
 
     @override
     def is_local_model(self, model_name):
