@@ -38,7 +38,7 @@ class TestModelManagerLora:
         )
         mml.download_default_loras()
         assert mml.are_downloads_complete() is False
-        mml.wait_for_downloads(120)
+        mml.wait_for_downloads(600)
         assert mml.are_downloads_complete() is True
         assert mml.calculate_downloaded_loras() > download_amount
         assert mml.calculate_downloaded_loras() < download_amount * 1.2
@@ -50,7 +50,7 @@ class TestModelManagerLora:
             download_wait=False,
         )
         mml.download_default_loras()
-        mml.wait_for_downloads(120)
+        mml.wait_for_downloads(600)
         assert mml.fuzzy_find_lora("Glowing Runes") == "glowingrunesai"
         assert mml.fuzzy_find_lora("Glowing Robots") is None
         assert mml.fuzzy_find_lora("GlowingRobots") is None
@@ -63,7 +63,7 @@ class TestModelManagerLora:
             download_wait=False,
         )
         mml.download_default_loras()
-        mml.wait_for_downloads(120)
+        mml.wait_for_downloads(600)
         assert mml.get_lora_name("GlowingRunesAI") == "GlowingRunesAI"
         assert mml.get_lora_name("GlowingRunes") == "GlowingRunesAI"
         assert mml.get_lora_name("Glowing Runes") == "GlowingRunesAI"
@@ -86,7 +86,7 @@ class TestModelManagerLora:
             download_wait=False,
         )
         mml.download_default_loras()
-        mml.wait_for_downloads(120)
+        mml.wait_for_downloads(600)
         assert len(mml.model_reference) > 0
         mml.download_default_loras()
         assert len(mml.model_reference) > 0
@@ -97,7 +97,7 @@ class TestModelManagerLora:
             download_wait=False,
         )
         mml.download_default_loras()
-        mml.wait_for_downloads(120)
+        mml.wait_for_downloads(600)
         mml.wait_for_adhoc_reset(15)
         assert mml.find_lora_from_filename("GlowingRunesAI.safetensors") == "glowingrunesai"
         mml.stop_all()
