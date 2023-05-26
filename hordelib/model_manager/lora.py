@@ -27,7 +27,7 @@ class DOWNLOAD_SIZE_CHECK(str, Enum):
 
 class LoraModelManager(BaseModelManager):
 
-    LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated"
+    LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated&primaryFileOnly=true"
     MAX_RETRIES = 10
     MAX_DOWNLOAD_THREADS = 3  # max concurrent downloads
     RETRY_DELAY = 5  # seconds
@@ -57,6 +57,8 @@ class LoraModelManager(BaseModelManager):
         self._adhoc_loras = set()
         self._adhoc_mutex = {}
         self._download_wait = download_wait
+        # If false, this MM will only download SFW loras
+        self.nsfw = True
 
         # Example of how to inject mandatory LORAs, we use these two for our tests
         # We need to ensure their format is the same as after they are returned _parse_civitai_lora_data
@@ -146,7 +148,8 @@ class LoraModelManager(BaseModelManager):
 
     def _get_more_items(self):
         if not self._data:
-            url = self.LORA_API
+            # We need to lowercase the boolean, or CivitAI doesn't understand it >.>
+            url = f"{self.LORA_API}&nsfw={str(self.nsfw).lower()}"
         else:
             url = self._next_page_url
 
@@ -340,11 +343,12 @@ class LoraModelManager(BaseModelManager):
             if self._data:
                 self._process_items()
 
-    def download_default_loras(self):
+    def download_default_loras(self, nsfw=True):
         """Start up a background thread downloading and return immediately"""
         # Don't start if we're already busy doing something
         if self._thread:
             return
+        self.nsfw = nsfw
         # TODO: Avoid clearing this out, until we know CivitAI is not dead.
         self.model_reference = {}
         os.makedirs(self.modelFolderPath, exist_ok=True)
