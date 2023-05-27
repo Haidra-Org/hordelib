@@ -39,7 +39,7 @@ def download_all_controlnet_annotators() -> bool:
         )
         for i, annotator_init_func in enumerate(annotator_init_funcs):
             # Give some basic progress indication
-            logger.init(f"{i+1} of {len(annotator_init_funcs)}")
+            logger.init(f"{i+1} of {len(annotator_init_funcs)}", status="Downloading")
             annotator_init_func()
         return True
     except (OSError, requests.exceptions.RequestException) as e:
