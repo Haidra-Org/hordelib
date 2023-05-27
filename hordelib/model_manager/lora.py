@@ -27,10 +27,13 @@ class DOWNLOAD_SIZE_CHECK(str, Enum):
     adhoc = "adhoc"
 
 
+TESTS_ONGOING = os.getenv("TESTS_ONGOING", "0") == "1"
+
+
 class LoraModelManager(BaseModelManager):
 
     LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated&primaryFileOnly=true"
-    MAX_RETRIES = 10
+    MAX_RETRIES = 10 if not TESTS_ONGOING else 1
     MAX_DOWNLOAD_THREADS = 3  # max concurrent downloads
     RETRY_DELAY = 5  # seconds
     REQUEST_METADATA_TIMEOUT = 30  # seconds
@@ -39,15 +42,12 @@ class LoraModelManager(BaseModelManager):
     def __init__(
         self,
         download_reference=False,
-        allowed_top_lora_storage=10240,
+        allowed_top_lora_storage=10240 if not TESTS_ONGOING else 1024,
         allowed_adhoc_lora_storage=1024,
         download_wait=False,
     ):
 
         self._max_top_disk = allowed_top_lora_storage
-        if os.getenv("TESTS_ONGOING", "0") == "1":
-            self._max_top_disk = 1024
-            self.MAX_RETRIES = 1
 
         self._max_adhoc_disk = allowed_adhoc_lora_storage
         self._data = None
