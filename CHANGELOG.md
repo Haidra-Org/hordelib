@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v1.3.7](https://github.com/Haidra-Org/hordelib/compare/v1.3.6...v1.3.7)
+
+27 May 2023
+
+- feat: keeping some unused loras as adhoc [`c81f2da`](https://github.com/Haidra-Org/hordelib/commit/c81f2da7ecafb704b99b11e6a5edc96e896e39fc)  (db0)
+- chore: re-added copyright notes to nataili ports [`568738d`](https://github.com/Haidra-Org/hordelib/commit/568738d68b63431fbd5db250b003166122f2defd)  (db0)
+- feat: More robust tracking of lora downloads [`28ae6a1`](https://github.com/Haidra-Org/hordelib/commit/28ae6a1ecbeabc42ef0f4040008e4c7246a98f7c)  (db0)
+
 ## [v1.3.6](https://github.com/Haidra-Org/hordelib/compare/v1.3.5...v1.3.6)
 
 26 May 2023
