@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v1.3.8](https://github.com/Haidra-Org/hordelib/compare/v1.3.7...v1.3.8)
+
+27 May 2023
+
+- fix: logging error with loading cnet [`#332`](https://github.com/Haidra-Org/hordelib/pull/332) (Jug)
+
 ## [v1.3.7](https://github.com/Haidra-Org/hordelib/compare/v1.3.6...v1.3.7)
 
 27 May 2023
