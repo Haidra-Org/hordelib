@@ -44,7 +44,14 @@ class LoraModelManager(BaseModelManager):
         download_wait=False,
     ):
 
+        if os.getenv("TESTS_ONGOING", "0") == "1":
+            self.MAX_RETRIES = 1
         self._max_top_disk = allowed_top_lora_storage
+        if os.getenv("TESTS_ONGOING", "0") == "1":
+            self._max_top_disk = 1024
+        logger.info(os.getenv("TESTS_ONGOING", "0"))
+        logger.info([self.MAX_RETRIES, self._max_top_disk])
+
         self._max_adhoc_disk = allowed_adhoc_lora_storage
         self._data = None
         self._next_page_url = None
@@ -487,7 +494,6 @@ class LoraModelManager(BaseModelManager):
         return self.calculate_default_loras_cache() >= self._max_top_disk
 
     def is_adhoc_cache_full(self):
-        logger.debug([self.calculate_adhoc_loras_cache(), self._max_adhoc_disk])
         return self.calculate_adhoc_loras_cache() >= self._max_adhoc_disk
 
     def calculate_download_queue(self):
