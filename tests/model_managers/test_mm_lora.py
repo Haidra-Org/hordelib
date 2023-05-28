@@ -54,10 +54,13 @@ class TestModelManagerLora:
         )
         mml.download_default_loras()
         mml.wait_for_downloads(600)
-        assert mml.fuzzy_find_lora("Glowing Runes") == "glowingrunesai"
-        assert mml.fuzzy_find_lora("Glowing Robots") is None
-        assert mml.fuzzy_find_lora("GlowingRobots") is None
-        assert mml.fuzzy_find_lora("GlowingRobotsAI") is None
+        assert mml.fuzzy_find_lora_key("Glowing Runes") == "glowingrunesai"
+        assert mml.fuzzy_find_lora_key("Glowing Robots") is None
+        assert mml.fuzzy_find_lora_key("GlowingRobots") is None
+        assert mml.fuzzy_find_lora_key("GlowingRobotsAI") is None
+        assert mml.fuzzy_find_lora_key("墨心 MoXin") == "mo xin  moxin"
+        assert mml.fuzzy_find_lora_key(12597) == "mo xin  moxin"
+        assert mml.fuzzy_find_lora_key("墨心") == "mo xin  moxin"
 
     def test_lora_search(self):
         download_amount = 1024
