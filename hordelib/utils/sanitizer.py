@@ -27,3 +27,12 @@ class Sanitizer:
     @staticmethod
     def remove_version(string):
         return Sanitizer.VERSION_REMOVER.sub("", string)
+
+    @staticmethod
+    def has_unicode(string):
+        for char in string:
+            codepoint = ord(char)
+
+            if codepoint > 0x80:
+                return True
+        return False

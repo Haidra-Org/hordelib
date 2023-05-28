@@ -67,6 +67,8 @@ class LoraModelManager(BaseModelManager):
         self.nsfw = True
         self._adhoc_reset_thread = None
         self._stop_all_threads = False
+        self._index_ids = {}
+        self._index_orig_names = {}
 
         # Example of how to inject mandatory LORAs, we use these two for our tests
         # We need to ensure their format is the same as after they are returned _parse_civitai_lora_data
@@ -181,6 +183,7 @@ class LoraModelManager(BaseModelManager):
         """Return a simplified dictionary with the information we actually need about a lora"""
         lora = {
             "name": "",
+            "orig_name": "",
             "sha256": "",
             "filename": "",
             "id": "",
@@ -199,6 +202,8 @@ class LoraModelManager(BaseModelManager):
         for file in version.get("files", {}):
             if file.get("primary", False) and file.get("name", "").endswith(".safetensors"):
                 lora["name"] = Sanitizer.sanitise_model_name(item.get("name", ""))
+                lora["orig_name"] = item.get("name", "")
+                lora["id"] = item.get("id", 0)
                 lora["filename"] = f'{Sanitizer.sanitise_filename(lora["name"])}.safetensors'
                 lora["sha256"] = file.get("hashes", {}).get("SHA256")
                 try:
@@ -254,7 +259,7 @@ class LoraModelManager(BaseModelManager):
                             logger.debug(f"Already have LORA {lora['filename']}")
                             with self._mutex:
                                 # We store as lower to allow case-insensitive search
-                                self.model_reference[lora["name"].lower()] = lora
+                                self._add_lora_to_reference(lora)
                                 if self.is_default_cache_full():
                                     self.stop_downloading = True
                                 else:
@@ -286,7 +291,7 @@ class LoraModelManager(BaseModelManager):
                         with self._mutex:
                             # We store as lower to allow case-insensitive search
                             lora["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                            self.model_reference[lora["name"].lower()] = lora
+                            self._add_lora_to_reference(lora)
                             if len(self._adhoc_mutex) == 0:
                                 if self.is_default_cache_full():
                                     self.stop_downloading = True
@@ -355,6 +360,12 @@ class LoraModelManager(BaseModelManager):
             if self._data:
                 self._process_items()
 
+    def _add_lora_to_reference(self, lora):
+        lora_key = lora["name"].lower()
+        self.model_reference[lora_key] = lora
+        self._index_ids[lora["id"]] = lora_key
+        self._index_orig_names[lora["orig_name"].lower()] = lora_key
+
     def download_default_loras(self, nsfw=True, timeout=None):
         """Start up a background thread downloading and return immediately"""
         # Don't start if we're already busy doing something
@@ -399,11 +410,25 @@ class LoraModelManager(BaseModelManager):
                 return False
         return True
 
-    def fuzzy_find_lora(self, lora_name):
+    def fuzzy_find_lora_key(self, lora_name):
         # sname = Sanitizer.remove_version(lora_name).lower()
+        if type(lora_name) is int:
+            if lora_name in self._index_ids:
+                return self._index_ids[lora_name]
+            return None
         sname = lora_name.lower()
         if sname in self.model_reference:
             return sname
+        if sname in self._index_orig_names:
+            return self._index_orig_names[sname]
+        if Sanitizer.has_unicode(sname):
+            for lora in self._index_orig_names:
+                if sname in lora:
+                    return self._index_orig_names[lora]
+            # If a unicode name is not found in the orig_names index
+            # it won't be found anywhere else, as unicode chars are converted to ascii in the keys
+            # This saves us time doing unnecessary fuzzy searches
+            return None
         for lora in self.model_reference:
             if sname in lora:
                 return lora
@@ -416,10 +441,10 @@ class LoraModelManager(BaseModelManager):
     def get_model(self, model_name: str):
         """Returns the actual lora details dict for the specified model_name search string
         Returns None if lora name not found"""
-        lora_name = self.fuzzy_find_lora(model_name)
+        lora_name = self.fuzzy_find_lora_key(model_name)
         if not lora_name:
             return None
-        return self.model_reference[lora_name]
+        return self.model_reference.get(lora_name)
 
     def get_lora_filename(self, model_name: str):
         """Returns the actual lora filename for the specified model_name search string
@@ -615,7 +640,7 @@ class LoraModelManager(BaseModelManager):
 
     @override
     def is_local_model(self, model_name):
-        return self.fuzzy_find_lora(model_name) is not None
+        return self.fuzzy_find_lora_key(model_name) is not None
 
     @override
     def modelToRam(
