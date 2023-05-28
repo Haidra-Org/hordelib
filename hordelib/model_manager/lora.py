@@ -597,7 +597,7 @@ class LoraModelManager(BaseModelManager):
             )
         except Exception as err:
             logger.error(err)
-        while not self.is_adhoc_cache_full():
+        while not self.is_adhoc_cache_full() and len(sorted_items) > 0:
             prevlora_key, prevlora_value = sorted_items.pop()
             if prevlora_key in self.model_reference:
                 continue
