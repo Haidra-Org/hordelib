@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v1.3.9](https://github.com/Haidra-Org/hordelib/compare/v1.3.8...v1.3.9)
+
+29 May 2023
+
+- feat: Add seeking loras by ID and unicode [`4d6bb2d`](https://github.com/Haidra-Org/hordelib/commit/4d6bb2d6f6e3c02982617041e3a73659c1fc9cb0)  (db0)
+- fix: avoid crash when resetting adhoc loras [`213a743`](https://github.com/Haidra-Org/hordelib/commit/213a743cd9d1eae8da56b3e12c4f5bb3de64313c)  (db0)
+
 ## [v1.3.8](https://github.com/Haidra-Org/hordelib/compare/v1.3.7...v1.3.8)
 
 27 May 2023
