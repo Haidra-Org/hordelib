@@ -412,9 +412,9 @@ class LoraModelManager(BaseModelManager):
 
     def fuzzy_find_lora_key(self, lora_name):
         # sname = Sanitizer.remove_version(lora_name).lower()
-        if type(lora_name) is int:
-            if lora_name in self._index_ids:
-                return self._index_ids[lora_name]
+        if type(lora_name) is int or lora_name.isdigit():
+            if int(lora_name) in self._index_ids:
+                return self._index_ids[int(lora_name)]
             return None
         sname = lora_name.lower()
         if sname in self.model_reference:
