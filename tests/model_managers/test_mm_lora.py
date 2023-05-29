@@ -60,6 +60,7 @@ class TestModelManagerLora:
         assert mml.fuzzy_find_lora_key("GlowingRobotsAI") is None
         assert mml.fuzzy_find_lora_key("墨心 MoXin") == "mo xin  moxin"
         assert mml.fuzzy_find_lora_key(12597) == "mo xin  moxin"
+        assert mml.fuzzy_find_lora_key("12597") == "mo xin  moxin"
         assert mml.fuzzy_find_lora_key("墨心") == "mo xin  moxin"
 
     def test_lora_search(self):
