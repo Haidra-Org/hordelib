@@ -386,7 +386,7 @@ index c153232..92d1d14 100644
      if vram_state == VRAMState.NO_VRAM:
          return 0
 diff --git a/comfy/sample.py b/comfy/sample.py
-index 284efca..dd20c1c 100644
+index 284efca..8f74a4a 100644
 --- a/comfy/sample.py
 +++ b/comfy/sample.py
 @@ -57,7 +57,7 @@ def load_additional_models(positive, negative):
@@ -407,39 +407,41 @@ index 284efca..dd20c1c 100644
      real_model = model.model
  
      noise = noise.to(device)
-@@ -82,11 +82,20 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
+@@ -81,12 +81,22 @@ def sample(model, noise, steps, cfg, sampler_name, scheduler, positive, negative
+     positive_copy = broadcast_cond(positive, noise.shape[0], device)
      negative_copy = broadcast_cond(negative, noise.shape[0], device)
  
-     models = load_additional_models(positive, negative)
-+    if models:
-+        comfy.model_management.model_manager.load_controlnet_gpu(models)
+-    models = load_additional_models(positive, negative)
++    try:
++        models = load_additional_models(positive, negative)
++        if models:
++            comfy.model_management.model_manager.load_controlnet_gpu(models)
 +        comfy.model_management.model_manager.sampler_mutex.acquire()
  
-     sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
+-    sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
++        sampler = comfy.samplers.KSampler(real_model, steps=steps, device=device, sampler=sampler_name, scheduler=scheduler, denoise=denoise, model_options=model.model_options)
  
-     samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask, sigmas=sigmas, callback=callback, disable_pbar=disable_pbar)
-     samples = samples.cpu()
- 
-+    if models:
-+        comfy.model_management.model_manager.unload_controlnet_gpu(models)
+-    samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask, sigmas=sigmas, callback=callback, disable_pbar=disable_pbar)
+-    samples = samples.cpu()
++        samples = sampler.sample(noise, positive_copy, negative_copy, cfg=cfg, latent_image=latent_image, start_step=start_step, last_step=last_step, force_full_denoise=force_full_denoise, denoise_mask=noise_mask, sigmas=sigmas, callback=callback, disable_pbar=disable_pbar)
++        samples = samples.cpu()
++
++        if models:
++            comfy.model_management.model_manager.unload_controlnet_gpu(models)
++    finally:
 +        comfy.model_management.model_manager.sampler_mutex.release()
-+
-+    model.unpatch_model()
-+
-     cleanup_additional_models(models)
++        model.unpatch_model()
++        cleanup_additional_models(models)
+ 
+-    cleanup_additional_models(models)
      return samples
 diff --git a/comfy/samplers.py b/comfy/samplers.py
-index aa44fa8..c652399 100644
+index aa44fa8..7fde2fc 100644
 --- a/comfy/samplers.py
 +++ b/comfy/samplers.py
-@@ -248,11 +248,13 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
- 
-                 c['transformer_options'] = transformer_options
- 
-+                model_management.model_manager.sampler_mutex.acquire()
+@@ -251,8 +251,8 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                  output = model_function(input_x, timestep_, cond=c).chunk(batch_chunks)
                  del input_x
-+                model_management.model_manager.sampler_mutex.release()
  
 -                model_management.throw_exception_if_processing_interrupted()
 -
@@ -448,7 +450,7 @@ index aa44fa8..c652399 100644
                  for o in range(batch_chunks):
                      if cond_or_uncond[o] == COND:
                          out_cond[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += output[o] * mult[o]
-@@ -262,6 +264,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+@@ -262,6 +262,7 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
                          out_uncond_count[:,:,area[o][2]:area[o][0] + area[o][2],area[o][3]:area[o][1] + area[o][3]] += mult[o]
                  del mult
  
@@ -456,7 +458,7 @@ index aa44fa8..c652399 100644
              out_cond /= out_count
              del out_count
              out_uncond /= out_uncond_count
-@@ -269,7 +272,6 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
+@@ -269,7 +270,6 @@ def sampling_function(model_function, x, timestep, uncond, cond, cond_scale, con
  
              return out_cond, out_uncond
  
