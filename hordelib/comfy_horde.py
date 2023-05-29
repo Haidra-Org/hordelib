@@ -225,7 +225,10 @@ class Comfy_Horde:
     def images(self):
         with Comfy_Horde._property_mutex:
             tid = threading.current_thread().ident
-            return self._images.get(tid)
+            images = self._images.get(tid)
+            if tid in self._images:
+                del self._images[tid]
+            return images
 
     @images.setter
     def images(self, images):
