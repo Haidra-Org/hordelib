@@ -283,7 +283,7 @@ Patches can be applied with the `hordelib.install_comfyui.Installer` classes `ap
 [all-model-images]: https://badgen.net/badge/all-models/images/blue?icon=awesome
 [build-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/
 [main-test-image]: https://badgen.net/badge/main/latest-images/blue?icon=awesome
-[main-test-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/
+[main-test-url]: https://tests.hordelib.org/
 [pr-test-image]: https://badgen.net/badge/develop/latest-images/blue?icon=awesome
 [pr-test-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/unstable
 [all-model-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/all_models/
