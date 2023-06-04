@@ -22,7 +22,6 @@ from loguru import logger
 from tqdm import tqdm
 from transformers import logging
 
-from hordelib.cache import get_cache_directory
 from hordelib.comfy_horde import (
     cleanup,
     get_models_on_gpu,
@@ -90,11 +89,11 @@ class BaseModelManager(ABC):
         """
         if not modelFolder:
             self.modelFolderPath = os.path.join(
-                get_cache_directory(),
+                UserSettings.get_model_directory(),
                 f"{models_db_name}",
             )
         else:  # XXX # FIXME The only exception to this right now is compvis
-            self.modelFolderPath = os.path.join(get_cache_directory(), f"{modelFolder}")
+            self.modelFolderPath = os.path.join(UserSettings.get_model_directory(), f"{modelFolder}")
 
         self.model_reference = {}
         self.available_models = []

@@ -1,3 +1,4 @@
+import os
 import re
 
 import psutil
@@ -99,6 +100,11 @@ class UserSettings:
             except ValueError:
                 value = 0
         cls._ram_to_leave_free_mb = value
+
+    @classmethod
+    def get_model_directory(cls):
+        """The directory where models a stored"""
+        return os.environ.get("AIWORKER_CACHE_HOME", "models")
 
     # Disable the use of xformers
     disable_xformers = Switch()

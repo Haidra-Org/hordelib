@@ -21,7 +21,6 @@ from loguru import logger
 from hordelib.settings import UserSettings
 from hordelib.utils.ioredirect import OutputCollector
 from hordelib.config_path import get_hordelib_path
-from hordelib.cache import get_cache_directory
 
 # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
 # that they should never call through this module into comfy directly. All calls into
@@ -248,7 +247,7 @@ class Comfy_Horde:
         self._counter_mutex = threading.Lock()
         # FIXME Temporary hack to set the model dir for LORAs
         _comfy_folder_paths["loras"] = (
-            [os.path.join(get_cache_directory(), "loras")],
+            [os.path.join(UserSettings.get_model_directory(), "loras")],
             [".safetensors"],
         )
         # Set custom node path

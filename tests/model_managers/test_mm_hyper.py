@@ -19,8 +19,6 @@ class TestHyperMM:
 
         SharedModelManager.loadModelManagers(
             compvis=True,
-            blip=True,
-            clip=True,
             safety_checker=True,
             esrgan=True,
         )

@@ -63,7 +63,7 @@ class LoraDownloader:
         self._downloaded_mb = 0
         self._thread = None
         # FIXME this obviously needs to be the correct location
-        self._download_dir = "f:/ai/models/nataili/loras"
+        self._download_dir = "f:/ai/models/loras"
         self.done = False
         self.model_data = []
 

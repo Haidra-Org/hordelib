@@ -28,8 +28,6 @@ EXCLUDED_MODEL_NAMES = ["pix2pix", "anything_v4_inpainting", "dreamlike_diffusio
 class MODEL_CATEGORY_NAMES(str, Enum):
     """Look up str enum for the categories of models (compvis, controlnet, clip, etc...)."""
 
-    blip = "blip"
-    clip = "clip"
     codeformer = "codeformer"
     compvis = "compvis"
     controlnet = "controlnet"
@@ -42,8 +40,6 @@ class MODEL_CATEGORY_NAMES(str, Enum):
 
 # Default model managers to load
 DEFAULT_MODEL_MANAGERS = {
-    MODEL_CATEGORY_NAMES.blip: True,
-    MODEL_CATEGORY_NAMES.clip: True,
     MODEL_CATEGORY_NAMES.codeformer: True,
     MODEL_CATEGORY_NAMES.compvis: True,
     MODEL_CATEGORY_NAMES.controlnet: True,
@@ -56,8 +52,6 @@ DEFAULT_MODEL_MANAGERS = {
 """The default model managers to load."""  # XXX Clarify
 
 MODEL_DB_NAMES = {
-    MODEL_CATEGORY_NAMES.blip: MODEL_CATEGORY_NAMES.blip,
-    MODEL_CATEGORY_NAMES.clip: MODEL_CATEGORY_NAMES.clip,
     MODEL_CATEGORY_NAMES.codeformer: MODEL_CATEGORY_NAMES.codeformer,
     MODEL_CATEGORY_NAMES.compvis: "stable_diffusion",
     MODEL_CATEGORY_NAMES.controlnet: MODEL_CATEGORY_NAMES.controlnet,
@@ -70,8 +64,6 @@ MODEL_DB_NAMES = {
 """The name of the json file (without the extension) of the corresponding model database."""
 
 MODEL_FOLDER_NAMES = {
-    MODEL_CATEGORY_NAMES.blip: MODEL_CATEGORY_NAMES.blip,
-    MODEL_CATEGORY_NAMES.clip: MODEL_CATEGORY_NAMES.clip,
     MODEL_CATEGORY_NAMES.codeformer: MODEL_CATEGORY_NAMES.codeformer,
     MODEL_CATEGORY_NAMES.compvis: "compvis",
     MODEL_CATEGORY_NAMES.controlnet: MODEL_CATEGORY_NAMES.controlnet,

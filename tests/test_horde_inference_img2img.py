@@ -15,9 +15,6 @@ class TestHordeInference:
         TestHordeInference.horde = HordeLib()
 
         TestHordeInference.default_model_manager_args = {
-            # aitemplate
-            # "blip": True,
-            # "clip": True,
             # "codeformer": True,
             "compvis": True,
             # "controlnet": True,

@@ -84,18 +84,15 @@ def main():
     # Try looking about using our best guess
     if not model_dir:
         # old worker default
-        if is_model_dir("nataili/compvis"):
+        if is_model_dir("compvis"):
             model_dir = os.path.join(os.getcwd())
-        # a rare possible old location
-        elif is_model_dir("nataili/compvis/nataili/compvis"):
-            model_dir = os.path.join(os.getcwd(), "nataili/compvis")
         elif os.path.exists("bridgeData.yaml"):
             # try the worker yaml
             with open("bridgeData.yaml", "rt", encoding="utf-8") as configfile:
                 data = yaml.safe_load(configfile)
                 model_dir = data.get("cache_home", "")
                 if not model_dir:
-                    model_dir = data.get("nataili_cache_home", "")
+                    model_dir = data.get("cache_home", "")
 
         if model_dir:
             os.environ["AIWORKER_CACHE_HOME"] = model_dir

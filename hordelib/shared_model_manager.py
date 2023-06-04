@@ -8,7 +8,6 @@ from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORIES
 from horde_model_reference.path_consts import get_model_reference_filename
 from loguru import logger
 
-from hordelib.cache import get_cache_directory
 from hordelib.config_path import get_hordelib_path
 from hordelib.consts import REMOTE_PROXY
 from hordelib.model_manager.hyper import BaseModelManager, ModelManager
@@ -17,12 +16,13 @@ from hordelib.preload import (
     download_all_controlnet_annotators,
     validate_all_controlnet_annotators,
 )
+from hordelib.settings import UserSettings
 
 
 def do_migrations():
     """This function should handle any moving of folders or other restructuring from previous versions."""
 
-    diffusers_dir = Path(get_cache_directory()).joinpath("diffusers")
+    diffusers_dir = Path(UserSettings.get_model_directory()).joinpath("diffusers")
     sd_inpainting_v1_5_ckpt = diffusers_dir.joinpath("sd-v1-5-inpainting.ckpt").resolve()
     sd_inpainting_v1_5_sha256 = diffusers_dir.joinpath("sd-v1-5-inpainting.sha256").resolve()
     if diffusers_dir.exists() and sd_inpainting_v1_5_ckpt.exists():
@@ -31,8 +31,12 @@ def do_migrations():
             status="Warning",
         )
 
-        target_ckpt_path = Path(get_cache_directory()).joinpath("compvis").joinpath("sd-v1-5-inpainting.ckpt")
-        target_sha_path = Path(get_cache_directory()).joinpath("compvis").joinpath("sd-v1-5-inpainting.sha256")
+        target_ckpt_path = (
+            Path(UserSettings.get_model_directory()).joinpath("compvis").joinpath("sd-v1-5-inpainting.ckpt")
+        )
+        target_sha_path = (
+            Path(UserSettings.get_model_directory()).joinpath("compvis").joinpath("sd-v1-5-inpainting.sha256")
+        )
 
         try:
             sd_inpainting_v1_5_ckpt.rename(target_ckpt_path)
@@ -64,9 +68,6 @@ class SharedModelManager:
     @classmethod
     def loadModelManagers(
         cls,
-        # aitemplate: bool = False,
-        blip: bool = False,
-        clip: bool = False,
         codeformer: bool = False,
         compvis: bool = False,
         controlnet: bool = False,
@@ -125,7 +126,7 @@ class SharedModelManager:
             logger.init_warn("", status="Warning")
 
         builtins.annotator_ckpts_path = (
-            Path(get_cache_directory()).joinpath("controlnet").joinpath("annotator").joinpath("ckpts")
+            Path(UserSettings.get_model_directory()).joinpath("controlnet").joinpath("annotator").joinpath("ckpts")
         )
         # XXX # FIXME _PLEASE_
         # XXX The hope here is that this hack using a shared package (builtins) will be temporary

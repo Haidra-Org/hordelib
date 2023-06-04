@@ -16,9 +16,6 @@ def main():
 
     generate = HordeLib()
     modeltypes = {
-        # aitemplate
-        "blip": True,
-        "clip": True,
         "codeformer": True,
         "compvis": True,
         "controlnet": True,

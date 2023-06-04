@@ -121,17 +121,16 @@ Requirements:
 Note the model directory must currently be in the original AI Horde directory structure:
 ```
 <AIWORKER_CACHE_HOME>\
-   nataili\
-        clip\
-        codeformer\
-        compvis\
-            Deliberate.ckpt
-            ...etc...
-        controlnet\
-        embeds\
-        esrgan\
-        gfpgan\
-        safety_checker\
+    clip\
+    codeformer\
+    compvis\
+        Deliberate.ckpt
+        ...etc...
+    controlnet\
+    embeds\
+    esrgan\
+    gfpgan\
+    safety_checker\
 ```
 
 ### Running the Tests

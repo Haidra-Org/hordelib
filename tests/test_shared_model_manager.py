@@ -19,9 +19,6 @@ class TestSharedModelManager:
         HordeLog.quiesce_logger(0)
 
         self.default_model_manager_args = {  # XXX # TODO
-            # aitemplate
-            "blip": True,
-            "clip": True,
             "codeformer": True,
             "compvis": True,
             "controlnet": True,
@@ -44,9 +41,6 @@ class TestSharedModelManager:
 
     def test_horde_model_manager_init(self):
         assert SharedModelManager.manager is not None
-        # assert SharedModelManager.manager.aitemplate is not None # XXX # FIXME
-        assert SharedModelManager.manager.blip is not None  # XXX
-        assert SharedModelManager.manager.clip is not None
         assert SharedModelManager.manager.codeformer is not None
         assert SharedModelManager.manager.compvis is not None
         assert SharedModelManager.manager.controlnet is not None

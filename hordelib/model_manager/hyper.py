@@ -6,14 +6,10 @@ import threading
 import torch
 from loguru import logger
 
-from hordelib.cache import get_cache_directory
 from hordelib.consts import EXCLUDED_MODEL_NAMES, MODEL_CATEGORY_NAMES
 
-# from hordelib.model_manager.aitemplate import AITemplateModelManager
 # from hordelib.model_manager.diffusers import DiffusersModelManager
 from hordelib.model_manager.base import BaseModelManager
-from hordelib.model_manager.blip import BlipModelManager
-from hordelib.model_manager.clip import ClipModelManager
 from hordelib.model_manager.codeformer import CodeFormerModelManager
 from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.controlnet import ControlNetModelManager
@@ -21,11 +17,9 @@ from hordelib.model_manager.esrgan import EsrganModelManager
 from hordelib.model_manager.gfpgan import GfpganModelManager
 from hordelib.model_manager.lora import LoraModelManager
 from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
+from hordelib.settings import UserSettings
 
 MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type[BaseModelManager]] = {
-    # ModelCategoryNames.aitemplate: AITemplateModelManager,
-    MODEL_CATEGORY_NAMES.blip: BlipModelManager,
-    MODEL_CATEGORY_NAMES.clip: ClipModelManager,
     MODEL_CATEGORY_NAMES.codeformer: CodeFormerModelManager,
     MODEL_CATEGORY_NAMES.compvis: CompVisModelManager,
     MODEL_CATEGORY_NAMES.controlnet: ControlNetModelManager,
@@ -41,9 +35,6 @@ MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type[BaseModelManager]] =
 class ModelManager:
     """Controller class for all managers which extend `BaseModelManager`."""
 
-    # aitemplate: AITemplateModelManager | None = None
-    blip: BlipModelManager | None = None
-    clip: ClipModelManager | None = None
     codeformer: CodeFormerModelManager | None = None
     compvis: CompVisModelManager | None = None
     controlnet: ControlNetModelManager | None = None
@@ -64,7 +55,9 @@ class ModelManager:
         return _models
 
     def get_model_directory(self, suffix=""):
-        model_dir = os.path.join(get_cache_directory(), suffix) if suffix else get_cache_directory()
+        model_dir = (
+            os.path.join(UserSettings.get_model_directory(), suffix) if suffix else UserSettings.get_model_directory()
+        )
         return model_dir
 
     def get_available_models(
@@ -109,9 +102,6 @@ class ModelManager:
     def active_model_managers(self) -> list[BaseModelManager]:
         """All loaded model managers."""
         all_model_managers = [
-            # self.aitemplate, # XXX TODO
-            self.blip,
-            self.clip,
             self.compvis,
             # self.diffusers,
             self.esrgan,
@@ -149,9 +139,6 @@ class ModelManager:
 
     def init_model_managers(
         self,
-        # aitemplate: bool = False, # XXX
-        blip: bool = False,
-        clip: bool = False,
         codeformer: bool = False,
         compvis: bool = False,
         controlnet: bool = False,
@@ -222,10 +209,6 @@ class ModelManager:
             model_manager: BaseModelManager = getattr(self, model_manager_type)
             if model_manager is None:
                 continue
-            # if isinstance(model_manager, AITemplateModelManager):
-            #    model_manager.download_ait("cuda")
-            #    # XXX this special handling predates me (@tazlin)
-            #    continue
 
             model_manager.download_all_models()
 
