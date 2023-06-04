@@ -28,6 +28,8 @@ Unfortunately, it appears the individual making the DMCA claim was acting in bad
 
 This version of `hordelib` has all files mentioned in the DMCA takedown removed. As such this version of `hordelib` currently has no CLIP or BLIP functionality.
 
+As a result of this `hordelib` v1.3.17 and later in this repository have diverged from the version in pypi until further notice.
+
 ## Installation
 
 If being installed from pypi, use a requirements file of the form:
