@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v1.4.0](https://github.com/jug-dev/hordelib/compare/v1.3.17...v1.4.0)
+
+4 June 2023
+
+- feat: disable pypi publishing but enable auto tests [`b4f5bf9`](https://github.com/jug-dev/hordelib/commit/b4f5bf98c6a43e85852078c86071340ef54f0cde)  (Jug)
+- doc: update other readme urls [`e38ac87`](https://github.com/jug-dev/hordelib/commit/e38ac879735a0b2e0727bde8171be314b56b6204)  (Jug)
+- doc: add note about version divergence [`f559c5d`](https://github.com/jug-dev/hordelib/commit/f559c5d4bf52e972467ad702dd1b1f7f56544d5f)  (Jug)
+
 ## [v1.3.17](https://github.com/jug-dev/hordelib/compare/v1.3.10...v1.3.17)
 
 4 June 2023
