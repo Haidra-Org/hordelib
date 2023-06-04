@@ -281,11 +281,11 @@ Patches can be applied with the `hordelib.install_comfyui.Installer` classes `ap
 [license-url]: https://img.shields.io/github/license/jug-dev/hordelib
 [build-image]: https://github.com/jug-dev/hordelib/actions/workflows/maintests.yml/badge.svg?branch=main
 [all-model-images]: https://badgen.net/badge/all-models/images/blue?icon=awesome
-[build-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/
+[build-url]: https://tests.hordelib.org/
 [main-test-image]: https://badgen.net/badge/main/latest-images/blue?icon=awesome
 [main-test-url]: https://tests.hordelib.org/
 [pr-test-image]: https://badgen.net/badge/develop/latest-images/blue?icon=awesome
-[pr-test-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/unstable
-[all-model-url]: http://hordelib.s3-website-eu-west-1.amazonaws.com/all_models/
+[pr-test-url]: https://tests.hordelib.org/unstable/index.html
+[all-model-url]: https://tests.hordelib.org/all_models/
 [changelog-image]: https://img.shields.io/badge/Release-Changelog-yellow
 [changelog-url]: https://github.com/jug-dev/hordelib/blob/releases/CHANGELOG.md
