@@ -58,4 +58,5 @@ jobs:
           aws_secret_access_key: ${{secrets.S3_BUILD_ARTIFACTS_SECRET_ACCESS_KEY}}
           aws_bucket: hordelib
           source_dir: images/
+          endpoint: ${{secrets.S3_ENDPOINT}}
           destination_dir: 'unstable/'
