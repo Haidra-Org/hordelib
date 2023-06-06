@@ -76,6 +76,8 @@ class SharedModelManager:
         gfpgan: bool = False,
         safety_checker: bool = False,
         lora: bool = False,
+        blip: bool = False,
+        clip: bool = False,
     ):
         if cls.manager is None:
             cls.manager = ModelManager()

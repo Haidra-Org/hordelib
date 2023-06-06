@@ -103,7 +103,7 @@ class UserSettings:
 
     @classmethod
     def get_model_directory(cls):
-        """The directory where models a stored"""
+        """The directory where models are stored"""
         return os.environ.get("AIWORKER_CACHE_HOME", "models")
 
     # Disable the use of xformers
