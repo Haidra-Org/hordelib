@@ -18,7 +18,7 @@ class TestModelManagerLora:
         HordeLog.set_logger_verbosity(5)
         HordeLog.quiesce_logger(0)
         # We don't want to download a ton of loras for tests by mistake
-        os.environ["TESTS_ONGOING"] = "1"
+        assert os.getenv("TESTS_ONGOING") == "1"
 
         yield
         del self.horde
