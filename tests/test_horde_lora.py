@@ -320,7 +320,6 @@ class TestHordeLora:
         pil_image = self.horde.basic_inference(data)
         assert pil_image is not None
 
-
     def test_stonepunk(self):
 
         # Blue, fuzzy search on version
@@ -339,7 +338,7 @@ class TestHordeLora:
             "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
-            "prompt": f"An automobile",
+            "prompt": "An automobile, stonepunkAI",
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any"}],
             "ddim_steps": 20,
             "n_iter": 1,
