@@ -349,5 +349,4 @@ class TestHordeLora:
         assert pil_image is not None
         img_filename = "lora_stonepunk.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert False
         # assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
