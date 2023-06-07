@@ -40,4 +40,4 @@ scikit-image
 mediapipe>=0.9.1.0
 unidecode
 fuzzywuzzy
-git+https://github.com/db0/clipfree
+clipfree @ git+https://github.com/db0/clipfree
