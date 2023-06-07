@@ -130,7 +130,7 @@ class UserSettings:
             # Enqueue all subdirectories
             for dirname in dirnames:
                 queue.append(os.path.join(dirpath, dirname))
-                
+
         cls._model_directory = basedir
         return basedir
 
