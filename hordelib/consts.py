@@ -36,6 +36,8 @@ class MODEL_CATEGORY_NAMES(str, Enum):
     gfpgan = "gfpgan"
     safety_checker = "safety_checker"
     lora = "lora"
+    blip = "blip"
+    clip = "clip"
 
 
 # Default model managers to load
@@ -48,6 +50,8 @@ DEFAULT_MODEL_MANAGERS = {
     MODEL_CATEGORY_NAMES.gfpgan: True,
     MODEL_CATEGORY_NAMES.safety_checker: True,
     MODEL_CATEGORY_NAMES.lora: True,
+    MODEL_CATEGORY_NAMES.blip: True,
+    MODEL_CATEGORY_NAMES.clip: True,
 }
 """The default model managers to load."""  # XXX Clarify
 
@@ -60,6 +64,8 @@ MODEL_DB_NAMES = {
     MODEL_CATEGORY_NAMES.gfpgan: MODEL_CATEGORY_NAMES.gfpgan,
     MODEL_CATEGORY_NAMES.safety_checker: MODEL_CATEGORY_NAMES.safety_checker,
     MODEL_CATEGORY_NAMES.lora: MODEL_CATEGORY_NAMES.lora,
+    MODEL_CATEGORY_NAMES.blip: MODEL_CATEGORY_NAMES.blip,
+    MODEL_CATEGORY_NAMES.clip: MODEL_CATEGORY_NAMES.clip,
 }
 """The name of the json file (without the extension) of the corresponding model database."""
 
@@ -72,5 +78,7 @@ MODEL_FOLDER_NAMES = {
     MODEL_CATEGORY_NAMES.gfpgan: MODEL_CATEGORY_NAMES.gfpgan,
     MODEL_CATEGORY_NAMES.safety_checker: MODEL_CATEGORY_NAMES.safety_checker,
     MODEL_CATEGORY_NAMES.lora: MODEL_CATEGORY_NAMES.lora,
+    MODEL_CATEGORY_NAMES.blip: MODEL_CATEGORY_NAMES.blip,
+    MODEL_CATEGORY_NAMES.clip: MODEL_CATEGORY_NAMES.clip,
 }
 """The folder name on disk where the models are stored in AIWORKER_CACHE_HOME."""

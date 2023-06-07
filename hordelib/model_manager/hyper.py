@@ -10,6 +10,8 @@ from hordelib.consts import EXCLUDED_MODEL_NAMES, MODEL_CATEGORY_NAMES
 
 # from hordelib.model_manager.diffusers import DiffusersModelManager
 from hordelib.model_manager.base import BaseModelManager
+from hordelib.model_manager.blip import BlipModelManager
+from hordelib.model_manager.clip import ClipModelManager
 from hordelib.model_manager.codeformer import CodeFormerModelManager
 from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.controlnet import ControlNetModelManager
@@ -28,6 +30,8 @@ MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type[BaseModelManager]] =
     MODEL_CATEGORY_NAMES.gfpgan: GfpganModelManager,
     MODEL_CATEGORY_NAMES.safety_checker: SafetyCheckerModelManager,
     MODEL_CATEGORY_NAMES.lora: LoraModelManager,
+    MODEL_CATEGORY_NAMES.blip: BlipModelManager,
+    MODEL_CATEGORY_NAMES.clip: ClipModelManager,
 }
 """Keys are `str` which represent attrs in `ModelManger`. Values are the corresponding `type`."""
 
@@ -43,6 +47,8 @@ class ModelManager:
     gfpgan: GfpganModelManager | None = None
     safety_checker: SafetyCheckerModelManager | None = None
     lora: LoraModelManager | None = None
+    blip: BlipModelManager | None = None
+    clip: ClipModelManager | None = None
     # XXX I think this can be reworked into an array of BaseModelManager instances
 
     @property
@@ -110,6 +116,8 @@ class ModelManager:
             self.codeformer,
             self.controlnet,
             self.lora,
+            self.blip,
+            self.clip,
         ]
         # reset available models
 
@@ -147,6 +155,8 @@ class ModelManager:
         gfpgan: bool = False,
         safety_checker: bool = False,
         lora: bool = False,
+        blip: bool = False,
+        clip: bool = False,
     ):  # XXX are we married to the name and/or the idea behind this function
         """For each arg which is true, attempt to load that `BaseModelManager` type."""
         args_passed: dict = locals().copy()  # XXX This is temporary

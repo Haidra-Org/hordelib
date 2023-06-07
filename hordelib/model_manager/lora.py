@@ -741,8 +741,9 @@ class LoraModelManager(BaseModelManager):
         if not lora:
             return None
         # We double-check that somehow our search missed it but CivitAI searches differently and found it
-        fuzzy_find = self.fuzzy_find_lora_key(lora["name"].lower())
+        fuzzy_find = self.fuzzy_find_lora_key(lora["id"])
         if fuzzy_find:
+            logger.error(fuzzy_find)
             return fuzzy_find
         self._download_queue.append(lora)
         # We need to wait a bit to make sure the threads pick up the download
