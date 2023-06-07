@@ -1,5 +1,6 @@
 import os
 import re
+from collections import deque
 
 import psutil
 from typing_extensions import Self
@@ -18,6 +19,8 @@ class UserSettings:
     _vram_to_leave_free_mb: int
     """The amount of VRAM to leave free, defaults to 50% of the current machines VRAM, can be expressed as a number of
      MB or a percentage."""
+
+    _model_directory = ""
 
     def __new__(cls):
         if cls._instance is None:
@@ -104,7 +107,32 @@ class UserSettings:
     @classmethod
     def get_model_directory(cls):
         """The directory where models are stored"""
-        return os.environ.get("AIWORKER_CACHE_HOME", "models")
+
+        # Maybe we already searched
+        if cls._model_directory:
+            return cls._model_directory
+
+        # We take this as a directory that may contain the worker
+        # model directories, or they may be somewhere below this.
+        basedir = os.environ.get("AIWORKER_CACHE_HOME", "models")
+        # Recursively walk the directory tree, breadth first or this will take forever
+        queue = deque([basedir])
+        while queue:
+            dirpath = queue.popleft()
+            try:
+                dirnames = next(os.walk(dirpath))[1]
+            except StopIteration:
+                continue
+            # Simple heuristic identification of our target directory
+            if "compvis" in dirnames and "clip" in dirnames:
+                basedir = dirpath
+                break
+            # Enqueue all subdirectories
+            for dirname in dirnames:
+                queue.append(os.path.join(dirpath, dirname))
+
+        cls._model_directory = basedir
+        return basedir
 
     # Disable the use of xformers
     disable_xformers = Switch()
