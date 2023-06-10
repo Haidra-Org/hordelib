@@ -89,7 +89,7 @@ def main():
             model_dir = os.path.join(os.getcwd())
         elif os.path.exists("bridgeData.yaml"):
             # try the worker yaml
-            with open("bridgeData.yaml", "rt", encoding="utf-8") as configfile:
+            with open("bridgeData.yaml", encoding="utf-8") as configfile:
                 data = yaml.safe_load(configfile)
                 model_dir = data.get("cache_home", "")
                 if not model_dir:
