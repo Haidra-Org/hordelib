@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v1.5.1](https://github.com/jug-dev/hordelib/compare/v1.5.0...v1.5.1)
+
+10 June 2023
+
+- chore: use clipfree as a pypi package ('horde_clipfree') [`#11`](https://github.com/jug-dev/hordelib/pull/11) (tazlin)
+
 ## [v1.5.0](https://github.com/jug-dev/hordelib/compare/v1.4.0...v1.5.0)
 
 10 June 2023
