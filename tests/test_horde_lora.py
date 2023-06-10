@@ -230,3 +230,123 @@ class TestHordeLora:
         img_filename = "lora_inject_any.png"
         pil_image.save(f"images/{img_filename}", quality=100)
         assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+
+    def test_download_and_use_adhoc_lora(self):
+        lora_name = "74384"
+        SharedModelManager.manager.lora.ensure_lora_deleted(lora_name)
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 8.0,
+            "denoising_strength": 1.0,
+            "seed": 1471413,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "pantasa, plant, wooden robot, concept artist, ruins, night, moon, global "
+            "illumination, depth of field, splash art",
+            "loras": [{"name": lora_name, "model": 0.75, "clip": 1.0, "inject_trigger": "any"}],
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        img_filename = "lora_download_adhoc.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        # assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+
+    def test_for_probability_tensor_runtime_error(self):
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 8.0,
+            "denoising_strength": 1.0,
+            "seed": 1471413,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "pantasa, plant, wooden robot, concept artist, ruins, night, moon, global "
+            "illumination, depth of field, splash art",
+            "loras": [
+                {"name": "48139", "model": 0.75, "clip": 1.0},
+                {"name": "58390", "model": 1, "clip": 1.0},
+                {"name": "13941", "model": 1, "clip": 1.0},
+            ],
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+
+    def test_sd21_lora_against_sd15_model(self):
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 8.0,
+            "denoising_strength": 1.0,
+            "seed": 0,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "pantasa, plant, wooden robot, concept artist, ruins, night, moon, global "
+            "illumination, depth of field, splash art",
+            "loras": [
+                {"name": "35822", "model": 1, "clip": 1.0},
+            ],
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+
+    def test_stonepunk(self):
+
+        # Blue, fuzzy search on version
+        lora_name = "51539"
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 8.0,
+            "denoising_strength": 1.0,
+            "seed": 1312,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "An automobile, stonepunkAI",
+            "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any"}],
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": "Deliberate",
+        }
+        assert self.horde is not None
+        pil_image = self.horde.basic_inference(data)
+        assert pil_image is not None
+        img_filename = "lora_stonepunk.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)

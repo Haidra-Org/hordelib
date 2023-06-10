@@ -20,16 +20,6 @@ The developers of `hordelib` can be found in the AI Horde Discord server: [https
 
 The goal here is to be able to design inference pipelines in the excellent ComfyUI, and then call those inference pipelines programmatically. Whilst providing features that maintain compatibility with the existing horde implementation.
 
-## DMCA Abuse
-
-On 26th May 2023 an [individual](https://github.com/hlky) issued a [DMCA takedown notice](https://github.com/github/dmca/blob/master/2023/05/2023-05-26-nataili.md) to Github against `hordelib` which claimed their name had been removed from the copyright header in the AGPL license in the 7 files listed in the takedown notice. This claim was true, and this attribution had been removed by a `hordelib` contributor prior to being committed into the `hordelib` repository. 
-
-Unfortunately, it appears the individual making the DMCA claim was acting in bad faith, and even when their name was restored to the copyright attribution in the files, they persisted to press the DMCA takedown claim, which, due to the nature of the Github process, resulted in hordelib being subject to a DMCA takedown on Github.
-
-This version of `hordelib` has all files mentioned in the DMCA takedown removed. As such this version of `hordelib` currently has no CLIP or BLIP functionality.
-
-As a result of this `hordelib` v1.3.17 and later in this repository have diverged from the version in pypi until further notice.
-
 ## Installation
 
 If being installed from pypi, use a requirements file of the form:
@@ -120,6 +110,14 @@ Custom nodes for ComfyUI providing Controlnet preprocessing capability. Licened 
 ### [ComfyUI Face Restore Node](https://civitai.com/models/24690/comfyui-facerestore-node)
 
 Custom nodes for ComfyUI providing face restoration.
+
+## DMCA Abuse
+
+On 26th May 2023 an [individual](https://github.com/hlky) issued a [DMCA takedown notice](https://github.com/github/dmca/blob/master/2023/05/2023-05-26-nataili.md) to Github against `hordelib` which claimed their name had been removed from the copyright header in the AGPL license in the 7 files listed in the takedown notice. This claim was true, and this attribution had been removed by a `hordelib` contributor prior to being committed into the `hordelib` repository. 
+
+Unfortunately, it appears the individual making the DMCA claim was acting in bad faith, and even when their name was restored to the copyright attribution in the files, they persisted to press the DMCA takedown claim, which, due to the nature of the Github process, resulted in hordelib being subject to a DMCA takedown on Github.
+
+This version of `hordelib` has the 7 files mentioned in the DMCA takedown removed and replaced with alternatives and the functionality required to run the AI Horde Worker was restored on 7th June 2023.
 
 ## Development
 

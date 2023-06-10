@@ -295,9 +295,11 @@ class HordeLib:
             # Remove any requested LORAs that we don't have
             valid_loras = []
             for lora in payload.get("loras"):
+                logger.error(lora)
                 # Determine the actual lora filename
                 if not SharedModelManager.manager.lora.is_local_model(str(lora["name"])):
                     adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(str(lora["name"]))
+                    logger.error(adhoc_lora)
                     if not adhoc_lora:
                         logger.info(f"Adhoc lora requested '{lora['name']}' could not be found in CivitAI. Ignoring!")
                         continue
@@ -326,6 +328,7 @@ class HordeLib:
                     SharedModelManager.manager.lora.touch_lora(lora_name)
                     valid_loras.append(lora)
             payload["loras"] = valid_loras
+            logger.error(valid_loras)
             for lora_index, lora in enumerate(payload.get("loras")):
 
                 # Inject a lora node (first lora)

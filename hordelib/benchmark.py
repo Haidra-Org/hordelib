@@ -9,6 +9,7 @@ import yaml
 from loguru import logger
 from PIL import Image
 
+from hordelib.settings import UserSettings
 from hordelib.utils.gpuinfo import GPUInfo
 
 FACE_FIX_TEST_IMAGE = "https://github.com/jug-dev/hordelib/blob/main/images/test_facefix.png?raw=true"
@@ -80,7 +81,7 @@ def is_model_dir(path):
 
 
 def main():
-    model_dir = os.getenv("AIWORKER_CACHE_HOME", "")
+    model_dir = UserSettings.get_model_directory()
     # Try looking about using our best guess
     if not model_dir:
         # old worker default
