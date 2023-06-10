@@ -1,5 +1,16 @@
 ## hordelib Changelog
 
+## [v1.5.0](https://github.com/jug-dev/hordelib/compare/v1.4.0...v1.5.0)
+
+10 June 2023
+
+- ci: re-enable pypi release publishing [`#9`](https://github.com/jug-dev/hordelib/pull/9) (Jug)
+- docs: update readme [`#8`](https://github.com/jug-dev/hordelib/pull/8) (Jug)
+- fix: make finding the model directory backwards compatible [`#7`](https://github.com/jug-dev/hordelib/pull/7) (Jug)
+- fix: clipfree compatability fixes [`#5`](https://github.com/jug-dev/hordelib/pull/5) (tazlin)
+- feat: Re-aded clip/blip based on external clipfree library [`#2`](https://github.com/jug-dev/hordelib/pull/2) (Divided by Zer0)
+- ci: fix PR tests image deployment [`#3`](https://github.com/jug-dev/hordelib/pull/3) (Jug)
+
 ## [v1.4.0](https://github.com/jug-dev/hordelib/compare/v1.3.17...v1.4.0)
 
 4 June 2023
