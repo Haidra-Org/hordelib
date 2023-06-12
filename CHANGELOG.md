@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v1.5.2](https://github.com/jug-dev/hordelib/compare/v1.5.1...v1.5.2)
+
+12 June 2023
+
+- fix: don't cache incorrect location of model directory [`#14`](https://github.com/jug-dev/hordelib/pull/14) (Jug)
+
 ## [v1.5.1](https://github.com/jug-dev/hordelib/compare/v1.5.0...v1.5.1)
 
 10 June 2023
