@@ -21,6 +21,7 @@ class UserSettings:
      MB or a percentage."""
 
     _model_directory = ""
+    _basedir = ""
 
     def __new__(cls):
         if cls._instance is None:
@@ -108,13 +109,14 @@ class UserSettings:
     def get_model_directory(cls):
         """The directory where models are stored"""
 
-        # Maybe we already searched
-        if cls._model_directory:
-            return cls._model_directory
-
         # We take this as a directory that may contain the worker
         # model directories, or they may be somewhere below this.
         basedir = os.environ.get("AIWORKER_CACHE_HOME", "models")
+
+        # Maybe we already searched
+        if cls._model_directory and basedir == cls._basedir:
+            return cls._model_directory
+
         # Recursively walk the directory tree, breadth first or this will take forever
         queue = deque([basedir])
         while queue:
@@ -132,6 +134,7 @@ class UserSettings:
                 queue.append(os.path.join(dirpath, dirname))
 
         cls._model_directory = basedir
+        cls._basedir = basedir
         return basedir
 
     # Disable the use of xformers
