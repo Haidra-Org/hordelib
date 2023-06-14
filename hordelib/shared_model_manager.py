@@ -58,11 +58,12 @@ def do_migrations():
 
 class SharedModelManager:
     _instance = None
-    manager: ModelManager | None = None
+    manager: ModelManager
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls.manager = ModelManager()
         return cls._instance
 
     @classmethod
@@ -84,6 +85,7 @@ class SharedModelManager:
 
         args_passed = locals().copy()  # XXX This is temporary
         args_passed.pop("cls")  # XXX This is temporary
+
         logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
         db_reference_files_lookup = download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
         for model_db, file_path in db_reference_files_lookup.items():
