@@ -23,21 +23,97 @@ from hordelib.settings import UserSettings
 from hordelib.utils.ioredirect import OutputCollector
 from hordelib.config_path import get_hordelib_path
 
-# Note these imports are intentionally somewhat obfuscated as a reminder to other modules
-# that they should never call through this module into comfy directly. All calls into
-# comfy should be abstracted through functions in this module.
+# Note It may not be abundantly clear with no context what is going on below, and I will attempt to clarify:
+#
+# The nature of packaging comfyui leads to a situation where some trickery takes place in
+# `hordelib.initialise()` in order for the imports below to work. Calling that function is therefore a prerequisite
+# to using any of the functions in this module. If you do not, you will get an exception as reaching into comfyui is
+# impossible without it.
+#
+# As for having the imports below in a function, this is to ensure that `hordelib.initialise()` has done its magic. It
+# in turn calls `do_comfy_import()`.
+#
+# There may be other ways to skin this cat, but this strategy minimizes certain kinds of hassle.
+#
+# If you tamper with the code in this module to bring the imports out of the function, you may find that you have
+# broken, among other things, the ability of pytest to do its test discovery because you will have lost the ability for
+# modules which, directly or otherwise, import this module without having called `hordelib.initialise()`. Pytest
+# discovery will come across those imports, valiantly attempt to import them and fail with a cryptic error message.
+#
+# Correspondingly, you will find that to be an enormous hassle if you are are trying to leverage pytest in any
+# reasonability sophisticated way (outside of tox), and you will be forced to adopt solution below or something
+# equally obtuse, or in lieu of either of those, abandon all hope and give up on the idea of attempting to develop any
+# new features or author new tests for hordelib.
+#
+# Keen readers may have noticed that the aforementioned issues could be side stepped by simply calling
+# `hordelib.initialise()` automatically, such as in `test/__init__.py` or in a `conftest.py`. You would be correct,
+# but that would be a terrible idea if you ever intended to make alterations to the patch file, as each time you
+# triggered pytest discovery which could be as frequently as *every time you save a file* (such as with VSCode), and
+# you would enter a situation where the patch was automatically being applied at times you may not intend.
+#
+# This would be a nightmare to debug, as this author is able to attest to.
+#
+# Further, if you are like myself, and enjoy type hints, you will find that any modules have this file in their import
+# chain will be un-importable in certain contexts and you would be unable to provide the relevant type hints.
+#
+# Having read this, I suggest you glance at the code in `hordelib.initialise()` to get a sense of what is going on
+# there, and if you're still confused, ask a hordelib dev who would be happy to share the burden of understanding.
+
+
+_comfy_nodes = None
+_comfy_PromptExecutor = None
+_comfy_validate_prompt = None
+_comfy_folder_paths = None
+__comfy_load_checkpoint_guess_config = None
+__comfy_load_controlnet = None
+_comfy_model_manager = None
+__comfy_get_torch_device = None
+__comfy_get_free_memory = None
+__comfy_load_torch_file = None
+_comfy_model_loading = None
+canny = None
+hed = None
+leres = None
+midas = None
+mlsd = None
+openpose = None
+pidinet = None
+uniformer = None
+
+
 # isort: off
-from execution import nodes as _comfy_nodes
-from execution import PromptExecutor as _comfy_PromptExecutor
-from execution import validate_prompt as _comfy_validate_prompt
-from folder_paths import folder_names_and_paths as _comfy_folder_paths
-from comfy.sd import load_checkpoint_guess_config as __comfy_load_checkpoint_guess_config
-from comfy.sd import load_controlnet as __comfy_load_controlnet
-from comfy.model_management import model_manager as _comfy_model_manager
-from comfy.model_management import get_torch_device as __comfy_get_torch_device
-from comfy.model_management import get_free_memory as __comfy_get_free_memory
-from comfy.utils import load_torch_file as __comfy_load_torch_file
-from comfy_extras.chainner_models import model_loading as _comfy_model_loading
+def do_comfy_import():
+    global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt, _comfy_folder_paths
+    global __comfy_load_checkpoint_guess_config, __comfy_load_controlnet, _comfy_model_manager
+    global __comfy_get_torch_device, __comfy_get_free_memory, __comfy_load_torch_file, _comfy_model_loading
+    global canny, hed, leres, midas, mlsd, openpose, pidinet, uniformer
+
+    # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
+    # that they should never call through this module into comfy directly. All calls into
+    # comfy should be abstracted through functions in this module.
+
+    from execution import nodes as _comfy_nodes
+    from execution import PromptExecutor as _comfy_PromptExecutor
+    from execution import validate_prompt as _comfy_validate_prompt
+    from folder_paths import folder_names_and_paths as _comfy_folder_paths
+    from comfy.sd import load_checkpoint_guess_config as __comfy_load_checkpoint_guess_config
+    from comfy.sd import load_controlnet as __comfy_load_controlnet
+    from comfy.model_management import model_manager as _comfy_model_manager
+    from comfy.model_management import get_torch_device as __comfy_get_torch_device
+    from comfy.model_management import get_free_memory as __comfy_get_free_memory
+    from comfy.utils import load_torch_file as __comfy_load_torch_file
+    from comfy_extras.chainner_models import model_loading as _comfy_model_loading
+    from hordelib.nodes.comfy_controlnet_preprocessors import (
+        canny,
+        hed,
+        leres,
+        midas,
+        mlsd,
+        openpose,
+        pidinet,
+        uniformer,
+    )
+
 
 # isort: on
 
@@ -237,6 +313,8 @@ class Comfy_Horde:
             self._images[tid] = images
 
     def __init__(self) -> None:
+        if _comfy_model_manager is None:
+            raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
         self._client_id = {}
         self._images = {}
         self.pipelines = {}
