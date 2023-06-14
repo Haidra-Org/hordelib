@@ -500,13 +500,15 @@ class BaseModelManager(ABC):
         for model in models:
             self.taint_model(model)
 
-    def validate_model(self, model_name: str, skip_checksum: bool = False):
-        # XXX This isn't enough or isn't called at the right times.
-        """
-        :param model_name: Name of the model
-        :param skip_checksum: If True, skips checksum validation
-        For each file in the model, checks if the file exists and if the checksum is correct
-        Returns True if all files are valid, False otherwise
+    def validate_model(self, model_name: str, skip_checksum: bool = False) -> bool | None:
+        """Check the if the model file is on disk and, optionally, also if the checksum is correct.
+
+        Args:
+            model_name (str): The name of the model to check.
+            skip_checksum (bool, optional): Defaults to False.
+
+        Returns:
+            bool | None: `True` if the model is valid, `False` if not, `None` if the model is not on disk.
         """
         files = self.get_model_files(model_name)
         logger.debug(f"Validating {model_name} with {len(files)} files")
@@ -516,7 +518,7 @@ class BaseModelManager(ABC):
                 continue
             if not self.check_file_available(file_details["path"]):
                 logger.debug(f"File {file_details['path']} not found")
-                return False
+                return None
             if not skip_checksum and not self.validate_file(file_details):
                 logger.warning(f"File {file_details['path']} has different contents to what we expected.")
                 try:
