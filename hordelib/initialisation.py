@@ -56,6 +56,10 @@ def initialise(
     # Modify python path to include comfyui
     set_system_path()
 
+    import hordelib.comfy_horde
+
+    hordelib.comfy_horde.do_comfy_import()
+
     # Initialise model manager
     from hordelib.shared_model_manager import SharedModelManager
 
