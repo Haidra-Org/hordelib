@@ -115,6 +115,27 @@ class SharedModelManager:
         do_migrations()
         cls.manager.init_model_managers(**args_passed)
 
+    @classmethod
+    def unloadModelManagers(
+        cls,
+        codeformer: bool = False,
+        compvis: bool = False,
+        controlnet: bool = False,
+        # diffusers: bool = False,
+        esrgan: bool = False,
+        gfpgan: bool = False,
+        safety_checker: bool = False,
+        lora: bool = False,
+        blip: bool = False,
+        clip: bool = False,
+    ):
+        args_passed = locals().copy()
+        args_passed.pop("cls")
+
+        for arg, arg_value in args_passed.items():
+            if arg_value:
+                setattr(cls.manager, arg, None)
+
     @staticmethod
     def preloadAnnotators() -> bool:
         """Preload all annotators. If they are already downloaded, this will only ensure the SHA256 integrity.
