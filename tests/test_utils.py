@@ -19,30 +19,15 @@ def test_worker_settings_percent_check():
     assert UserSettings._is_percentage("%50") is False
 
 
-# def test_worker_settings_no_init():
-#     # _get_total_vram_mb returns 0 if hordelib is not initialised
-#     # We fake this condition with _is_initialised = False
-#     hordelib.initialisation._is_initialised = False
-#     assert UserSettings.get_vram_to_leave_free_mb() == 0
-
-
 class TestWorkerSettingsWithInit:
-    @pytest.fixture(autouse=True)
-    def setup_and_teardown(self):
-        hordelib.initialise()
-        yield
-        UserSettings._instance = None
-        UserSettings._ram_to_leave_free_mb = None
-        UserSettings._vram_to_leave_free_mb = None
-
-    def test_worker_settings_properties_comparable(self):
+    def test_worker_settings_properties_comparable(self, init_horde):
         assert UserSettings.get_ram_to_leave_free_mb() > 0
         assert UserSettings.get_vram_to_leave_free_mb() > 0
 
-    def test_worker_settings_set_get_ram(self):
+    def test_worker_settings_set_get_ram(self, init_horde):
         UserSettings.set_ram_to_leave_free_mb("50%")
         assert UserSettings.get_ram_to_leave_free_mb() > 0
 
-    def test_worker_settings_set_get_vram(self):
+    def test_worker_settings_set_get_vram(self, init_horde):
         UserSettings.set_vram_to_leave_free_mb("50%")
         assert UserSettings.get_vram_to_leave_free_mb() > 0
