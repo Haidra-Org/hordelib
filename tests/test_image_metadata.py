@@ -9,22 +9,11 @@ from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestHordeInference:
-    @pytest.fixture(autouse=True, scope="class")
-    def setup_and_teardown(self):
-        TestHordeInference.horde = HordeLib()
-
-        TestHordeInference.default_model_manager_args = {
-            "compvis": True,
-        }
-        SharedModelManager.loadModelManagers(**self.default_model_manager_args)
-        assert SharedModelManager.manager is not None
-        SharedModelManager.manager.load("Deliberate")
-        yield
-        del TestHordeInference.horde
-        SharedModelManager._instance = None
-        SharedModelManager.manager = None
-
-    def test_text_to_image(self):
+    def test_text_to_image(
+        self,
+        hordelib_instance: HordeLib,
+        test_stable_diffusion_model: str,
+    ):
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
@@ -42,10 +31,9 @@ class TestHordeInference:
             "prompt": "a secret metadata store",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": test_stable_diffusion_model,
         }
-        assert self.horde is not None
-        png_data = self.horde.basic_inference(data, rawpng=True)
+        png_data = hordelib_instance.basic_inference(data, rawpng=True)
         assert png_data is not None
         image = Image.open(png_data)
         metadata = image.info
