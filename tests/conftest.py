@@ -58,7 +58,7 @@ def shared_model_manager(hordelib_instance: HordeLib) -> type[SharedModelManager
 def test_stable_diffusion_model(shared_model_manager: type[SharedModelManager]):
     shared_model_manager.loadModelManagers(compvis=True)
     shared_model_manager.manager.load("Deliberate")
-    yield
+    yield "Deliberate"
     shared_model_manager.manager.unload_model("Deliberate")
 
 
