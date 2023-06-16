@@ -10,32 +10,21 @@ from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestHordeSaftyChecker:
-    @pytest.fixture(autouse=True)
-    def setup_and_teardown(self):
-        self.horde = HordeLib()
+    def test_safety_checker_with_preload(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        db0_test_image: Image.Image,
+    ):
+        assert shared_model_manager.manager.load("safety_checker", cpu_only=True)
+        assert shared_model_manager.manager.safety_checker.is_model_loaded("safety_checker") is True
+        assert is_image_nsfw(db0_test_image) is False
+        assert shared_model_manager.manager.unload_model("safety_checker")
 
-        self.default_model_manager_args = {
-            # "codeformer": True,
-            # "compvis": True,
-            # "controlnet": True,
-            # "diffusers": True,
-            # "esrgan": True,
-            # "gfpgan": True,
-            "safety_checker": True,
-        }
-        self.image = Image.open("images/test_db0.jpg")
-        SharedModelManager.loadModelManagers(**self.default_model_manager_args)
-        assert SharedModelManager.manager is not None
-        yield
-        del self.horde
-        SharedModelManager._instance = None
-        SharedModelManager.manager = None
-
-    def test_safety_checker_with_preload(self):
-        SharedModelManager.manager.load("safety_checker", cpu_only=True)
-        assert SharedModelManager.manager.safety_checker.is_model_loaded("safety_checker") is True
-        assert is_image_nsfw(self.image) is False
-
-    def test_safety_checker_without_preload(self):
-        assert SharedModelManager.manager.safety_checker.is_model_loaded("safety_checker") is False
-        assert is_image_nsfw(self.image) is False
+    def test_safety_checker_without_preload(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        db0_test_image: Image.Image,
+    ):
+        assert shared_model_manager.manager.safety_checker.is_model_loaded("safety_checker") is False
+        assert is_image_nsfw(db0_test_image) is False
+        assert shared_model_manager.manager.unload_model("safety_checker")
