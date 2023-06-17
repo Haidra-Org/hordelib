@@ -28,8 +28,10 @@ class CosineSimilarityResultCode(float, Enum):
 
     # Note: The values must be in ascending value order, as the first value is used as the default value.
     # (closer to 1 is more similar, closer to -1 becomes less similar/orthogonal)
-    NOT_SIMILAR = 0.9
-    PARTIALLY_SIMILAR = 0.86
+    SKIP = -1.0
+    ORTHOGONAL = -0.9
+    NOT_SIMILAR = 0.2
+    PARTIALLY_SIMILAR = 0.87
     CONSIDERABLY_SIMILAR = 0.92
     EXTREMELY_SIMILAR = 0.98
     PERCEPTUALLY_IDENTICAL = 0.99
@@ -66,6 +68,8 @@ class HistogramDistanceResultCode(float, Enum):
     - `VERY_CLOSE_DISTRIBUTION`: The color distributions are very close, but potentially perceptually different.\n
     You should also consider the cosine similarity when evaluating the distance between two images.\n
     """
+
+    SKIP = (2**32) - 1
 
     # Note: The values must be in descending value order, as the first value is used as the default value.
     # (closer to 0 is more similar, higher values are a greater distance (more potential for being dissimilar))
