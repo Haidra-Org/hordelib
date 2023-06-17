@@ -67,8 +67,8 @@ class TestHordeUpscaling:
 
         if similarity_constraints is None:
             similarity_constraints = ImageSimilarityConstraints(
-                cosine_fail_threshold=CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL,
-                cosine_warn_threshold=CosineSimilarityResultCode.EXTREMELY_SIMILAR,
+                cosine_fail_floor=CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL,
+                cosine_warn_floor=CosineSimilarityResultCode.EXTREMELY_SIMILAR,
                 histogram_fail_threshold=HistogramDistanceResultCode.VERY_DISSIMILAR_DISTRIBUTION,
                 histogram_warn_threshold=HistogramDistanceResultCode.SIMILAR_DISTRIBUTION,
             )
