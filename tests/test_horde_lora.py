@@ -8,7 +8,7 @@ from PIL import Image
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
-from .testing_shared_functions import check_inference_image_similarity_pytest
+from .testing_shared_functions import check_single_lora_image_similarity
 
 
 class TestHordeLora:
@@ -55,7 +55,7 @@ class TestHordeLora:
         img_filename = "lora_red.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_lora_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -100,7 +100,7 @@ class TestHordeLora:
         img_filename = "lora_blue.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_lora_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -148,7 +148,7 @@ class TestHordeLora:
         img_filename = "lora_multiple.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_lora_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -227,7 +227,7 @@ class TestHordeLora:
         img_filename = "lora_inject_red.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_lora_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -267,7 +267,7 @@ class TestHordeLora:
         img_filename = "lora_inject_any.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_lora_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -307,7 +307,7 @@ class TestHordeLora:
 
         img_filename = "lora_download_adhoc.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert check_inference_image_similarity_pytest(
+        assert check_single_lora_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -413,7 +413,7 @@ class TestHordeLora:
         img_filename = "lora_stonepunk.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_lora_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )

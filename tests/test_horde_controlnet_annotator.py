@@ -7,7 +7,7 @@ from PIL import Image
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
-from .testing_shared_functions import check_inference_image_similarity_pytest
+from .testing_shared_functions import check_single_inference_image_similarity
 
 
 class TestHordeInference:
@@ -62,7 +62,7 @@ class TestHordeInference:
             assert pil_image is not None
             img_filename = f"annotator_{preproc}.png"
             pil_image.save(f"images/{img_filename}", quality=100)
-            assert check_inference_image_similarity_pytest(
+            assert check_single_inference_image_similarity(
                 f"images_expected/{img_filename}",
                 pil_image,
             )

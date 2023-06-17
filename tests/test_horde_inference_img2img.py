@@ -7,7 +7,7 @@ from PIL import Image
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
-from .testing_shared_functions import check_inference_image_similarity_pytest
+from .testing_shared_functions import check_single_inference_image_similarity
 
 
 class TestHordeInference:
@@ -44,7 +44,7 @@ class TestHordeInference:
         img_filename = "image_to_image.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -82,7 +82,7 @@ class TestHordeInference:
         img_filename = "image_to_image_hires_fix_small.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -119,7 +119,7 @@ class TestHordeInference:
         assert pil_image.size == (768, 768)
         img_filename = "image_to_image_hires_fix_large.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert check_inference_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -152,7 +152,7 @@ class TestHordeInference:
         img_filename = "img2img_to_masked_denoise_1.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -185,7 +185,7 @@ class TestHordeInference:
         img_filename = "img2img_to_masked_denoise_0.6.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -218,7 +218,7 @@ class TestHordeInference:
         img_filename = "img2img_to_masked_denoise_0.4.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -251,7 +251,7 @@ class TestHordeInference:
         img_filename = "img2img_to_masked_denoise_0.2.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )
@@ -288,7 +288,7 @@ class TestHordeInference:
         img_filename = "img2img_fallback_to_txt2img.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_inference_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
         )

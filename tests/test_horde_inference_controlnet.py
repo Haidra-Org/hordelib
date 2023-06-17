@@ -7,7 +7,7 @@ from PIL import Image
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
-from .testing_shared_functions import check_inference_image_similarity_pytest
+from .testing_shared_functions import check_single_inference_image_similarity
 
 
 class TestHordeInference:
@@ -44,6 +44,7 @@ class TestHordeInference:
             "source_processing": "img2img",
         }
         assert hordelib_instance is not None
+        images_to_compare: list[tuple[str, Image.Image]] = []
         for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
             if preproc == "scribble" or preproc == "mlsd":
                 # Skip
@@ -63,8 +64,11 @@ class TestHordeInference:
             img_filename = f"controlnet_{preproc}.png"
 
             pil_image.save(f"images/{img_filename}", quality=100)
-            assert check_inference_image_similarity_pytest(
-                f"images_expected/{img_filename}",
+            images_to_compare.append((f"images_expected/{img_filename}", pil_image))
+
+        for img_filename, pil_image in images_to_compare:
+            assert check_single_inference_image_similarity(
+                img_filename,
                 pil_image,
             )
 
@@ -72,6 +76,7 @@ class TestHordeInference:
         self,
         hordelib_instance: HordeLib,
         stable_diffusion_modelname_for_testing: str,
+        db0_test_image: Image.Image,
     ):
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -84,19 +89,19 @@ class TestHordeInference:
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
-            "control_type": "THIS_SHOULD_FAIL",
+            "control_type": "NON_EXISTENT_CONTROL_TYPE",
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "a man walking in the snow",
             "ddim_steps": 25,
             "n_iter": 1,
             "model": stable_diffusion_modelname_for_testing,
-            "source_image": Image.open("images/test_db0.jpg"),
+            "source_image": db0_test_image,
             "source_processing": "img2img",
         }
         assert hordelib_instance is not None
-        with pytest.raises(Exception):
-            hordelib_instance.basic_inference(data)
+        image = hordelib_instance.basic_inference(data)
+        assert image
 
     def test_controlnet_strength(
         self,
@@ -124,6 +129,7 @@ class TestHordeInference:
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
+        images_to_compare: list[tuple[str, Image.Image]] = []
         for strength in [1.0, 0.5, 0.2]:
             data["control_strength"] = strength
 
@@ -133,8 +139,11 @@ class TestHordeInference:
             img_filename = f"controlnet_strength_{strength}.png"
 
             pil_image.save(f"images/{img_filename}", quality=100)
-            assert check_inference_image_similarity_pytest(
-                f"images_expected/{img_filename}",
+            images_to_compare.append((f"images_expected/{img_filename}", pil_image))
+
+        for img_filename, pil_image in images_to_compare:
+            assert check_single_inference_image_similarity(
+                img_filename,
                 pil_image,
             )
 
@@ -165,6 +174,7 @@ class TestHordeInference:
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
+        images_to_compare: list[tuple[str, Image.Image]] = []
         for denoise in [0.4, 0.5, 0.6]:
             data["hires_fix_denoising_strength"] = denoise
 
@@ -174,8 +184,10 @@ class TestHordeInference:
             img_filename = f"controlnet_hires_fix_denoise_{denoise}.png"
 
             pil_image.save(f"images/{img_filename}", quality=100)
+            images_to_compare.append((f"images_expected/{img_filename}", pil_image))
 
-            assert check_inference_image_similarity_pytest(
-                f"images_expected/{img_filename}",
+        for img_filename, pil_image in images_to_compare:
+            assert check_single_inference_image_similarity(
+                img_filename,
                 pil_image,
             )

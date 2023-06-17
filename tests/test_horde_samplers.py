@@ -6,7 +6,7 @@ from PIL import Image
 
 from hordelib.horde import HordeLib
 
-from .testing_shared_functions import CosineSimilarityResultCode, check_inference_image_similarity_pytest
+from .testing_shared_functions import CosineSimilarityResultCode, check_single_inference_image_similarity
 
 SLOW_SAMPLERS = ["k_dpmpp_2s_a", "k_dpmpp_sde", "k_heun", "k_dpm_2", "k_dpm_2_a"]
 
@@ -40,14 +40,20 @@ class TestHordeSamplers:
             "n_iter": 1,
             "model": stable_diffusion_modelname_for_testing,
         }
+        images_to_compare: list[tuple[str, Image.Image]] = []
         for sampler in HordeLib.SAMPLERS_MAP.keys():
             data["sampler_name"] = sampler.upper()  # force uppercase to ensure case insensitive
+
             pil_image = hordelib_instance.basic_inference(data)
             assert pil_image is not None
+
             img_filename = f"sampler_30_steps_{sampler}.png"
             pil_image.save(f"images/{img_filename}", quality=100)
-            assert check_inference_image_similarity_pytest(
-                f"images_expected/{img_filename}",
+            images_to_compare.append((f"images_expected/{img_filename}", pil_image))
+
+        for img_filename, pil_image in images_to_compare:
+            assert check_single_inference_image_similarity(
+                img_filename,
                 pil_image,
             )
 
@@ -79,14 +85,20 @@ class TestHordeSamplers:
             "n_iter": 1,
             "model": stable_diffusion_modelname_for_testing,
         }
-        assert hordelib_instance is not None
+
+        images_to_compare: list[tuple[str, Image.Image]] = []
         for sampler in SLOW_SAMPLERS:
             data["sampler_name"] = sampler
+
             pil_image = hordelib_instance.basic_inference(data)
             assert pil_image is not None
+
             img_filename = f"sampler_10_steps_{sampler}.png"
             pil_image.save(f"images/{img_filename}", quality=100)
-            assert check_inference_image_similarity_pytest(
-                f"images_expected/{img_filename}",
+            images_to_compare.append((f"images_expected/{img_filename}", pil_image))
+
+        for img_filename, pil_image in images_to_compare:
+            assert check_single_inference_image_similarity(
+                img_filename,
                 pil_image,
             )
