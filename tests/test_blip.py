@@ -8,10 +8,7 @@ from hordelib.shared_model_manager import SharedModelManager
 
 class TestHordeBlip:
     @pytest.fixture(autouse=True)
-    def setup_and_teardown(
-        self,
-        shared_model_manager: type[SharedModelManager],
-    ):
+    def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
         default_model_manager_args = {
             "blip": True,
         }
