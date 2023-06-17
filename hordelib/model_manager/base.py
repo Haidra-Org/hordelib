@@ -134,21 +134,17 @@ class BaseModelManager(ABC):
         if self.download_reference:
             self.model_reference = self.download_model_reference()
             logger.info(
-                " ".join(
-                    [
-                        "Downloaded model reference.",
-                        f"Got {len(self.model_reference)} models for {self.models_db_name}.",
-                    ],
+                (
+                    "Downloaded model reference.",
+                    f"Got {len(self.model_reference)} models for {self.models_db_name}.",
                 ),
             )
         else:
             self.model_reference = json.loads((self.models_db_path).read_text())
             logger.info(
-                " ".join(
-                    [
-                        "Loaded model reference from disk.",
-                        f"Got {len(self.model_reference)} models for {self.models_db_name}.",
-                    ],
+                (
+                    "Loaded model reference from disk.",
+                    f"Got {len(self.model_reference)} models for {self.models_db_name}.",
                 ),
             )
         if list_models:
@@ -190,7 +186,11 @@ class BaseModelManager(ABC):
                 status=f"Download failed: {e}",
             )
             logger.init_warn("Model Reference", status="Local")
-            return json.loads((self.models_db_path).read_text())
+            if self.models_db_path.exists():
+                return json.loads(self.models_db_path.read_text())
+
+            logger.init_err("Model Reference", status="Not found")
+            return {}
 
     def _modelref_to_name(self, modelref):
         with self._mutex:
