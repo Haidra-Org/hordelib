@@ -79,32 +79,33 @@ def real_image() -> PIL.Image.Image:
 
 
 def pytest_collection_modifyitems(items):
-    """Modifies test items in place to ensure test modules run in a given order."""
-    MODULES_FIRST = [
+    """Modifies test items to ensure test modules run in a given order."""
+    MODULES_TO_RUN_FIRST = [
+        "test_packaging_errors",
         "tests.test_cuda",
         "tests.test_comfy_install",
         "tests.test_clip",
     ]
-    MODULES_FIRST.reverse()
-    MODULES_LAST = [
-        "tests.test_horde_inference_controlnet",
-        "tests.test_horde_inference_img2img",
-        "tests.test_horde_inference_painting",
+    MODULES_TO_RUN_LAST = [
         "tests.test_horde_inference",
+        "tests.test_horde_inference_img2img",
+        "tests.test_horde_samplers",
+        "tests.test_horde_inference_controlnet",
         "tests.test_horde_lora",
+        "tests.test_horde_inference_painting",
     ]
-    # `test.scripts` must run first because it downloads the legacy database
     module_mapping = {item: item.module.__name__ for item in items}
 
-    sorted_items = items.copy()
-    # Iteratively move tests of each module to the end of the test queue
-    for module in MODULES_LAST:
-        sorted_items = [it for it in sorted_items if module_mapping[it] != module] + [
-            it for it in sorted_items if module_mapping[it] == module
-        ]
+    sorted_items = []
 
-    for module in MODULES_FIRST:
-        sorted_items = [it for it in sorted_items if module_mapping[it] == module] + [
-            it for it in sorted_items if module_mapping[it] != module
-        ]
+    for module in MODULES_TO_RUN_FIRST:
+        sorted_items.extend([item for item in items if module_mapping[item] == module])
+
+    sorted_items.extend(
+        [item for item in items if module_mapping[item] not in MODULES_TO_RUN_FIRST + MODULES_TO_RUN_LAST],
+    )
+
+    for module in MODULES_TO_RUN_LAST:
+        sorted_items.extend([item for item in items if module_mapping[item] == module])
+
     items[:] = sorted_items
