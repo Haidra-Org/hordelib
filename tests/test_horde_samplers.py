@@ -5,27 +5,18 @@ import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
-from hordelib.utils.distance import are_images_identical
+
+from .testing_shared_functions import CosineSimilarityResultCode, check_inference_image_similarity_pytest
 
 SLOW_SAMPLERS = ["k_dpmpp_2s_a", "k_dpmpp_sde", "k_heun", "k_dpm_2", "k_dpm_2_a"]
 
 
 class TestHordeSamplers:
-    @pytest.fixture(autouse=True, scope="class")
-    def setup_and_teardown(self):
-        TestHordeSamplers.horde = HordeLib()
-
-        SharedModelManager.loadModelManagers(compvis=True)
-        assert SharedModelManager.manager is not None
-        SharedModelManager.manager.load("Deliberate")
-        TestHordeSamplers.distance_threshold = int(os.getenv("IMAGE_DISTANCE_THRESHOLD", "100000"))
-        yield
-        del TestHordeSamplers.horde
-        SharedModelManager._instance = None
-        SharedModelManager.manager = None
-
-    def test_samplers(self):
+    def test_samplers(
+        self,
+        stable_diffusion_modelname_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
         data = {
             "sampler_name": "",
             "cfg_scale": 6.5,
@@ -47,18 +38,24 @@ class TestHordeSamplers:
             ),
             "ddim_steps": 30,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
         for sampler in HordeLib.SAMPLERS_MAP.keys():
             data["sampler_name"] = sampler.upper()  # force uppercase to ensure case insensitive
-            pil_image = self.horde.basic_inference(data)
+            pil_image = hordelib_instance.basic_inference(data)
             assert pil_image is not None
             img_filename = f"sampler_30_steps_{sampler}.png"
             pil_image.save(f"images/{img_filename}", quality=100)
-            assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+            assert check_inference_image_similarity_pytest(
+                f"images_expected/{img_filename}",
+                pil_image,
+            )
 
-    def test_slow_samplers(self):
+    def test_slow_samplers(
+        self,
+        stable_diffusion_modelname_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
         data = {
             "sampler_name": "",
             "cfg_scale": 6.5,
@@ -80,13 +77,16 @@ class TestHordeSamplers:
             ),
             "ddim_steps": 10,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
+        assert hordelib_instance is not None
         for sampler in SLOW_SAMPLERS:
             data["sampler_name"] = sampler
-            pil_image = self.horde.basic_inference(data)
+            pil_image = hordelib_instance.basic_inference(data)
             assert pil_image is not None
             img_filename = f"sampler_10_steps_{sampler}.png"
             pil_image.save(f"images/{img_filename}", quality=100)
-            assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+            assert check_inference_image_similarity_pytest(
+                f"images_expected/{img_filename}",
+                pil_image,
+            )
