@@ -130,8 +130,9 @@ class BaseModelManager(ABC):
                 ),
             )
             logger.info("Reloading model reference...")
-
-        if self.download_reference:
+        is_model_db_present = self.models_db_path.exists()
+        if self.download_reference or not is_model_db_present:
+            logger.debug(f"Model reference already on disk: {is_model_db_present}")
             self.model_reference = self.download_model_reference()
             logger.info(
                 (
