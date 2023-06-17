@@ -7,7 +7,7 @@ from PIL import Image
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
 
-from .testing_shared_functions import CosineSimilarityResultCode, check_image_similarity_pytest
+from .testing_shared_functions import CosineSimilarityResultCode, check_single_inference_image_similarity
 
 
 class TestInference:
@@ -43,11 +43,9 @@ class TestInference:
         pil_image = Image.open(images[0]["imagedata"])
         img_filename = "pipeline_stable_diffusion.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert check_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
-            cosine_fail_floor=CosineSimilarityResultCode.NOT_SIMILAR,
-            cosine_warn_floor=CosineSimilarityResultCode.CONSIDERABLY_SIMILAR,
         )
 
     def test_stable_diffusion_pipeline_clip_skip(
@@ -78,11 +76,9 @@ class TestInference:
         pil_image = Image.open(images[0]["imagedata"])
         img_filename = "pipeline_stable_diffusion_clip_skip_2.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert check_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
-            cosine_fail_floor=CosineSimilarityResultCode.NOT_SIMILAR,
-            cosine_warn_floor=CosineSimilarityResultCode.CONSIDERABLY_SIMILAR,
         )
 
     def test_stable_diffusion_hires_fix_pipeline(
@@ -129,11 +125,9 @@ class TestInference:
         pil_image = Image.open(images[0]["imagedata"])
         img_filename = "pipeline_stable_diffusion_hires_fix.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert check_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
-            cosine_fail_floor=CosineSimilarityResultCode.NOT_SIMILAR,
-            cosine_warn_floor=CosineSimilarityResultCode.CONSIDERABLY_SIMILAR,
         )
 
         params["clip_skip.stop_at_clip_layer"] = -2
@@ -143,9 +137,7 @@ class TestInference:
         pil_image = Image.open(images[0]["imagedata"])
         img_filename = "pipeline_stable_diffusion_hires_fix_clip_skip_2.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert check_image_similarity_pytest(
+        assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
-            cosine_fail_floor=CosineSimilarityResultCode.NOT_SIMILAR,
-            cosine_warn_floor=CosineSimilarityResultCode.CONSIDERABLY_SIMILAR,
         )
