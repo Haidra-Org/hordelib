@@ -104,10 +104,10 @@ class HistogramDistanceResultCode(float, Enum):
     """The color distributions are extremely close, and as such the composition of the images is likely to be very
     similar."""
 
-    IDENTICAL = 0
+    IDENTICAL = 0.0
     """The images are probably also byte-for-byte identical, but it is possible they may not be."""
 
-    SKIP = 1e-8
+    SKIP = 0 - 1e-7
     """Skip the histogram distance check."""
 
 
