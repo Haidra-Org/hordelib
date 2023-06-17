@@ -91,10 +91,15 @@ def pytest_collection_modifyitems(items):
     MODULES_TO_RUN_FIRST = [
         "test_packaging_errors",
         "tests.test_cuda",
+        "tests.test_utils",
         "tests.test_comfy_install",
-        "tests.test_clip",
+        "tests.test_comfy",
+        "tests.test_payload_mapping",
+        "test_shared_model_manager",
+        "test_mm_lora",
     ]
     MODULES_TO_RUN_LAST = [
+        "tests.test_inference",
         "tests.test_horde_inference",
         "tests.test_horde_inference_img2img",
         "tests.test_horde_samplers",
