@@ -20,6 +20,7 @@ class TestHordeInference:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
     ):
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -38,7 +39,7 @@ class TestHordeInference:
             "prompt": "a man walking in the snow",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
@@ -67,7 +68,11 @@ class TestHordeInference:
                 pil_image,
             )
 
-    def test_controlnet_fake_cn(self, hordelib_instance: HordeLib):
+    def test_controlnet_fake_cn(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
@@ -85,7 +90,7 @@ class TestHordeInference:
             "prompt": "a man walking in the snow",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
@@ -93,7 +98,11 @@ class TestHordeInference:
         with pytest.raises(Exception):
             hordelib_instance.basic_inference(data)
 
-    def test_controlnet_strength(self, hordelib_instance: HordeLib):
+    def test_controlnet_strength(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
@@ -111,7 +120,7 @@ class TestHordeInference:
             "prompt": "a man walking on the moon",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
@@ -129,7 +138,11 @@ class TestHordeInference:
                 pil_image,
             )
 
-    def test_controlnet_hires_fix(self, hordelib_instance: HordeLib):
+    def test_controlnet_hires_fix(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
@@ -148,7 +161,7 @@ class TestHordeInference:
             "prompt": "a man walking in the jungle",
             "ddim_steps": 15,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
