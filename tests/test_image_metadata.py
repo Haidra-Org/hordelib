@@ -12,7 +12,7 @@ class TestHordeInference:
     def test_text_to_image(
         self,
         hordelib_instance: HordeLib,
-        test_stable_diffusion_model: str,
+        stable_diffusion_modelname_for_testing: str,
     ):
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -31,7 +31,7 @@ class TestHordeInference:
             "prompt": "a secret metadata store",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": test_stable_diffusion_model,
+            "model": stable_diffusion_modelname_for_testing,
         }
         png_data = hordelib_instance.basic_inference(data, rawpng=True)
         assert png_data is not None
