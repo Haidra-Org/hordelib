@@ -2,9 +2,7 @@ import os
 
 import pytest
 
-from hordelib.horde import HordeLib
 from hordelib.model_manager.lora import LoraModelManager
-from hordelib.utils.logger import HordeLog
 
 
 class TestModelManagerLora:
