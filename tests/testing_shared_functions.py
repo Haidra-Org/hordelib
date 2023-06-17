@@ -209,14 +209,14 @@ def check_list_images_similarity(
     if len(all_failed_results) > 0:
         for result in all_failed_results:
             complete_error_message += (
-                f"Image ({img1.size}) similarity check failed:\n"
+                f"Image similarity check failed:\n"
                 f"cosine_similarity_result={result.cosine_similarity_result},\n"
                 f"histogram_distance_result={result.histogram_distance_result}\n"
             )
     if len(all_skipped_results) > 0:
         for result in all_skipped_results:
             complete_error_message += (
-                f"Image ({img1.size}) similarity check skipped:\n"
+                f"Image similarity check skipped:\n"
                 f"cosine_similarity_result={result.cosine_similarity_result},\n"
                 f"histogram_distance_result={result.histogram_distance_result}\n"
             )
