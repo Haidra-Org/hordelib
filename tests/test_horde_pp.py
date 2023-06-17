@@ -164,6 +164,7 @@ class TestHordeUpscaling:
             histogram_fail_threshold=HistogramDistanceResultCode.VERY_DISSIMILAR_DISTRIBUTION,
             histogram_warn_threshold=HistogramDistanceResultCode.SIMILAR_DISTRIBUTION,
         )
+        # This model has been shown to vary its results between machines, so we loosen up the similarity constraints.
 
         self.post_processor_check(
             model_name="RealESRGAN_x4plus_anime_6B",
