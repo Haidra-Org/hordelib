@@ -18,23 +18,36 @@ DEFAULT_HISTOGRAM_RANGE = (0, 512)
 class CosineSimilarityResultCode(float, Enum):
     """Thresholds for image distance.\n
     In order of increasing strictness:\n
-    - `NOT_SIMILAR`: Completely different images.\n
-    - `PARTIALLY_SIMILAR`: Images are partially similar.\n
-    - `CONSIDERABLY_SIMILAR`: Images are considerably similar.\n
-    - `EXTREMELY_SIMILAR`: Images are extremely similar.\n
-    - `PERCEPTUALLY_IDENTICAL`: Images are perceptually identical.\n
-    You should also consider the histogram distance when evaluating the distance between two images.\n
+    - `SKIP`: Skip the image distance check.\n
+    - `ORTHOGONAL`\n
+    - `NOT_SIMILAR`\n
+    - `SOMEWHAT_SIMILAR`\n
+    - `PARTIALLY_SIMILAR`\n
+    - `CONSIDERABLY_SIMILAR`\n
+    - `EXTREMELY_SIMILAR`\n
+    - `PERCEPTUALLY_IDENTICAL`\n
     """
 
     # Note: The values must be in ascending value order, as the first value is used as the default value.
     # (closer to 1 is more similar, closer to -1 becomes less similar/orthogonal)
-    SKIP = -1.0
-    ORTHOGONAL = -0.9
-    NOT_SIMILAR = 0.2
+    ORTHOGONAL = -1.0
+    """Images are orthogonal, and in a certain sense, are the opposite of each other."""
+    NOT_SIMILAR = 0
+    """Images are probably very different, but may have some similarities or small regions which are the same."""
+    SOMEWHAT_SIMILAR = 0.5
+    """Images are somewhat similar, and may share some major features or regions, but it is unlikely they will be
+    confused with each other."""
     PARTIALLY_SIMILAR = 0.87
+    """Images are similar, but possibly not enough to be confused with each other at a glance."""
     CONSIDERABLY_SIMILAR = 0.92
+    """Images are probably similar enough to be confused at a glance."""
     EXTREMELY_SIMILAR = 0.98
+    """Images are extremely similar, and any differences are likely in the details."""
     PERCEPTUALLY_IDENTICAL = 0.99
+    """Images are perceptually identical, but may not be byte-for-byte identical."""
+
+    SKIP = 2**31
+    """Skip the image distance check."""
 
 
 @dataclass
@@ -61,18 +74,21 @@ class CosineSimilarityResult:
 class HistogramDistanceResultCode(float, Enum):
     """Thresholds for histogram distance.\n
     In order of increasing strictness:\n
-    - `NOT_SIMILAR_DISTRIBUTION`: The color distributions are very dissimilar..\n
-    - `DISSIMILAR_DISTRIBUTION`: The color distributions are markedly dissimilar.\n
-    - `DIVERGING_DISTRIBUTION`: The color distributions could be perceptually different..\n
-    - `CLOSE_DISTRIBUTION`: The color distributions are close, but potentially perceptually different.\n
-    - `VERY_CLOSE_DISTRIBUTION`: The color distributions are very close, but potentially perceptually different.\n
+    - `SKIP`: Skip the histogram distance check.\n
+    - `VERY_DISSIMILAR_DISTRIBUTION`\n
+    - `DISSIMILAR_DISTRIBUTION`\n
+    - `SIMILAR_DISTRIBUTION`\n
+    - `VERY_SIMILAR_DISTRIBUTION`\n
+    - `EXTREMELY_SIMILAR_DISTRIBUTION`\n
+
     You should also consider the cosine similarity when evaluating the distance between two images.\n
     """
 
-    SKIP = (2**32) - 1
-
     # Note: The values must be in descending value order, as the first value is used as the default value.
     # (closer to 0 is more similar, higher values are a greater distance (more potential for being dissimilar))
+    COMPLETELY_DISSIMILAR_DISTRIBUTION = 100000
+    """The color distributions are completely different, and there is a very high potential for the two images to 
+    have completely different compositions."""
     VERY_DISSIMILAR_DISTRIBUTION = 70000
     """The color distributions are very similar, and there is a very high potential for them to be perceptually
     different."""
@@ -84,25 +100,11 @@ class HistogramDistanceResultCode(float, Enum):
     """The color distributions are very close, but there is potential for them to be perceptually different in
     certain situations."""
     EXTREMELY_SIMILAR_DISTRIBUTION = 10000
+    """The color distributions are extremely close, and as such the composition of the images is likely to be very
+    similar."""
 
-
-def is_cosine_similarity_fail(
-    *,
-    result_to_check: CosineSimilarityResult | CosineSimilarityResultCode,
-    threshold: CosineSimilarityResultCode,
-) -> bool:
-    """Checks if the cosine similarity result is a failure.
-
-    Args:
-        result_to_check (CosineSimilarityResult): The result to check.
-        threshold (CosineSimilarityResultCode): The result should be at least this similar.
-
-    Returns:
-        bool: True if the result is a failure, False otherwise.
-    """
-    if isinstance(result_to_check, CosineSimilarityResult):
-        return result_to_check.cosine_similarity < threshold
-    return result_to_check < threshold
+    SKIP = 1e-8
+    """Skip the histogram distance check."""
 
 
 @dataclass
@@ -123,6 +125,25 @@ class HistogramDistanceResult:
 
     def __str__(self) -> str:
         return f"{self.histogram_distance} ({self.result_code.name} : {self.result_code.value})"
+
+
+def is_cosine_similarity_fail(
+    *,
+    result_to_check: CosineSimilarityResult | CosineSimilarityResultCode,
+    threshold: CosineSimilarityResultCode,
+) -> bool:
+    """Checks if the cosine similarity result is a failure.
+
+    Args:
+        result_to_check (CosineSimilarityResult): The result to check.
+        threshold (CosineSimilarityResultCode): The result should be at least this similar.
+
+    Returns:
+        bool: True if the result is a failure, False otherwise.
+    """
+    if isinstance(result_to_check, CosineSimilarityResult):
+        return result_to_check.cosine_similarity < threshold
+    return result_to_check < threshold
 
 
 def is_histogram_distance_fail(
