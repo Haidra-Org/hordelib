@@ -45,7 +45,8 @@ class CosineSimilarityResultCode(float, Enum):
     """Images are extremely similar, and any differences are likely in the details."""
     PERCEPTUALLY_IDENTICAL = 0.99
     """Images are perceptually identical, but may not be byte-for-byte identical."""
-
+    IDENTICAL = 1.0
+    """Images are probably also byte-for-byte identical, but it is possible they may not be."""
     SKIP = 2**31
     """Skip the image distance check."""
 
@@ -102,6 +103,9 @@ class HistogramDistanceResultCode(float, Enum):
     EXTREMELY_SIMILAR_DISTRIBUTION = 10000
     """The color distributions are extremely close, and as such the composition of the images is likely to be very
     similar."""
+
+    IDENTICAL = 0
+    """The images are probably also byte-for-byte identical, but it is possible they may not be."""
 
     SKIP = 1e-8
     """Skip the histogram distance check."""
