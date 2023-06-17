@@ -26,6 +26,7 @@ omegaconf
 psutil
 typing-extensions
 distro
+cv2
 # face fixer custom nodes
 opencv-python
 # controlnet custom nodes
