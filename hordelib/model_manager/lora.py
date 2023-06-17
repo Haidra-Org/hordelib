@@ -77,6 +77,34 @@ class LoraModelManager(BaseModelManager):
             download_reference=download_reference,
         )
 
+    def loadModelDatabase(self, list_models=False):
+        if self.model_reference:
+            logger.info(
+                (
+                    "Model reference was already loaded."
+                    f" Got {len(self.model_reference)} models for {self.models_db_name}."
+                ),
+            )
+            logger.info("Reloading model reference...")
+
+        if self.download_reference:
+            os.makedirs(self.modelFolderPath, exist_ok=True)
+            self.download_model_reference()
+            logger.info("Lora reference download begun asynchronously.")
+        else:
+            try:
+                self.model_reference = json.loads((self.models_db_path).read_text())
+            except FileNotFoundError:
+                self.model_reference = {}
+            logger.info(
+                " ".join(
+                    [
+                        "Loaded model reference from disk.",
+                        f"Got {len(self.model_reference)} models for {self.models_db_name}.",
+                    ],
+                ),
+            )
+
     def download_model_reference(self):
         # We have to wipe it, as we are going to be adding it it instead of replacing it
         # We're not downloading now, as we need to be able to init without it
