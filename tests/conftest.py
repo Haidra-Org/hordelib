@@ -1,6 +1,7 @@
 import PIL.Image
 import pytest
 
+from hordelib.comfy_horde import Comfy_Horde
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
@@ -21,8 +22,12 @@ def init_horde():
 
 @pytest.fixture(scope="session")
 def hordelib_instance(init_horde) -> HordeLib:
-    hordelib = HordeLib()
-    return hordelib
+    return HordeLib()
+
+
+@pytest.fixture(scope="class")
+def isolated_comfy_horde_instance(init_horde) -> Comfy_Horde:
+    return Comfy_Horde()
 
 
 @pytest.fixture(scope="session")
@@ -55,11 +60,14 @@ def shared_model_manager(hordelib_instance: HordeLib) -> type[SharedModelManager
 
 
 @pytest.fixture(scope="class")
-def test_stable_diffusion_model(shared_model_manager: type[SharedModelManager]):
+def stable_diffusion_modelname_for_testing(shared_model_manager: type[SharedModelManager]) -> str:
+    """Loads the stable diffusion model for testing. This model is used by many tests.
+    This fixture returns the (str) model name."""
     shared_model_manager.loadModelManagers(compvis=True)
-    shared_model_manager.manager.load("Deliberate")
-    yield "Deliberate"
-    shared_model_manager.manager.unload_model("Deliberate")
+    model_name = "Deliberate"
+    shared_model_manager.manager.load(model_name)
+    yield model_name
+    shared_model_manager.manager.unload_model(model_name)
 
 
 @pytest.fixture(scope="session")
