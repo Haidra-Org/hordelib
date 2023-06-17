@@ -5,33 +5,25 @@ from PIL import Image
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
-from hordelib.utils.distance import are_images_identical
+
+from .testing_shared_functions import check_inference_image_similarity_pytest
 
 
 class TestHordeInference:
-    @pytest.fixture(autouse=True)
-    def setup_and_teardown(self):
-        self.horde = HordeLib()
+    @pytest.fixture(scope="class")
+    def inpainting_model_for_testing(self, shared_model_manager: type[SharedModelManager]) -> str:
+        """Loads the inpainting model for testing.
+        This fixture returns the (str) model name."""
+        model_name = "Deliberate Inpainting"
+        assert shared_model_manager.manager.load(model_name)
+        yield model_name
+        assert shared_model_manager.manager.unload_model(model_name)
 
-        self.default_model_manager_args = {
-            "compvis": True,
-        }
-        SharedModelManager.loadModelManagers(**self.default_model_manager_args)
-        assert SharedModelManager.manager is not None
-        SharedModelManager.manager.load("Deliberate Inpainting")
-        assert (
-            SharedModelManager.manager.compvis.is_model_loaded(
-                "Deliberate Inpainting",
-            )
-            is True
-        )
-        TestHordeInference.distance_threshold = int(os.getenv("IMAGE_DISTANCE_THRESHOLD", "100000"))
-        yield
-        del self.horde
-        SharedModelManager._instance = None
-        SharedModelManager.manager = None
-
-    def test_inpainting_alpha_mask(self):
+    def test_inpainting_alpha_mask(
+        self,
+        inpainting_model_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
         data = {
             "sampler_name": "euler",
             "cfg_scale": 8,
@@ -49,18 +41,25 @@ class TestHordeInference:
             "prompt": "a dinosaur",
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate Inpainting",
+            "model": inpainting_model_for_testing,
             "source_image": Image.open("images/test_inpaint_alpha.png"),
             "source_processing": "inpainting",
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+
         img_filename = "inpainting_mask_alpha.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
-    def test_inpainting_separate_mask(self):
+        assert check_inference_image_similarity_pytest(
+            f"images_expected/{img_filename}",
+        )
+
+    def test_inpainting_separate_mask(
+        self,
+        inpainting_model_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
         data = {
             "sampler_name": "euler",
             "cfg_scale": 8,
@@ -78,19 +77,27 @@ class TestHordeInference:
             "prompt": "a dinosaur",
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate Inpainting",
+            "model": inpainting_model_for_testing,
             "source_image": Image.open("images/test_inpaint_original.png"),
             "source_mask": Image.open("images/test_inpaint_mask.png"),
             "source_processing": "inpainting",
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+
         img_filename = "inpainting_mask_separate.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
-    def test_inpainting_alpha_mask_mountains(self):
+        assert check_inference_image_similarity_pytest(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+    def test_inpainting_alpha_mask_mountains(
+        self,
+        inpainting_model_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
@@ -108,19 +115,26 @@ class TestHordeInference:
             "prompt": "a river through the mountains",
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate Inpainting",
+            "model": inpainting_model_for_testing,
             "source_image": Image.open("images/test_inpaint.png"),
             "source_processing": "inpainting",
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
         assert pil_image.size == (512, 512)
+
         img_filename = "inpainting_mountains.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
-    def test_outpainting_alpha_mask_mountains(self):
+        assert check_inference_image_similarity_pytest(
+            f"images_expected/{img_filename}",
+        )
+
+    def test_outpainting_alpha_mask_mountains(
+        self,
+        inpainting_model_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
         data = {
             "sampler_name": "euler",
             "cfg_scale": 8.0,
@@ -138,14 +152,18 @@ class TestHordeInference:
             "prompt": "a river through the mountains, blue sky with clouds.",
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate Inpainting",
+            "model": inpainting_model_for_testing,
             "source_image": Image.open("images/test_outpaint.png"),
             "source_processing": "outpainting",
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
         assert pil_image.size == (512, 512)
+
         img_filename = "outpainting_mountains.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+
+        assert check_inference_image_similarity_pytest(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
