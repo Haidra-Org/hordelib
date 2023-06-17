@@ -159,8 +159,8 @@ class TestHordeUpscaling:
 
     def test_image_upscale_RealESRGAN_x4plus_anime_6B(self, db0_test_image: PIL.Image.Image):
         similarity_constraints = ImageSimilarityConstraints(
-            cosine_fail_threshold=CosineSimilarityResultCode.PARTIALLY_SIMILAR,
-            cosine_warn_threshold=CosineSimilarityResultCode.CONSIDERABLY_SIMILAR,
+            cosine_fail_floor=CosineSimilarityResultCode.PARTIALLY_SIMILAR,
+            cosine_warn_floor=CosineSimilarityResultCode.CONSIDERABLY_SIMILAR,
             histogram_fail_threshold=HistogramDistanceResultCode.VERY_DISSIMILAR_DISTRIBUTION,
             histogram_warn_threshold=HistogramDistanceResultCode.SIMILAR_DISTRIBUTION,
         )
@@ -171,6 +171,7 @@ class TestHordeUpscaling:
             target_image=db0_test_image,
             expected_scale_factor=4.0,
             post_process_function=self.hordelib_instance.image_upscale,
+            similarity_constraints=similarity_constraints,
         )
 
     def test_image_upscale_4x_AnimeSharp(self, db0_test_image: PIL.Image.Image):
