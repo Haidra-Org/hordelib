@@ -11,7 +11,11 @@ from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.distance import HistogramDistanceResultCode
 
-from .testing_shared_functions import CosineSimilarityResultCode, check_image_similarity_pytest
+from .testing_shared_functions import (
+    CosineSimilarityResultCode,
+    ImageSimilarityConstraints,
+    check_image_similarity_pytest,
+)
 
 
 class TestHordeUpscaling:
@@ -58,11 +62,16 @@ class TestHordeUpscaling:
         expected_scale_factor: int,
         custom_data: dict = None,
         post_process_function: typing.Callable[[dict], PIL.Image.Image] = None,
-        cosine_fail_threshold: CosineSimilarityResultCode = CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL,
-        cosine_warn_threshold: CosineSimilarityResultCode = CosineSimilarityResultCode.EXTREMELY_SIMILAR,
-        histogram_fail_threshold: HistogramDistanceResultCode = HistogramDistanceResultCode.VERY_SIMILAR_DISTRIBUTION,
-        histogram_warn_threshold: HistogramDistanceResultCode = HistogramDistanceResultCode.SIMILAR_DISTRIBUTION,
+        similarity_constraints: ImageSimilarityConstraints = None,
     ):
+
+        if similarity_constraints is None:
+            similarity_constraints = ImageSimilarityConstraints(
+                cosine_fail_threshold=CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL,
+                cosine_warn_threshold=CosineSimilarityResultCode.EXTREMELY_SIMILAR,
+                histogram_fail_threshold=HistogramDistanceResultCode.VERY_DISSIMILAR_DISTRIBUTION,
+                histogram_warn_threshold=HistogramDistanceResultCode.SIMILAR_DISTRIBUTION,
+            )
         assert cls.shared_model_manager.manager.load(model_name)
         assert cls.shared_model_manager.manager.is_model_loaded(model_name) is True
 
@@ -89,13 +98,11 @@ class TestHordeUpscaling:
 
         # It is important this is done after the model is unloaded, otherwise if a skip occurs
         # the models will be left in memory.
+
         assert check_image_similarity_pytest(
             f"images_expected/{image_filename}",
             pil_image,
-            cosine_fail_floor=cosine_fail_threshold,
-            cosine_warn_floor=cosine_warn_threshold,
-            histogram_fail_threshold=histogram_fail_threshold,
-            histogram_warn_threshold=histogram_warn_threshold,
+            similarity_constraints=similarity_constraints,
         )
 
     def test_image_upscale_RealESRGAN_x4plus(self, db0_test_image: PIL.Image.Image):
@@ -151,14 +158,19 @@ class TestHordeUpscaling:
         )
 
     def test_image_upscale_RealESRGAN_x4plus_anime_6B(self, db0_test_image: PIL.Image.Image):
+        similarity_constraints = ImageSimilarityConstraints(
+            cosine_fail_threshold=CosineSimilarityResultCode.PARTIALLY_SIMILAR,
+            cosine_warn_threshold=CosineSimilarityResultCode.CONSIDERABLY_SIMILAR,
+            histogram_fail_threshold=HistogramDistanceResultCode.VERY_DISSIMILAR_DISTRIBUTION,
+            histogram_warn_threshold=HistogramDistanceResultCode.SIMILAR_DISTRIBUTION,
+        )
+
         self.post_processor_check(
             model_name="RealESRGAN_x4plus_anime_6B",
             image_filename="image_upscale_RealESRGAN_x4plus_anime_6B.png",
             target_image=db0_test_image,
             expected_scale_factor=4.0,
             post_process_function=self.hordelib_instance.image_upscale,
-            histogram_fail_threshold=HistogramDistanceResultCode.DISSIMILAR_DISTRIBUTION,
-            histogram_warn_threshold=HistogramDistanceResultCode.VERY_SIMILAR_DISTRIBUTION,
         )
 
     def test_image_upscale_4x_AnimeSharp(self, db0_test_image: PIL.Image.Image):
