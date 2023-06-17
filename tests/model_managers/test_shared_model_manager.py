@@ -121,7 +121,7 @@ class TestSharedModelManager:
         self,
         shared_model_manager: type[SharedModelManager],
     ):
-        assert SharedModelManager.preloadAnnotators()
+        assert shared_model_manager.preloadAnnotators()
 
     @pytest.fixture(scope="class")
     def load_models_for_type_test(
