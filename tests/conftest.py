@@ -30,7 +30,7 @@ def isolated_comfy_horde_instance(init_horde) -> Comfy_Horde:
     return Comfy_Horde()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="class")
 def shared_model_manager(hordelib_instance: HordeLib) -> type[SharedModelManager]:
     SharedModelManager()
     SharedModelManager.loadModelManagers(
@@ -56,18 +56,20 @@ def shared_model_manager(hordelib_instance: HordeLib) -> type[SharedModelManager
     assert SharedModelManager.manager.blip is not None
     assert SharedModelManager.manager.clip is not None
 
-    return SharedModelManager
+    yield SharedModelManager
+
+    SharedModelManager._instance = None
+    SharedModelManager.manager = None
 
 
 @pytest.fixture(scope="class")
 def stable_diffusion_modelname_for_testing(shared_model_manager: type[SharedModelManager]) -> str:
     """Loads the stable diffusion model for testing. This model is used by many tests.
-    This fixture returns the (str) model name."""
+    This fixture returns the model name as string."""
     shared_model_manager.loadModelManagers(compvis=True)
     model_name = "Deliberate"
-    shared_model_manager.manager.load(model_name)
-    yield model_name
-    shared_model_manager.manager.unload_model(model_name)
+    assert shared_model_manager.manager.load(model_name)
+    return model_name
 
 
 @pytest.fixture(scope="session")
