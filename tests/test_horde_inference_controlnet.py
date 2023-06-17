@@ -101,7 +101,7 @@ class TestHordeInference:
         }
         assert hordelib_instance is not None
         image = hordelib_instance.basic_inference(data)
-        assert image
+        assert image is not None
 
     def test_controlnet_strength(
         self,
