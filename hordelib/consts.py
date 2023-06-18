@@ -22,7 +22,7 @@ class HordeSupportedBackends(Enum):
 
 # Models Excluded from hordelib (for now) # FIXME
 # this could easily be a json file on the AI-Horde-image-model-reference repo
-EXCLUDED_MODEL_NAMES = ["pix2pix", "anything_v4_inpainting", "dreamlike_diffusion_inpainting"]
+EXCLUDED_MODEL_NAMES = ["pix2pix"]
 
 
 class MODEL_CATEGORY_NAMES(str, Enum):
