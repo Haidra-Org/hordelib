@@ -21,7 +21,7 @@ from hordelib.model_manager.lora import LoraModelManager
 from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
 from hordelib.settings import UserSettings
 
-MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type[BaseModelManager]] = {
+MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES | str, type[BaseModelManager]] = {
     MODEL_CATEGORY_NAMES.codeformer: CodeFormerModelManager,
     MODEL_CATEGORY_NAMES.compvis: CompVisModelManager,
     MODEL_CATEGORY_NAMES.controlnet: ControlNetModelManager,
@@ -68,38 +68,46 @@ class ModelManager:
 
     def get_available_models(
         self,
-        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
-        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
+        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
     ) -> list[str]:
         """All models for which information exists, and for which a download attempt could be made."""
         all_available_models: list[str] = []
-        mm_include = self.get_mm_pointers(mm_include)
-        mm_exclude = self.get_mm_pointers(mm_exclude)
+
+        resolved_include_managers = self.get_mm_pointers(mm_include)
+        resolved_exclude_managers = self.get_mm_pointers(mm_exclude)
+
         for model_manager in self.active_model_managers:
-            if mm_include and model_manager not in mm_include:
+            if model_manager not in resolved_include_managers:
                 continue
-            if mm_exclude and model_manager in mm_exclude:
+            if model_manager in resolved_exclude_managers:
                 continue
+
             all_available_models.extend(model_manager.available_models)
+
         return all_available_models
 
     available_models = property(get_available_models)
 
     def get_loaded_models(
         self,
-        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
-        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
+        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
     ) -> dict[str, dict]:
         """All models for which have successfully loaded across all `BaseModelManager` types."""
         all_loaded_models: dict[str, dict] = {}
-        mm_include = self.get_mm_pointers(mm_include)
-        mm_exclude = self.get_mm_pointers(mm_exclude)
+
+        resolved_include_managers = self.get_mm_pointers(mm_include)
+        resolved_exclude_managers = self.get_mm_pointers(mm_exclude)
+
         for model_manager in self.active_model_managers:
-            if mm_include and model_manager not in mm_include:
+            if model_manager not in resolved_include_managers:
                 continue
-            if mm_exclude and model_manager in mm_exclude:
+            if model_manager in resolved_exclude_managers:
                 continue
+
             all_loaded_models.update(model_manager.get_loaded_models())
+
         return all_loaded_models
 
     loaded_models = property(get_loaded_models)
@@ -316,7 +324,7 @@ class ModelManager:
 
     def count_available_models_by_types(
         self,
-        model_types: list[str] | None = None,
+        model_types: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
     ) -> int:
         return len(self.get_available_models_by_types(model_types))
 
@@ -339,7 +347,7 @@ class ModelManager:
         cpu_only: bool = False,
         local: bool = False,
     ) -> bool | None:
-        """_summary_
+        """Loads the target model with the appropriate (loaded) `BaseModelManager` type.
 
         Args:
             model_name (str): Name of the model to load. See available_models for
@@ -375,22 +383,39 @@ class ModelManager:
         logger.error(f"{model_name} not found")
         return None
 
-    def get_mm_pointers(self, mm_types: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None):
+    def get_mm_pointers(
+        self,
+        mm_types: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+    ) -> list[BaseModelManager]:
+        """Returns a set of model managers based on the input list of model manager types.
+
+        Args:
+            mm_types (list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]], optional): The list of model manager
+            types to resolve. Defaults to None.
+
+        Returns:
+            list[BaseModelManager]: A list of the requested model managers.
+        """
         if not mm_types:
-            return set()
+            return []
 
         active_model_managers_types = [type(model_manager) for model_manager in self.active_model_managers]
 
         resolved_types = []
         for mm_type in mm_types:
-            if mm_type in active_model_managers_types:
+            if isinstance(mm_type, type) and mm_type in active_model_managers_types:
                 resolved_types.append(mm_type)
+                continue
+
+            if not isinstance(mm_type, str) or mm_type not in MODEL_MANAGERS_TYPE_LOOKUP:
+                logger.warning(f"Attempted to reference a model manager which doesn't exist: '{mm_type}'.")
                 continue
 
             if mm_type in MODEL_MANAGERS_TYPE_LOOKUP:
                 if MODEL_MANAGERS_TYPE_LOOKUP[mm_type] not in active_model_managers_types:
                     logger.warning(f"Attempted to reference a model manager which isn't loaded: '{mm_type}'.")
-                else:
-                    resolved_types.append(MODEL_MANAGERS_TYPE_LOOKUP[mm_type])
+                    continue
 
-        return {mm for mm in self.active_model_managers if type(mm) in resolved_types}
+                resolved_types.append(MODEL_MANAGERS_TYPE_LOOKUP[mm_type])
+
+        return [mm for mm in self.active_model_managers if type(mm) in resolved_types]
