@@ -2,18 +2,10 @@ import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestPayloadMapping:
-    @pytest.fixture(autouse=True, scope="class")
-    def setup_and_teardown(self):
-        TestPayloadMapping.horde = HordeLib()
-
-        yield
-        del TestPayloadMapping.horde
-
-    def test_validate_payload_with_lora(self):
+    def test_validate_payload_with_lora(self, hordelib_instance: HordeLib):
         data = {
             "sampler_name": "k_lms",
             "cfg_scale": 5,
@@ -34,11 +26,9 @@ class TestPayloadMapping:
             "model": "Deliberate",
         }
 
-        assert self.horde is not None
-
         # Missing key
         result = data.copy()
-        result = self.horde._validate_data_structure(result)
+        result = hordelib_instance._validate_data_structure(result)
         assert "loras" in result, "Failed to fix missing lora attribute in payload"
 
         # Bad and good lora
@@ -51,7 +41,7 @@ class TestPayloadMapping:
             },
         ]
         result = data.copy()
-        result = self.horde._validate_data_structure(result)
+        result = hordelib_instance._validate_data_structure(result)
         assert "loras" in result, "Lost the lora attribute in our payload"
         assert len(result["loras"]) == 1, "Unexpected number of loras in payload"
         assert result["loras"][0]["name"] == "briscou's gingers", "We lost Briscou's gingers"

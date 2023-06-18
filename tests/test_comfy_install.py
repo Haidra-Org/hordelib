@@ -6,10 +6,6 @@ from hordelib.install_comfy import Installer
 
 
 class TestSetup:
-    def test_get_hash(self):
-        comfyhash = Installer.get_commit_hash()
-        assert comfyhash == COMFYUI_VERSION
-
     def test_run_without_subdir(self):
         result = Installer._run("echo 1")
         assert result
@@ -43,3 +39,7 @@ class TestSetup:
         # Should now be upgraded
         installed_version = Installer.get_commit_hash()
         assert installed_version == COMFYUI_VERSION
+
+    def test_get_hash(self):
+        comfyhash = Installer.get_commit_hash()
+        assert comfyhash == COMFYUI_VERSION

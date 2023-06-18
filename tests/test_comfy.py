@@ -3,35 +3,26 @@ import glob
 
 import pytest
 
-from hordelib.comfy_horde import Comfy_Horde
+from hordelib.horde import HordeLib
 
 
 class TestSetup:
-    NUMBER_OF_PIPELINES = len(glob.glob("hordelib/pipelines/*.json"))
-    comfy: Comfy_Horde
-
-    @pytest.fixture(autouse=True)
-    def setup_and_teardown(self):
-        self.comfy = Comfy_Horde()
-        yield
-        del self.comfy
-
-    def test_load_pipelines(self):
-        loaded = self.comfy._load_pipelines()
-        assert loaded == TestSetup.NUMBER_OF_PIPELINES
+    def test_load_pipelines(self, hordelib_instance: HordeLib):
+        loaded = hordelib_instance.generator._load_pipelines()
+        assert loaded == len(glob.glob("hordelib/pipelines/*.json"))
         # Check the built in pipelines
-        assert "stable_diffusion" in self.comfy.pipelines
-        assert "stable_diffusion_hires_fix" in self.comfy.pipelines
-        assert "image_upscale" in self.comfy.pipelines
-        assert "stable_diffusion_paint" in self.comfy.pipelines
-        assert "controlnet" in self.comfy.pipelines
+        assert "stable_diffusion" in hordelib_instance.generator.pipelines
+        assert "stable_diffusion_hires_fix" in hordelib_instance.generator.pipelines
+        assert "image_upscale" in hordelib_instance.generator.pipelines
+        assert "stable_diffusion_paint" in hordelib_instance.generator.pipelines
+        assert "controlnet" in hordelib_instance.generator.pipelines
 
-    def test_load_invalid_pipeline(self):
-        loaded = self.comfy._load_pipeline("no-such-pipeline")
+    def test_load_invalid_pipeline(self, hordelib_instance: HordeLib):
+        loaded = hordelib_instance.generator._load_pipeline("no-such-pipeline")
         assert loaded is None
 
-    def test_load_custom_nodes(self):
-        self.comfy._load_custom_nodes()
+    def test_load_custom_nodes(self, hordelib_instance: HordeLib):
+        hordelib_instance.generator._load_custom_nodes()
 
         # Look for our nodes in the ComfyUI nodes list
         import execution
@@ -40,7 +31,7 @@ class TestSetup:
         assert "HordeImageOutput" in execution.nodes.NODE_CLASS_MAPPINGS
         assert "HordeImageLoader" in execution.nodes.NODE_CLASS_MAPPINGS
 
-    def test_parameter_injection(self):
+    def test_parameter_injection(self, hordelib_instance: HordeLib):
         test_dict = {
             "a": {
                 "inputs": {"b": False},
@@ -54,25 +45,25 @@ class TestSetup:
             "c.inputs.d.f": True,
             "unknown.parameter": False,
         }
-        self.comfy._set(test_dict, **params)
+        hordelib_instance.generator._set(test_dict, **params)
         assert test_dict["a"]["inputs"]["b"]
         assert test_dict["c"]["inputs"]["d"]["e"]
         assert test_dict["c"]["inputs"]["d"]["f"]
         assert "unknown.parameter" not in test_dict
 
-    def test_fix_pipeline_types(self):
+    def test_fix_pipeline_types(self, hordelib_instance: HordeLib):
         data = {
             "node1": {"class_type": "ShouldNotBeReplaced"},
             "node2": {"no_class": "NoClassType"},
             "node3-should-be-replaced": {"class_type": "CheckpointLoaderSimple"},
         }
-        data = self.comfy._fix_pipeline_types(data)
+        data = hordelib_instance.generator._fix_pipeline_types(data)
 
         assert data["node1"]["class_type"] == "ShouldNotBeReplaced"
         assert data["node2"]["no_class"] == "NoClassType"
         assert data["node3-should-be-replaced"]["class_type"] == "HordeCheckpointLoader"
 
-    def test_fix_node_names(self):
+    def test_fix_node_names(self, hordelib_instance: HordeLib):
         # basically we are expecting a search and replace of "1" with the "title" of id 1, etc.
         data = {
             "1": {
@@ -110,7 +101,7 @@ class TestSetup:
                 {"id": 3, "no_title": "Node3"},
             ],
         }
-        data = self.comfy._fix_node_names(data, design)
+        data = hordelib_instance.generator._fix_node_names(data, design)
 
         assert "Node1" in data
         assert data["Node1"]["inputs"]["input1"][0] == "Node2"
@@ -122,7 +113,7 @@ class TestSetup:
         assert data["3"]["inputs"]["input1"][0] == "Node2"
         assert data["3"]["inputs"]["input2"][0] == "Node1"
 
-    def test_input_reconnection(self):
+    def test_input_reconnection(self, hordelib_instance: HordeLib):
         # Can we reconnect the latent_image input of the sampler from the
         # empty_latent_image to the vae_encoder? And in the process
         # disconnect any existing connection that is already there?
@@ -151,10 +142,10 @@ class TestSetup:
                 "class_type": "EmptyLatentImage",
             },
         }
-        result = self.comfy.reconnect_input(data, "sampler.latent_image", "vae_encoder")
+        result = hordelib_instance.generator.reconnect_input(data, "sampler.latent_image", "vae_encoder")
         # Should be ok
         assert result
         assert data["sampler"]["inputs"]["latent_image"][0] == "vae_encoder"
         # This is invalid
-        result = self.comfy.reconnect_input(data, "sampler.non-existant", "somewhere")
+        result = hordelib_instance.generator.reconnect_input(data, "sampler.non-existant", "somewhere")
         assert not result

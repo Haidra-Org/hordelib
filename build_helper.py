@@ -5,9 +5,10 @@ import os
 import shutil
 import subprocess
 
-# NOTE The following imports should *exactly* match those in `tests/meta/test_build_helper.py`
-# If `tests/meta/test_build_helper.py`, fails, include the imports missing in `release.yaml`.
-# and update [testenv:test-build-helper] in `tox.ini`.
+# NOTE If you have come here looking for an explanation of why the CI is failing,
+# know that build_helper.py can be and is run without a full hordelib installation.
+# Accordingly, any imports that ultimately resolve as a result of the following imports
+# must be included in release.yml. The section at the time of writing is `🛠 Install pypa/build`.
 from hordelib import install_comfy
 from hordelib.consts import COMFYUI_VERSION
 

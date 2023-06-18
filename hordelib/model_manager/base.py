@@ -130,25 +130,22 @@ class BaseModelManager(ABC):
                 ),
             )
             logger.info("Reloading model reference...")
-
-        if self.download_reference:
+        is_model_db_present = self.models_db_path.exists()
+        if self.download_reference or not is_model_db_present:
+            logger.debug(f"Model reference already on disk: {is_model_db_present}")
             self.model_reference = self.download_model_reference()
             logger.info(
-                " ".join(
-                    [
-                        "Downloaded model reference.",
-                        f"Got {len(self.model_reference)} models for {self.models_db_name}.",
-                    ],
+                (
+                    "Downloaded model reference.",
+                    f"Got {len(self.model_reference)} models for {self.models_db_name}.",
                 ),
             )
         else:
             self.model_reference = json.loads((self.models_db_path).read_text())
             logger.info(
-                " ".join(
-                    [
-                        "Loaded model reference from disk.",
-                        f"Got {len(self.model_reference)} models for {self.models_db_name}.",
-                    ],
+                (
+                    "Loaded model reference from disk.",
+                    f"Got {len(self.model_reference)} models for {self.models_db_name}.",
                 ),
             )
         if list_models:
@@ -190,7 +187,11 @@ class BaseModelManager(ABC):
                 status=f"Download failed: {e}",
             )
             logger.init_warn("Model Reference", status="Local")
-            return json.loads((self.models_db_path).read_text())
+            if self.models_db_path.exists():
+                return json.loads(self.models_db_path.read_text())
+
+            logger.init_err("Model Reference", status="Not found")
+            return {}
 
     def _modelref_to_name(self, modelref):
         with self._mutex:
@@ -500,13 +501,15 @@ class BaseModelManager(ABC):
         for model in models:
             self.taint_model(model)
 
-    def validate_model(self, model_name: str, skip_checksum: bool = False):
-        # XXX This isn't enough or isn't called at the right times.
-        """
-        :param model_name: Name of the model
-        :param skip_checksum: If True, skips checksum validation
-        For each file in the model, checks if the file exists and if the checksum is correct
-        Returns True if all files are valid, False otherwise
+    def validate_model(self, model_name: str, skip_checksum: bool = False) -> bool | None:
+        """Check the if the model file is on disk and, optionally, also if the checksum is correct.
+
+        Args:
+            model_name (str): The name of the model to check.
+            skip_checksum (bool, optional): Defaults to False.
+
+        Returns:
+            bool | None: `True` if the model is valid, `False` if not, `None` if the model is not on disk.
         """
         files = self.get_model_files(model_name)
         logger.debug(f"Validating {model_name} with {len(files)} files")
@@ -516,7 +519,7 @@ class BaseModelManager(ABC):
                 continue
             if not self.check_file_available(file_details["path"]):
                 logger.debug(f"File {file_details['path']} not found")
-                return False
+                return None
             if not skip_checksum and not self.validate_file(file_details):
                 logger.warning(f"File {file_details['path']} has different contents to what we expected.")
                 try:

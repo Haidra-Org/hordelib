@@ -58,11 +58,12 @@ def do_migrations():
 
 class SharedModelManager:
     _instance = None
-    manager: ModelManager | None = None
+    manager: ModelManager
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls.manager = ModelManager()
         return cls._instance
 
     @classmethod
@@ -84,6 +85,7 @@ class SharedModelManager:
 
         args_passed = locals().copy()  # XXX This is temporary
         args_passed.pop("cls")  # XXX This is temporary
+
         logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
         db_reference_files_lookup = download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
         for model_db, file_path in db_reference_files_lookup.items():
@@ -112,6 +114,27 @@ class SharedModelManager:
                 raise e
         do_migrations()
         cls.manager.init_model_managers(**args_passed)
+
+    @classmethod
+    def unloadModelManagers(
+        cls,
+        codeformer: bool = False,
+        compvis: bool = False,
+        controlnet: bool = False,
+        # diffusers: bool = False,
+        esrgan: bool = False,
+        gfpgan: bool = False,
+        safety_checker: bool = False,
+        lora: bool = False,
+        blip: bool = False,
+        clip: bool = False,
+    ):
+        args_passed = locals().copy()
+        args_passed.pop("cls")
+
+        for arg, arg_value in args_passed.items():
+            if arg_value:
+                setattr(cls.manager, arg, None)
 
     @staticmethod
     def preloadAnnotators() -> bool:

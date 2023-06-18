@@ -1,170 +1,203 @@
 # test_horde.py
 import os
+import typing
+from enum import Enum, auto
 
+import PIL.Image
 import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
-from hordelib.utils.distance import are_images_identical
+from hordelib.utils.distance import HistogramDistanceResultCode
+
+from .testing_shared_functions import (
+    CosineSimilarityResultCode,
+    ImageSimilarityConstraints,
+    check_image_similarity_pytest,
+)
 
 
 class TestHordeUpscaling:
-    @pytest.fixture(autouse=True, scope="class")
-    def setup_and_teardown(self):
-        TestHordeUpscaling.horde = HordeLib()
+    # @pytest.fixture(scope="class")
+    # def image_distance_threshold(self) -> int:
+    #     return int(os.getenv("IMAGE_DISTANCE_THRESHOLD", "100000"))
 
-        TestHordeUpscaling.image = Image.open("images/test_db0.jpg")
-        TestHordeUpscaling.real_image = Image.open("images/test_annotator.jpg")
-        (
-            TestHordeUpscaling.width,
-            TestHordeUpscaling.height,
-        ) = TestHordeUpscaling.image.size
-        TestHordeUpscaling.distance_threshold = int(os.getenv("IMAGE_DISTANCE_THRESHOLD", "100000"))
-        yield
-        del TestHordeUpscaling.horde
+    shared_model_manager: type[SharedModelManager]
+    hordelib_instance: HordeLib
+    db0_test_image: PIL.Image.Image
+    real_image: PIL.Image.Image
 
-    @pytest.fixture(autouse=True)
-    def setup_model(self, request):
-        mm_type = request.node.get_closest_marker("mm_model").args[0]
-        self.default_model_manager_args = {
-            mm_type: True,
-        }
-        SharedModelManager.loadModelManagers(**self.default_model_manager_args)
-        assert SharedModelManager.manager is not None
-        yield
-        SharedModelManager._instance = None
-        SharedModelManager.manager = None
+    @pytest.fixture(scope="class", autouse=True)
+    def upscale_setup_and_teardown(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        db0_test_image: PIL.Image.Image,
+        real_image: PIL.Image.Image,
+    ):
+        TestHordeUpscaling.shared_model_manager = shared_model_manager
+        TestHordeUpscaling.hordelib_instance = hordelib_instance
+        TestHordeUpscaling.db0_test_image = db0_test_image
+        TestHordeUpscaling.real_image = real_image
 
-    @pytest.mark.mm_model("esrgan")
-    def test_image_upscale_RealESRGAN_x4plus(self):
-        SharedModelManager.manager.load("RealESRGAN_x4plus")
-        assert SharedModelManager.manager.esrgan.is_model_loaded("RealESRGAN_x4plus") is True
-        data = {
-            "model": "RealESRGAN_x4plus",
-            "source_image": self.image,
-        }
-        assert self.horde is not None
-        pil_image = self.horde.image_upscale(data)
-        assert pil_image is not None
-        width, height = pil_image.size
-        assert width == self.width * 4
-        assert height == self.height * 4
-        img_filename = "image_upscale_RealESRGAN_x4plus.png"
-        pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
+    @staticmethod
+    def is_upscaled_to_correct_scale(
+        *,
+        source_image: PIL.Image.Image,
+        upscaled_image: PIL.Image.Image,
+        factor: float,
+    ) -> bool:
+        width, height = source_image.size
+        upscaled_width, upscaled_height = upscaled_image.size
+        return upscaled_width == width * factor and upscaled_height == height * factor
 
-    @pytest.mark.mm_model("esrgan")
-    def test_image_upscale_RealESRGAN_x2plus(self):
-        SharedModelManager.manager.load("RealESRGAN_x2plus")
-        assert SharedModelManager.manager.esrgan.is_model_loaded("RealESRGAN_x2plus") is True
-        data = {
-            "model": "RealESRGAN_x2plus",
-            "source_image": self.image,
-        }
-        pil_image = self.horde.image_upscale(data)
-        assert pil_image is not None
-        width, height = pil_image.size
-        assert width == self.width * 2
-        assert height == self.height * 2
-        img_filename = "image_upscale_RealESRGAN_x2plus.png"
-        pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
+    @classmethod
+    def post_processor_check(
+        cls,
+        *,
+        model_name: str,
+        image_filename: str,
+        target_image: PIL.Image.Image,
+        expected_scale_factor: int,
+        custom_data: dict = None,
+        post_process_function: typing.Callable[[dict], PIL.Image.Image] = None,
+        similarity_constraints: ImageSimilarityConstraints = None,
+    ):
 
-    @pytest.mark.mm_model("esrgan")
-    def test_image_upscale_NMKD_Siax(self):
-        SharedModelManager.manager.load("NMKD_Siax")
-        assert SharedModelManager.manager.esrgan.is_model_loaded("NMKD_Siax") is True
-        data = {
-            "model": "NMKD_Siax",
-            "source_image": self.image,
-        }
-        pil_image = self.horde.image_upscale(data)
-        assert pil_image is not None
-        width, height = pil_image.size
-        assert width == self.width * 4
-        assert height == self.height * 4
-        img_filename = "image_upscale_NMKD_Siax.png"
-        pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
-
-    @pytest.mark.mm_model("esrgan")
-    def test_image_upscale_NMKD_Siax_resize(self):
-        SharedModelManager.manager.load("NMKD_Siax")
-        assert SharedModelManager.manager.esrgan.is_model_loaded("NMKD_Siax") is True
-        data = {"model": "NMKD_Siax", "source_image": self.real_image, "width": 1280, "height": 1280}
-        pil_image = self.horde.image_upscale(data)
-        assert pil_image is not None
-        width, height = pil_image.size
-        assert width == 1280
-        assert height == 1280
-        img_filename = "image_upscale_NMKD_Siax_resize.png"
-        pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
-
-    @pytest.mark.mm_model("esrgan")
-    def test_image_upscale_RealESRGAN_x4plus_anime_6B(self):
-        SharedModelManager.manager.load("RealESRGAN_x4plus_anime_6B")
-        assert (
-            SharedModelManager.manager.esrgan.is_model_loaded(
-                "RealESRGAN_x4plus_anime_6B",
+        if similarity_constraints is None:
+            similarity_constraints = ImageSimilarityConstraints(
+                cosine_fail_floor=CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL,
+                cosine_warn_floor=CosineSimilarityResultCode.EXTREMELY_SIMILAR,
+                histogram_fail_threshold=HistogramDistanceResultCode.VERY_DISSIMILAR_DISTRIBUTION,
+                histogram_warn_threshold=HistogramDistanceResultCode.SIMILAR_DISTRIBUTION,
             )
-            is True
+        assert cls.shared_model_manager.manager.load(model_name)
+        assert cls.shared_model_manager.manager.is_model_loaded(model_name) is True
+
+        data: dict = (
+            custom_data
+            if custom_data
+            else {
+                "model": model_name,
+                "source_image": target_image,
+            }
         )
-        data = {
-            "model": "RealESRGAN_x4plus_anime_6B",
-            "source_image": self.image,
-        }
-        pil_image = self.horde.image_upscale(data)
+        pil_image = post_process_function(data)
         assert pil_image is not None
-        width, height = pil_image.size
-        assert width == self.width * 4
-        assert height == self.height * 4
-        img_filename = "image_upscale_RealESRGAN_x4plus_anime_6B.png"
-        pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
+        pil_image.save(f"images/{image_filename}", quality=100)
 
-    @pytest.mark.mm_model("esrgan")
-    def test_image_upscale_4x_AnimeSharp(self):
-        SharedModelManager.manager.load("4x_AnimeSharp")
-        assert SharedModelManager.manager.esrgan.is_model_loaded("4x_AnimeSharp") is True
-        data = {
-            "model": "4x_AnimeSharp",
-            "source_image": self.image,
-        }
-        pil_image = self.horde.image_upscale(data)
-        assert pil_image is not None
-        width, height = pil_image.size
-        assert width == self.width * 4
-        assert height == self.height * 4
-        img_filename = "image_upscale_4x_AnimeSharp.png"
-        pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 1000)
+        assert cls.is_upscaled_to_correct_scale(
+            source_image=target_image,
+            upscaled_image=pil_image,
+            factor=expected_scale_factor,
+        )
 
-    @pytest.mark.mm_model("codeformer")
+        assert cls.shared_model_manager.manager.unload_model(model_name)
+        assert cls.shared_model_manager.manager.esrgan.is_model_loaded(model_name) is False
+
+        # It is important this is done after the model is unloaded, otherwise if a skip occurs
+        # the models will be left in memory.
+
+        assert check_image_similarity_pytest(
+            f"images_expected/{image_filename}",
+            pil_image,
+            similarity_constraints=similarity_constraints,
+        )
+
+    def test_image_upscale_RealESRGAN_x4plus(self, db0_test_image: PIL.Image.Image):
+        self.post_processor_check(
+            model_name="RealESRGAN_x4plus",
+            image_filename="image_upscale_RealESRGAN_x4plus.png",
+            target_image=db0_test_image,
+            expected_scale_factor=4.0,
+            post_process_function=self.hordelib_instance.image_upscale,
+        )
+
+    def test_image_upscale_RealESRGAN_x2plus(
+        self,
+        db0_test_image: PIL.Image.Image,
+    ):
+        self.post_processor_check(
+            model_name="RealESRGAN_x2plus",
+            image_filename="image_upscale_RealESRGAN_x2plus.png",
+            target_image=db0_test_image,
+            expected_scale_factor=2.0,
+            post_process_function=self.hordelib_instance.image_upscale,
+        )
+
+    def test_image_upscale_NMKD_Siax(self, db0_test_image: PIL.Image.Image):
+        self.post_processor_check(
+            model_name="NMKD_Siax",
+            image_filename="image_upscale_NMKD_Siax.png",
+            target_image=db0_test_image,
+            expected_scale_factor=4.0,
+            post_process_function=self.hordelib_instance.image_upscale,
+        )
+
+    def test_image_upscale_NMKD_Siax_resize(self, real_image: PIL.Image.Image):
+        real_image_width, real_image_height = real_image.size
+        scale_factor = 2.5
+        scaled_image_width = int(real_image_width * scale_factor)
+        scaled_image_height = int(real_image_height * scale_factor)
+        assert scaled_image_width % 64 == 0
+        assert scaled_image_height % 64 == 0
+
+        self.post_processor_check(
+            model_name="NMKD_Siax",
+            image_filename="image_upscale_NMKD_Siax_resize.png",
+            target_image=real_image,
+            expected_scale_factor=scale_factor,
+            custom_data={
+                "model": "NMKD_Siax",
+                "source_image": real_image,
+                "width": scaled_image_width,
+                "height": scaled_image_height,
+            },
+            post_process_function=self.hordelib_instance.image_upscale,
+        )
+
+    def test_image_upscale_RealESRGAN_x4plus_anime_6B(self, db0_test_image: PIL.Image.Image):
+        similarity_constraints = ImageSimilarityConstraints(
+            cosine_fail_floor=CosineSimilarityResultCode.PARTIALLY_SIMILAR,
+            cosine_warn_floor=CosineSimilarityResultCode.CONSIDERABLY_SIMILAR,
+            histogram_fail_threshold=HistogramDistanceResultCode.VERY_DISSIMILAR_DISTRIBUTION,
+            histogram_warn_threshold=HistogramDistanceResultCode.SIMILAR_DISTRIBUTION,
+        )
+        # This model has been shown to vary its results between machines, so we loosen up the similarity constraints.
+
+        self.post_processor_check(
+            model_name="RealESRGAN_x4plus_anime_6B",
+            image_filename="image_upscale_RealESRGAN_x4plus_anime_6B.png",
+            target_image=db0_test_image,
+            expected_scale_factor=4.0,
+            post_process_function=self.hordelib_instance.image_upscale,
+            similarity_constraints=similarity_constraints,
+        )
+
+    def test_image_upscale_4x_AnimeSharp(self, db0_test_image: PIL.Image.Image):
+        self.post_processor_check(
+            model_name="4x_AnimeSharp",
+            image_filename="image_upscale_4x_AnimeSharp.png",
+            target_image=db0_test_image,
+            expected_scale_factor=4.0,
+            post_process_function=self.hordelib_instance.image_upscale,
+        )
+
     def test_image_facefix_codeformers(self):
-        SharedModelManager.manager.load("CodeFormers")
-        assert SharedModelManager.manager.codeformer.is_model_loaded("CodeFormers") is True
-        data = {
-            "model": "CodeFormers",
-            "source_image": Image.open("images/test_facefix.png"),
-        }
-        pil_image = self.horde.image_facefix(data)
-        assert pil_image is not None
-        img_filename = "image_facefix_codeformers.png"
-        pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 2000)
+        self.post_processor_check(
+            model_name="CodeFormers",
+            image_filename="image_facefix_codeformers.png",
+            target_image=Image.open("images/test_facefix.png"),
+            expected_scale_factor=1.0,
+            post_process_function=self.hordelib_instance.image_facefix,
+        )
 
-    @pytest.mark.mm_model("gfpgan")
     def test_image_facefix_gfpgan(self):
-        SharedModelManager.manager.load("GFPGAN")
-        assert SharedModelManager.manager.gfpgan.is_model_loaded("GFPGAN") is True
-        data = {
-            "model": "GFPGAN",
-            "source_image": Image.open("images/test_facefix.png"),
-        }
-        pil_image = self.horde.image_facefix(data)
-        assert pil_image is not None
-        img_filename = "image_facefix_gfpgan.png"
-        pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, 2000)
+        self.post_processor_check(
+            model_name="GFPGAN",
+            image_filename="image_facefix_gfpgan.png",
+            target_image=Image.open("images/test_facefix.png"),
+            expected_scale_factor=1.0,
+            post_process_function=self.hordelib_instance.image_facefix,
+        )

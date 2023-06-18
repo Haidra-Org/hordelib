@@ -304,6 +304,7 @@ class ModelManager:
         return list(loaded_models.keys())
 
     def is_model_loaded(self, model_name) -> bool:
+        # TODO: This function should indicate if the model is even valid
         return model_name in self.loaded_models
 
     def get_available_models_by_types(
