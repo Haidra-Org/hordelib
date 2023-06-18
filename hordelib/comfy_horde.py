@@ -67,7 +67,7 @@ _comfy_validate_prompt: types.ModuleType
 _comfy_folder_paths: types.ModuleType
 __comfy_load_checkpoint_guess_config: types.FunctionType
 __comfy_load_controlnet: types.FunctionType
-_comfy_model_manager: types.ModuleType
+_comfy_model_manager: types.ModuleType | None = None
 __comfy_get_torch_device: types.FunctionType
 __comfy_get_free_memory: types.FunctionType
 __comfy_load_torch_file: types.FunctionType
