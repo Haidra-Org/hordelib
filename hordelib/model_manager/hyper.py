@@ -355,9 +355,8 @@ class ModelManager:
             bool | None: The success of the load. If `None`, the model was not found.
         """
         if model_name in EXCLUDED_MODEL_NAMES:
-            logger.init_warn(
+            logger.warning(
                 f"{model_name} is excluded from loading at this time. If this is unexpected, let us know on discord.",
-                status="Skipping",
             )
             return False
 

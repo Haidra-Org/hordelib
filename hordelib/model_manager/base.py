@@ -176,21 +176,20 @@ class BaseModelManager(ABC):
 
     def download_model_reference(self):
         try:
-            logger.init("Model Reference", status="Downloading")
+            logger.debug(f"Downloading Model Reference for {self.models_db_name}")
             response = requests.get(self.remote_db)
-            logger.init_ok("Model Reference", status="OK")
+            logger.debug("Downloaded Model Reference successfully")
             models = response.json()
+            logger.info("Updated Model Reference from remote.")
             return models
         except Exception as e:  # XXX Double check and/or rework this
-            logger.init_err(
-                "Model Reference",
-                status=f"Download failed: {e}",
+            logger.error(
+                f"Download failed: {e}",
             )
-            logger.init_warn("Model Reference", status="Local")
+            logger.warning("Model Reference not downloaded, using local copy")
             if self.models_db_path.exists():
                 return json.loads(self.models_db_path.read_text())
-
-            logger.init_err("Model Reference", status="Not found")
+            logger.error("No local copy of Model Reference found!")
             return {}
 
     def _modelref_to_name(self, modelref):
@@ -312,19 +311,23 @@ class BaseModelManager(ABC):
                 logger.error(f"{model_name} not found")
                 return False
             if not local and model_name not in self.available_models:
-                logger.init_warn(f"{model_name} may need to be downloaded, checking...", status="Loading")
+                logger.warning(
+                    f"{model_name} may need to be downloaded, checking...",
+                )
                 download_succeeded = self.download_model(model_name)
                 if not download_succeeded:
-                    logger.init_err(f"{model_name} failed to download", status="Error")
+                    logger.error(f"{model_name} failed to download")
                     return False
-                logger.init_ok(f"{model_name}", status="Downloaded")
+                logger.info(f"{model_name} Downloaded")
             if model_name not in self.get_loaded_models():
                 if not local:
                     model_validated = self.validate_model(model_name)
                     if not model_validated:
                         return False
                 tic = time.time()
-                logger.init(f"Loading {model_name}", status="Loading")
+                logger.info(
+                    f"Loading {model_name}",
+                )
 
                 try:
                     self.add_loaded_model(
@@ -345,7 +348,7 @@ class BaseModelManager(ABC):
 
                 toc = time.time()
 
-                logger.init_ok(f"{model_name}: {round(toc-tic,2)} seconds", status="Loaded")
+                logger.info(f"Loaded {model_name}: {round(toc-tic,2)} seconds")
                 return True
             return None
 
@@ -901,10 +904,10 @@ class BaseModelManager(ABC):
         # XXX this has no fall back and always returns true
         for model in self.get_filtered_model_names(download_all=True):
             if not self.check_model_available(model):
-                logger.init(f"{model}", status="Downloading")  # logger.init
+                logger.info(f"Downloading {model}")
                 self.download_model(model)
             else:
-                logger.init(f"{model} is already downloaded.", status="Skipped")
+                logger.info(f"{model} is already downloaded.")
         return True
 
     def check_model_available(self, model_name: str) -> bool:

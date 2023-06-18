@@ -26,9 +26,8 @@ def do_migrations():
     sd_inpainting_v1_5_ckpt = diffusers_dir.joinpath("sd-v1-5-inpainting.ckpt").resolve()
     sd_inpainting_v1_5_sha256 = diffusers_dir.joinpath("sd-v1-5-inpainting.sha256").resolve()
     if diffusers_dir.exists() and sd_inpainting_v1_5_ckpt.exists():
-        logger.init_warn(
+        logger.warning(
             "stable_diffusion_inpainting found in diffusers folder and is being moved to compvis",
-            status="Warning",
         )
 
         target_ckpt_path = (
@@ -43,16 +42,14 @@ def do_migrations():
             if sd_inpainting_v1_5_sha256.exists():
                 sd_inpainting_v1_5_sha256.rename(target_sha_path)
         except OSError as e:
-            logger.init_err(
+            logger.error(
                 f"Failed to move {sd_inpainting_v1_5_ckpt} to {target_ckpt_path}. {e}",
-                status="Error",
             )
-            logger.init_err("Please move this file manually and try again.", status="Error")
+            logger.error("Please move this file manually and try again.")
             return
 
-        logger.init_warn(
+        logger.warning(
             "stable_diffusion_inpainting successfully moved to compvis. The diffusers directory can now be deleted.",
-            status="Warning",
         )
 
 
@@ -100,16 +97,14 @@ class SharedModelManager:
                     f.write(file_path.read_bytes())
             except OSError as e:
                 if hordelib_model_db_path.is_symlink():
-                    logger.init_err("Failed to unlink symlink.", status="Error")
-                    logger.init_err(f"Please delete the symlink at {hordelib_model_db_path} and try again.")
+                    logger.error("Failed to unlink symlink.")
+                    logger.error(f"Please delete the symlink at {hordelib_model_db_path} and try again.")
                 else:
-                    logger.init_err(
+                    logger.error(
                         f"Failed to copy {file_path} to {hordelib_model_db_path}.",
-                        status="Error",
                     )
-                    logger.init_err(
+                    logger.error(
                         f"If you continue to get this error, please delete {hordelib_model_db_path}.",
-                        status="Error",
                     )
                 raise e
         do_migrations()
@@ -146,9 +141,8 @@ class SharedModelManager:
         annotators_in_legacy_directory = Path(builtins.annotator_ckpts_path).glob("*.pt*")
 
         for legacy_annotator in annotators_in_legacy_directory:
-            logger.init_warn("Annotator found in legacy directory. This file can be safely deleted:", status="Warning")
-            logger.init_warn(f"{legacy_annotator}", status="Warning")
-            logger.init_warn("", status="Warning")
+            logger.warning("Annotator found in legacy directory. This file can be safely deleted:")
+            logger.warning(f"{legacy_annotator}")
 
         builtins.annotator_ckpts_path = (
             Path(UserSettings.get_model_directory()).joinpath("controlnet").joinpath("annotator").joinpath("ckpts")
@@ -165,17 +159,21 @@ class SharedModelManager:
         # by downloading them below.
         validate_all_controlnet_annotators(builtins.annotator_ckpts_path)
 
-        logger.init("Attempting to preload all controlnet annotators.", status="Loading")
-        logger.init("This may take several minutes...", status="Loading")
+        logger.info(
+            "Attempting to preload all controlnet annotators.",
+        )
+        logger.info(
+            "This may take several minutes...",
+        )
 
         annotators_downloaded_successfully = download_all_controlnet_annotators()
         if not annotators_downloaded_successfully:
-            logger.init_err("Failed to download one or more annotators.", status="Error")
+            logger.error("Failed to download one or more annotators.")
             return False
 
         annotators_all_validated_successfully = validate_all_controlnet_annotators(builtins.annotator_ckpts_path)
         if not annotators_all_validated_successfully:
-            logger.init_err("Failed to validate one or more annotators.", status="Error")
+            logger.error("Failed to validate one or more annotators.")
             return False
 
         return True

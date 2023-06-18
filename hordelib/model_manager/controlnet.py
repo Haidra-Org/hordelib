@@ -67,17 +67,15 @@ class ControlNetModelManager(BaseModelManager):
             return False
         if controlnet_name not in self.available_models:
             logger.error(f"{controlnet_name} not available")
-            logger.init_ok(
+            logger.info(
                 f"Downloading {controlnet_name}",
-                status="Downloading",
-            )  # logger.init_ok
+            )  # logger.info
             self.download_control_type(control_type, [model_baseline])
-            logger.init_ok(
+            logger.info(
                 f"{controlnet_name} downloaded",
-                status="Downloading",
-            )  # logger.init_ok
+            )
 
-        logger.init(f"{control_type}", status="Merging")  # logger.init
+        logger.info(f"Merging {control_type}")
         controlnet_path = os.path.join(
             self.modelFolderPath,
             self.get_controlnet_filename(controlnet_name),
