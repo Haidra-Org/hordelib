@@ -41,7 +41,7 @@ license-files = ["LICENSE", "CHANGELOG*"]
 dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.packages.find]
-exclude = ["ComfyUI"]
+exclude = ["ComfyUI", "build"]
 namespaces = false
 
 [options.index-client]
@@ -120,10 +120,3 @@ select = [
 "run_stress_test.py" = ["F841"]
 
 
-[tool.mypy]
-exclude = '''(?x)(
-    ComfyUI
-  | \.tox
-  | comfy_controlnet_preprocessors
-  | facerestore
-)''' # If you change this, you probably need to also change [tool.black] above
