@@ -54,8 +54,8 @@ class ImageSimilarityResultCode(Enum):
 @dataclass
 class ImageSimilarityResult:
     result_code: ImageSimilarityResultCode
-    cosine_similarity_result: float
-    histogram_distance_result: float
+    cosine_similarity_result: CosineSimilarityResultCode | float
+    histogram_distance_result: HistogramDistanceResultCode | float
 
 
 def check_image_similarity_pytest(
