@@ -128,7 +128,7 @@ def main():
     from hordelib.shared_model_manager import SharedModelManager
 
     try:
-        from hordelib._version import __version__
+        from hordelib._version import __version__  # type: ignore
     except Exception:
         __version__ = "dev branch"
 

@@ -10,6 +10,7 @@ import re
 import time
 import sys
 import typing
+import types
 import uuid
 import random
 import threading
@@ -60,25 +61,25 @@ from hordelib.config_path import get_hordelib_path
 # there, and if you're still confused, ask a hordelib dev who would be happy to share the burden of understanding.
 
 
-_comfy_nodes = None
-_comfy_PromptExecutor = None
-_comfy_validate_prompt = None
-_comfy_folder_paths = None
-__comfy_load_checkpoint_guess_config = None
-__comfy_load_controlnet = None
-_comfy_model_manager = None
-__comfy_get_torch_device = None
-__comfy_get_free_memory = None
-__comfy_load_torch_file = None
-_comfy_model_loading = None
-canny = None
-hed = None
-leres = None
-midas = None
-mlsd = None
-openpose = None
-pidinet = None
-uniformer = None
+_comfy_nodes: types.ModuleType
+_comfy_PromptExecutor: types.ModuleType
+_comfy_validate_prompt: types.ModuleType
+_comfy_folder_paths: types.ModuleType
+__comfy_load_checkpoint_guess_config: types.FunctionType
+__comfy_load_controlnet: types.FunctionType
+_comfy_model_manager: types.ModuleType
+__comfy_get_torch_device: types.FunctionType
+__comfy_get_free_memory: types.FunctionType
+__comfy_load_torch_file: types.FunctionType
+_comfy_model_loading: types.ModuleType
+_canny: types.ModuleType
+_hed: types.ModuleType
+_leres: types.ModuleType
+_midas: types.ModuleType
+_mlsd: types.ModuleType
+_openpose: types.ModuleType
+_pidinet: types.ModuleType
+_uniformer: types.ModuleType
 
 
 # isort: off
@@ -86,38 +87,38 @@ def do_comfy_import():
     global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt, _comfy_folder_paths
     global __comfy_load_checkpoint_guess_config, __comfy_load_controlnet, _comfy_model_manager
     global __comfy_get_torch_device, __comfy_get_free_memory, __comfy_load_torch_file, _comfy_model_loading
-    global canny, hed, leres, midas, mlsd, openpose, pidinet, uniformer
+    global _canny, _hed, _leres, _midas, _mlsd, _openpose, _pidinet, _uniformer
 
     # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
     # that they should never call through this module into comfy directly. All calls into
     # comfy should be abstracted through functions in this module.
 
-    from execution import nodes as _comfy_nodes
+    from execution import nodes as _comfy_nodes  # type: ignore
     from execution import PromptExecutor as _comfy_PromptExecutor
     from execution import validate_prompt as _comfy_validate_prompt
-    from folder_paths import folder_names_and_paths as _comfy_folder_paths
-    from comfy.sd import load_checkpoint_guess_config as __comfy_load_checkpoint_guess_config
+    from folder_paths import folder_names_and_paths as _comfy_folder_paths  # type: ignore
+    from comfy.sd import load_checkpoint_guess_config as __comfy_load_checkpoint_guess_config  # type: ignore
     from comfy.sd import load_controlnet as __comfy_load_controlnet
-    from comfy.model_management import model_manager as _comfy_model_manager
+    from comfy.model_management import model_manager as _comfy_model_manager  # type: ignore
     from comfy.model_management import get_torch_device as __comfy_get_torch_device
     from comfy.model_management import get_free_memory as __comfy_get_free_memory
-    from comfy.utils import load_torch_file as __comfy_load_torch_file
-    from comfy_extras.chainner_models import model_loading as _comfy_model_loading
+    from comfy.utils import load_torch_file as __comfy_load_torch_file  # type: ignore
+    from comfy_extras.chainner_models import model_loading as _comfy_model_loading  # type: ignore
     from hordelib.nodes.comfy_controlnet_preprocessors import (
-        canny,
-        hed,
-        leres,
-        midas,
-        mlsd,
-        openpose,
-        pidinet,
-        uniformer,
+        canny as _canny,
+        hed as _hed,
+        leres as _leres,
+        midas as _midas,
+        mlsd as _mlsd,
+        openpose as _openpose,
+        pidinet as _pidinet,
+        uniformer as _uniformer,
     )
 
 
 # isort: on
 
-__models_to_release = {}
+__models_to_release: dict[str, dict[str, typing.Any]] = {}
 __model_load_mutex = threading.Lock()
 
 
@@ -216,7 +217,7 @@ def horde_load_checkpoint(
     ckpt_path: str,
     output_vae: bool = True,
     output_clip: bool = True,
-    embeddings_path: str | None = None,
+    embeddings_path: str = None,
 ) -> dict[str, typing.Any]:  # XXX # FIXME 'any'
     # XXX Needs docstring
     # XXX # TODO One day this signature should be generic, and not comfy specific
@@ -656,27 +657,28 @@ ANNOTATOR_MODEL_SHA_LOOKUP: dict[str, str] = {
 def download_all_controlnet_annotators() -> bool:
     """Will start the download of all the models needed for the controlnet annotators."""
     annotator_init_funcs = [
-        canny.CannyDetector,
-        hed.HEDdetector,
-        midas.MidasDetector,
-        mlsd.MLSDdetector,
-        openpose.OpenposeDetector,
-        uniformer.UniformerDetector,
-        leres.download_model_if_not_existed,
-        pidinet.download_if_not_existed,
+        _canny.CannyDetector,
+        _hed.HEDdetector,
+        _midas.MidasDetector,
+        _mlsd.MLSDdetector,
+        _openpose.OpenposeDetector,
+        _uniformer.UniformerDetector,
+        _leres.download_model_if_not_existed,
+        _pidinet.download_if_not_existed,
     ]
 
     try:
-        logger.init(
+        logger.info(
             f"Downloading {len(annotator_init_funcs)} controlnet annotators if required. Please wait.",
-            status="Checking",
         )
         for i, annotator_init_func in enumerate(annotator_init_funcs):
             # Give some basic progress indication
-            logger.init(f"{i+1} of {len(annotator_init_funcs)}", status="Downloading")
+            logger.info(
+                f"{i+1} of {len(annotator_init_funcs)}",
+            )
             annotator_init_func()
         return True
     except (OSError, requests.exceptions.RequestException) as e:
-        logger.init_err(f"Failed to download annotator: {e}", status="Error")
+        logger.error(f"Failed to download annotator: {e}")
 
     return False
