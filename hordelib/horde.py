@@ -414,6 +414,13 @@ class HordeLib:
                     "output_image.images",
                     payload["control_type"],
                 )
+            elif payload.get("image_is_control"):
+                # Connect source image directly to controlnet apply node
+                self.generator.reconnect_input(
+                    pipeline_data,
+                    "controlnet_apply.image",
+                    "image_loader.image",
+                )
             else:
                 # Connect annotator to controlnet apply node
                 self.generator.reconnect_input(
