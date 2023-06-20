@@ -202,14 +202,14 @@ class TestHordeInference:
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
-            "control_type": "canny",
+            "control_type": "openpose",
             "image_is_control": True,
             "return_control_map": False,
             "prompt": "a woman standing in the snow",
             "ddim_steps": 25,
             "n_iter": 1,
             "model": stable_diffusion_modelname_for_testing,
-            "source_image": Image.open("images_expected/test_image_is_control.jpg"),
+            "source_image": Image.open("images/test_image_is_control.png"),
             "source_processing": "img2img",
         }
         images_to_compare: list[tuple[str, Image.Image]] = []
