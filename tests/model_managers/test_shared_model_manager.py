@@ -44,7 +44,9 @@ class TestSharedModelManager:
         result: bool | None = shared_model_manager.manager.validate_model("Deliberate")
         assert result is True
         shared_model_manager.manager.unload_model("Deliberate")
-        assert shared_model_manager.manager.validate_model("Deliberate")
+        if not shared_model_manager.manager.validate_model("Deliberate"):
+            assert shared_model_manager.manager.download_model("Deliberate")
+            assert shared_model_manager.manager.validate_model("Deliberate")
 
     def test_taint_models(
         self,
@@ -115,7 +117,9 @@ class TestSharedModelManager:
         assert shared_model_manager.manager is not None
         for model_manager in shared_model_manager.manager.active_model_managers:
             for model in model_manager.available_models:
-                assert model_manager.validate_model(model)
+                if not model_manager.validate_model(model):
+                    assert model_manager.download_model(model)
+                    assert model_manager.validate_model(model)
 
     def test_preload_annotators(
         self,

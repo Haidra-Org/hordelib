@@ -526,6 +526,7 @@ class BaseModelManager(ABC):
                     # The file must have been considered valid once, or we wouldn't have renamed
                     # it from the ".part" download. Likely there is an update, or a model database hash problem
                     logger.warning(f"Likely updated, will attempt to re-download {file_details['path']}.")
+                    self.taint_model(model_name)
                 except OSError as e:
                     logger.error(f"Unable to delete {file_details['path']}: {e}.")
                     logger.error(f"Please delete {file_details['path']} if this error persists.")
