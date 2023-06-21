@@ -1,7 +1,8 @@
+import json
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import TypeVar
+from typing import Iterable, TypeVar
 
 import PIL.Image
 import pytest
@@ -165,7 +166,7 @@ def check_single_lora_image_similarity(
 
 
 def check_list_lora_images_similarity(
-    list_of_image_pairs: list[tuple[FilePathOrPILImage, FilePathOrPILImage]],
+    list_of_image_pairs: Iterable[tuple[FilePathOrPILImage, FilePathOrPILImage]],
 ) -> bool:
 
     return check_list_images_similarity(
@@ -175,7 +176,7 @@ def check_list_lora_images_similarity(
 
 
 def check_list_inference_images_similarity(
-    list_of_image_pairs: list[tuple[FilePathOrPILImage, FilePathOrPILImage]],
+    list_of_image_pairs: Iterable[tuple[FilePathOrPILImage, FilePathOrPILImage]],
 ) -> bool:
 
     return check_list_images_similarity(
@@ -185,7 +186,7 @@ def check_list_inference_images_similarity(
 
 
 def check_list_images_similarity(
-    list_of_image_pairs: list[tuple[FilePathOrPILImage, FilePathOrPILImage]],
+    list_of_image_pairs: Iterable[tuple[FilePathOrPILImage, FilePathOrPILImage]],
     *,
     similarity_constraints: ImageSimilarityConstraints,
 ) -> bool:
