@@ -87,6 +87,9 @@ class SharedModelManager:
             if value and passed_arg in MODEL_REFERENCE_CATEGORIES:
                 managers_to_load.append(passed_arg)
 
+        logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
+        download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
+        do_migrations()
         cls.manager.init_model_managers(managers_to_load)
 
     @classmethod
@@ -101,29 +104,7 @@ class SharedModelManager:
         args_passed.pop("cls")  # XXX This is temporary
 
         logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
-        db_reference_files_lookup = download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
-        for model_db, file_path in db_reference_files_lookup.items():
-            hordelib_model_db_path = get_model_reference_filename(
-                model_db,
-                base_path=Path(get_hordelib_path()).joinpath("model_database"),
-            )
-            try:
-                logger.debug(f"Downloading {hordelib_model_db_path.name}...")
-                hordelib_model_db_path.unlink(missing_ok=True)
-                with open(hordelib_model_db_path, "wb") as f:
-                    f.write(file_path.read_bytes())
-            except OSError as e:
-                if hordelib_model_db_path.is_symlink():
-                    logger.error("Failed to unlink symlink.")
-                    logger.error(f"Please delete the symlink at {hordelib_model_db_path} and try again.")
-                else:
-                    logger.error(
-                        f"Failed to copy {file_path} to {hordelib_model_db_path}.",
-                    )
-                    logger.error(
-                        f"If you continue to get this error, please delete {hordelib_model_db_path}.",
-                    )
-                raise e
+        download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
         do_migrations()
         cls.manager.init_model_managers(managers_to_load)
 
