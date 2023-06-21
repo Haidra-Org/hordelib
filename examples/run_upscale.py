@@ -16,15 +16,6 @@ def main():
     from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
-    modeltypes = {
-        "codeformer": True,
-        "compvis": True,
-        "controlnet": True,
-        # "diffusers": True,
-        "esrgan": True,
-        "gfpgan": True,
-        "safety_checker": True,
-    }
 
     SharedModelManager.load_model_managers(
         [
