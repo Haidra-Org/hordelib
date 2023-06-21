@@ -217,7 +217,7 @@ class TestHordeInference:
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
 
-        img_filename = f"controlnet_image_is_control.png"
+        img_filename = "controlnet_image_is_control.png"
 
         pil_image.save(f"images/{img_filename}", quality=100)
         images_to_compare.append((f"images_expected/{img_filename}", pil_image))
