@@ -4,6 +4,7 @@
 import os
 
 import hordelib
+from hordelib.consts import MODEL_CATEGORY_NAMES
 
 
 def main():
@@ -16,7 +17,7 @@ def main():
     from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
-    SharedModelManager.loadModelManagers(compvis=True, controlnet=True)
+    SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis, MODEL_CATEGORY_NAMES.controlnet])
 
     data = {
         "sampler_name": "k_dpmpp_2m",

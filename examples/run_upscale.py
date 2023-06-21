@@ -11,6 +11,7 @@ def main():
 
     from PIL import Image
 
+    from hordelib.consts import MODEL_CATEGORY_NAMES
     from hordelib.horde import HordeLib
     from hordelib.shared_model_manager import SharedModelManager
 
@@ -25,7 +26,16 @@ def main():
         "safety_checker": True,
     }
 
-    SharedModelManager.loadModelManagers(**modeltypes)
+    SharedModelManager.load_model_managers(
+        [
+            MODEL_CATEGORY_NAMES.codeformer,
+            MODEL_CATEGORY_NAMES.compvis,
+            MODEL_CATEGORY_NAMES.controlnet,
+            MODEL_CATEGORY_NAMES.esrgan,
+            MODEL_CATEGORY_NAMES.gfpgan,
+            MODEL_CATEGORY_NAMES.safety_checker,
+        ],
+    )
     SharedModelManager.manager.load("RealESRGAN_x4plus")
 
     data = {
