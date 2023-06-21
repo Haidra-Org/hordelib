@@ -3,7 +3,8 @@ import pytest
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
+from hordelib.model_manager.compvis import CompVisModelManager
+from hordelib.shared_model_manager import ALL_MODEL_MANAGER_TYPES, SharedModelManager
 
 
 @pytest.fixture(scope="session")
@@ -33,17 +34,8 @@ def isolated_comfy_horde_instance(init_horde) -> Comfy_Horde:
 @pytest.fixture(scope="class")
 def shared_model_manager(hordelib_instance: HordeLib) -> type[SharedModelManager]:
     SharedModelManager()
-    SharedModelManager.loadModelManagers(
-        codeformer=True,
-        compvis=True,
-        controlnet=True,
-        esrgan=True,
-        gfpgan=True,
-        safety_checker=True,
-        lora=True,
-        blip=True,
-        clip=True,
-    )
+    SharedModelManager.load_model_managers(ALL_MODEL_MANAGER_TYPES)
+
     assert SharedModelManager._instance is not None
     assert SharedModelManager.manager is not None
     assert SharedModelManager.manager.codeformer is not None
@@ -66,7 +58,7 @@ def shared_model_manager(hordelib_instance: HordeLib) -> type[SharedModelManager
 def stable_diffusion_modelname_for_testing(shared_model_manager: type[SharedModelManager]) -> str:
     """Loads the stable diffusion model for testing. This model is used by many tests.
     This fixture returns the model name as string."""
-    shared_model_manager.loadModelManagers(compvis=True)
+    shared_model_manager.load_model_managers([CompVisModelManager])
     model_name = "Deliberate"
     assert shared_model_manager.manager.load(model_name)
     return model_name

@@ -134,7 +134,7 @@ def main():
 
     generate = HordeLib()
     delta("model-manager-load")
-    SharedModelManager.loadModelManagers(compvis=True, controlnet=not disable_controlnet)
+    SharedModelManager.load_model_managers(compvis=True, controlnet=not disable_controlnet)
     delta("model-manager-load")
     SharedModelManager.manager.load("stable_diffusion")
 

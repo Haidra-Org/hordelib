@@ -9,10 +9,7 @@ from hordelib.shared_model_manager import SharedModelManager
 class TestHordeBlip:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
-        default_model_manager_args = {
-            "blip": True,
-        }
-        shared_model_manager.loadModelManagers(**default_model_manager_args)
+        shared_model_manager.load_model_managers(["blip"])
         shared_model_manager.manager.load("BLIP_Large")
         assert shared_model_manager.manager.is_model_loaded("BLIP_Large") is True
         yield

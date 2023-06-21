@@ -16,7 +16,7 @@ from fuzzywuzzy import fuzz
 from loguru import logger
 from typing_extensions import override
 
-from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES
+from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.model_manager.base import BaseModelManager
 from hordelib.utils.sanitizer import Sanitizer
 
@@ -72,8 +72,7 @@ class LoraModelManager(BaseModelManager):
         self._index_orig_names = {}
 
         super().__init__(
-            modelFolder=MODEL_FOLDER_NAMES[MODEL_CATEGORY_NAMES.lora],
-            models_db_name=MODEL_DB_NAMES[MODEL_CATEGORY_NAMES.lora],
+            model_category_name=MODEL_CATEGORY_NAMES.lora,
             download_reference=download_reference,
         )
 
@@ -92,17 +91,19 @@ class LoraModelManager(BaseModelManager):
             self.download_model_reference()
             logger.info("Lora reference download begun asynchronously.")
         else:
-            try:
-                self.model_reference = json.loads((self.models_db_path).read_text())
-            except FileNotFoundError:
+            if self.models_db_path.exists():
+                try:
+                    self.model_reference = json.loads((self.models_db_path).read_text())
+                    logger.info("Loaded model reference from disk.")
+                except json.JSONDecodeError:
+                    logger.error(f"Could not load {self.models_db_name} model reference from disk! Bad JSON?")
+                    self.model_reference = {}
+            else:
+                logger.error(f"Could not load {self.models_db_name} model reference from disk! File not found.")
                 self.model_reference = {}
+
             logger.info(
-                " ".join(
-                    [
-                        "Loaded model reference from disk.",
-                        f"Got {len(self.model_reference)} models for {self.models_db_name}.",
-                    ],
-                ),
+                (f"Got {len(self.model_reference)} models for {self.models_db_name}.",),
             )
 
     def download_model_reference(self):
@@ -475,7 +476,7 @@ class LoraModelManager(BaseModelManager):
         return None
 
     # Using `get_model` instead of `get_lora` as it exists in the base class
-    def get_model(self, model_name: str):
+    def get_model(self, model_name: str) -> dict | None:
         """Returns the actual lora details dict for the specified model_name search string
         Returns None if lora name not found"""
         lora_name = self.fuzzy_find_lora_key(model_name)
@@ -562,15 +563,15 @@ class LoraModelManager(BaseModelManager):
         return total_queue
 
     def find_oldest_adhoc_lora(self):
-        oldest_lora: str = None
-        oldest_datetime: datetime = None
+        oldest_lora: str | None = None
+        oldest_datetime: datetime | None = None
         for lora in self._adhoc_loras:
             lora_datetime = datetime.strptime(self.model_reference[lora]["last_used"], "%Y-%m-%d %H:%M:%S")
             if not oldest_lora:
                 oldest_lora = lora
                 oldest_datetime = lora_datetime
                 continue
-            if oldest_datetime > lora_datetime:
+            if oldest_datetime and oldest_datetime > lora_datetime:
                 oldest_lora = lora
                 oldest_datetime = lora_datetime
         return oldest_lora
@@ -618,6 +619,9 @@ class LoraModelManager(BaseModelManager):
 
     def delete_lora(self, lora_name: str):
         lora_info = self.get_model(lora_name)
+        if not lora_info:
+            logger.warning(f"Could not find lora {lora_name} to delete")
+            return
         self.delete_lora_files(lora_info["filename"])
         self._adhoc_loras.remove(lora_name)
         del self._index_ids[lora_info["id"]]
@@ -641,6 +645,7 @@ class LoraModelManager(BaseModelManager):
             time.sleep(0.2)
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._adhoc_loras = set()
+        sorted_items = []
         try:
             sorted_items = sorted(
                 self._previous_model_reference.items(),
@@ -714,11 +719,17 @@ class LoraModelManager(BaseModelManager):
     def touch_lora(self, lora_name):
         """Updates the "last_used" key in a lora entry to current UTC time"""
         lora = self.get_model(lora_name)
+        if not lora:
+            logger.warning(f"Could not find lora {lora_name} to touch")
+            return
         lora["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def get_lora_last_use(self, lora_name):
         """Returns a dateimte object based on the "last_used" key in a lora entry"""
         lora = self.get_model(lora_name)
+        if not lora:
+            logger.warning(f"Could not find lora {lora_name} to get last use")
+            return None
         return datetime.strptime(lora["last_used"], "%Y-%m-%d %H:%M:%S")
 
     def fetch_adhoc_lora(self, lora_name, timeout=30):
@@ -754,6 +765,9 @@ class LoraModelManager(BaseModelManager):
     def do_baselines_match(self, lora_name, model_details):
         self._check_for_refresh(lora_name)
         lota_details = self.get_model(lora_name)
+        if not lota_details:
+            logger.warning(f"Could not find lora {lora_name} to check baselines")
+            return False
         if "SD 1.5" in lota_details["baseModel"] and model_details["baseline"] == "stable diffusion 1":
             return True
         if "SD 2.1" in lota_details["baseModel"] and model_details["baseline"] == "stable diffusion 2":
@@ -765,12 +779,28 @@ class LoraModelManager(BaseModelManager):
         return self.fuzzy_find_lora_key(model_name) is not None
 
     @override
+    def load(
+        self,
+        model_name: str,
+        *,
+        half_precision: bool = True,
+        gpu_id: int | None = 0,
+        cpu_only: bool = False,
+        **kwargs,
+    ) -> bool | None:
+        error = "load is not supported for LoRas"
+        logger.error(error)
+        raise NotImplementedError(error)
+
+    @override
     def modelToRam(
         self,
         model_name: str,
         **kwargs,
     ) -> dict[str, typing.Any]:
-        pass
+        error = "modelToRam is not supported for LoRas"
+        logger.error(error)
+        raise NotImplementedError(error)
 
     def get_available_models(self):
         """

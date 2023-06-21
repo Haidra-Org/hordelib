@@ -2,15 +2,17 @@
 import builtins
 import glob
 from pathlib import Path
+from typing import Iterable
 
 from horde_model_reference.legacy.download_live_legacy_dbs import download_all_models as download_live_legacy_dbs
 from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORIES
 from horde_model_reference.path_consts import get_model_reference_filename
 from loguru import logger
+from typing_extensions import Self
 
 from hordelib.config_path import get_hordelib_path
-from hordelib.consts import REMOTE_PROXY
-from hordelib.model_manager.hyper import BaseModelManager, ModelManager
+from hordelib.consts import MODEL_CATEGORY_NAMES, REMOTE_PROXY
+from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES, BaseModelManager, ModelManager
 from hordelib.preload import (
     ANNOTATOR_MODEL_SHA_LOOKUP,
     download_all_controlnet_annotators,
@@ -54,7 +56,7 @@ def do_migrations():
 
 
 class SharedModelManager:
-    _instance = None
+    _instance: Self = None  # type: ignore
     manager: ModelManager
 
     def __new__(cls):
@@ -76,6 +78,21 @@ class SharedModelManager:
         lora: bool = False,
         blip: bool = False,
         clip: bool = False,
+    ):
+        logger.error("This function is deprecated. Please use load_model_managers instead.")
+        managers_to_load: list[str] = []
+        passed_args = locals().copy()
+        passed_args.pop("cls")
+        for passed_arg, value in passed_args.items():
+            if value and passed_arg in MODEL_REFERENCE_CATEGORIES:
+                managers_to_load.append(passed_arg)
+
+        cls.manager.init_model_managers(managers_to_load)
+
+    @classmethod
+    def load_model_managers(
+        cls,
+        managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
     ):
         if cls.manager is None:
             cls.manager = ModelManager()
@@ -108,28 +125,14 @@ class SharedModelManager:
                     )
                 raise e
         do_migrations()
-        cls.manager.init_model_managers(**args_passed)
+        cls.manager.init_model_managers(managers_to_load)
 
     @classmethod
-    def unloadModelManagers(
+    def unload_model_managers(
         cls,
-        codeformer: bool = False,
-        compvis: bool = False,
-        controlnet: bool = False,
-        # diffusers: bool = False,
-        esrgan: bool = False,
-        gfpgan: bool = False,
-        safety_checker: bool = False,
-        lora: bool = False,
-        blip: bool = False,
-        clip: bool = False,
+        managers_to_unload: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
     ):
-        args_passed = locals().copy()
-        args_passed.pop("cls")
-
-        for arg, arg_value in args_passed.items():
-            if arg_value:
-                setattr(cls.manager, arg, None)
+        cls.manager.unload_model_managers(managers_to_unload)
 
     @staticmethod
     def preloadAnnotators() -> bool:
@@ -138,13 +141,13 @@ class SharedModelManager:
         Returns:
             bool: If the annotators are downloaded and the integrity is OK, this will return True. Otherwise, false.
         """
-        annotators_in_legacy_directory = Path(builtins.annotator_ckpts_path).glob("*.pt*")
+        annotators_in_legacy_directory = Path(builtins.annotator_ckpts_path).glob("*.pt*")  # type: ignore
 
         for legacy_annotator in annotators_in_legacy_directory:
             logger.warning("Annotator found in legacy directory. This file can be safely deleted:")
             logger.warning(f"{legacy_annotator}")
 
-        builtins.annotator_ckpts_path = (
+        builtins.annotator_ckpts_path = (  # type: ignore
             Path(UserSettings.get_model_directory()).joinpath("controlnet").joinpath("annotator").joinpath("ckpts")
         )
         # XXX # FIXME _PLEASE_
@@ -152,12 +155,17 @@ class SharedModelManager:
         # XXX until comfy officially releases support for controlnet, and the wrangling of the downloads
         # XXX in this way will be a thing of the past.
 
-        logger.debug(f"WORKAROUND: Setting `builtins.annotator_ckpts_path` to: {builtins.annotator_ckpts_path}")
+        logger.debug(
+            (
+                "WORKAROUND: Setting `builtins.annotator_ckpts_path` to: "
+                f"{builtins.annotator_ckpts_path}"  # type: ignore
+            ),
+        )
 
         # If any annotators are downloaded, check those for SHA integrity first.
         # if any get purged (incomplete download), then we will be able to recover
         # by downloading them below.
-        validate_all_controlnet_annotators(builtins.annotator_ckpts_path)
+        validate_all_controlnet_annotators(builtins.annotator_ckpts_path)  # type: ignore
 
         logger.info(
             "Attempting to preload all controlnet annotators.",
@@ -171,8 +179,8 @@ class SharedModelManager:
             logger.error("Failed to download one or more annotators.")
             return False
 
-        annotators_all_validated_successfully = validate_all_controlnet_annotators(builtins.annotator_ckpts_path)
-        if not annotators_all_validated_successfully:
+        annotators_validated = validate_all_controlnet_annotators(builtins.annotator_ckpts_path)  # type: ignore
+        if not annotators_validated:
             logger.error("Failed to validate one or more annotators.")
             return False
 
