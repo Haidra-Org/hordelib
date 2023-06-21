@@ -186,6 +186,42 @@ class TestHordeInference:
             pil_image.save(f"images/{img_filename}", quality=100)
             images_to_compare.append((f"images_expected/{img_filename}", pil_image))
 
+    def test_controlnet_image_is_control(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": "openpose",
+            "image_is_control": True,
+            "return_control_map": False,
+            "prompt": "a woman standing in the snow",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": stable_diffusion_modelname_for_testing,
+            "source_image": Image.open("images/test_image_is_control.png"),
+            "source_processing": "img2img",
+        }
+        images_to_compare: list[tuple[str, Image.Image]] = []
+
+        pil_image = hordelib_instance.basic_inference(data)
+        assert pil_image is not None
+
+        img_filename = f"controlnet_image_is_control.png"
+
+        pil_image.save(f"images/{img_filename}", quality=100)
+        images_to_compare.append((f"images_expected/{img_filename}", pil_image))
+
         for img_filename, pil_image in images_to_compare:
             assert check_single_inference_image_similarity(
                 img_filename,
