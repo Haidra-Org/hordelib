@@ -614,6 +614,9 @@ class LoraModelManager(BaseModelManager):
 
     def delete_lora_files(self, lora_filename: str):
         filename = os.path.join(self.modelFolderPath, lora_filename)
+        if not os.path.exists(filename):
+            logger.warning(f"Could not find LoRa file on disk to delete: {filename}")
+            return
         os.remove(filename)
         logger.info(f"Deleted LoRa file: {filename}")
 
