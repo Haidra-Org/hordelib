@@ -735,7 +735,7 @@ class LoraModelManager(BaseModelManager):
             return None
         return datetime.strptime(lora["last_used"], "%Y-%m-%d %H:%M:%S")
 
-    def fetch_adhoc_lora(self, lora_name, timeout=30):
+    def fetch_adhoc_lora(self, lora_name, timeout=45):
         if type(lora_name) is int or lora_name.isdigit():
             url = f"https://civitai.com/api/v1/models/{lora_name}"
         else:
