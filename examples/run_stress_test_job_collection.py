@@ -16,6 +16,7 @@ if __name__ != "__main__":
 import hordelib
 
 hordelib.initialise(setup_logging=False)
+from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.horde import HordeLib
 from hordelib.settings import UserSettings
 from hordelib.shared_model_manager import SharedModelManager
@@ -52,13 +53,15 @@ out_dir = f"images/stresstest/{os.path.splitext(os.path.basename(sys.argv[0]))[0
 os.makedirs(out_dir, exist_ok=True)
 
 generate = HordeLib()
-SharedModelManager.loadModelManagers(
-    compvis=True,
-    controlnet=True,
-    codeformer=True,
-    esrgan=True,
-    gfpgan=True,
-    lora=True,
+SharedModelManager.load_model_managers(
+    [
+        MODEL_CATEGORY_NAMES.compvis,
+        MODEL_CATEGORY_NAMES.controlnet,
+        MODEL_CATEGORY_NAMES.codeformer,
+        MODEL_CATEGORY_NAMES.esrgan,
+        MODEL_CATEGORY_NAMES.gfpgan,
+        MODEL_CATEGORY_NAMES.lora,
+    ],
 )
 if DOWNLOAD_LORAS:
     SharedModelManager.manager.lora.download_default_loras()

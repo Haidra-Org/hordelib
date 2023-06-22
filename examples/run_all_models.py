@@ -7,6 +7,7 @@ import hordelib
 
 hordelib.initialise(setup_logging=False)
 
+from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
@@ -60,7 +61,7 @@ def do_inference(model_name, iterations=1):
 
 def main():
     HordeLib()
-    SharedModelManager.loadModelManagers(compvis=True)
+    SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis])
 
     os.makedirs("images/all_models/", exist_ok=True)
 

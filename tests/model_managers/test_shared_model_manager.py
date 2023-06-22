@@ -1,8 +1,9 @@
 # test_horde.py
 import pytest
 
-from hordelib.consts import EXCLUDED_MODEL_NAMES
+from hordelib.consts import EXCLUDED_MODEL_NAMES, MODEL_CATEGORY_NAMES
 from hordelib.horde import HordeLib
+from hordelib.model_manager.clip import ClipModelManager
 from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.esrgan import EsrganModelManager
 from hordelib.shared_model_manager import SharedModelManager
@@ -21,6 +22,21 @@ class TestSharedModelManager:
         if _shared_test_singleton is not None:
             assert _shared_test_singleton is a
             assert _shared_test_singleton is b
+
+    def test_unload_model_manager(
+        self,
+        shared_model_manager: type[SharedModelManager],
+    ):
+        assert shared_model_manager.manager.esrgan is not None
+        shared_model_manager.unload_model_managers([EsrganModelManager])
+        assert shared_model_manager.manager.esrgan is None
+        shared_model_manager.unload_model_managers([CompVisModelManager, MODEL_CATEGORY_NAMES.blip, "clip"])
+        assert shared_model_manager.manager.compvis is None
+        assert shared_model_manager.manager.blip is None
+        assert shared_model_manager.manager.clip is None
+        shared_model_manager.load_model_managers(
+            [EsrganModelManager, CompVisModelManager, MODEL_CATEGORY_NAMES.blip, "clip"],
+        )
 
     def test_horde_model_manager_reload_db(
         self,
@@ -48,28 +64,11 @@ class TestSharedModelManager:
             assert shared_model_manager.manager.download_model("Deliberate")
             assert shared_model_manager.manager.validate_model("Deliberate")
 
-    def test_taint_models(
-        self,
-        shared_model_manager: type[SharedModelManager],
-    ):
-        assert "Deliberate" in shared_model_manager.manager.get_available_models()
-        shared_model_manager.manager.taint_models(["Deliberate"])
-        assert "Deliberate" not in shared_model_manager.manager.get_available_models()
-        shared_model_manager.manager.compvis.tainted_models = []
-        shared_model_manager.manager.compvis.available_models.append("Deliberate")
-        assert "Deliberate" in shared_model_manager.manager.get_available_models()
-
-        # assert shared_model_manager.manager.is_model_loaded("Deliberate") is False
-
     def test_model_load_cycling(
         self,
         shared_model_manager: type[SharedModelManager],
     ):
-        assert shared_model_manager.manager is not None
-        assert shared_model_manager.manager.is_model_loaded("Deliberate") is False
-        assert shared_model_manager.manager.is_model_loaded("GFPGAN") is False
-        assert shared_model_manager.manager.is_model_loaded("RealESRGAN_x4plus") is False
-        assert shared_model_manager.manager.is_model_loaded("4x_NMKD_Superscale_SP") is False
+        deliberate_was_loaded = "Deliberate" in shared_model_manager.manager.loaded_models
         shared_model_manager.manager.load("Deliberate")
         shared_model_manager.manager.load("GFPGAN")
         shared_model_manager.manager.load("RealESRGAN_x4plus")
@@ -87,6 +86,8 @@ class TestSharedModelManager:
         assert shared_model_manager.manager.is_model_loaded("GFPGAN") is False
         assert shared_model_manager.manager.is_model_loaded("RealESRGAN_x4plus") is False
         assert shared_model_manager.manager.is_model_loaded("4x_NMKD_Superscale_SP") is False
+        if deliberate_was_loaded:
+            shared_model_manager.manager.load("Deliberate")
 
     def test_model_excluding(
         self,
@@ -199,24 +200,30 @@ class TestSharedModelManager:
         shared_model_manager: type[SharedModelManager],
         load_models_for_type_test,
     ):
-        shared_model_manager.unloadModelManagers(gfpgan=True)
+        shared_model_manager.unload_model_managers(["gfpgan"])
         print(shared_model_manager.manager.get_mm_pointers(["compvis"]))
-        assert shared_model_manager.manager.get_mm_pointers(["compvis"]) == {shared_model_manager.manager.compvis}
+        assert shared_model_manager.manager.get_mm_pointers(["compvis"]) == [shared_model_manager.manager.compvis]
         # because gfpgan MM not active
         assert len(shared_model_manager.manager.get_mm_pointers(["compvis", "gfpgan"])) == 1
         assert len(shared_model_manager.manager.get_mm_pointers(["compvis", "gfpgan", "esrgan"])) == 2
         assert len(shared_model_manager.manager.get_mm_pointers(["compvis", "FAKE"])) == 1
-        assert shared_model_manager.manager.get_mm_pointers(None) == set()
+        assert shared_model_manager.manager.get_mm_pointers(None) == []
         # Any value other than a string or a mm pointer is ignored
-        assert shared_model_manager.manager.get_mm_pointers([None]) == set()
-        assert shared_model_manager.manager.get_mm_pointers(
-            [None, "FAKE", "esrgan", "compvis"],
+        assert shared_model_manager.manager.get_mm_pointers([None]) == []  # type: ignore
+        assert set(
+            shared_model_manager.manager.get_mm_pointers(
+                [None, "FAKE", "esrgan", "compvis"],  # type: ignore
+            ),
         ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}
 
-        assert shared_model_manager.manager.get_mm_pointers(
-            [EsrganModelManager, CompVisModelManager],
+        assert set(
+            shared_model_manager.manager.get_mm_pointers(
+                [EsrganModelManager, CompVisModelManager],
+            ),
         ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}
-        assert shared_model_manager.manager.get_mm_pointers(
-            [None, "FAKE", EsrganModelManager, CompVisModelManager],
+        assert set(
+            shared_model_manager.manager.get_mm_pointers(
+                [None, "FAKE", EsrganModelManager, CompVisModelManager],  # type: ignore
+            ),
         ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}
-        shared_model_manager.loadModelManagers(gfpgan=True)
+        shared_model_manager.load_model_managers(["gfpgan"])

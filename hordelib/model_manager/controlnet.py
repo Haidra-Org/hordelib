@@ -1,6 +1,7 @@
 import os
 import typing
 from enum import Enum
+from typing import Iterable
 
 from loguru import logger
 from typing_extensions import override
@@ -24,7 +25,7 @@ CONTROLNET_BASELINE_APPENDS: dict[CONTROLNET_BASELINE_NAMES | str, str] = {
 class ControlNetModelManager(BaseModelManager):
     def __init__(self, download_reference=False):
         super().__init__(
-            models_db_name=MODEL_DB_NAMES[MODEL_CATEGORY_NAMES.controlnet],
+            model_category_name=MODEL_CATEGORY_NAMES.controlnet,
             download_reference=download_reference,
         )
 
@@ -46,7 +47,7 @@ class ControlNetModelManager(BaseModelManager):
         control_type: str,
         model,
         model_baseline: str = CONTROLNET_BASELINE_NAMES.stable_diffusion_1,
-    ) -> tuple[typing.Any]:
+    ) -> tuple[typing.Any] | None:
         """Merge the specified control net with target model.
 
         Args:
@@ -64,23 +65,22 @@ class ControlNetModelManager(BaseModelManager):
             controlnet_name = "control_fakescribbles"
         if controlnet_name not in self.model_reference:
             logger.error(f"{controlnet_name} not found")
-            return False
+            return None
         if controlnet_name not in self.available_models:
             logger.error(f"{controlnet_name} not available")
-            logger.init_ok(
+            logger.info(
                 f"Downloading {controlnet_name}",
-                status="Downloading",
-            )  # logger.init_ok
+            )  # logger.info
             self.download_control_type(control_type, [model_baseline])
-            logger.init_ok(
+            logger.info(
                 f"{controlnet_name} downloaded",
-                status="Downloading",
-            )  # logger.init_ok
+            )
 
-        logger.init(f"{control_type}", status="Merging")  # logger.init
+        controlnet_filename = self.get_controlnet_filename(controlnet_name)
+        logger.info(f"Merging {control_type}")
         controlnet_path = os.path.join(
             self.modelFolderPath,
-            self.get_controlnet_filename(controlnet_name),
+            controlnet_filename if controlnet_filename else "",
         )
         controlnet = horde_load_controlnet(
             controlnet_path=controlnet_path,
@@ -91,7 +91,7 @@ class ControlNetModelManager(BaseModelManager):
     def download_control_type(
         self,
         control_type: str,
-        sd_baselines: list[str] | None = None,
+        sd_baselines: Iterable[str] | None = None,
     ) -> None:
         if sd_baselines is None:
             sd_baselines = [CONTROLNET_BASELINE_NAMES.stable_diffusion_1, CONTROLNET_BASELINE_NAMES.stable_diffusion_2]

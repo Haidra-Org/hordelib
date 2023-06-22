@@ -4,6 +4,7 @@
 import os
 
 import hordelib
+from hordelib.consts import MODEL_CATEGORY_NAMES
 
 
 def main():
@@ -13,7 +14,7 @@ def main():
     from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
-    SharedModelManager.loadModelManagers(compvis=True)
+    SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis])
     localfile = "cyberrealistic_v13.safetensors"
     SharedModelManager.manager.load(localfile, local=True)
 

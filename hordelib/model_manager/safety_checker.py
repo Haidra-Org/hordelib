@@ -14,7 +14,7 @@ from hordelib.model_manager.base import BaseModelManager
 class SafetyCheckerModelManager(BaseModelManager):
     def __init__(self, download_reference=False):
         super().__init__(
-            models_db_name=MODEL_DB_NAMES[MODEL_CATEGORY_NAMES.safety_checker],
+            model_category_name=MODEL_CATEGORY_NAMES.safety_checker,
             download_reference=download_reference,
         )
 

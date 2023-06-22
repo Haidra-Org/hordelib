@@ -12,7 +12,7 @@ class DiffusersModelManager(BaseModelManager):
         raise NotImplementedError("Diffusers are not yet supported")
 
         super().__init__(
-            models_db_name=MODEL_DB_NAMES[MODEL_CATEGORY_NAMES.diffusers],
+            model_category_name=MODEL_CATEGORY_NAMES.diffusers,
             download_reference=download_reference,
         )
 

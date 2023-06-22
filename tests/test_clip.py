@@ -14,10 +14,7 @@ class TestHordeClip:
 
     @pytest.fixture(autouse=True, scope="class")
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
-        default_model_manager_args = {
-            "clip": True,
-        }
-        shared_model_manager.loadModelManagers(**default_model_manager_args)
+        shared_model_manager.load_model_managers(["clip"])
         shared_model_manager.manager.load("ViT-L/14")
         assert shared_model_manager.manager.is_model_loaded("ViT-L/14") is True
         yield

@@ -128,13 +128,13 @@ def main():
     from hordelib.shared_model_manager import SharedModelManager
 
     try:
-        from hordelib._version import __version__
+        from hordelib._version import __version__  # type: ignore
     except Exception:
         __version__ = "dev branch"
 
     generate = HordeLib()
     delta("model-manager-load")
-    SharedModelManager.loadModelManagers(compvis=True, controlnet=not disable_controlnet)
+    SharedModelManager.load_model_managers(compvis=True, controlnet=not disable_controlnet)
     delta("model-manager-load")
     SharedModelManager.manager.load("stable_diffusion")
 

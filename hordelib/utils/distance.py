@@ -88,7 +88,7 @@ class HistogramDistanceResultCode(float, Enum):
     # Note: The values must be in descending value order, as the first value is used as the default value.
     # (closer to 0 is more similar, higher values are a greater distance (more potential for being dissimilar))
     COMPLETELY_DISSIMILAR_DISTRIBUTION = 100000
-    """The color distributions are completely different, and there is a very high potential for the two images to 
+    """The color distributions are completely different, and there is a very high potential for the two images to
     have completely different compositions."""
     VERY_DISSIMILAR_DISTRIBUTION = 70000
     """The color distributions are very similar, and there is a very high potential for them to be perceptually
