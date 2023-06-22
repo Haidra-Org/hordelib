@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v1.6.1](https://github.com/jug-dev/hordelib/compare/v1.6.0...v1.6.1)
+
+22 June 2023
+
+- fix: re-add taint models (unintentionally removed in 1.6.0) [`2b7dbbd`](https://github.com/jug-dev/hordelib/commit/2b7dbbde472ed52a82404b52854bbdcc5b64d290)  (tazlin)
+- fix: correctly require correct versions of horde_* deps [`c6fb00b`](https://github.com/jug-dev/hordelib/commit/c6fb00b307f863a9303b2e8c54ba8433c0e52841)  (tazlin)
+
 ## [v1.6.0](https://github.com/jug-dev/hordelib/compare/v1.5.2...v1.6.0)
 
 21 June 2023
