@@ -426,12 +426,26 @@ class ModelManager:
         if not mm_types:
             return []
 
+        if not isinstance(mm_types, list) and not isinstance(mm_types, tuple) and not isinstance(mm_types, set):
+            mm_types = [mm_types]  # type: ignore
+
         active_model_managers_types = [type(model_manager) for model_manager in self.active_model_managers]
 
         resolved_types = []
-        for mm_type in mm_types:
+        active_model_managers_types_names = [mm_type.__name__ for mm_type in active_model_managers_types]
+        for mm_type in mm_types:  # type: ignore
             if isinstance(mm_type, type) and mm_type in active_model_managers_types:
                 resolved_types.append(mm_type)
+                continue
+
+            if isinstance(mm_type, type) and mm_type.__name__ in active_model_managers_types_names:
+                resolved_types.append(mm_type)
+                logger.debug(
+                    (
+                        f"Found model manager by name: {mm_type.__name__}."
+                        " This may not be the model manager you are looking for.",
+                    ),
+                )
                 continue
 
             if not isinstance(mm_type, str) or mm_type not in MODEL_MANAGERS_TYPE_LOOKUP:

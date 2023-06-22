@@ -84,7 +84,7 @@ class SharedModelManager:
         passed_args = locals().copy()
         passed_args.pop("cls")
         for passed_arg, value in passed_args.items():
-            if value and passed_arg in MODEL_REFERENCE_CATEGORIES:
+            if value and passed_arg in MODEL_CATEGORY_NAMES.__members__.values():
                 managers_to_load.append(passed_arg)
 
         logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
