@@ -39,6 +39,8 @@ class BaseModelManager(ABC):
     available_models: list[str]  # XXX rework as a property?
     _loaded_models: dict[str, dict]
     """The models available for immediate use."""
+    tainted_models: list
+    """Models which seem to be corrupted and should be deleted when the correct replacement is downloaded."""
     models_db_name: str
     models_db_path: Path
     cuda_available: bool
@@ -89,6 +91,7 @@ class BaseModelManager(ABC):
         self.model_reference = {}
         self.available_models = []
         self._loaded_models = {}
+        self.tainted_models = []
         self.pkg = importlib_resources.files("hordelib")  # XXX Remove
         self.models_db_name = MODEL_DB_NAMES[model_category_name]
         self.models_db_path = Path(get_hordelib_path()).joinpath(
@@ -500,6 +503,16 @@ class BaseModelManager(ABC):
                 self.unload_model(model)
             return True
 
+    def taint_model(self, model_name: str):
+        """Marks a model as not valid by removing it from available_models"""
+        if model_name in self.available_models:
+            self.available_models.remove(model_name)
+            self.tainted_models.append(model_name)
+
+    def taint_models(self, models: list[str]) -> None:
+        for model in models:
+            self.taint_model(model)
+
     def validate_model(self, model_name: str, skip_checksum: bool = False) -> bool | None:
         """Check the if the model file is on disk and, optionally, also if the checksum is correct.
 
@@ -798,7 +811,8 @@ class BaseModelManager(ABC):
         - unzip file
         """
         # XXX this function is wacky in its premise and needs to be reworked
-        if model_name in self.available_models:
+        is_model_tainted = model_name in self.tainted_models
+        if not is_model_tainted and model_name in self.available_models:
             logger.debug(f"{model_name} is already available.")
             return True
         download = self.get_model_download(model_name)
@@ -809,6 +823,9 @@ class BaseModelManager(ABC):
                 if "file_path" in download[i]
                 else files[i]["path"]
             )
+            download_url = None
+            download_name = None
+            download_path = None
 
             if "file_url" in download[i]:
                 download_url = download[i]["file_url"]
@@ -828,6 +845,11 @@ class BaseModelManager(ABC):
             if "file_content" in download[i]:
                 file_content = download[i]["file_content"]
                 logger.info(f"writing {file_content} to {file_path}")
+                if not download_path or not download_name:
+                    raise RuntimeError(
+                        f"download_path and download_name are required for file_content download type for "
+                        f"{model_name}",
+                    )
                 os.makedirs(
                     os.path.join(self.modelFolderPath, download_path),
                     exist_ok=True,
@@ -840,6 +862,10 @@ class BaseModelManager(ABC):
             elif "symlink" in download[i]:
                 logger.info(f"symlink {file_path} to {download[i]['symlink']}")
                 symlink = download[i]["symlink"]
+                if not download_path or not download_name:
+                    raise RuntimeError(
+                        f"download_path and download_name are required for symlink download type for " f"{model_name}",
+                    )
                 os.makedirs(
                     os.path.join(self.modelFolderPath, download_path),
                     exist_ok=True,
@@ -864,7 +890,10 @@ class BaseModelManager(ABC):
                 zip_path = f"{self.modelFolderPath}/{download_name}.zip"
                 temp_path = f"{self.modelFolderPath}/{str(uuid4())}/"
                 os.makedirs(temp_path, exist_ok=True)
-
+                if not download_url or not download_path:
+                    raise RuntimeError(
+                        f"download_url and download_path are required for unzip download type for {model_name}",
+                    )
                 download_succeeded = self.download_file(download_url, zip_path)
                 if not download_succeeded:
                     return False
@@ -885,8 +914,17 @@ class BaseModelManager(ABC):
                 logger.info(f"delete {temp_path}")
                 shutil.rmtree(temp_path)
             else:
-                if not self.check_file_available(file_path):
+                if not self.check_file_available(file_path) or is_model_tainted:
                     logger.debug(f"Downloading {download_url} to {file_path}")
+                    if is_model_tainted:
+                        logger.debug(f"Model {model_name} is tainted.")
+
+                    if not download_url:
+                        logger.error(
+                            f"download_url is required for download type for {model_name}",
+                        )
+                        return False
+
                     download_succeeded = self.download_file(download_url, file_path)
                     if not download_succeeded:
                         return False
