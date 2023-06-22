@@ -285,6 +285,19 @@ class ModelManager:
                 return model_manager.validate_model(model_name, skip_checksum)
         return None
 
+    def taint_models(self, models: list[str]) -> None:
+        """Marks a list of models to be unavailable.
+
+        Args:
+            models (list[str]): The list of models to mark.
+        """
+        for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
+            model_manager: BaseModelManager = getattr(self, model_manager_type)
+            if model_manager is None:
+                continue
+            if any(model in model_manager.model_reference for model in models):
+                model_manager.taint_models(models)
+
     def unload_model(self, model_name: str) -> bool | None:
         """Unloads the target model.
 
