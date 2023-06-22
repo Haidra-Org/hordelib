@@ -26,7 +26,7 @@ omegaconf
 psutil
 typing-extensions
 distro
-# face fixer custom nodes
+# image similarity + face fixer custom nodes
 opencv-python
 # controlnet custom nodes
 opencv-contrib-python
@@ -40,4 +40,4 @@ scikit-image
 mediapipe>=0.9.1.0
 unidecode
 fuzzywuzzy
-horde_clipfree
+horde_clipfree>=0.0.2

@@ -3,15 +3,13 @@ import importlib.resources as importlib_resources
 import json
 import os
 import shutil
-import sys
 import threading
 import time
 import typing
 import zipfile
 from abc import ABC, abstractmethod
-from contextlib import nullcontext
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 from uuid import uuid4
 
 import git
@@ -20,7 +18,6 @@ import requests
 import torch
 from loguru import logger
 from tqdm import tqdm
-from transformers import logging
 
 from hordelib.comfy_horde import (
     cleanup,
@@ -31,10 +28,8 @@ from hordelib.comfy_horde import (
 )
 from hordelib.comfy_horde import get_torch_device as _get_torch_device
 from hordelib.config_path import get_hordelib_path
-from hordelib.consts import REMOTE_MODEL_DB
+from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES, REMOTE_MODEL_DB
 from hordelib.settings import UserSettings
-
-logging.set_verbosity_error()
 
 
 class BaseModelManager(ABC):
@@ -44,7 +39,6 @@ class BaseModelManager(ABC):
     available_models: list[str]  # XXX rework as a property?
     _loaded_models: dict[str, dict]
     """The models available for immediate use."""
-    tainted_models: list
     models_db_name: str
     models_db_path: Path
     cuda_available: bool
@@ -77,30 +71,26 @@ class BaseModelManager(ABC):
     def __init__(
         self,
         *,
-        models_db_name: str,  # XXX Remove default
-        modelFolder: str | None = None,
         download_reference: bool = False,
+        model_category_name: MODEL_CATEGORY_NAMES = MODEL_CATEGORY_NAMES.default_models,
     ):
         """Create a new instance of this model manager.
 
         Args:
-            models_db_name (str): The standard name for this model category. (e.g., 'clip')
+            model_category_name (MODEL_CATEGORY_NAMES): The category of model to manage.
             download_reference (bool, optional): Get the model DB from github. Defaults to False.
         """
-        if not modelFolder:
-            self.modelFolderPath = os.path.join(
-                UserSettings.get_model_directory(),
-                f"{models_db_name}",
-            )
-        else:  # XXX # FIXME The only exception to this right now is compvis
-            self.modelFolderPath = os.path.join(UserSettings.get_model_directory(), f"{modelFolder}")
+
+        self.modelFolderPath = os.path.join(
+            UserSettings.get_model_directory(),
+            f"{MODEL_FOLDER_NAMES[model_category_name]}",
+        )
 
         self.model_reference = {}
         self.available_models = []
         self._loaded_models = {}
-        self.tainted_models = []
         self.pkg = importlib_resources.files("hordelib")  # XXX Remove
-        self.models_db_name = models_db_name
+        self.models_db_name = MODEL_DB_NAMES[model_category_name]
         self.models_db_path = Path(get_hordelib_path()).joinpath(
             "model_database/",
             f"{self.models_db_name}.json",
@@ -130,25 +120,22 @@ class BaseModelManager(ABC):
                 ),
             )
             logger.info("Reloading model reference...")
-
-        if self.download_reference:
+        is_model_db_present = self.models_db_path.exists()
+        if self.download_reference or not is_model_db_present:
+            logger.debug(f"Model reference already on disk: {is_model_db_present}")
             self.model_reference = self.download_model_reference()
             logger.info(
-                " ".join(
-                    [
-                        "Downloaded model reference.",
-                        f"Got {len(self.model_reference)} models for {self.models_db_name}.",
-                    ],
+                (
+                    "Downloaded model reference.",
+                    f"Got {len(self.model_reference)} models for {self.models_db_name}.",
                 ),
             )
         else:
             self.model_reference = json.loads((self.models_db_path).read_text())
             logger.info(
-                " ".join(
-                    [
-                        "Loaded model reference from disk.",
-                        f"Got {len(self.model_reference)} models for {self.models_db_name}.",
-                    ],
+                (
+                    "Loaded model reference from disk.",
+                    f"Got {len(self.model_reference)} models for {self.models_db_name}.",
                 ),
             )
         if list_models:
@@ -179,18 +166,21 @@ class BaseModelManager(ABC):
 
     def download_model_reference(self):
         try:
-            logger.init("Model Reference", status="Downloading")
+            logger.debug(f"Downloading Model Reference for {self.models_db_name}")
             response = requests.get(self.remote_db)
-            logger.init_ok("Model Reference", status="OK")
+            logger.debug("Downloaded Model Reference successfully")
             models = response.json()
+            logger.info("Updated Model Reference from remote.")
             return models
         except Exception as e:  # XXX Double check and/or rework this
-            logger.init_err(
-                "Model Reference",
-                status=f"Download failed: {e}",
+            logger.error(
+                f"Download failed: {e}",
             )
-            logger.init_warn("Model Reference", status="Local")
-            return json.loads((self.models_db_path).read_text())
+            logger.warning("Model Reference not downloaded, using local copy")
+            if self.models_db_path.exists():
+                return json.loads(self.models_db_path.read_text())
+            logger.error("No local copy of Model Reference found!")
+            return {}
 
     def _modelref_to_name(self, modelref):
         with self._mutex:
@@ -303,27 +293,47 @@ class BaseModelManager(ABC):
         gpu_id: int | None = 0,
         cpu_only: bool = False,
         **kwargs,
-    ):  # XXX # FIXME
+    ) -> bool | None:
+        """Load a model into RAM.
+
+        Args:
+            model_name (str): The name of the model to load.
+            half_precision (bool, optional): Whether to use half precision. Defaults to True.
+            gpu_id (int | None, optional): The GPU to load into. Defaults to None.
+            cpu_only (bool, optional): Whether to only use CPU + System RAM. Defaults to False.
+            kwargs (dict[str, typing.Any]): Additional arguments.
+
+        Returns:
+            bool | None: `True` if the model was loaded, `False` if it failed to load/download,
+                `None` if the model name doesn't exist in the model reference.
+        """
         with self._mutex:
             self.ensure_ram_available()
             local = self.is_local_model(model_name)
             if not local and model_name not in self.model_reference:
                 logger.error(f"{model_name} not found")
-                return False
+                return None
             if not local and model_name not in self.available_models:
-                logger.init_warn(f"{model_name} may need to be downloaded, checking...", status="Loading")
+                logger.warning(
+                    f"{model_name} may need to be downloaded, checking...",
+                )
                 download_succeeded = self.download_model(model_name)
                 if not download_succeeded:
-                    logger.init_err(f"{model_name} failed to download", status="Error")
+                    logger.error(f"{model_name} failed to download")
                     return False
-                logger.init_ok(f"{model_name}", status="Downloaded")
+                logger.info(f"{model_name} Downloaded")
+            if model_name in self.get_loaded_models():
+                logger.debug(f"{model_name} is already loaded")
+                return True
             if model_name not in self.get_loaded_models():
                 if not local:
                     model_validated = self.validate_model(model_name)
                     if not model_validated:
                         return False
                 tic = time.time()
-                logger.init(f"Loading {model_name}", status="Loading")
+                logger.info(
+                    f"Loading {model_name}",
+                )
 
                 try:
                     self.add_loaded_model(
@@ -340,13 +350,13 @@ class BaseModelManager(ABC):
                 except RuntimeError:
                     # It failed, it happens.
                     logger.error(f"Failed to load model {model_name}")
-                    return None
+                    return False
 
                 toc = time.time()
 
-                logger.init_ok(f"{model_name}: {round(toc-tic,2)} seconds", status="Loaded")
+                logger.info(f"Loaded {model_name}: {round(toc-tic,2)} seconds")
                 return True
-            return None
+        return False
 
     def getFullModelPath(self, model_name: str):
         """Returns the fully qualified filename for the specified model."""
@@ -406,7 +416,7 @@ class BaseModelManager(ABC):
         """
         return self.available_models
 
-    def get_available_models_by_types(self, model_types: list[str] | None = None):
+    def get_available_models_by_types(self, model_types: Iterable[str] | None = None):
         if not model_types:
             model_types = ["ckpt"]
         models_available = []
@@ -417,7 +427,7 @@ class BaseModelManager(ABC):
                 models_available.append(model)
         return models_available
 
-    def count_available_models_by_types(self, model_types: list[str] | None = None):
+    def count_available_models_by_types(self, model_types: Iterable[str] | None = None):
         return len(self.get_available_models_by_types(model_types))
 
     def get_loaded_model(self, model_name: str):
@@ -490,23 +500,15 @@ class BaseModelManager(ABC):
                 self.unload_model(model)
             return True
 
-    def taint_model(self, model_name: str):
-        """Marks a model as not valid by removing it from available_models"""
-        if model_name in self.available_models:
-            self.available_models.remove(model_name)
-            self.tainted_models.append(model_name)
+    def validate_model(self, model_name: str, skip_checksum: bool = False) -> bool | None:
+        """Check the if the model file is on disk and, optionally, also if the checksum is correct.
 
-    def taint_models(self, models: list[str]) -> None:
-        for model in models:
-            self.taint_model(model)
+        Args:
+            model_name (str): The name of the model to check.
+            skip_checksum (bool, optional): Defaults to False.
 
-    def validate_model(self, model_name: str, skip_checksum: bool = False):
-        # XXX This isn't enough or isn't called at the right times.
-        """
-        :param model_name: Name of the model
-        :param skip_checksum: If True, skips checksum validation
-        For each file in the model, checks if the file exists and if the checksum is correct
-        Returns True if all files are valid, False otherwise
+        Returns:
+            bool | None: `True` if the model is valid, `False` if not, `None` if the model is not on disk.
         """
         files = self.get_model_files(model_name)
         logger.debug(f"Validating {model_name} with {len(files)} files")
@@ -516,13 +518,14 @@ class BaseModelManager(ABC):
                 continue
             if not self.check_file_available(file_details["path"]):
                 logger.debug(f"File {file_details['path']} not found")
-                return False
+                return None
             if not skip_checksum and not self.validate_file(file_details):
                 logger.warning(f"File {file_details['path']} has different contents to what we expected.")
                 try:
                     # The file must have been considered valid once, or we wouldn't have renamed
                     # it from the ".part" download. Likely there is an update, or a model database hash problem
                     logger.warning(f"Likely updated, will attempt to re-download {file_details['path']}.")
+                    self.taint_model(model_name)
                 except OSError as e:
                     logger.error(f"Unable to delete {file_details['path']}: {e}.")
                     logger.error(f"Please delete {file_details['path']} if this error persists.")
@@ -795,7 +798,7 @@ class BaseModelManager(ABC):
         - unzip file
         """
         # XXX this function is wacky in its premise and needs to be reworked
-        if model_name in self.available_models and model_name not in self.tainted_models:
+        if model_name in self.available_models:
             logger.debug(f"{model_name} is already available.")
             return True
         download = self.get_model_download(model_name)
@@ -882,7 +885,7 @@ class BaseModelManager(ABC):
                 logger.info(f"delete {temp_path}")
                 shutil.rmtree(temp_path)
             else:
-                if not self.check_file_available(file_path) or model_name in self.tainted_models:
+                if not self.check_file_available(file_path):
                     logger.debug(f"Downloading {download_url} to {file_path}")
                     download_succeeded = self.download_file(download_url, file_path)
                     if not download_succeeded:
@@ -897,10 +900,10 @@ class BaseModelManager(ABC):
         # XXX this has no fall back and always returns true
         for model in self.get_filtered_model_names(download_all=True):
             if not self.check_model_available(model):
-                logger.init(f"{model}", status="Downloading")  # logger.init
+                logger.info(f"Downloading {model}")
                 self.download_model(model)
             else:
-                logger.init(f"{model} is already downloaded.", status="Skipped")
+                logger.info(f"{model} is already downloaded.")
         return True
 
     def check_model_available(self, model_name: str) -> bool:

@@ -10,6 +10,7 @@ import psutil
 from loguru import logger
 
 import hordelib
+from hordelib.consts import MODEL_CATEGORY_NAMES
 
 hordelib.initialise(setup_logging=False)
 
@@ -109,7 +110,7 @@ def do_background_inference():
 def main():
     HordeLib()
     GPUInfo()
-    SharedModelManager.loadModelManagers(compvis=True)
+    SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis])
 
     report_ram()
 

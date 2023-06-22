@@ -2,6 +2,7 @@
 import copy
 import os
 import threading
+from typing import Iterable
 
 import torch
 from loguru import logger
@@ -21,7 +22,7 @@ from hordelib.model_manager.lora import LoraModelManager
 from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
 from hordelib.settings import UserSettings
 
-MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type[BaseModelManager]] = {
+MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES | str, type[BaseModelManager]] = {
     MODEL_CATEGORY_NAMES.codeformer: CodeFormerModelManager,
     MODEL_CATEGORY_NAMES.compvis: CompVisModelManager,
     MODEL_CATEGORY_NAMES.controlnet: ControlNetModelManager,
@@ -33,23 +34,68 @@ MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES, type[BaseModelManager]] =
     MODEL_CATEGORY_NAMES.blip: BlipModelManager,
     MODEL_CATEGORY_NAMES.clip: ClipModelManager,
 }
-"""Keys are `str` which represent attrs in `ModelManger`. Values are the corresponding `type`."""
+"""A lookup table for the `BaseModelManager` types."""
+
+ALL_MODEL_MANAGER_TYPES: list[type[BaseModelManager]] = list(MODEL_MANAGERS_TYPE_LOOKUP.values())
 
 
 class ModelManager:
     """Controller class for all managers which extend `BaseModelManager`."""
 
-    codeformer: CodeFormerModelManager | None = None
-    compvis: CompVisModelManager | None = None
-    controlnet: ControlNetModelManager | None = None
-    # diffusers: DiffusersModelManager | None = None
-    esrgan: EsrganModelManager | None = None
-    gfpgan: GfpganModelManager | None = None
-    safety_checker: SafetyCheckerModelManager | None = None
-    lora: LoraModelManager | None = None
-    blip: BlipModelManager | None = None
-    clip: ClipModelManager | None = None
-    # XXX I think this can be reworked into an array of BaseModelManager instances
+    # These properties are here with compatibility in mind, but they may survive for a while.
+    @property
+    def codeformer(self) -> CodeFormerModelManager | None:
+        """The CodeFormer model manager instance. Returns `None` if not loaded."""
+        found_mm = self.get_mm_pointer(CodeFormerModelManager)
+        return found_mm if isinstance(found_mm, CodeFormerModelManager) else None
+
+    @property
+    def compvis(self) -> CompVisModelManager | None:
+        """The CompVis model manager instance. Returns `None` if not loaded."""
+        found_mm = self.get_mm_pointer(CompVisModelManager)
+        return found_mm if isinstance(found_mm, CompVisModelManager) else None
+
+    @property
+    def controlnet(self) -> ControlNetModelManager | None:
+        """The ControlNet model manager instance. Returns `None` if not loaded."""
+        found_mm = self.get_mm_pointer(ControlNetModelManager)
+        return found_mm if isinstance(found_mm, ControlNetModelManager) else None
+
+    @property
+    def esrgan(self) -> EsrganModelManager | None:
+        """The ESRGAN model manager instance. Returns `None` if not loaded."""
+        found_mm = self.get_mm_pointer(EsrganModelManager)
+        return found_mm if isinstance(found_mm, EsrganModelManager) else None
+
+    @property
+    def gfpgan(self) -> GfpganModelManager | None:
+        """The GFPGAN model manager instance Returns `None` if not loaded.."""
+        found_mm = self.get_mm_pointer(GfpganModelManager)
+        return found_mm if isinstance(found_mm, GfpganModelManager) else None
+
+    @property
+    def safety_checker(self) -> SafetyCheckerModelManager | None:
+        """The SafetyChecker model manager instance. Returns `None` if not loaded."""
+        found_mm = self.get_mm_pointer(SafetyCheckerModelManager)
+        return found_mm if isinstance(found_mm, SafetyCheckerModelManager) else None
+
+    @property
+    def lora(self) -> LoraModelManager | None:
+        """The Lora model manager instance. Returns `None` if not loaded."""
+        found_mm = self.get_mm_pointer(LoraModelManager)
+        return found_mm if isinstance(found_mm, LoraModelManager) else None
+
+    @property
+    def blip(self) -> BlipModelManager | None:
+        """The Blip model manager instance. Returns `None` if not loaded."""
+        found_mm = self.get_mm_pointer(BlipModelManager)
+        return found_mm if isinstance(found_mm, BlipModelManager) else None
+
+    @property
+    def clip(self) -> ClipModelManager | None:
+        """The Clip model manager instance. Returns `None` if not loaded."""
+        found_mm = self.get_mm_pointer(ClipModelManager)
+        return found_mm if isinstance(found_mm, ClipModelManager) else None
 
     @property
     def models(self) -> dict:
@@ -68,65 +114,51 @@ class ModelManager:
 
     def get_available_models(
         self,
-        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
-        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
+        mm_include: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_exclude: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
     ) -> list[str]:
         """All models for which information exists, and for which a download attempt could be made."""
         all_available_models: list[str] = []
-        mm_include = self.get_mm_pointers(mm_include)
-        mm_exclude = self.get_mm_pointers(mm_exclude)
+
+        resolved_include_managers = self.get_mm_pointers(mm_include)
+        resolved_exclude_managers = self.get_mm_pointers(mm_exclude)
+
         for model_manager in self.active_model_managers:
-            if mm_include and model_manager not in mm_include:
+            if resolved_include_managers and model_manager not in resolved_include_managers:
                 continue
-            if mm_exclude and model_manager in mm_exclude:
+            if model_manager in resolved_exclude_managers:
                 continue
+
             all_available_models.extend(model_manager.available_models)
+
         return all_available_models
 
     available_models = property(get_available_models)
 
     def get_loaded_models(
         self,
-        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
-        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = None,
+        mm_include: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_exclude: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
     ) -> dict[str, dict]:
         """All models for which have successfully loaded across all `BaseModelManager` types."""
         all_loaded_models: dict[str, dict] = {}
-        mm_include = self.get_mm_pointers(mm_include)
-        mm_exclude = self.get_mm_pointers(mm_exclude)
+
+        resolved_include_managers = self.get_mm_pointers(mm_include)
+        resolved_exclude_managers = self.get_mm_pointers(mm_exclude)
+
         for model_manager in self.active_model_managers:
-            if mm_include and model_manager not in mm_include:
+            if resolved_include_managers and model_manager not in resolved_include_managers:
                 continue
-            if mm_exclude and model_manager in mm_exclude:
+            if model_manager in resolved_exclude_managers:
                 continue
+
             all_loaded_models.update(model_manager.get_loaded_models())
+
         return all_loaded_models
 
     loaded_models = property(get_loaded_models)
 
-    @property
-    def active_model_managers(self) -> list[BaseModelManager]:
-        """All loaded model managers."""
-        all_model_managers = [
-            self.compvis,
-            # self.diffusers,
-            self.esrgan,
-            self.gfpgan,
-            self.safety_checker,
-            self.codeformer,
-            self.controlnet,
-            self.lora,
-            self.blip,
-            self.clip,
-        ]
-        # reset available models
-
-        _active_model_managers: list[BaseModelManager] = []
-        for model_manager in all_model_managers:
-            if model_manager is not None:
-                _active_model_managers.append(model_manager)
-
-        return _active_model_managers
+    active_model_managers: list[BaseModelManager]
 
     def __init__(
         self,
@@ -138,6 +170,7 @@ class ModelManager:
         # We use this to serialise disk reads as no point in
         # doing more than one at a time as this will slow down the sequential read op.
         self.disk_read_mutex = threading.Lock()
+        self.active_model_managers = []
 
     def get_model_copy(self, model_name, model_component=None):
         if not model_component:
@@ -147,49 +180,57 @@ class ModelManager:
 
     def init_model_managers(
         self,
-        codeformer: bool = False,
-        compvis: bool = False,
-        controlnet: bool = False,
-        # diffusers: bool = False,
-        esrgan: bool = False,
-        gfpgan: bool = False,
-        safety_checker: bool = False,
-        lora: bool = False,
-        blip: bool = False,
-        clip: bool = False,
-    ):  # XXX are we married to the name and/or the idea behind this function
-        """For each arg which is true, attempt to load that `BaseModelManager` type."""
-        args_passed: dict = locals().copy()  # XXX This is temporary
-        args_passed.pop("self")  # XXX This is temporary
-
-        allModelMangerTypeKeys = MODEL_MANAGERS_TYPE_LOOKUP.keys()
-        # e.g. `MODEL_MANAGERS_TYPE_LOOKUP["compvis"]`` returns type `CompVisModelManager`
-
-        for argName, argValue in args_passed.items():
-            if not (argName in allModelMangerTypeKeys and hasattr(self, argName)):
-                raise Exception(f"{argName} is not a valid model manager type!")
-                # XXX better guarantees need to be made
-            if not argValue:
-                continue
-            if getattr(self, argName) is not None:
+        managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
+    ) -> None:
+        for manager_to_load in managers_to_load:
+            resolve_manager_to_load_type: type[BaseModelManager] | None = None
+            if isinstance(manager_to_load, type) and issubclass(manager_to_load, BaseModelManager):
+                if manager_to_load not in MODEL_MANAGERS_TYPE_LOOKUP.values():
+                    logger.warning(f"Attempted to load a model manager which doesn't exist: '{manager_to_load}'.")
+                    continue
+                resolve_manager_to_load_type = manager_to_load
+            elif manager_to_load in MODEL_MANAGERS_TYPE_LOOKUP.keys():
+                resolve_manager_to_load_type = MODEL_MANAGERS_TYPE_LOOKUP[manager_to_load]
+            else:
+                logger.warning(f"Attempted to load a model manager which doesn't exist: '{manager_to_load}'.")
                 continue
 
-            modelmanager = MODEL_MANAGERS_TYPE_LOOKUP[argName]
+            if any(mm for mm in self.active_model_managers if isinstance(mm, resolve_manager_to_load_type)):
+                logger.warning(
+                    f"Attempted to load a model manager which is already loaded: '{resolve_manager_to_load_type}'.",
+                )
+                continue
+            self.active_model_managers.append(resolve_manager_to_load_type())
 
-            # at runtime modelmanager() will be CompVisModelManager(), ClipModelManager(), etc
-            setattr(
-                self,
-                argName,
-                modelmanager(download_reference=False),
-            )  # XXX # FIXME # HACK
+    def unload_model_managers(
+        self,
+        managers_to_unload: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
+    ):
+        for manager_to_unload in managers_to_unload:
+            resolved_manager_to_unload_type: type[BaseModelManager] | None = None
+            if isinstance(manager_to_unload, type) and issubclass(manager_to_unload, BaseModelManager):
+                if manager_to_unload not in MODEL_MANAGERS_TYPE_LOOKUP.values():
+                    logger.warning(f"Attempted to unload a model manager which doesn't exist: '{manager_to_unload}'.")
+                    continue
+                resolved_manager_to_unload_type = manager_to_unload
+            elif manager_to_unload in MODEL_MANAGERS_TYPE_LOOKUP.keys():
+                resolved_manager_to_unload_type = MODEL_MANAGERS_TYPE_LOOKUP[manager_to_unload]
+            else:
+                logger.warning(f"Attempted to unload a model manager which doesn't exist: '{manager_to_unload}'.")
+                continue
+
+            if not [mm for mm in self.active_model_managers if isinstance(mm, resolved_manager_to_unload_type)]:
+                logger.warning(
+                    f"Attempted to unload a model manager which is not loaded: '{resolved_manager_to_unload_type}'.",
+                )
+                continue
+            self.active_model_managers = [
+                mm for mm in self.active_model_managers if not isinstance(mm, resolved_manager_to_unload_type)
+            ]
 
     def reload_database(self) -> None:
         """Completely resets the `BaseModelManager` classes, and forces each to re-init."""
-        model_managers: list[BaseModelManager] = []
-        for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
-            model_managers.append(getattr(self, model_manager_type))
-
-        for model_manager in model_managers:
+        for model_manager in self.active_model_managers:
             if model_manager is not None:
                 model_manager.loadModelDatabase()
 
@@ -203,7 +244,7 @@ class ModelManager:
             bool | None: The success of the download. If `None`, the model_name was not found.
         """
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
-            model_manager: BaseModelManager = getattr(self, model_manager_type)
+            model_manager: BaseModelManager | None = self.get_mm_pointer(model_manager_type)
             if model_manager is None:
                 continue
             if model_name not in model_manager.model_reference:
@@ -216,7 +257,7 @@ class ModelManager:
     def download_all(self) -> None:
         """Attempts to download all available models for all `BaseModelManager` types."""
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
-            model_manager: BaseModelManager = getattr(self, model_manager_type)
+            model_manager: BaseModelManager | None = self.get_mm_pointer(model_manager_type)
             if model_manager is None:
                 continue
 
@@ -236,26 +277,13 @@ class ModelManager:
         Returns:
             bool | None: The result of the validation. If `None`, the model was not found.
         """
-        for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
-            model_manager: BaseModelManager = getattr(self, model_manager_type)
+        for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP.values():
+            model_manager: BaseModelManager | None = self.get_mm_pointer(model_manager_type)
             if model_manager is None:
                 continue
             if model_name in model_manager.model_reference:
                 return model_manager.validate_model(model_name, skip_checksum)
         return None
-
-    def taint_models(self, models: list[str]) -> None:
-        """Marks a list of models to be unavailable.
-
-        Args:
-            models (list[str]): The list of models to mark.
-        """
-        for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
-            model_manager: BaseModelManager = getattr(self, model_manager_type)
-            if model_manager is None:
-                continue
-            if any(model in model_manager.model_reference for model in models):
-                model_manager.taint_models(models)
 
     def unload_model(self, model_name: str) -> bool | None:
         """Unloads the target model.
@@ -266,8 +294,8 @@ class ModelManager:
         Returns:
             bool | None: The result of the unloading. If `None`, the model was not found.
         """
-        for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
-            model_manager: BaseModelManager = getattr(self, model_manager_type)
+        for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP.values():
+            model_manager: BaseModelManager | None = self.get_mm_pointer(model_manager_type)
             if model_manager is None:
                 continue
             if model_name in model_manager.model_reference or model_manager.is_local_model(model_name):
@@ -284,7 +312,7 @@ class ModelManager:
             var (var): the var model data
         """
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
-            model_manager: BaseModelManager = getattr(self, model_manager_type)
+            model_manager: BaseModelManager | None = self.get_mm_pointer(model_manager_type)
             if model_manager is None:
                 continue
             if model_name in model_manager.model_reference or model_manager.is_local_model(model_name):
@@ -293,8 +321,8 @@ class ModelManager:
 
     def get_loaded_models_names(
         self,
-        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
-        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_include: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_exclude: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
     ) -> list:
         """
         Returns:
@@ -304,18 +332,19 @@ class ModelManager:
         return list(loaded_models.keys())
 
     def is_model_loaded(self, model_name) -> bool:
+        # TODO: This function should indicate if the model is even valid
         return model_name in self.loaded_models
 
     def get_available_models_by_types(
         self,
-        mm_include: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
-        mm_exclude: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_include: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_exclude: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
     ):
         return self.get_available_models(mm_include, mm_exclude)
 
     def count_available_models_by_types(
         self,
-        model_types: list[str] | None = None,
+        model_types: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
     ) -> int:
         return len(self.get_available_models_by_types(model_types))
 
@@ -324,7 +353,7 @@ class ModelManager:
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
             if specific_type and specific_type != model_manager_type:
                 continue
-            model_manager: BaseModelManager = getattr(self, model_manager_type)
+            model_manager: BaseModelManager | None = self.get_mm_pointer(model_manager_type)
             if model_manager is None:
                 continue
             model_manager.ensure_ram_available()
@@ -338,7 +367,7 @@ class ModelManager:
         cpu_only: bool = False,
         local: bool = False,
     ) -> bool | None:
-        """_summary_
+        """Loads the target model with the appropriate (loaded) `BaseModelManager` type.
 
         Args:
             model_name (str): Name of the model to load. See available_models for
@@ -354,9 +383,8 @@ class ModelManager:
             bool | None: The success of the load. If `None`, the model was not found.
         """
         if model_name in EXCLUDED_MODEL_NAMES:
-            logger.init_warn(
+            logger.warning(
                 f"{model_name} is excluded from loading at this time. If this is unexpected, let us know on discord.",
-                status="Skipping",
             )
             return False
 
@@ -375,22 +403,60 @@ class ModelManager:
         logger.error(f"{model_name} not found")
         return None
 
-    def get_mm_pointers(self, mm_types: list[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None):
+    def get_mm_pointer(
+        self,
+        mm_type: str | MODEL_CATEGORY_NAMES | type[BaseModelManager],
+    ) -> BaseModelManager | None:
+        found_manager = self.get_mm_pointers([mm_type])
+        return found_manager[0] if len(found_manager) > 0 else None
+
+    def get_mm_pointers(
+        self,
+        mm_types: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+    ) -> list[BaseModelManager]:
+        """Returns a set of model managers based on the input Iterable of model manager types.
+
+        Args:
+            mm_types (Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]], optional): The Iterable of
+            model manager types to resolve. Defaults to None.
+
+        Returns:
+            list[BaseModelManager]: A list of the requested model managers.
+        """
         if not mm_types:
-            return set()
+            return []
+
+        if not isinstance(mm_types, list) and not isinstance(mm_types, tuple) and not isinstance(mm_types, set):
+            mm_types = [mm_types]  # type: ignore
 
         active_model_managers_types = [type(model_manager) for model_manager in self.active_model_managers]
 
         resolved_types = []
-        for mm_type in mm_types:
-            if mm_type in active_model_managers_types:
+        active_model_managers_types_names = [mm_type.__name__ for mm_type in active_model_managers_types]
+        for mm_type in mm_types:  # type: ignore
+            if isinstance(mm_type, type) and mm_type in active_model_managers_types:
                 resolved_types.append(mm_type)
+                continue
+
+            if isinstance(mm_type, type) and mm_type.__name__ in active_model_managers_types_names:
+                resolved_types.append(mm_type)
+                logger.debug(
+                    (
+                        f"Found model manager by name: {mm_type.__name__}."
+                        " This may not be the model manager you are looking for.",
+                    ),
+                )
+                continue
+
+            if not isinstance(mm_type, str) or mm_type not in MODEL_MANAGERS_TYPE_LOOKUP:
+                logger.warning(f"Attempted to reference a model manager which doesn't exist: '{mm_type}'.")
                 continue
 
             if mm_type in MODEL_MANAGERS_TYPE_LOOKUP:
                 if MODEL_MANAGERS_TYPE_LOOKUP[mm_type] not in active_model_managers_types:
                     logger.warning(f"Attempted to reference a model manager which isn't loaded: '{mm_type}'.")
-                else:
-                    resolved_types.append(MODEL_MANAGERS_TYPE_LOOKUP[mm_type])
+                    continue
 
-        return {mm for mm in self.active_model_managers if type(mm) in resolved_types}
+                resolved_types.append(MODEL_MANAGERS_TYPE_LOOKUP[mm_type])
+
+        return [mm for mm in self.active_model_managers if type(mm) in resolved_types]

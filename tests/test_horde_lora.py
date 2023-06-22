@@ -7,36 +7,28 @@ from PIL import Image
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
-from hordelib.utils.distance import are_images_identical
+
+from .testing_shared_functions import check_single_lora_image_similarity
 
 
 class TestHordeLora:
     @pytest.fixture(autouse=True, scope="class")
-    def setup_and_teardown(self):
-        TestHordeLora.horde = HordeLib()
-
-        TestHordeLora.default_model_manager_args = {
-            "compvis": True,
-            "lora": True,
-        }
-        SharedModelManager.loadModelManagers(**self.default_model_manager_args)
-        assert SharedModelManager.manager is not None
-        assert SharedModelManager.manager.lora is not None
-        SharedModelManager.manager.load("Deliberate")
-        SharedModelManager.manager.lora.download_default_loras()
-        SharedModelManager.manager.lora.wait_for_downloads()
-        TestHordeLora.distance_threshold = int(os.getenv("IMAGE_DISTANCE_THRESHOLD", "100000"))
+    def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
+        shared_model_manager.manager.lora.download_default_loras()
+        shared_model_manager.manager.lora.wait_for_downloads()
         yield
-        SharedModelManager.manager.lora.stop_all()
-        del TestHordeLora.horde
-        SharedModelManager._instance = None
-        SharedModelManager.manager = None
+        shared_model_manager.manager.lora.stop_all()
 
-    def test_text_to_image_lora_red(self):
+    def test_text_to_image_lora_red(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
 
         # Red
-        lora_name = SharedModelManager.manager.lora.get_lora_name("GlowingRunesAI")
-        trigger = SharedModelManager.manager.lora.find_lora_trigger(lora_name, "red")
+        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "red")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -55,23 +47,32 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+
         img_filename = "lora_red.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
-        assert SharedModelManager.manager.lora.get_lora_last_use("GlowingRunesAI") > datetime.now() - timedelta(
+
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+        assert shared_model_manager.manager.lora.get_lora_last_use("GlowingRunesAI") > datetime.now() - timedelta(
             minutes=1,
         )
 
-    def test_text_to_image_lora_blue(self):
-
+    def test_text_to_image_lora_blue(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
         # Blue, fuzzy search on version
-        lora_name = SharedModelManager.manager.lora.get_lora_name("GlowingRunesAI")
-        trigger = SharedModelManager.manager.lora.find_lora_trigger(lora_name, "blue")
+        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -90,21 +91,31 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+
         img_filename = "lora_blue.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
-    def test_text_to_image_lora_chained(self):
-        lora_name = SharedModelManager.manager.lora.get_lora_name("GlowingRunesAI")
-        trigger = SharedModelManager.manager.lora.find_lora_trigger(lora_name, "red")
-        trigger2 = SharedModelManager.manager.lora.find_lora_trigger(lora_name, "blue")
-        lora_name2 = SharedModelManager.manager.lora.get_lora_name("Dra9onScaleAI")
-        trigger3 = SharedModelManager.manager.lora.find_lora_trigger(lora_name, "Dr490nSc4leAI")
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+    def test_text_to_image_lora_chained(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
+        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "red")
+        trigger2 = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
+        lora_name2 = shared_model_manager.manager.lora.get_lora_name("Dra9onScaleAI")
+        trigger3 = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "Dr490nSc4leAI")
 
         data = {
             "sampler_name": "k_euler",
@@ -128,20 +139,30 @@ class TestHordeLora:
             ],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+
         img_filename = "lora_multiple.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
-    def test_text_to_image_lora_chained_bad(self):
-        lora_name = SharedModelManager.manager.lora.get_lora_name("GlowingRunesAI")
-        trigger = SharedModelManager.manager.lora.find_lora_trigger(lora_name, "blue")
-        lora_name2 = SharedModelManager.manager.lora.get_lora_name("Dra9onScaleAI")
-        trigger2 = SharedModelManager.manager.lora.find_lora_trigger(lora_name, "Dr490nSc4leAI")
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+    def test_text_to_image_lora_chained_bad(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
+        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
+        lora_name2 = shared_model_manager.manager.lora.get_lora_name("Dra9onScaleAI")
+        trigger2 = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "Dr490nSc4leAI")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -164,16 +185,21 @@ class TestHordeLora:
             ],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
         # Don't save this one, just testing we didn't crash and burn
 
-    def test_lora_trigger_inject_red(self):
+    def test_lora_trigger_inject_red(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
         # Red
-        lora_name = SharedModelManager.manager.lora.get_lora_name("GlowingRunesAI")
+        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -192,18 +218,28 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "red"}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+
         img_filename = "lora_inject_red.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
-    def test_lora_trigger_inject_any(self):
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+    def test_lora_trigger_inject_any(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
         # Red
-        lora_name = SharedModelManager.manager.lora.get_lora_name("GlowingRunesAI")
+        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -222,18 +258,28 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any"}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+
         img_filename = "lora_inject_any.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
 
-    def test_download_and_use_adhoc_lora(self):
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+    def test_download_and_use_adhoc_lora(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
         lora_name = "74384"
-        SharedModelManager.manager.lora.ensure_lora_deleted(lora_name)
+        shared_model_manager.manager.lora.ensure_lora_deleted(lora_name)
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -253,16 +299,24 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 0.75, "clip": 1.0, "inject_trigger": "any"}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+
         img_filename = "lora_download_adhoc.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        # assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
-    def test_for_probability_tensor_runtime_error(self):
+    def test_for_probability_tensor_runtime_error(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -286,13 +340,17 @@ class TestHordeLora:
             ],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
 
-    def test_sd21_lora_against_sd15_model(self):
+    def test_sd21_lora_against_sd15_model(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -314,13 +372,17 @@ class TestHordeLora:
             ],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
 
-    def test_stonepunk(self):
+    def test_stonepunk(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
 
         # Blue, fuzzy search on version
         lora_name = "51539"
@@ -342,11 +404,16 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any"}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": "Deliberate",
+            "model": stable_diffusion_modelname_for_testing,
         }
-        assert self.horde is not None
-        pil_image = self.horde.basic_inference(data)
+
+        pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+
         img_filename = "lora_stonepunk.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )

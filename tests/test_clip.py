@@ -1,45 +1,36 @@
 # test_horde.py
 import pytest
-from clipfree.clip.interrogate import Interrogator
 from PIL import Image
 
+from hordelib.clip.interrogate import Interrogator
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestHordeClip:
+    @pytest.fixture(scope="class")
+    def interrogator(self) -> type[Interrogator]:
+        return Interrogator
+
     @pytest.fixture(autouse=True, scope="class")
-    def setup_and_teardown(self):
-        TestHordeClip.horde = HordeLib()
-
-        TestHordeClip.default_model_manager_args = {
-            # aitemplate
-            # "blip": True,
-            "clip": True,
-            # "codeformer": True,
-            # "compvis": True,
-            # "controlnet": True,
-            # "diffusers": True,
-            # "esrgan": True,
-            # "gfpgan": True,
-            # "safety_checker": True,
-        }
-        TestHordeClip.image = Image.open("images/test_db0.jpg")
-        SharedModelManager.loadModelManagers(**self.default_model_manager_args)
-        assert SharedModelManager.manager is not None
-        SharedModelManager.manager.load("ViT-L/14")
+    def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
+        shared_model_manager.load_model_managers(["clip"])
+        shared_model_manager.manager.load("ViT-L/14")
+        assert shared_model_manager.manager.is_model_loaded("ViT-L/14") is True
         yield
-        del TestHordeClip.horde
-        SharedModelManager._instance = None
-        SharedModelManager.manager = None
+        shared_model_manager.manager.unload_model("ViT-L/14")
+        assert not shared_model_manager.manager.is_model_loaded("ViT-L/14")
 
-    def test_clip_similarities(self):
-        assert SharedModelManager.manager.is_model_loaded("ViT-L/14") is True
+    def test_clip_similarities(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        db0_test_image: Image,
+    ):
         word_list = ["outlaw", "explosion", "underwater"]
-        model_info = SharedModelManager.manager.loaded_models["ViT-L/14"]
+        model_info = shared_model_manager.manager.loaded_models["ViT-L/14"]
         interrogator = Interrogator(model_info)
         similarity_result = interrogator(
-            image=self.image,
+            image=db0_test_image,
             text_array=word_list,
             similarity=True,
         )
@@ -48,12 +39,15 @@ class TestHordeClip:
         assert similarity_result["default"]["explosion"] > 0.15
         assert similarity_result["default"]["underwater"] < 0.15
 
-    def test_clip_rankings(self):
-        assert SharedModelManager.manager.is_model_loaded("ViT-L/14") is True
-        model_info = SharedModelManager.manager.loaded_models["ViT-L/14"]
+    def test_clip_rankings(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        db0_test_image: Image,
+    ):
+        model_info = shared_model_manager.manager.loaded_models["ViT-L/14"]
         interrogator = Interrogator(model_info)
         ranking_result = interrogator(
-            image=self.image,
+            image=db0_test_image,
             rank=True,
         )
         assert type(ranking_result) is dict

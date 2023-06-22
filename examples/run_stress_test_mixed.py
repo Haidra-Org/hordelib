@@ -16,6 +16,7 @@ if __name__ != "__main__":
 import hordelib
 
 hordelib.initialise(setup_logging=False)
+from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
@@ -39,7 +40,15 @@ out_dir = f"images/stresstest/{os.path.splitext(os.path.basename(sys.argv[0]))[0
 os.makedirs(out_dir, exist_ok=True)
 
 generate = HordeLib()
-SharedModelManager.loadModelManagers(compvis=True, controlnet=True, codeformer=True, esrgan=True, gfpgan=True)
+SharedModelManager.load_model_managers(
+    [
+        MODEL_CATEGORY_NAMES.codeformer,
+        MODEL_CATEGORY_NAMES.compvis,
+        MODEL_CATEGORY_NAMES.controlnet,
+        MODEL_CATEGORY_NAMES.esrgan,
+        MODEL_CATEGORY_NAMES.gfpgan,
+    ],
+)
 
 models = ["Deliberate", "Anything Diffusion", "Realistic Vision", "URPM"]
 cnets = ["canny", "hed", "fakescribbles", "depth", "normal", "hough"]

@@ -9,11 +9,17 @@ import hordelib
 def main():
     hordelib.initialise(setup_logging=False)
 
+    from hordelib.consts import MODEL_CATEGORY_NAMES
     from hordelib.horde import HordeLib
     from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
-    SharedModelManager.loadModelManagers(compvis=True, lora=True)
+    SharedModelManager.load_model_managers(
+        [
+            MODEL_CATEGORY_NAMES.compvis,
+            MODEL_CATEGORY_NAMES.lora,
+        ],
+    )
     SharedModelManager.manager.lora.download_default_loras()
     SharedModelManager.manager.lora.wait_for_downloads()
     SharedModelManager.manager.load("Deliberate")

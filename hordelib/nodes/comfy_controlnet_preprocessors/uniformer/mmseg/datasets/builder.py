@@ -10,15 +10,18 @@ from comfy_controlnet_preprocessors.uniformer.mmcv.runner import get_dist_info
 from comfy_controlnet_preprocessors.uniformer.mmcv.utils import Registry, build_from_cfg
 from comfy_controlnet_preprocessors.uniformer.mmcv.utils.parrots_wrapper import DataLoader, PoolDataLoader
 from torch.utils.data import DistributedSampler
+import torch
 
 if platform.system() != "Windows":
-    # https://github.com/pytorch/pytorch/issues/973
-    import resource
+    torch.multiprocessing.set_sharing_strategy("file_system")
+# if platform.system() != "Windows":
+#     # https://github.com/pytorch/pytorch/issues/973
+#     import resource
 
-    rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
-    hard_limit = rlimit[1]
-    soft_limit = min(4096, hard_limit)
-    resource.setrlimit(resource.RLIMIT_NOFILE, (soft_limit, hard_limit))
+#     rlimit = resource.getrlimit(resource.RLIMIT_NOFILE)
+#     hard_limit = rlimit[1]
+#     soft_limit = min(4096, hard_limit)
+#     resource.setrlimit(resource.RLIMIT_NOFILE, (soft_limit, hard_limit))
 
 DATASETS = Registry("dataset", sys.modules[__name__])
 PIPELINES = Registry("pipeline", sys.modules[__name__])

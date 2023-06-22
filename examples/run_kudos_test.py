@@ -15,6 +15,7 @@ import hordelib
 hordelib.initialise(setup_logging=True, clear_logs=True)
 
 from hordelib.comfy_horde import cleanup
+from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.horde import HordeLib
 from hordelib.settings import UserSettings
 from hordelib.shared_model_manager import SharedModelManager
@@ -76,7 +77,15 @@ def calculate_kudos_cost(base_time, job_data):
 
 def main():
     horde = HordeLib()
-    SharedModelManager.loadModelManagers(compvis=True, controlnet=True, esrgan=True, gfpgan=True, codeformer=True)
+    SharedModelManager.load_model_managers(
+        [
+            MODEL_CATEGORY_NAMES.compvis,
+            MODEL_CATEGORY_NAMES.controlnet,
+            MODEL_CATEGORY_NAMES.esrgan,
+            MODEL_CATEGORY_NAMES.gfpgan,
+            MODEL_CATEGORY_NAMES.codeformer,
+        ],
+    )
 
     add_model("stable_diffusion")
 

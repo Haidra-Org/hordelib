@@ -10,10 +10,12 @@ import re
 import time
 import sys
 import typing
+import types
 import uuid
 import random
 import threading
 from pprint import pformat
+import requests
 
 import torch
 from loguru import logger
@@ -22,25 +24,101 @@ from hordelib.settings import UserSettings
 from hordelib.utils.ioredirect import OutputCollector
 from hordelib.config_path import get_hordelib_path
 
-# Note these imports are intentionally somewhat obfuscated as a reminder to other modules
-# that they should never call through this module into comfy directly. All calls into
-# comfy should be abstracted through functions in this module.
+# Note It may not be abundantly clear with no context what is going on below, and I will attempt to clarify:
+#
+# The nature of packaging comfyui leads to a situation where some trickery takes place in
+# `hordelib.initialise()` in order for the imports below to work. Calling that function is therefore a prerequisite
+# to using any of the functions in this module. If you do not, you will get an exception as reaching into comfyui is
+# impossible without it.
+#
+# As for having the imports below in a function, this is to ensure that `hordelib.initialise()` has done its magic. It
+# in turn calls `do_comfy_import()`.
+#
+# There may be other ways to skin this cat, but this strategy minimizes certain kinds of hassle.
+#
+# If you tamper with the code in this module to bring the imports out of the function, you may find that you have
+# broken, among other things, the ability of pytest to do its test discovery because you will have lost the ability for
+# modules which, directly or otherwise, import this module without having called `hordelib.initialise()`. Pytest
+# discovery will come across those imports, valiantly attempt to import them and fail with a cryptic error message.
+#
+# Correspondingly, you will find that to be an enormous hassle if you are are trying to leverage pytest in any
+# reasonability sophisticated way (outside of tox), and you will be forced to adopt solution below or something
+# equally obtuse, or in lieu of either of those, abandon all hope and give up on the idea of attempting to develop any
+# new features or author new tests for hordelib.
+#
+# Keen readers may have noticed that the aforementioned issues could be side stepped by simply calling
+# `hordelib.initialise()` automatically, such as in `test/__init__.py` or in a `conftest.py`. You would be correct,
+# but that would be a terrible idea if you ever intended to make alterations to the patch file, as each time you
+# triggered pytest discovery which could be as frequently as *every time you save a file* (such as with VSCode), and
+# you would enter a situation where the patch was automatically being applied at times you may not intend.
+#
+# This would be a nightmare to debug, as this author is able to attest to.
+#
+# Further, if you are like myself, and enjoy type hints, you will find that any modules have this file in their import
+# chain will be un-importable in certain contexts and you would be unable to provide the relevant type hints.
+#
+# Having read this, I suggest you glance at the code in `hordelib.initialise()` to get a sense of what is going on
+# there, and if you're still confused, ask a hordelib dev who would be happy to share the burden of understanding.
+
+
+_comfy_nodes: types.ModuleType
+_comfy_PromptExecutor: types.ModuleType
+_comfy_validate_prompt: types.ModuleType
+_comfy_folder_paths: types.ModuleType
+__comfy_load_checkpoint_guess_config: types.FunctionType
+__comfy_load_controlnet: types.FunctionType
+_comfy_model_manager: types.ModuleType | None = None
+__comfy_get_torch_device: types.FunctionType
+__comfy_get_free_memory: types.FunctionType
+__comfy_load_torch_file: types.FunctionType
+_comfy_model_loading: types.ModuleType
+_canny: types.ModuleType
+_hed: types.ModuleType
+_leres: types.ModuleType
+_midas: types.ModuleType
+_mlsd: types.ModuleType
+_openpose: types.ModuleType
+_pidinet: types.ModuleType
+_uniformer: types.ModuleType
+
+
 # isort: off
-from execution import nodes as _comfy_nodes
-from execution import PromptExecutor as _comfy_PromptExecutor
-from execution import validate_prompt as _comfy_validate_prompt
-from folder_paths import folder_names_and_paths as _comfy_folder_paths
-from comfy.sd import load_checkpoint_guess_config as __comfy_load_checkpoint_guess_config
-from comfy.sd import load_controlnet as __comfy_load_controlnet
-from comfy.model_management import model_manager as _comfy_model_manager
-from comfy.model_management import get_torch_device as __comfy_get_torch_device
-from comfy.model_management import get_free_memory as __comfy_get_free_memory
-from comfy.utils import load_torch_file as __comfy_load_torch_file
-from comfy_extras.chainner_models import model_loading as _comfy_model_loading
+def do_comfy_import():
+    global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt, _comfy_folder_paths
+    global __comfy_load_checkpoint_guess_config, __comfy_load_controlnet, _comfy_model_manager
+    global __comfy_get_torch_device, __comfy_get_free_memory, __comfy_load_torch_file, _comfy_model_loading
+    global _canny, _hed, _leres, _midas, _mlsd, _openpose, _pidinet, _uniformer
+
+    # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
+    # that they should never call through this module into comfy directly. All calls into
+    # comfy should be abstracted through functions in this module.
+
+    from execution import nodes as _comfy_nodes  # type: ignore
+    from execution import PromptExecutor as _comfy_PromptExecutor
+    from execution import validate_prompt as _comfy_validate_prompt
+    from folder_paths import folder_names_and_paths as _comfy_folder_paths  # type: ignore
+    from comfy.sd import load_checkpoint_guess_config as __comfy_load_checkpoint_guess_config  # type: ignore
+    from comfy.sd import load_controlnet as __comfy_load_controlnet
+    from comfy.model_management import model_manager as _comfy_model_manager  # type: ignore
+    from comfy.model_management import get_torch_device as __comfy_get_torch_device
+    from comfy.model_management import get_free_memory as __comfy_get_free_memory
+    from comfy.utils import load_torch_file as __comfy_load_torch_file  # type: ignore
+    from comfy_extras.chainner_models import model_loading as _comfy_model_loading  # type: ignore
+    from hordelib.nodes.comfy_controlnet_preprocessors import (
+        canny as _canny,
+        hed as _hed,
+        leres as _leres,
+        midas as _midas,
+        mlsd as _mlsd,
+        openpose as _openpose,
+        pidinet as _pidinet,
+        uniformer as _uniformer,
+    )
+
 
 # isort: on
 
-__models_to_release = {}
+__models_to_release: dict[str, dict[str, typing.Any]] = {}
 __model_load_mutex = threading.Lock()
 
 
@@ -139,7 +217,7 @@ def horde_load_checkpoint(
     ckpt_path: str,
     output_vae: bool = True,
     output_clip: bool = True,
-    embeddings_path: str | None = None,
+    embeddings_path: str = None,
 ) -> dict[str, typing.Any]:  # XXX # FIXME 'any'
     # XXX Needs docstring
     # XXX # TODO One day this signature should be generic, and not comfy specific
@@ -236,6 +314,8 @@ class Comfy_Horde:
             self._images[tid] = images
 
     def __init__(self) -> None:
+        if _comfy_model_manager is None:
+            raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
         self._client_id = {}
         self._images = {}
         self.pipelines = {}
@@ -560,3 +640,45 @@ class Comfy_Horde:
             return result
 
         return None
+
+
+ANNOTATOR_MODEL_SHA_LOOKUP: dict[str, str] = {
+    "body_pose_model.pth": "25a948c16078b0f08e236bda51a385d855ef4c153598947c28c0d47ed94bb746",
+    "dpt_hybrid-midas-501f0c75.pt": "501f0c75b3bca7daec6b3682c5054c09b366765aef6fa3a09d03a5cb4b230853",
+    "hand_pose_model.pth": "b76b00d1750901abd07b9f9d8c98cc3385b8fe834a26d4b4f0aad439e75fc600",
+    "mlsd_large_512_fp32.pth": "5696f168eb2c30d4374bbfd45436f7415bb4d88da29bea97eea0101520fba082",
+    "network-bsds500.pth": "58a858782f5fa3e0ca3dc92e7a1a609add93987d77be3dfa54f8f8419d881a94",
+    "res101.pth": "1d696b2ef3e8336b057d0c15bc82d2fecef821bfebe5ef9d7671a5ec5dde520b",
+    "upernet_global_small.pth": "bebfa1264c10381e389d8065056baaadbdadee8ddc6e36770d1ec339dc84d970",
+}
+"""The annotator precomputed SHA hashes; the dict is in the form of `{"filename": "hash", ...}."""
+
+
+def download_all_controlnet_annotators() -> bool:
+    """Will start the download of all the models needed for the controlnet annotators."""
+    annotator_init_funcs = [
+        _canny.CannyDetector,
+        _hed.HEDdetector,
+        _midas.MidasDetector,
+        _mlsd.MLSDdetector,
+        _openpose.OpenposeDetector,
+        _uniformer.UniformerDetector,
+        _leres.download_model_if_not_existed,
+        _pidinet.download_if_not_existed,
+    ]
+
+    try:
+        logger.info(
+            f"Downloading {len(annotator_init_funcs)} controlnet annotators if required. Please wait.",
+        )
+        for i, annotator_init_func in enumerate(annotator_init_funcs):
+            # Give some basic progress indication
+            logger.info(
+                f"{i+1} of {len(annotator_init_funcs)}",
+            )
+            annotator_init_func()
+        return True
+    except (OSError, requests.exceptions.RequestException) as e:
+        logger.error(f"Failed to download annotator: {e}")
+
+    return False

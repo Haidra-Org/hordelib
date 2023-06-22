@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import math
 import time
-from scipy.ndimage.filters import gaussian_filter
+from scipy.ndimage import gaussian_filter
 import torch
 from torchvision import transforms
 

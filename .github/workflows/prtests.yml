@@ -20,7 +20,6 @@ jobs:
     runs-on: self-hosted
     env:
       HORDELIB_TESTING: "no-cuda"
-      IMAGE_DISTANCE_THRESHOLD: "10000"
       TESTS_ONGOING: "1"
     strategy:
       matrix:

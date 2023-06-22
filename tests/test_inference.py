@@ -6,29 +6,21 @@ from PIL import Image
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
-from hordelib.utils.distance import are_images_identical
+
+from .testing_shared_functions import CosineSimilarityResultCode, check_single_inference_image_similarity
 
 
 class TestInference:
-    comfy: Comfy_Horde
-
-    @pytest.fixture(autouse=True, scope="class")
-    def setup_and_teardown(self):
-        TestInference.comfy = Comfy_Horde()
-        SharedModelManager.loadModelManagers(compvis=True)
-        assert SharedModelManager.manager is not None
-        SharedModelManager.manager.load("Deliberate")
-        TestInference.distance_threshold = int(os.getenv("IMAGE_DISTANCE_THRESHOLD", "100000"))
-        yield
-        del TestInference.comfy
-        SharedModelManager._instance = None
-        SharedModelManager.manager = None
-
-    def test_unknown_pipeline(self):
-        result = self.comfy.run_image_pipeline("non-existent-pipeline", {})
+    def test_unknown_pipeline(self, isolated_comfy_horde_instance: Comfy_Horde):
+        result = isolated_comfy_horde_instance.run_image_pipeline("non-existent-pipeline", {})
         assert result is None
 
-    def test_stable_diffusion_pipeline(self):
+    def test_stable_diffusion_pipeline(
+        self,
+        stable_diffusion_modelname_for_testing: str,
+        shared_model_manager: type[SharedModelManager],
+        isolated_comfy_horde_instance: Comfy_Horde,
+    ):
         params = {
             "sampler.sampler_name": "dpmpp_2m",
             "sampler.cfg": 7.5,
@@ -41,19 +33,27 @@ class TestInference:
             "sampler.steps": 25,
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
-            "model_loader.model_name": "Deliberate",
+            "model_loader.model_name": stable_diffusion_modelname_for_testing,
             "clip_skip.stop_at_clip_layer": -1,
-            "model_loader.model_manager": SharedModelManager,
+            "model_loader.model_manager": shared_model_manager,
         }
-        images = self.comfy.run_image_pipeline("stable_diffusion", params)
+        images = isolated_comfy_horde_instance.run_image_pipeline("stable_diffusion", params)
         assert images is not None
 
         pil_image = Image.open(images[0]["imagedata"])
         img_filename = "pipeline_stable_diffusion.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
-    def test_stable_diffusion_pipeline_clip_skip(self):
+    def test_stable_diffusion_pipeline_clip_skip(
+        self,
+        stable_diffusion_modelname_for_testing: str,
+        shared_model_manager: type[SharedModelManager],
+        isolated_comfy_horde_instance: Comfy_Horde,
+    ):
         params = {
             "sampler.sampler_name": "dpmpp_2m",
             "sampler.cfg": 7.5,
@@ -66,19 +66,27 @@ class TestInference:
             "sampler.steps": 25,
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
-            "model_loader.model_name": "Deliberate",
+            "model_loader.model_name": stable_diffusion_modelname_for_testing,
             "clip_skip.stop_at_clip_layer": -2,
-            "model_loader.model_manager": SharedModelManager,
+            "model_loader.model_manager": shared_model_manager,
         }
-        images = self.comfy.run_image_pipeline("stable_diffusion", params)
+        images = isolated_comfy_horde_instance.run_image_pipeline("stable_diffusion", params)
         assert images is not None
 
         pil_image = Image.open(images[0]["imagedata"])
         img_filename = "pipeline_stable_diffusion_clip_skip_2.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
-    def test_stable_diffusion_hires_fix_pipeline(self):
+    def test_stable_diffusion_hires_fix_pipeline(
+        self,
+        stable_diffusion_modelname_for_testing: str,
+        shared_model_manager: type[SharedModelManager],
+        isolated_comfy_horde_instance: Comfy_Horde,
+    ):
         params = {
             "sampler.seed": 1014,
             "sampler.cfg": 7.5,
@@ -95,8 +103,8 @@ class TestInference:
             "negative_prompt.text": (
                 "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes"
             ),
-            "model_loader.model_name": "Deliberate",
-            "model_loader.model_manager": SharedModelManager,
+            "model_loader.model_name": stable_diffusion_modelname_for_testing,
+            "model_loader.model_manager": shared_model_manager,
             "empty_latent_image.width": 512,
             "empty_latent_image.height": 512,
             "latent_upscale.width": 768,
@@ -111,19 +119,25 @@ class TestInference:
             "upscale_sampler.denoise": 0.65,
             "clip_skip.stop_at_clip_layer": -1,
         }
-        images = self.comfy.run_image_pipeline("stable_diffusion_hires_fix", params)
+        images = isolated_comfy_horde_instance.run_image_pipeline("stable_diffusion_hires_fix", params)
         assert images is not None
 
         pil_image = Image.open(images[0]["imagedata"])
         img_filename = "pipeline_stable_diffusion_hires_fix.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
         params["clip_skip.stop_at_clip_layer"] = -2
-        images = self.comfy.run_image_pipeline("stable_diffusion_hires_fix", params)
+        images = isolated_comfy_horde_instance.run_image_pipeline("stable_diffusion_hires_fix", params)
         assert images is not None
 
         pil_image = Image.open(images[0]["imagedata"])
         img_filename = "pipeline_stable_diffusion_hires_fix_clip_skip_2.png"
         pil_image.save(f"images/{img_filename}", quality=100)
-        assert are_images_identical(f"images_expected/{img_filename}", pil_image, self.distance_threshold)
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )

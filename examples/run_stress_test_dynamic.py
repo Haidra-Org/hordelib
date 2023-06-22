@@ -10,6 +10,8 @@ import time
 from loguru import logger
 from PIL import Image
 
+from hordelib.consts import MODEL_CATEGORY_NAMES
+
 if __name__ != "__main__":
     exit(0)
 
@@ -37,7 +39,7 @@ out_dir = f"images/stresstest/{os.path.splitext(os.path.basename(sys.argv[0]))[0
 os.makedirs(out_dir, exist_ok=True)
 
 generate = HordeLib()
-SharedModelManager.loadModelManagers(compvis=True, controlnet=True)
+SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis, MODEL_CATEGORY_NAMES.controlnet])
 
 initmodels = [
     random.choice(SharedModelManager.manager.compvis.available_models),

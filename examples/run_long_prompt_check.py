@@ -4,6 +4,7 @@ import time
 from loguru import logger
 
 import hordelib
+from hordelib.consts import MODEL_CATEGORY_NAMES
 
 metrics = {}
 last_label = ""
@@ -30,7 +31,7 @@ def main():
     from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
-    SharedModelManager.loadModelManagers(compvis=True)
+    SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis])
     SharedModelManager.manager.load("Deliberate")
 
     # As basic as we can get data
