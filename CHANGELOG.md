@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v1.6.0](https://github.com/jug-dev/hordelib/compare/v1.5.2...v1.6.0)
+
+21 June 2023
+
+- refactor: prefer load MMs by enum/type, deprecate named MM params [`4505d89`](https://github.com/jug-dev/hordelib/commit/4505d8948f3522b510b6548187127166f09747c0)  (tazlin)
+- refactor: rework SharedModelManager tests to `conftest.py` driven fixtures [`8694513`](https://github.com/jug-dev/hordelib/commit/8694513f5370bbd2f8f6ee17be24e8cf664c0b19)  (tazlin)
+- refactor: rework post processor tests to `conftest.py` driven fixtures [`182cb3c`](https://github.com/jug-dev/hordelib/commit/182cb3c6722baf030d348b4a75dbe7c5d107bed5)  (tazlin)
+
 ## [v1.5.2](https://github.com/jug-dev/hordelib/compare/v1.5.1...v1.5.2)
 
 12 June 2023
