@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v1.6.2](https://github.com/jug-dev/hordelib/compare/v1.6.1...v1.6.2)
+
+25 June 2023
+
+- fix: quiet log spam from `get_mm_pointers(...)` [`4301d0c`](https://github.com/jug-dev/hordelib/commit/4301d0cc1b4f5ccd251ee26230dabf76cac24a28)  (tazlin)
+
 ## [v1.6.1](https://github.com/jug-dev/hordelib/compare/v1.6.0...v1.6.1)
 
 22 June 2023
