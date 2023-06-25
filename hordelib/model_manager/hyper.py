@@ -462,12 +462,12 @@ class ModelManager:
                 continue
 
             if not isinstance(mm_type, str) or mm_type not in MODEL_MANAGERS_TYPE_LOOKUP:
-                logger.warning(f"Attempted to reference a model manager which doesn't exist: '{mm_type}'.")
+                logger.debug(f"Attempted to reference a model manager which doesn't exist: '{mm_type}'.")
                 continue
 
             if mm_type in MODEL_MANAGERS_TYPE_LOOKUP:
                 if MODEL_MANAGERS_TYPE_LOOKUP[mm_type] not in active_model_managers_types:
-                    logger.warning(f"Attempted to reference a model manager which isn't loaded: '{mm_type}'.")
+                    logger.debug(f"Attempted to reference a model manager which isn't loaded: '{mm_type}'.")
                     continue
 
                 resolved_types.append(MODEL_MANAGERS_TYPE_LOOKUP[mm_type])
