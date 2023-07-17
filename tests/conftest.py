@@ -1,8 +1,8 @@
 from typing import Generator
 
 import PIL.Image
-from loguru import logger
 import pytest
+from loguru import logger
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.horde import HordeLib
