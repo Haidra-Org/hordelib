@@ -24,7 +24,7 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -50,7 +50,7 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
@@ -72,7 +72,7 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -98,7 +98,7 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)
@@ -117,7 +117,7 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -150,7 +150,7 @@ class TestHordeLora:
             ],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)
@@ -169,7 +169,7 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -200,7 +200,7 @@ class TestHordeLora:
             ],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)
@@ -211,7 +211,7 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -235,7 +235,7 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "red"}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)
@@ -254,7 +254,7 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -278,7 +278,7 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any"}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)
@@ -297,7 +297,7 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -322,7 +322,7 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 0.75, "clip": 1.0, "inject_trigger": "any"}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)
@@ -339,7 +339,7 @@ class TestHordeLora:
     def test_for_probability_tensor_runtime_error(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         data = {
             "sampler_name": "k_euler",
@@ -364,7 +364,7 @@ class TestHordeLora:
             ],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)
@@ -373,7 +373,7 @@ class TestHordeLora:
     def test_sd21_lora_against_sd15_model(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         data = {
             "sampler_name": "k_euler",
@@ -396,7 +396,7 @@ class TestHordeLora:
             ],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)
@@ -405,7 +405,7 @@ class TestHordeLora:
     def test_stonepunk(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         # Blue, fuzzy search on version
         lora_name = "51539"
@@ -427,7 +427,7 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any"}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)

@@ -1,6 +1,7 @@
 from typing import Generator
 
 import PIL.Image
+from loguru import logger
 import pytest
 
 from hordelib.comfy_horde import Comfy_Horde
@@ -20,6 +21,7 @@ def init_horde():
     hordelib.initialise()
     from hordelib.settings import UserSettings
 
+    UserSettings.set_ram_to_leave_free_mb("100%")
     UserSettings.set_vram_to_leave_free_mb("90%")
 
 
@@ -50,20 +52,26 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager.manager.blip is not None
     assert SharedModelManager.manager.clip is not None
 
+    for model_availible in SharedModelManager.manager.compvis.get_loaded_models():
+        assert SharedModelManager.manager.unload_model(model_availible)
+
     yield SharedModelManager
 
     SharedModelManager._instance = None  # type: ignore
     SharedModelManager.manager = None  # type: ignore
 
 
+_testing_model_name = "Deliberate"
+
+
 @pytest.fixture(scope="class")
-def stable_diffusion_modelname_for_testing(shared_model_manager: type[SharedModelManager]) -> str:
+def stable_diffusion_model_name_for_testing(shared_model_manager: type[SharedModelManager]) -> str:
     """Loads the stable diffusion model for testing. This model is used by many tests.
     This fixture returns the model name as string."""
     shared_model_manager.load_model_managers([CompVisModelManager])
-    model_name = "Deliberate"
-    assert shared_model_manager.manager.load(model_name)
-    return model_name
+
+    assert shared_model_manager.manager.load(_testing_model_name)
+    return _testing_model_name
 
 
 @pytest.fixture(scope="session")

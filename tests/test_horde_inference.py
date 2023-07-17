@@ -14,7 +14,7 @@ class TestHordeInference:
     def test_text_to_image(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -33,10 +33,11 @@ class TestHordeInference:
             "prompt": "an ancient llamia monster",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "text_to_image.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -49,7 +50,7 @@ class TestHordeInference:
     def test_text_to_image_small(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -68,10 +69,11 @@ class TestHordeInference:
             "prompt": "a photo of cute dinosaur ### painting, drawing, artwork, red border",
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "text_to_image_small.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -84,7 +86,7 @@ class TestHordeInference:
     def test_text_to_image_clip_skip_2(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -103,10 +105,11 @@ class TestHordeInference:
             "prompt": "an ancient llamia monster",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "text_to_image_clip_skip_2.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -119,7 +122,7 @@ class TestHordeInference:
     def test_text_to_image_hires_fix(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -138,10 +141,11 @@ class TestHordeInference:
             "prompt": "an ancient llamia monster",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "text_to_image_hires_fix.png"
         pil_image.save(f"images/{img_filename}", quality=100)

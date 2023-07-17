@@ -13,7 +13,7 @@ from .testing_shared_functions import check_single_inference_image_similarity
 class TestHordeInference:
     def test_image_to_image(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         hordelib_instance: HordeLib,
     ):
         data = {
@@ -33,7 +33,7 @@ class TestHordeInference:
             "prompt": "a dinosaur",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
@@ -51,7 +51,7 @@ class TestHordeInference:
 
     def test_image_to_image_hires_fix_small(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         hordelib_instance: HordeLib,
     ):
         data = {
@@ -71,7 +71,7 @@ class TestHordeInference:
             "prompt": "a dinosaur",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
@@ -89,7 +89,7 @@ class TestHordeInference:
 
     def test_image_to_image_hires_fix_large(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         hordelib_instance: HordeLib,
     ):
         data = {
@@ -109,7 +109,7 @@ class TestHordeInference:
             "prompt": "a dinosaur",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
@@ -126,7 +126,7 @@ class TestHordeInference:
 
     def test_img2img_masked_denoise_1(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         hordelib_instance: HordeLib,
     ):
         data = {
@@ -141,7 +141,7 @@ class TestHordeInference:
             "prompt": "a mecha robot sitting on a bench",
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
@@ -159,7 +159,7 @@ class TestHordeInference:
 
     def test_img2img_masked_denoise_high(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         hordelib_instance: HordeLib,
     ):
         data = {
@@ -174,7 +174,7 @@ class TestHordeInference:
             "prompt": "a mecha robot sitting on a bench",
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
@@ -192,7 +192,7 @@ class TestHordeInference:
 
     def test_img2img_masked_denoise_mid(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         hordelib_instance: HordeLib,
     ):
         data = {
@@ -207,7 +207,7 @@ class TestHordeInference:
             "prompt": "a mecha robot sitting on a bench",
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
@@ -225,7 +225,7 @@ class TestHordeInference:
 
     def test_img2img_masked_denoise_low(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         hordelib_instance: HordeLib,
     ):
         data = {
@@ -240,7 +240,7 @@ class TestHordeInference:
             "prompt": "a mecha robot sitting on a bench",
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
@@ -258,7 +258,7 @@ class TestHordeInference:
 
     def test_image_to_faulty_source_image(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         hordelib_instance: HordeLib,
     ):
         data = {
@@ -278,7 +278,7 @@ class TestHordeInference:
             "prompt": "an ancient llamia monster",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": "THIS SHOULD FAILOVER TO TEXT2IMG",
             "source_processing": "img2img",
         }
