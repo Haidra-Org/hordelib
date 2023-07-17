@@ -63,14 +63,14 @@ from hordelib.config_path import get_hordelib_path
 
 _comfy_nodes: types.ModuleType
 _comfy_PromptExecutor: types.ModuleType
-_comfy_validate_prompt: types.ModuleType
+_comfy_validate_prompt: types.FunctionType
 _comfy_folder_paths: types.ModuleType
-__comfy_load_checkpoint_guess_config: types.FunctionType
-__comfy_load_controlnet: types.FunctionType
+_comfy_load_checkpoint_guess_config: types.FunctionType
+_comfy_load_controlnet: types.FunctionType
 _comfy_model_manager: types.ModuleType | None = None
-__comfy_get_torch_device: types.FunctionType
-__comfy_get_free_memory: types.FunctionType
-__comfy_load_torch_file: types.FunctionType
+_comfy_get_torch_device: types.FunctionType
+_comfy_get_free_memory: types.FunctionType
+_comfy_load_torch_file: types.FunctionType
 _comfy_model_loading: types.ModuleType
 _canny: types.ModuleType
 _hed: types.ModuleType
@@ -85,8 +85,8 @@ _uniformer: types.ModuleType
 # isort: off
 def do_comfy_import():
     global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt, _comfy_folder_paths
-    global __comfy_load_checkpoint_guess_config, __comfy_load_controlnet, _comfy_model_manager
-    global __comfy_get_torch_device, __comfy_get_free_memory, __comfy_load_torch_file, _comfy_model_loading
+    global _comfy_load_checkpoint_guess_config, _comfy_load_controlnet, _comfy_model_manager
+    global _comfy_get_torch_device, _comfy_get_free_memory, _comfy_load_torch_file, _comfy_model_loading
     global _canny, _hed, _leres, _midas, _mlsd, _openpose, _pidinet, _uniformer
 
     # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
@@ -94,25 +94,25 @@ def do_comfy_import():
     # comfy should be abstracted through functions in this module.
 
     from execution import nodes as _comfy_nodes  # type: ignore
-    from execution import PromptExecutor as _comfy_PromptExecutor
-    from execution import validate_prompt as _comfy_validate_prompt
+    from execution import PromptExecutor as _comfy_PromptExecutor  # type: ignore
+    from execution import validate_prompt as _comfy_validate_prompt  # type: ignore
     from folder_paths import folder_names_and_paths as _comfy_folder_paths  # type: ignore
-    from comfy.sd import load_checkpoint_guess_config as __comfy_load_checkpoint_guess_config  # type: ignore
-    from comfy.sd import load_controlnet as __comfy_load_controlnet
+    from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config  # type: ignore
+    from comfy.sd import load_controlnet as _comfy_load_controlnet  # type: ignore
     from comfy.model_management import model_manager as _comfy_model_manager  # type: ignore
-    from comfy.model_management import get_torch_device as __comfy_get_torch_device
-    from comfy.model_management import get_free_memory as __comfy_get_free_memory
-    from comfy.utils import load_torch_file as __comfy_load_torch_file  # type: ignore
+    from comfy.model_management import get_torch_device as _comfy_get_torch_device  # type: ignore
+    from comfy.model_management import get_free_memory as _comfy_get_free_memory  # type: ignore
+    from comfy.utils import load_torch_file as _comfy_load_torch_file  # type: ignore
     from comfy_extras.chainner_models import model_loading as _comfy_model_loading  # type: ignore
     from hordelib.nodes.comfy_controlnet_preprocessors import (
-        canny as _canny,
-        hed as _hed,
-        leres as _leres,
-        midas as _midas,
-        mlsd as _mlsd,
-        openpose as _openpose,
-        pidinet as _pidinet,
-        uniformer as _uniformer,
+        canny as _canny,  # type: ignore
+        hed as _hed,  # type: ignore
+        leres as _leres,  # type: ignore
+        midas as _midas,  # type: ignore
+        mlsd as _mlsd,  # type: ignore
+        openpose as _openpose,  # type: ignore
+        pidinet as _pidinet,  # type: ignore
+        uniformer as _uniformer,  # type: ignore
     )
 
 
@@ -123,11 +123,11 @@ __model_load_mutex = threading.Lock()
 
 
 def cleanup():
-    locked = _comfy_model_manager.sampler_mutex.acquire(timeout=0)
+    locked = _comfy_model_manager.sampler_mutex.acquire(timeout=0)  # type: ignore
     if locked:
         # Do we have any models waiting to be released?
         if not __models_to_release:
-            _comfy_model_manager.sampler_mutex.release()
+            _comfy_model_manager.sampler_mutex.release()  # type: ignore
             return
 
         # Can we release any of them?
@@ -153,7 +153,7 @@ def cleanup():
             gc.collect()
             logger.debug(f"Removal of model {model_name} completed")
 
-        _comfy_model_manager.sampler_mutex.release()
+        _comfy_model_manager.sampler_mutex.release()  # type: ignore
 
 
 def remove_model_from_memory(model_name, model_data):
@@ -165,19 +165,19 @@ def remove_model_from_memory(model_name, model_data):
 
 
 def get_models_on_gpu():
-    return _comfy_model_manager.get_models_on_gpu()
+    return _comfy_model_manager.get_models_on_gpu()  # type: ignore
 
 
 def get_torch_device():
-    return __comfy_get_torch_device()
+    return _comfy_get_torch_device()
 
 
 def get_torch_free_vram_mb():
-    return round(__comfy_get_free_memory() / (1024 * 1024))
+    return round(_comfy_get_free_memory() / (1024 * 1024))
 
 
 def unload_model_from_gpu(model):
-    _comfy_model_manager.unload_model(model)
+    _comfy_model_manager.unload_model(model)  # type: ignore
     garbage_collect()
 
 
@@ -192,19 +192,19 @@ def garbage_collect():
 
 def load_model_to_gpu(model):
     # Don't bother if there isn't any space
-    if not _comfy_model_manager.have_free_vram():
+    if not _comfy_model_manager.have_free_vram():  # type: ignore
         return
     # Load the model to the GPU. This would normally be done just before
     # the model is used for sampling, the caller must want more free ram.
-    return _comfy_model_manager.load_model_gpu(model)
+    return _comfy_model_manager.load_model_gpu(model)  # type: ignore
 
 
 def is_model_in_use(model):
-    return _comfy_model_manager.is_model_in_use(model)
+    return _comfy_model_manager.is_model_in_use(model)  # type: ignore
 
 
 def load_torch_file(filename):
-    result = __comfy_load_torch_file(filename)
+    result = _comfy_load_torch_file(filename)
     return result
 
 
@@ -217,7 +217,7 @@ def horde_load_checkpoint(
     ckpt_path: str,
     output_vae: bool = True,
     output_clip: bool = True,
-    embeddings_path: str = None,
+    embeddings_path: str | None = None,
 ) -> dict[str, typing.Any]:  # XXX # FIXME 'any'
     # XXX Needs docstring
     # XXX # TODO One day this signature should be generic, and not comfy specific
@@ -227,7 +227,7 @@ def horde_load_checkpoint(
     try:
         stdio = OutputCollector()
         with contextlib.redirect_stdout(stdio):
-            (modelPatcher, clipModel, vae, clipVisionModel) = __comfy_load_checkpoint_guess_config(
+            (modelPatcher, clipModel, vae, clipVisionModel) = _comfy_load_checkpoint_guess_config(
                 ckpt_path=ckpt_path,
                 output_vae=output_vae,
                 output_clip=output_clip,
@@ -249,7 +249,7 @@ def horde_load_controlnet(controlnet_path: str, target_model):  # XXX Needs docs
     # Redirect IO
     stdio = OutputCollector()
     with contextlib.redirect_stdout(stdio):
-        controlnet = __comfy_load_controlnet(ckpt_path=controlnet_path, model=target_model)
+        controlnet = _comfy_load_controlnet(ckpt_path=controlnet_path, model=target_model)
     return controlnet
 
 
@@ -316,22 +316,22 @@ class Comfy_Horde:
     def __init__(self) -> None:
         if _comfy_model_manager is None:
             raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
-        self._client_id = {}
-        self._images = {}
-        self.pipelines = {}
-        self._model_locks = []
+        self._client_id = {}  # type: ignore
+        self._images = {}  # type: ignore
+        self.pipelines = {}  # type: ignore
+        self._model_locks = []  # type: ignore
         self._model_lock_mutex = threading.Lock()
         self._exit_time = 0
         self._callers = 0
         self._gc_timer = time.time()
         self._counter_mutex = threading.Lock()
         # FIXME Temporary hack to set the model dir for LORAs
-        _comfy_folder_paths["loras"] = (
+        _comfy_folder_paths["loras"] = (  # type: ignore
             [os.path.join(UserSettings.get_model_directory(), "loras")],
             [".safetensors"],
         )
         # Set custom node path
-        _comfy_folder_paths["custom_nodes"] = ([os.path.join(get_hordelib_path(), "nodes")], [])
+        _comfy_folder_paths["custom_nodes"] = ([os.path.join(get_hordelib_path(), "nodes")], [])  # type: ignore
         # Load our pipelines
         self._load_pipelines()
 
@@ -378,7 +378,7 @@ class Comfy_Horde:
         _comfy_nodes.init_custom_nodes()
 
     def _get_executor(self, pipeline):
-        executor = _comfy_PromptExecutor(self)
+        executor = _comfy_PromptExecutor(self)  # type: ignore
         return executor
 
     def get_pipeline_data(self, pipeline_name):
@@ -405,7 +405,7 @@ class Comfy_Horde:
                     if "inputs" in node and oldname in node["inputs"]:
                         node["inputs"][newname] = node["inputs"][oldname]
                         del node["inputs"][oldname]
-                logger.debug(f"Renamed node input {nodename}.{oldname} to {newname}")
+                logger.debug(f"Renamed node input {nodename}.{oldname} to {newname}")  # type: ignore # FIXME
 
         return data
 
@@ -558,6 +558,8 @@ class Comfy_Horde:
     # Execute the named pipeline and pass the pipeline the parameter provided.
     # For the horde we assume the pipeline returns an array of images.
     def _run_pipeline(self, pipeline: dict, params: dict) -> dict | None:
+        if _comfy_model_manager is None:
+            raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
 
         # Update user settings
         _comfy_model_manager.set_user_reserved_vram(UserSettings.get_vram_to_leave_free_mb())
@@ -633,11 +635,11 @@ class Comfy_Horde:
 
         # We are being exited
         with self._counter_mutex:
-            self._exit_time = time.time()
+            self._exit_time = time.time()  # type: ignore
             self._callers -= 1
 
         if result:
-            return result
+            return result  # type: ignore
 
         return None
 

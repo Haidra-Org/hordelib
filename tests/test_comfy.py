@@ -46,6 +46,17 @@ class TestSetup:
             "unknown.parameter": False,
         }
         hordelib_instance.generator._set(test_dict, **params)
+
+        assert "a" in test_dict and type(test_dict["a"]) is dict
+        assert "inputs" in test_dict["a"]
+        assert "b" in test_dict["a"]["inputs"]
+        assert "c" in test_dict
+        assert type(test_dict["c"]) is dict
+        assert "inputs" in test_dict["c"]
+        assert "d" in test_dict["c"]["inputs"]
+        assert "e" in test_dict["c"]["inputs"]["d"]
+        assert "f" in test_dict["c"]["inputs"]["d"]
+
         assert test_dict["a"]["inputs"]["b"]
         assert test_dict["c"]["inputs"]["d"]["e"]
         assert test_dict["c"]["inputs"]["d"]["f"]
@@ -103,6 +114,24 @@ class TestSetup:
         }
         data = hordelib_instance.generator._fix_node_names(data, design)
 
+        assert data
+        assert type(data) is dict
+
+        assert "Node1" in data
+        assert "inputs" in data["Node1"] and type(data["Node1"]["inputs"]) is dict
+        assert "input1" in data["Node1"]["inputs"] and type(data["Node1"]["inputs"]["input1"]) is list
+        assert "input2" in data["Node1"]["inputs"] and type(data["Node1"]["inputs"]["input2"]) is list
+
+        assert "Node2" in data
+        assert "inputs" in data["Node2"] and type(data["Node2"]["inputs"]) is dict
+        assert "input1" in data["Node2"]["inputs"] and type(data["Node2"]["inputs"]["input1"]) is list
+        assert "input2" in data["Node2"]["inputs"] and type(data["Node2"]["inputs"]["input2"]) is list
+
+        assert "3" in data
+        assert "inputs" in data["3"] and type(data["3"]["inputs"]) is dict
+        assert "input1" in data["3"]["inputs"] and type(data["3"]["inputs"]["input1"]) is list
+        assert "input2" in data["3"]["inputs"] and type(data["3"]["inputs"]["input2"]) is list
+
         assert "Node1" in data
         assert data["Node1"]["inputs"]["input1"][0] == "Node2"
         assert data["Node1"]["inputs"]["input2"][0] == "3"
@@ -145,6 +174,13 @@ class TestSetup:
         result = hordelib_instance.generator.reconnect_input(data, "sampler.latent_image", "vae_encoder")
         # Should be ok
         assert result
+
+        assert "sampler" in data
+        assert "inputs" in data["sampler"]
+        assert "latent_image" in data["sampler"]["inputs"]
+        assert type(data["sampler"]["inputs"]) is dict
+        assert type(data["sampler"]["inputs"]["latent_image"]) is list
+
         assert data["sampler"]["inputs"]["latent_image"][0] == "vae_encoder"
         # This is invalid
         result = hordelib_instance.generator.reconnect_input(data, "sampler.non-existant", "somewhere")

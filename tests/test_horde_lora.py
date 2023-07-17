@@ -14,6 +14,7 @@ from .testing_shared_functions import check_single_lora_image_similarity
 class TestHordeLora:
     @pytest.fixture(autouse=True, scope="class")
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
+        assert shared_model_manager.manager.lora
         shared_model_manager.manager.lora.download_default_loras()
         shared_model_manager.manager.lora.wait_for_downloads()
         yield
@@ -25,9 +26,11 @@ class TestHordeLora:
         hordelib_instance: HordeLib,
         stable_diffusion_modelname_for_testing: str,
     ):
+        assert shared_model_manager.manager.lora
 
         # Red
         lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
+        assert isinstance(lora_name, str)
         trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "red")
         data = {
             "sampler_name": "k_euler",
@@ -51,6 +54,7 @@ class TestHordeLora:
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "lora_red.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -60,9 +64,9 @@ class TestHordeLora:
             pil_image,
         )
 
-        assert shared_model_manager.manager.lora.get_lora_last_use("GlowingRunesAI") > datetime.now() - timedelta(
-            minutes=1,
-        )
+        last_use = shared_model_manager.manager.lora.get_lora_last_use("GlowingRunesAI")
+        assert last_use
+        assert last_use > datetime.now() - timedelta(minutes=1)
 
     def test_text_to_image_lora_blue(
         self,
@@ -70,8 +74,11 @@ class TestHordeLora:
         hordelib_instance: HordeLib,
         stable_diffusion_modelname_for_testing: str,
     ):
+        assert shared_model_manager.manager.lora
+
         # Blue, fuzzy search on version
         lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
+        assert lora_name
         trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
         data = {
             "sampler_name": "k_euler",
@@ -96,6 +103,7 @@ class TestHordeLora:
 
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "lora_blue.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -111,7 +119,10 @@ class TestHordeLora:
         hordelib_instance: HordeLib,
         stable_diffusion_modelname_for_testing: str,
     ):
+        assert shared_model_manager.manager.lora
+
         lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
+        assert isinstance(lora_name, str)
         trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "red")
         trigger2 = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
         lora_name2 = shared_model_manager.manager.lora.get_lora_name("Dra9onScaleAI")
@@ -144,6 +155,7 @@ class TestHordeLora:
 
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "lora_multiple.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -159,7 +171,10 @@ class TestHordeLora:
         hordelib_instance: HordeLib,
         stable_diffusion_modelname_for_testing: str,
     ):
+        assert shared_model_manager.manager.lora
+
         lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
+        assert isinstance(lora_name, str)
         trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
         lora_name2 = shared_model_manager.manager.lora.get_lora_name("Dra9onScaleAI")
         trigger2 = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "Dr490nSc4leAI")
@@ -198,6 +213,8 @@ class TestHordeLora:
         hordelib_instance: HordeLib,
         stable_diffusion_modelname_for_testing: str,
     ):
+        assert shared_model_manager.manager.lora
+
         # Red
         lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
         data = {
@@ -223,6 +240,7 @@ class TestHordeLora:
 
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "lora_inject_red.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -238,6 +256,8 @@ class TestHordeLora:
         hordelib_instance: HordeLib,
         stable_diffusion_modelname_for_testing: str,
     ):
+        assert shared_model_manager.manager.lora
+
         # Red
         lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
         data = {
@@ -263,6 +283,7 @@ class TestHordeLora:
 
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "lora_inject_any.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -278,6 +299,8 @@ class TestHordeLora:
         hordelib_instance: HordeLib,
         stable_diffusion_modelname_for_testing: str,
     ):
+        assert shared_model_manager.manager.lora
+
         lora_name = "74384"
         shared_model_manager.manager.lora.ensure_lora_deleted(lora_name)
         data = {
@@ -304,6 +327,7 @@ class TestHordeLora:
 
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "lora_download_adhoc.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -383,7 +407,6 @@ class TestHordeLora:
         hordelib_instance: HordeLib,
         stable_diffusion_modelname_for_testing: str,
     ):
-
         # Blue, fuzzy search on version
         lora_name = "51539"
         data = {
@@ -409,6 +432,7 @@ class TestHordeLora:
 
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "lora_stonepunk.png"
         pil_image.save(f"images/{img_filename}", quality=100)

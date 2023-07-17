@@ -16,6 +16,7 @@ class TestHordeSaftyChecker:
         db0_test_image: Image.Image,
     ):
         assert shared_model_manager.manager.load("safety_checker", cpu_only=True)
+        assert shared_model_manager.manager.safety_checker
         assert shared_model_manager.manager.safety_checker.is_model_loaded("safety_checker") is True
         assert is_image_nsfw(db0_test_image) is False
         assert shared_model_manager.manager.unload_model("safety_checker")
@@ -25,6 +26,7 @@ class TestHordeSaftyChecker:
         shared_model_manager: type[SharedModelManager],
         db0_test_image: Image.Image,
     ):
+        assert shared_model_manager.manager.safety_checker
         assert shared_model_manager.manager.safety_checker.is_model_loaded("safety_checker") is False
         assert is_image_nsfw(db0_test_image) is False
         assert shared_model_manager.manager.unload_model("safety_checker")

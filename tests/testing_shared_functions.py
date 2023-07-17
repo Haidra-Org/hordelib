@@ -2,15 +2,17 @@ import json
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Iterable, TypeVar
+from typing import Iterable, TypeAlias
 
 import PIL.Image
 import pytest
 
-FilePathOrPILImage = TypeVar("FilePathOrPILImage", str, Path, PIL.Image.Image)
+FilePathOrPILImage: TypeAlias = str | Path | PIL.Image.Image
 
 from hordelib.utils.distance import (
+    CosineSimilarityResult,
     CosineSimilarityResultCode,
+    HistogramDistanceResult,
     HistogramDistanceResultCode,
     evaluate_image_distance,
     is_cosine_similarity_fail,
@@ -55,8 +57,8 @@ class ImageSimilarityResultCode(Enum):
 @dataclass
 class ImageSimilarityResult:
     result_code: ImageSimilarityResultCode
-    cosine_similarity_result: CosineSimilarityResultCode | float
-    histogram_distance_result: HistogramDistanceResultCode | float
+    cosine_similarity_result: CosineSimilarityResult | float
+    histogram_distance_result: HistogramDistanceResult | float
 
 
 def check_image_similarity_pytest(

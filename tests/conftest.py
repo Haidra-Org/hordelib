@@ -1,3 +1,5 @@
+from typing import Generator
+
 import PIL.Image
 import pytest
 
@@ -32,11 +34,11 @@ def isolated_comfy_horde_instance(init_horde) -> Comfy_Horde:
 
 
 @pytest.fixture(scope="class")
-def shared_model_manager(hordelib_instance: HordeLib) -> type[SharedModelManager]:
+def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedModelManager], None, None]:
     SharedModelManager()
     SharedModelManager.load_model_managers(ALL_MODEL_MANAGER_TYPES)
 
-    assert SharedModelManager._instance is not None
+    assert SharedModelManager()._instance is not None
     assert SharedModelManager.manager is not None
     assert SharedModelManager.manager.codeformer is not None
     assert SharedModelManager.manager.compvis is not None
@@ -50,8 +52,8 @@ def shared_model_manager(hordelib_instance: HordeLib) -> type[SharedModelManager
 
     yield SharedModelManager
 
-    SharedModelManager._instance = None
-    SharedModelManager.manager = None
+    SharedModelManager._instance = None  # type: ignore
+    SharedModelManager.manager = None  # type: ignore
 
 
 @pytest.fixture(scope="class")
@@ -84,6 +86,7 @@ def pytest_collection_modifyitems(items):
     """Modifies test items to ensure test modules run in a given order."""
     MODULES_TO_RUN_FIRST = [
         "test_packaging_errors",
+        "tests.test_initialisation",
         "tests.test_cuda",
         "tests.test_utils",
         "tests.test_comfy_install",
@@ -93,6 +96,8 @@ def pytest_collection_modifyitems(items):
         "test_mm_lora",
     ]
     MODULES_TO_RUN_LAST = [
+        "test.test_blip",
+        "test.test_clip",
         "tests.test_inference",
         "tests.test_horde_inference",
         "tests.test_horde_inference_img2img",
