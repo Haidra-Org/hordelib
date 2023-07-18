@@ -39,6 +39,7 @@ class TestHordeInference:
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
 
         img_filename = "image_to_image.png"
@@ -77,6 +78,7 @@ class TestHordeInference:
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
 
         img_filename = "image_to_image_hires_fix_small.png"
@@ -116,6 +118,7 @@ class TestHordeInference:
         assert hordelib_instance is not None
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (768, 768)
         img_filename = "image_to_image_hires_fix_large.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -147,6 +150,7 @@ class TestHordeInference:
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
 
         img_filename = "img2img_to_masked_denoise_1.png"
@@ -180,6 +184,7 @@ class TestHordeInference:
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
 
         img_filename = "img2img_to_masked_denoise_0.6.png"
@@ -213,6 +218,7 @@ class TestHordeInference:
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
 
         img_filename = "img2img_to_masked_denoise_0.4.png"
@@ -246,6 +252,7 @@ class TestHordeInference:
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
 
         img_filename = "img2img_to_masked_denoise_0.2.png"
@@ -284,6 +291,7 @@ class TestHordeInference:
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "img2img_fallback_to_txt2img.png"
         pil_image.save(f"images/{img_filename}", quality=100)
