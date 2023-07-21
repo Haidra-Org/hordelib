@@ -447,7 +447,6 @@ class TestHordeLora:
         hordelib_instance: HordeLib,
         stable_diffusion_modelname_for_testing: str,
     ):
-
         lora_name = "58390"
         data = {
             "sampler_name": "k_euler",
@@ -472,6 +471,7 @@ class TestHordeLora:
 
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "lora_negative_strength.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -499,6 +499,7 @@ class TestHordeLora:
 
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
 
         img_filename = "lora_positive_strength.png"
         pil_image.save(f"images/{img_filename}", quality=100)
