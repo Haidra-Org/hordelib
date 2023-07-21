@@ -1,4 +1,5 @@
 import os
+from typing import Generator
 
 import pytest
 from PIL import Image
@@ -11,11 +12,16 @@ from .testing_shared_functions import check_single_inference_image_similarity
 
 class TestHordeInference:
     @pytest.fixture(scope="class")
-    def inpainting_model_for_testing(self, shared_model_manager: type[SharedModelManager]) -> str:
+    def inpainting_model_for_testing(
+        self,
+        shared_model_manager: type[SharedModelManager],
+    ) -> Generator[str, None, None]:
         """Loads the inpainting model for testing.
         This fixture returns the (str) model name."""
         model_name = "Deliberate Inpainting"
-        assert shared_model_manager.manager.load(model_name)
+        if not shared_model_manager.manager.load(model_name):
+            shared_model_manager.manager.download_model(model_name)
+            assert shared_model_manager.manager.load(model_name)
         yield model_name
         assert shared_model_manager.manager.unload_model(model_name)
 
@@ -49,6 +55,9 @@ class TestHordeInference:
         assert pil_image is not None
 
         img_filename = "inpainting_mask_alpha.png"
+
+        assert isinstance(pil_image, Image.Image)
+
         pil_image.save(f"images/{img_filename}", quality=100)
 
         assert check_single_inference_image_similarity(
@@ -87,6 +96,9 @@ class TestHordeInference:
         assert pil_image is not None
 
         img_filename = "inpainting_mask_separate.png"
+
+        assert isinstance(pil_image, Image.Image)
+
         pil_image.save(f"images/{img_filename}", quality=100)
 
         assert check_single_inference_image_similarity(
@@ -122,6 +134,9 @@ class TestHordeInference:
         }
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+
+        assert isinstance(pil_image, Image.Image)
+
         assert pil_image.size == (512, 512)
 
         img_filename = "inpainting_mountains.png"
@@ -159,10 +174,13 @@ class TestHordeInference:
             "source_processing": "outpainting",
         }
         pil_image = hordelib_instance.basic_inference(data)
+
         assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
 
         img_filename = "outpainting_mountains.png"
+
         pil_image.save(f"images/{img_filename}", quality=100)
 
         assert check_single_inference_image_similarity(

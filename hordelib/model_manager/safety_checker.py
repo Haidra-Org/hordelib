@@ -37,7 +37,7 @@ class SafetyCheckerModelManager(BaseModelManager):
         logger.info(f"Loading model {model_name} on {device}")
         logger.info(f"Model path: {self.modelFolderPath}")
         model = StableDiffusionSafetyChecker.from_pretrained(self.modelFolderPath)
-        model = model.eval()
+        model = model.eval()  # type: ignore # FIXME
         model.to(device)
         if half_precision:
             model = model.half()

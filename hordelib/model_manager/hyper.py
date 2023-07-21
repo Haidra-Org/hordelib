@@ -315,7 +315,7 @@ class ModelManager:
                 return model_manager.unload_model(model_name)
         return None
 
-    def move_from_disk_cache(self, model_name, model, clip, vae):
+    def move_from_disk_cache(self, model_name, model, clip, vae) -> bool | None:
         """Moves the given model back into ram.
 
         Args:

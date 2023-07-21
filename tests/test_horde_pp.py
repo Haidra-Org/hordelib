@@ -59,10 +59,10 @@ class TestHordeUpscaling:
         model_name: str,
         image_filename: str,
         target_image: PIL.Image.Image,
-        expected_scale_factor: int,
-        custom_data: dict = None,
-        post_process_function: typing.Callable[[dict], PIL.Image.Image] = None,
-        similarity_constraints: ImageSimilarityConstraints = None,
+        expected_scale_factor: float,
+        custom_data: dict | None = None,
+        post_process_function: typing.Callable[[dict], PIL.Image.Image | None],
+        similarity_constraints: ImageSimilarityConstraints | None = None,
     ):
 
         if similarity_constraints is None:
@@ -94,6 +94,7 @@ class TestHordeUpscaling:
         )
 
         assert cls.shared_model_manager.manager.unload_model(model_name)
+        assert cls.shared_model_manager.manager.esrgan
         assert cls.shared_model_manager.manager.esrgan.is_model_loaded(model_name) is False
 
         # It is important this is done after the model is unloaded, otherwise if a skip occurs

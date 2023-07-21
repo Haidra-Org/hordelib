@@ -1,6 +1,10 @@
-tox>=4.4.11
-black==22.3.0
-pytest>=7.2.2
-coverage>=7.2.3
-ruff==0.0.261
+pytest==7.4.0
+mypy==1.4.1
+black==23.3.0
+ruff==0.0.275
+tox~=4.6.3
+pre-commit~=3.3.3
 build>=0.10.0
+coverage>=7.2.7
+
+pytest-cov

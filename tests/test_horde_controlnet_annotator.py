@@ -1,8 +1,8 @@
 # test_horde.py
 import os
 
+import PIL.Image
 import pytest
-from PIL import Image
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
@@ -13,6 +13,7 @@ from .testing_shared_functions import check_single_inference_image_similarity
 class TestHordeInference:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
+        assert shared_model_manager.manager.controlnet
         for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
             shared_model_manager.manager.controlnet.download_control_type(preproc, ["stable diffusion 1"])
         assert shared_model_manager.preloadAnnotators()
@@ -22,7 +23,7 @@ class TestHordeInference:
         hordelib_instance: HordeLib,
         shared_model_manager: type[SharedModelManager],
     ):
-        image = Image.open("images/test_annotator.jpg")
+        image = PIL.Image.open("images/test_annotator.jpg")
         width, height = image.size
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -50,6 +51,7 @@ class TestHordeInference:
             if preproc == "scribble":
                 # Not valid for normal image input test
                 continue
+            assert shared_model_manager.manager.controlnet
             assert (
                 shared_model_manager.manager.controlnet.check_control_type_available(
                     preproc,
@@ -60,6 +62,7 @@ class TestHordeInference:
             data["control_type"] = preproc
             pil_image = hordelib_instance.basic_inference(data)
             assert pil_image is not None
+            assert isinstance(pil_image, PIL.Image.Image)
             img_filename = f"annotator_{preproc}.png"
             pil_image.save(f"images/{img_filename}", quality=100)
             assert check_single_inference_image_similarity(

@@ -9,11 +9,12 @@ import time
 import typing
 from collections import deque
 from datetime import datetime, timedelta
-from enum import Enum
+from enum import auto
 
 import requests
 from fuzzywuzzy import fuzz
 from loguru import logger
+from strenum import StrEnum
 from typing_extensions import override
 
 from hordelib.consts import MODEL_CATEGORY_NAMES
@@ -21,17 +22,16 @@ from hordelib.model_manager.base import BaseModelManager
 from hordelib.utils.sanitizer import Sanitizer
 
 
-class DOWNLOAD_SIZE_CHECK(str, Enum):
-    everything = "everything"
-    top = "top"
-    adhoc = "adhoc"
+class DOWNLOAD_SIZE_CHECK(StrEnum):
+    everything = auto()
+    top = auto()
+    adhoc = auto()
 
 
 TESTS_ONGOING = os.getenv("TESTS_ONGOING", "0") == "1"
 
 
 class LoraModelManager(BaseModelManager):
-
     LORA_DEFAULTS = "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/main/lora.json"
     LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated&primaryFileOnly=true"
     MAX_RETRIES = 10 if not TESTS_ONGOING else 1
@@ -48,7 +48,6 @@ class LoraModelManager(BaseModelManager):
         allowed_adhoc_lora_storage=1024,
         download_wait=False,
     ):
-
         self._max_top_disk = allowed_top_lora_storage
 
         self.max_adhoc_disk = allowed_adhoc_lora_storage
@@ -366,6 +365,9 @@ class LoraModelManager(BaseModelManager):
 
     def _process_items(self):
         # i.e. given a bunch of LORA item metadata, download them
+        if not self._data:
+            logger.debug("No LORA data to process")
+            return
         for item in self._data.get("items", []):
             lora = self._parse_civitai_lora_data(item)
             if lora:
@@ -377,7 +379,6 @@ class LoraModelManager(BaseModelManager):
                 self._download_lora(lora)
 
     def _start_processing(self):
-
         self.stop_downloading = False
 
         while not self.stop_downloading:
@@ -562,7 +563,7 @@ class LoraModelManager(BaseModelManager):
             total_queue += lora["size_mb"]
         return total_queue
 
-    def find_oldest_adhoc_lora(self):
+    def find_oldest_adhoc_lora(self) -> str | None:
         oldest_lora: str | None = None
         oldest_datetime: datetime | None = None
         for lora in self._adhoc_loras:

@@ -1,3 +1,5 @@
+# type: ignore
+#
 # Train a predictive model from horde payload inputs to predict inference time.
 #
 # Supports multi-processing, just run this multiple times and the processes will
@@ -266,7 +268,6 @@ if ENABLE_TRAINING:
         return nn.Sequential(*layers)
 
     def objective(trial):
-
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         trial.set_user_attr("name", "predict_kudos")
 
@@ -288,12 +289,17 @@ if ENABLE_TRAINING:
         lr = trial.suggest_float("lr", MIN_LEARNING_RATE, MAX_LEARNING_RATE, log=True)
         weight_decay = trial.suggest_float("weight_decay", MIN_WEIGHT_DECAY, MAX_WEIGHT_DECAY, log=True)
 
+        optimizer = None
+
         if optimizer_name == "Adam":
             optimizer = optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
         elif optimizer_name == "RMSprop":
             optimizer = optim.RMSprop(model.parameters(), lr=lr, weight_decay=weight_decay)
         elif optimizer_name == "SGD":
             optimizer = optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
+
+        if optimizer is None:
+            raise Exception("Unknown optimizer")
 
         # Load training dataset
         train_dataset = KudosDataset(TRAINING_DATA_FILENAME)
@@ -311,8 +317,8 @@ if ENABLE_TRAINING:
         criterion = nn.MSELoss()
 
         num_epochs = trial.suggest_int("num_epochs", MIN_NUMBER_OF_EPOCHS, MAX_NUMBER_OF_EPOCHS)
+        total_loss = None
         for epoch in range(num_epochs):
-
             # Train the model
             model.train()
             for data, labels in train_loader:
@@ -348,7 +354,6 @@ if ENABLE_TRAINING:
 
 
 if __name__ == "__main__":
-
     if len(sys.argv) > 1:
         test_one_by_one(sys.argv[1])
         exit(0)
