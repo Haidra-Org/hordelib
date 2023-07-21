@@ -43,6 +43,7 @@ class TestPayloadMapping:
         result = data.copy()
         result = hordelib_instance._validate_data_structure(result)
         assert "loras" in result, "Lost the lora attribute in our payload"
+        assert isinstance(result["loras"], list), "Lora attribute is not a list"
         assert len(result["loras"]) == 1, "Unexpected number of loras in payload"
         assert result["loras"][0]["name"] == "briscou's gingers", "We lost Briscou's gingers"
         assert result["loras"][0]["model"] == 0.5, "Unexpected lora model weight"

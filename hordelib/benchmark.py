@@ -26,7 +26,7 @@ def download_image(url):
         raise Exception(f"Failed to download image. Status code: {response.status_code}")
 
 
-timings = {}
+timings: dict = {}
 
 
 def delta(desc):
@@ -105,9 +105,15 @@ def main():
 
     try:
         gpu = GPUInfo().get_info()
-        gpu_name = gpu["product"]
-        gpu_vram = gpu["vram_total"]
-        gpu_vram_mb = GPUInfo().get_total_vram_mb()
+        if gpu is None:
+            gpu = "unknown"
+            gpu_name = ""
+            gpu_vram = ""
+            gpu_vram_mb = 0
+        else:
+            gpu_name = gpu["product"]
+            gpu_vram = gpu["vram_total"]
+            gpu_vram_mb = GPUInfo().get_total_vram_mb()
     except Exception:
         gpu = "unknown"
         gpu_name = ""
@@ -134,7 +140,7 @@ def main():
 
     generate = HordeLib()
     delta("model-manager-load")
-    SharedModelManager.load_model_managers(compvis=True, controlnet=not disable_controlnet)
+    SharedModelManager.loadModelManagers(compvis=True, controlnet=not disable_controlnet)
     delta("model-manager-load")
     SharedModelManager.manager.load("stable_diffusion")
 
@@ -182,8 +188,8 @@ def main():
         if last > 30:
             break
         max_iterations = attempt
-    its = round(attempt / last, 1)
-    its_raw = round(attempt / (last - inference_overhead), 1)
+    its = round(attempt / last, 1)  # type: ignore # FIXME???
+    its_raw = round(attempt / (last - inference_overhead), 1)  # type: ignore # FIXME???
 
     logger.warning("Benchmarking model load/unload")
     delta("stable-diffusion-model-load-x3")
@@ -231,8 +237,8 @@ def main():
     print(f"{its:>{9}} basic inference (empirical)")
     print(f"{its_raw:>{9}} basic inference (theoretical)")
     if not disable_controlnet:
-        print(f"{cnet_its:>{9}} controlnet inference (empirical)")
-        print(f"{cnet_raw_its:>{9}} controlnet inference (theoretical)")
+        print(f"{cnet_its:>{9}} controlnet inference (empirical)")  # type: ignore # FIXME???
+        print(f"{cnet_raw_its:>{9}} controlnet inference (theoretical)")  # type: ignore # FIXME???
     print()
     print(f"{model_load:>{9}}s model load speed")
     print()

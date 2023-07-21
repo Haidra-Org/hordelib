@@ -41,3 +41,4 @@ mediapipe>=0.9.1.0
 unidecode
 fuzzywuzzy
 horde_clipfree==0.0.2
+strenum

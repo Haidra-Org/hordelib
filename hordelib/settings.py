@@ -1,6 +1,7 @@
 import os
 import re
 from collections import deque
+from typing import Callable
 
 import psutil
 from typing_extensions import Self
@@ -53,7 +54,7 @@ class UserSettings:
     @staticmethod
     def _get_total_ram_mb() -> int:
         virtual_memory = psutil.virtual_memory()
-        return virtual_memory.total / (1024 * 1024)
+        return int(virtual_memory.total / (1024 * 1024))
 
     # Hordelib will try to leave at least this much VRAM free
 
@@ -158,7 +159,7 @@ class UserSettings:
     # Callback for use to broadcast download progress updates
     # Should be set to a method with a signature (description: str, current: int, total: int)
     # And will be called with a description of the download, current bytes and total bytes.
-    download_progress_callback = None
+    download_progress_callback: Callable[[str, int, int], None] | None = None
 
 
 _UserSettings = UserSettings()

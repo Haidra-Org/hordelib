@@ -2,6 +2,8 @@
 import os
 from enum import Enum, auto
 
+from strenum import StrEnum
+
 from hordelib.config_path import get_hordelib_path
 
 COMFYUI_VERSION = "84ea21c815d426000c233e0c7b8c542764335cc8"
@@ -25,22 +27,22 @@ class HordeSupportedBackends(Enum):
 EXCLUDED_MODEL_NAMES = ["pix2pix"]
 
 
-class MODEL_CATEGORY_NAMES(str, Enum):
+class MODEL_CATEGORY_NAMES(StrEnum):
     """Look up str enum for the categories of models (compvis, controlnet, clip, etc...)."""
 
-    default_models = "default_models"
+    default_models = auto()
     """Unspecified model category."""
-    codeformer = "codeformer"
-    compvis = "compvis"
+    codeformer = auto()
+    compvis = auto()
     """Stable Diffusion models."""
-    controlnet = "controlnet"
-    # diffusers = "diffusers"
-    esrgan = "esrgan"
-    gfpgan = "gfpgan"
-    safety_checker = "safety_checker"
-    lora = "lora"
-    blip = "blip"
-    clip = "clip"
+    controlnet = auto()
+    # diffusers = "auto()
+    esrgan = auto()
+    gfpgan = auto()
+    safety_checker = auto()
+    lora = auto()
+    blip = auto()
+    clip = auto()
 
 
 # Default model managers to load

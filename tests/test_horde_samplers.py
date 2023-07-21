@@ -14,7 +14,7 @@ SLOW_SAMPLERS = ["k_dpmpp_2s_a", "k_dpmpp_sde", "k_heun", "k_dpm_2", "k_dpm_2_a"
 class TestHordeSamplers:
     def test_samplers(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         hordelib_instance: HordeLib,
     ):
         data = {
@@ -38,7 +38,7 @@ class TestHordeSamplers:
             ),
             "ddim_steps": 30,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
         images_to_compare: list[tuple[str, Image.Image]] = []
         for sampler in HordeLib.SAMPLERS_MAP.keys():
@@ -59,7 +59,7 @@ class TestHordeSamplers:
 
     def test_slow_samplers(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         hordelib_instance: HordeLib,
     ):
         data = {
@@ -83,7 +83,7 @@ class TestHordeSamplers:
             ),
             "ddim_steps": 10,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         images_to_compare: list[tuple[str, Image.Image]] = []

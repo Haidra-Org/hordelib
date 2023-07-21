@@ -251,10 +251,10 @@ def get_hist(img: PIL.Image.Image) -> np.ndarray:
         img = img.convert("RGB")
 
     # Convert the image to a numpy array
-    img = np.array(img)
+    img_array = np.array(img)
 
     # Get the histogram of the image
-    hist = np.histogram(img, bins=DEFAULT_HISTOGRAM_BINS, range=DEFAULT_HISTOGRAM_RANGE)[0]
+    hist = np.histogram(img_array, bins=DEFAULT_HISTOGRAM_BINS, range=DEFAULT_HISTOGRAM_RANGE)[0]
 
     return hist
 

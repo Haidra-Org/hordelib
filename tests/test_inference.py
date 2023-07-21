@@ -17,7 +17,7 @@ class TestInference:
 
     def test_stable_diffusion_pipeline(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         shared_model_manager: type[SharedModelManager],
         isolated_comfy_horde_instance: Comfy_Horde,
     ):
@@ -33,7 +33,7 @@ class TestInference:
             "sampler.steps": 25,
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
-            "model_loader.model_name": stable_diffusion_modelname_for_testing,
+            "model_loader.model_name": stable_diffusion_model_name_for_testing,
             "clip_skip.stop_at_clip_layer": -1,
             "model_loader.model_manager": shared_model_manager,
         }
@@ -50,7 +50,7 @@ class TestInference:
 
     def test_stable_diffusion_pipeline_clip_skip(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         shared_model_manager: type[SharedModelManager],
         isolated_comfy_horde_instance: Comfy_Horde,
     ):
@@ -66,7 +66,7 @@ class TestInference:
             "sampler.steps": 25,
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
-            "model_loader.model_name": stable_diffusion_modelname_for_testing,
+            "model_loader.model_name": stable_diffusion_model_name_for_testing,
             "clip_skip.stop_at_clip_layer": -2,
             "model_loader.model_manager": shared_model_manager,
         }
@@ -83,7 +83,7 @@ class TestInference:
 
     def test_stable_diffusion_hires_fix_pipeline(
         self,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         shared_model_manager: type[SharedModelManager],
         isolated_comfy_horde_instance: Comfy_Horde,
     ):
@@ -103,7 +103,7 @@ class TestInference:
             "negative_prompt.text": (
                 "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes"
             ),
-            "model_loader.model_name": stable_diffusion_modelname_for_testing,
+            "model_loader.model_name": stable_diffusion_model_name_for_testing,
             "model_loader.model_manager": shared_model_manager,
             "empty_latent_image.width": 512,
             "empty_latent_image.height": 512,

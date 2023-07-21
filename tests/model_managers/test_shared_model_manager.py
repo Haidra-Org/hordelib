@@ -1,4 +1,6 @@
 # test_horde.py
+import os
+
 import pytest
 
 from hordelib.consts import EXCLUDED_MODEL_NAMES, MODEL_CATEGORY_NAMES
@@ -15,7 +17,7 @@ class TestSharedModelManager:
         self,
         shared_model_manager: type[SharedModelManager],
     ):
-        _shared_test_singleton = None if shared_model_manager._instance is None else SharedModelManager._instance
+        _shared_test_singleton = None if shared_model_manager._instance is None else SharedModelManager()._instance
         a = SharedModelManager()
         b = SharedModelManager()
         assert a.manager is b.manager
@@ -115,6 +117,13 @@ class TestSharedModelManager:
         self,
         shared_model_manager: type[SharedModelManager],
     ):
+        if os.environ.get("TESTS_ONGOING"):
+            pytest.skip(
+                (
+                    "Skipping test_check_validate_all_available_models because it takes too long and could tamper "
+                    "with CI environment."
+                ),
+            )
         assert shared_model_manager.manager is not None
         for model_manager in shared_model_manager.manager.active_model_managers:
             for model in model_manager.available_models:

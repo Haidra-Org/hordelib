@@ -792,6 +792,7 @@ class BaseModelManager(ABC):
                 else:
                     self.progress()
                     return False
+        return False
 
     def download_model(self, model_name: str):
         """
