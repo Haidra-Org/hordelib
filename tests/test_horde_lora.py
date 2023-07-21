@@ -445,7 +445,7 @@ class TestHordeLora:
     def test_negative_model_power(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         lora_name = "58390"
         data = {
@@ -466,7 +466,7 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": -2.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)
@@ -494,7 +494,7 @@ class TestHordeLora:
             "loras": [{"name": lora_name, "model": 2.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)
