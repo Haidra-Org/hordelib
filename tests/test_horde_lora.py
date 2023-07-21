@@ -417,3 +417,69 @@ class TestHordeLora:
             f"images_expected/{img_filename}",
             pil_image,
         )
+
+    def test_negative_model_power(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_modelname_for_testing: str,
+    ):
+
+        lora_name = "58390"
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 8.0,
+            "denoising_strength": 1.0,
+            "seed": 1312,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "A girl walking in a field of flowers",
+            "loras": [{"name": lora_name, "model": -2.0, "clip": 1.0}],
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": stable_diffusion_modelname_for_testing,
+        }
+
+        pil_image = hordelib_instance.basic_inference(data)
+        assert pil_image is not None
+
+        img_filename = "lora_negative_strength.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 8.0,
+            "denoising_strength": 1.0,
+            "seed": 1312,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "A girl walking in a field of flowers",
+            "loras": [{"name": lora_name, "model": 2.0, "clip": 1.0}],
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": stable_diffusion_modelname_for_testing,
+        }
+
+        pil_image = hordelib_instance.basic_inference(data)
+        assert pil_image is not None
+
+        img_filename = "lora_positive_strength.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        # assert check_single_lora_image_similarity(
+        #     f"images_expected/{img_filename}",
+        #     pil_image,
+        # )
