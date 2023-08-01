@@ -319,7 +319,11 @@ class HordeLib:
                     if trigger_inject == "any":
                         triggers = SharedModelManager.manager.lora.get_lora_triggers(lora_name)
                         if triggers:
-                            trigger = triggers[0]
+                            trigger = random.choice(triggers)
+                    elif trigger_inject == "all":
+                        triggers = SharedModelManager.manager.lora.get_lora_triggers(lora_name)
+                        if triggers:
+                            trigger = ", ".join(triggers)
                     elif trigger_inject is not None:
                         trigger = SharedModelManager.manager.lora.find_lora_trigger(lora_name, trigger_inject)
                     if trigger:
