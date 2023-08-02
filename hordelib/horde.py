@@ -1,5 +1,7 @@
 # horde.py
 # Main interface for the horde to this library.
+from __future__ import annotations
+
 import glob
 import json
 import os
@@ -19,7 +21,7 @@ from hordelib.utils.sanitizer import Sanitizer
 
 
 class HordeLib:
-    _instance = None
+    _instance: HordeLib | None = None
     _initialised = False
 
     # Horde to comfy sampler mapping
@@ -305,6 +307,8 @@ class HordeLib:
                 lora_name = SharedModelManager.manager.lora.get_lora_name(str(lora["name"]))
                 if lora_name:
                     logger.debug(f"Found valid lora {lora_name}")
+                    if SharedModelManager.manager.compvis is None:
+                        raise RuntimeError("Cannot use LORAs without a compvis loaded!")
                     model_details = SharedModelManager.manager.compvis.get_model(payload["model"])
                     # If the lora and model do not match baseline, we ignore the lora
                     if not SharedModelManager.manager.lora.do_baselines_match(lora_name, model_details):
@@ -315,7 +319,11 @@ class HordeLib:
                     if trigger_inject == "any":
                         triggers = SharedModelManager.manager.lora.get_lora_triggers(lora_name)
                         if triggers:
-                            trigger = triggers[0]
+                            trigger = random.choice(triggers)
+                    elif trigger_inject == "all":
+                        triggers = SharedModelManager.manager.lora.get_lora_triggers(lora_name)
+                        if triggers:
+                            trigger = ", ".join(triggers)
                     elif trigger_inject is not None:
                         trigger = SharedModelManager.manager.lora.find_lora_trigger(lora_name, trigger_inject)
                     if trigger:
@@ -518,14 +526,15 @@ class HordeLib:
         # Final adjustments to the pipeline
         pipeline_data = self.generator.get_pipeline_data(pipeline)
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
+        models: list[str] = []
         # Run the pipeline
         try:
             # Add prefix to loras to avoid name collisions with other models
             models = [f"lora-{x['name']}" for x in payload.get("loras", []) if x]
             # main model
-            models.append(payload.get("model_loader.model_name"))
+            models.append(payload.get("model_loader.model_name"))  # type: ignore # FIXME?
             # controlnet model
-            models.append(payload.get("controlnet_model_loader.control_net_name"))
+            models.append(payload.get("controlnet_model_loader.control_net_name"))  # type: ignore # FIXME?
             # Acquire a lock on all these models
             self.lock_models(models)
             # Call the inference pipeline
@@ -560,7 +569,7 @@ class HordeLib:
         # Allow arbitrary resizing by shrinking the image back down
         if width or height:
             return ImageUtils.shrink_image(Image.open(images[0]["imagedata"]), width, height)
-        return self._process_results(images, rawpng)
+        return self._process_results(images, rawpng)  # type: ignore # FIXME?
 
     def image_facefix(self, payload, rawpng=False) -> Image.Image | None:
         # AIHorde hacks to payload
@@ -577,4 +586,4 @@ class HordeLib:
             images = self.generator.run_image_pipeline(pipeline_data, payload)
         finally:
             self.unlock_models([payload.get("model_loader.model_name")])
-        return self._process_results(images, rawpng)
+        return self._process_results(images, rawpng)  # type: ignore # FIXME?

@@ -1,9 +1,10 @@
 import os
 import typing
-from enum import Enum
+from enum import auto
 from typing import Iterable
 
 from loguru import logger
+from strenum import StrEnum
 from typing_extensions import override
 
 from hordelib.comfy_horde import horde_load_controlnet
@@ -11,7 +12,7 @@ from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES
 from hordelib.model_manager.base import BaseModelManager
 
 
-class CONTROLNET_BASELINE_NAMES(str, Enum):  # XXX # TODO Move this to consts.py
+class CONTROLNET_BASELINE_NAMES(StrEnum):  # XXX # TODO Move this to consts.py
     stable_diffusion_1 = "stable diffusion 1"
     stable_diffusion_2 = "stable diffusion 2"
 

@@ -13,6 +13,7 @@ from .testing_shared_functions import check_single_inference_image_similarity
 class TestHordeInference:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
+        assert shared_model_manager.manager.controlnet is not None
         for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
             shared_model_manager.manager.controlnet.download_control_type(preproc, ["stable diffusion 1"])
 
@@ -20,7 +21,7 @@ class TestHordeInference:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -39,11 +40,13 @@ class TestHordeInference:
             "prompt": "a man walking in the snow",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
         assert hordelib_instance is not None
+        assert shared_model_manager.manager.controlnet is not None
+
         images_to_compare: list[tuple[str, Image.Image]] = []
         for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
             if preproc == "scribble" or preproc == "mlsd":
@@ -63,6 +66,8 @@ class TestHordeInference:
 
             img_filename = f"controlnet_{preproc}.png"
 
+            assert isinstance(pil_image, Image.Image)
+
             pil_image.save(f"images/{img_filename}", quality=100)
             images_to_compare.append((f"images_expected/{img_filename}", pil_image))
 
@@ -75,7 +80,7 @@ class TestHordeInference:
     def test_controlnet_fake_cn(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
         db0_test_image: Image.Image,
     ):
         data = {
@@ -95,7 +100,7 @@ class TestHordeInference:
             "prompt": "a man walking in the snow",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": db0_test_image,
             "source_processing": "img2img",
         }
@@ -106,7 +111,7 @@ class TestHordeInference:
     def test_controlnet_strength(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -125,7 +130,7 @@ class TestHordeInference:
             "prompt": "a man walking on the moon",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
@@ -137,6 +142,8 @@ class TestHordeInference:
             assert pil_image is not None
 
             img_filename = f"controlnet_strength_{strength}.png"
+
+            assert isinstance(pil_image, Image.Image)
 
             pil_image.save(f"images/{img_filename}", quality=100)
             images_to_compare.append((f"images_expected/{img_filename}", pil_image))
@@ -150,7 +157,7 @@ class TestHordeInference:
     def test_controlnet_hires_fix(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -170,7 +177,7 @@ class TestHordeInference:
             "prompt": "a man walking in the jungle",
             "ddim_steps": 15,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
@@ -183,13 +190,15 @@ class TestHordeInference:
 
             img_filename = f"controlnet_hires_fix_denoise_{denoise}.png"
 
+            assert isinstance(pil_image, Image.Image)
+
             pil_image.save(f"images/{img_filename}", quality=100)
             images_to_compare.append((f"images_expected/{img_filename}", pil_image))
 
     def test_controlnet_image_is_control(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
+        stable_diffusion_model_name_for_testing: str,
     ):
         data = {
             "sampler_name": "k_dpmpp_2m",
@@ -208,7 +217,7 @@ class TestHordeInference:
             "prompt": "a woman standing in the snow",
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
             "source_image": Image.open("images/test_image_is_control.png"),
             "source_processing": "img2img",
         }
@@ -218,6 +227,8 @@ class TestHordeInference:
         assert pil_image is not None
 
         img_filename = "controlnet_image_is_control.png"
+
+        assert isinstance(pil_image, Image.Image)
 
         pil_image.save(f"images/{img_filename}", quality=100)
         images_to_compare.append((f"images_expected/{img_filename}", pil_image))

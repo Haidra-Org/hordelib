@@ -1,6 +1,6 @@
 # test_horde.py
 import pytest
-from PIL import Image
+from PIL.Image import Image
 
 from hordelib.clip.interrogate import Interrogator
 from hordelib.horde import HordeLib
@@ -34,6 +34,8 @@ class TestHordeClip:
             text_array=word_list,
             similarity=True,
         )
+
+        assert type(similarity_result) is dict
         assert "default" in similarity_result
         assert similarity_result["default"]["outlaw"] > 0.15
         assert similarity_result["default"]["explosion"] > 0.15

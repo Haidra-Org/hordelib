@@ -41,8 +41,9 @@ license-files = ["LICENSE", "CHANGELOG*"]
 dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.packages.find]
-exclude = ["ComfyUI", "build"]
+exclude = ["ComfyUI", "build", "tests"]
 namespaces = false
+
 
 [options.index-client]
 extra-index-urls = ["https://download.pytorch.org/whl/cu118"]
