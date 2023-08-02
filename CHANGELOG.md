@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v1.6.4](https://github.com/Haidra-Org/hordelib/compare/v1.6.3...v1.6.4)
+
+2 August 2023
+
+- fix: release yaml oversight [`6138e94`](https://github.com/Haidra-Org/hordelib/commit/6138e94501dae3779cf7569a594edb60d169ba1c)  (tazlin)
+
 ## [v1.6.3](https://github.com/Haidra-Org/hordelib/compare/v1.6.2...v1.6.3)
 
 2 August 2023
