@@ -13,6 +13,8 @@ from enum import auto
 
 import requests
 from fuzzywuzzy import fuzz
+from horde_model_reference import LEGACY_REFERENCE_FOLDER
+from horde_model_reference.path_consts import get_model_reference_filename
 from loguru import logger
 from strenum import StrEnum
 from typing_extensions import override
@@ -74,6 +76,8 @@ class LoraModelManager(BaseModelManager):
             model_category_name=MODEL_CATEGORY_NAMES.lora,
             download_reference=download_reference,
         )
+        # FIXME (shift lora.json handling into horde_model_reference?)
+        self.models_db_path = str(LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve())
 
     def loadModelDatabase(self, list_models=False):
         if self.model_reference:
