@@ -39,7 +39,9 @@ class TestHordeTI:
             "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
-            "prompt": "Closeup portrait of a Lesotho teenage girl wearing a Seanamarena blanket, walking in a field of flowers, holding a bundle of flowers, detailed background, light rays, atmospheric lighting, embedding:style-sylvamagic###(embedding:easynegative:0.5), embedding:bhands-neg",
+            "prompt": "Closeup portrait of a Lesotho teenage girl wearing a Seanamarena blanket, "
+            "walking in a field of flowers, holding a bundle of flowers, detailed background, light rays, "
+            "atmospheric lighting, embedding:style-sylvamagic###(embedding:easynegative:0.5), embedding:bhands-neg",
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_diffusion_modelname_for_testing,
