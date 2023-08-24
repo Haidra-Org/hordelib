@@ -8,20 +8,15 @@ from PIL import Image
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
-from .testing_shared_functions import check_single_lora_image_similarity
-
-
 class TestHordeTI:
     @pytest.fixture(autouse=True, scope="class")
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
-        # shared_model_manager.manager.lora.download_default_loras()
-        # shared_model_manager.manager.lora.wait_for_downloads()
+        assert shared_model_manager.manager.ti
         yield
 
     def test_basic_ti(
         self,
         hordelib_instance: HordeLib,
-        stable_diffusion_modelname_for_testing: str,
     ):
         assert True
         return
