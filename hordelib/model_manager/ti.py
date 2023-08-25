@@ -73,7 +73,7 @@ class TextualInversionModelManager(BaseModelManager):
         super().__init__(
             model_category_name=MODEL_CATEGORY_NAMES.ti,
             download_reference=download_reference,
-            model_db_path=models_db_path,
+            models_db_path=models_db_path,
         )
 
     def loadModelDatabase(self, list_models=False):

@@ -75,7 +75,7 @@ class BaseModelManager(ABC):
         *,
         download_reference: bool = False,
         model_category_name: MODEL_CATEGORY_NAMES = MODEL_CATEGORY_NAMES.default_models,
-        model_db_path: Path | None = None,
+        models_db_path: Path | None = None,
     ):
         """Create a new instance of this model manager.
 
@@ -96,8 +96,8 @@ class BaseModelManager(ABC):
         self.pkg = importlib_resources.files("hordelib")  # XXX Remove
         self.models_db_name = MODEL_DB_NAMES[model_category_name]
 
-        if model_db_path:
-            self.models_db_path = model_db_path
+        if models_db_path:
+            self.models_db_path = models_db_path
         else:
             self.models_db_path = Path(get_hordelib_path()).joinpath(
                 "model_database/",
