@@ -198,7 +198,7 @@ class TextualInversionModelManager(BaseModelManager):
                 ti["name"] = Sanitizer.sanitise_model_name(item.get("name", ""))
                 ti["orig_name"] = item.get("name", "")
                 ti["id"] = item.get("id", 0)
-                ti["filename"] = f'{Sanitizer.sanitise_filename(ti["name"])}.safetensors'
+                ti["filename"] = f'{ti["id"]}.safetensors'
                 ti["sha256"] = file.get("hashes", {}).get("SHA256")
                 try:
                     ti["size_kb"] = round(file.get("sizeKB", 0))

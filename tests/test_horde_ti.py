@@ -21,8 +21,6 @@ class TestHordeTI:
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
     ):
-        assert True
-        return
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -39,7 +37,12 @@ class TestHordeTI:
             "return_control_map": False,
             "prompt": "Closeup portrait of a Lesotho teenage girl wearing a Seanamarena blanket, "
             "walking in a field of flowers, holding a bundle of flowers, detailed background, light rays, "
-            "atmospheric lighting, embedding:style-sylvamagic###(embedding:easynegative:0.5), embedding:bhands-neg",
+            "atmospheric lighting, embedding:7523###(embedding:7808:0.5), embedding:64870",
+            "tis": [
+                {"name": 7523},
+                {"name": 7808},
+                {"name": 64870},
+            ],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
