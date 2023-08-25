@@ -484,6 +484,14 @@ class TextualInversionModelManager(BaseModelManager):
             return None
         return ti["name"]
 
+    def get_ti_id(self, model_name: str):
+        """Returns the civitai ti ID for the specified model_name search string
+        Returns None if ti name not found"""
+        ti = self.get_model(model_name)
+        if not ti:
+            return None
+        return ti["id"]
+
     def get_ti_triggers(self, model_name: str):
         """Returns a list of triggers for a specified ti name
         Returns an empty list if no triggers are found
