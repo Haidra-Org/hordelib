@@ -8,6 +8,7 @@ from PIL import Image
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
+
 class TestHordeTI:
     @pytest.fixture(autouse=True, scope="class")
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
@@ -16,7 +17,9 @@ class TestHordeTI:
 
     def test_basic_ti(
         self,
+        shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
+        stable_diffusion_model_name_for_testing: str,
     ):
         assert True
         return
@@ -39,7 +42,7 @@ class TestHordeTI:
             "atmospheric lighting, embedding:style-sylvamagic###(embedding:easynegative:0.5), embedding:bhands-neg",
             "ddim_steps": 20,
             "n_iter": 1,
-            "model": stable_diffusion_modelname_for_testing,
+            "model": stable_diffusion_model_name_for_testing,
         }
 
         pil_image = hordelib_instance.basic_inference(data)

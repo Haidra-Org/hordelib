@@ -38,7 +38,7 @@ class TextualInversionModelManager(BaseModelManager):
     MAX_DOWNLOAD_THREADS = 3  # max concurrent downloads
     RETRY_DELAY = 5  # seconds
     REQUEST_METADATA_TIMEOUT = 30  # seconds
-    REQUEST_DOWNLOAD_TIMEOUT = 300  # seconds
+    REQUEST_DOWNLOAD_TIMEOUT = 30  # seconds
     THREAD_WAIT_TIME = 2
 
     def __init__(
@@ -92,9 +92,6 @@ class TextualInversionModelManager(BaseModelManager):
             logger.info(f"Initiating new model reference {self.models_db_name} model reference to disk.")
             self.model_reference = {}
             self.save_cached_reference_to_disk()
-        logger.info(
-            (f"Got {len(self.model_reference)} models for {self.models_db_name}.",),
-        )
 
     def download_model_reference(self):
         # We have to wipe it, as we are going to be adding it it instead of replacing it
@@ -195,8 +192,9 @@ class TextualInversionModelManager(BaseModelManager):
         # Get model triggers
         triggers = version.get("trainedWords", [])
         # get first file that is a primary file and a safetensor
+        # logger.debug(json.dumps(version,indent=4))
         for file in version.get("files", {}):
-            if file.get("primary", False) and file.get("name", "").endswith(".safetensors"):
+            if file.get("primary", False):
                 ti["name"] = Sanitizer.sanitise_model_name(item.get("name", ""))
                 ti["orig_name"] = item.get("name", "")
                 ti["id"] = item.get("id", 0)
@@ -294,16 +292,19 @@ class TextualInversionModelManager(BaseModelManager):
                         # We will retry
                         logger.debug(
                             f"AI Horeling reported error when downloading {ti['filename']}: "
-                            "{hordeling_response.json()}"
+                            f"{hordeling_response.json()}"
                             f"Retry {retries}/{self.MAX_RETRIES}",
                         )
                     else:
+                        hordeling_json = hordeling_response.json()
                         response = requests.get(
-                            hordeling_response.json()["url"],
+                            hordeling_json["url"],
                             timeout=self.REQUEST_DOWNLOAD_TIMEOUT,
                         )
                         response.raise_for_status()
                         # Check the data hash
+                        if hordeling_json.get("sha256"):
+                            ti["sha256"] = hordeling_json["sha256"]
                         hash_object = hashlib.sha256()
                         hash_object.update(response.content)
                         sha256 = hash_object.hexdigest()
@@ -531,7 +532,7 @@ class TextualInversionModelManager(BaseModelManager):
             total_queue += ti["size_kb"]
         return total_queue
 
-    def _parse_civitai_ti_data(self) -> str | None:
+    def find_oldest_adhoc_ti(self) -> str | None:
         oldest_ti: str | None = None
         oldest_datetime: datetime | None = None
         for ti in self._adhoc_tis:
@@ -706,7 +707,7 @@ class TextualInversionModelManager(BaseModelManager):
             return None
         return datetime.strptime(ti["last_used"], "%Y-%m-%d %H:%M:%S")
 
-    def fetch_adhoc_ti(self, ti_name, timeout=45):
+    def fetch_adhoc_ti(self, ti_name, timeout=15):
         if type(ti_name) is int or ti_name.isdigit():
             url = f"https://civitai.com/api/v1/models/{ti_name}"
         else:
@@ -730,7 +731,7 @@ class TextualInversionModelManager(BaseModelManager):
         if fuzzy_find:
             logger.error(fuzzy_find)
             return fuzzy_find
-        self._download_queue.append(ti)
+        self._download_ti(ti)
         # We need to wait a bit to make sure the threads pick up the download
         time.sleep(self.THREAD_WAIT_TIME)
         self.wait_for_downloads(timeout)
