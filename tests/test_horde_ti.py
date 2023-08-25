@@ -1,6 +1,7 @@
 # test_horde_ti.py
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import pytest
 from PIL import Image
@@ -50,6 +51,9 @@ class TestHordeTI:
 
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+        assert (
+            Path(os.path.join(shared_model_manager.manager.ti.modelFolderPath, "64870.safetensors")).exists() is True
+        )
 
         img_filename = "ti_basic.png"
         pil_image.save(f"images/{img_filename}", quality=100)

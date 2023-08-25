@@ -32,6 +32,7 @@ MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES | str, type[BaseModelManag
     MODEL_CATEGORY_NAMES.gfpgan: GfpganModelManager,
     MODEL_CATEGORY_NAMES.safety_checker: SafetyCheckerModelManager,
     MODEL_CATEGORY_NAMES.lora: LoraModelManager,
+    MODEL_CATEGORY_NAMES.ti: TextualInversionModelManager,
     MODEL_CATEGORY_NAMES.blip: BlipModelManager,
     MODEL_CATEGORY_NAMES.clip: ClipModelManager,
 }

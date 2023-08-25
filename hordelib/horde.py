@@ -87,6 +87,7 @@ class HordeLib:
         "prompt": {"datatype": str, "default": ""},
         "negative_prompt": {"datatype": str, "default": ""},
         "loras": {"datatype": list, "default": []},
+        "tis": {"datatype": list, "default": []},
         "ddim_steps": {"datatype": int, "min": 1, "max": 500, "default": 30},
         "n_iter": {"datatype": int, "min": 1, "max": 100, "default": 1},
         "model": {"datatype": str, "default": "stable_diffusion"},
@@ -286,23 +287,24 @@ class HordeLib:
         # Remap controlnet models, horde to comfy
         if payload.get("control_type"):
             payload["control_type"] = HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(payload.get("control_type"))
-
+        logger.debug(payload.get("tis"))
         if payload.get("tis") and SharedModelManager.manager.ti:
             # Remove any requested TIs that we don't have
             for ti in payload.get("tis"):
-                # Determine the actual lora filename
+                # Determine the actual ti filename
+                logger.debug(ti)
                 if not SharedModelManager.manager.ti.is_local_model(str(ti["name"])):
                     adhoc_ti = SharedModelManager.manager.ti.fetch_adhoc_ti(str(ti["name"]))
                     if not adhoc_ti:
                         logger.info(f"Adhoc TI requested '{ti['name']}' could not be found in CivitAI. Ignoring!")
                         continue
-                ti_name = SharedModelManager.manager.lora.get_ti_name(str(ti["name"]))
+                ti_name = SharedModelManager.manager.ti.get_ti_name(str(ti["name"]))
                 if ti_name:
                     logger.debug(f"Found valid TI {ti_name}")
                     if SharedModelManager.manager.compvis is None:
                         raise RuntimeError("Cannot use TIs without compvis loaded!")
                     model_details = SharedModelManager.manager.compvis.get_model(payload["model"])
-                    # If the lora and model do not match baseline, we ignore the TI
+                    # If the ti and model do not match baseline, we ignore the TI
                     if not SharedModelManager.manager.ti.do_baselines_match(ti_name, model_details):
                         logger.info(f"Skipped TI {ti_name} because its baseline does not match the model's")
                         continue
