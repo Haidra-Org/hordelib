@@ -33,14 +33,19 @@ TESTS_ONGOING = os.getenv("TESTS_ONGOING", "0") == "1"
 
 
 class TextualInversionModelManager(BaseModelManager):
-    TI_API = "https://civitai.com/api/v1/models?types=TextualInversion&sort=Highest%20Rated&primaryFileOnly=true"
-    HORDELING_API = "https://hordeling.aihorde.net/api/v1/embedding"
-    MAX_RETRIES = 10 if not TESTS_ONGOING else 1
-    MAX_DOWNLOAD_THREADS = 3  # max concurrent downloads
-    RETRY_DELAY = 5  # seconds
-    REQUEST_METADATA_TIMEOUT = 30  # seconds
-    REQUEST_DOWNLOAD_TIMEOUT = 30  # seconds
-    THREAD_WAIT_TIME = 2
+    TI_API: str = "https://civitai.com/api/v1/models?types=TextualInversion&sort=Highest%20Rated&primaryFileOnly=true"
+    HORDELING_API: str = "https://hordeling.aihorde.net/api/v1/embedding"
+    MAX_RETRIES: int = 10 if not TESTS_ONGOING else 1
+    MAX_DOWNLOAD_THREADS: int = 3
+    """The number of threads to use for downloading (the max number of concurrent downloads)."""
+    RETRY_DELAY: int = 5
+    """The time to wait between retries in seconds"""
+    REQUEST_METADATA_TIMEOUT: int = 30
+    """The time to wait for a metadata request to complete in seconds"""
+    REQUEST_DOWNLOAD_TIMEOUT: int = 30
+    """The time to wait for a download request to complete in seconds"""
+    THREAD_WAIT_TIME: int = 2
+    """The time to wait between checking the download queue in seconds"""
 
     def __init__(
         self,
