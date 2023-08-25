@@ -262,70 +262,73 @@ class TextualInversionModelManager(BaseModelManager):
             while retries <= self.MAX_RETRIES:
                 try:
                     # Just before we download this file, check if we already have it
-                    filename = os.path.join(self.modelFolderPath, ti["filename"])
-                    hashfile = f"{os.path.splitext(filename)[0]}.sha256"
-                    if os.path.exists(filename) and os.path.exists(hashfile):
-                        # Check the hash
-                        with open(hashfile) as infile:
-                            try:
-                                hashdata = infile.read().split()[0]
-                            except (IndexError, OSError, IOError, PermissionError):
-                                hashdata = ""
-                        if not ti.get("sha256") or hashdata.lower() == ti["sha256"].lower():
-                            # we already have this ti, consider it downloaded
-                            # the SHA256 might not exist when the ti has been selected in the curation list
-                            # Where we allow them to skip it
-                            if not ti.get("sha256"):
-                                logger.debug(
-                                    f"Already have Textual Inversion {ti['filename']}. "
-                                    "Bypassing SHA256 check as there's none stored",
-                                )
-                            else:
-                                logger.debug(f"Already have Textual Inversion {ti['filename']}")
-                            with self._mutex:
-                                # We store as lower to allow case-insensitive search
-                                ti["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                self._add_ti_to_reference(ti)
-                                if self.is_default_cache_full():
-                                    self.stop_downloading = True
-                                self.save_cached_reference_to_disk()
-                            break
-
-                    logger.info(f"Starting download of Textual Inversion {ti['filename']}")
+                    filepath = os.path.join(self.modelFolderPath, ti["filename"])
+                    hashpath = f"{os.path.splitext(filepath)[0]}.sha256"
+                    logger.debug(f"Retrieving TI metadata from Hordeling for ID: {ti['filename']}")
                     hordeling_response = requests.get(f"{self.HORDELING_API}/{ti['id']}", timeout=5)
                     if not hordeling_response.ok:
                         if hordeling_response.status_code == 404:
-                            logger.debug(f"Textual Inversion {ti['filename']} could not be found on AI Hordeling.")
+                            logger.debug(f"Textual Inversion: {ti['filename']} could not be found on AI Hordeling.")
                             break
                         # We will retry
                         logger.debug(
-                            f"AI Horeling reported error when downloading {ti['filename']}: "
+                            "AI Horeling reported error when downloading metadata "
+                            f"for Textual Inversion: {ti['filename']}: "
                             f"{hordeling_response.json()}"
                             f"Retry {retries}/{self.MAX_RETRIES}",
                         )
                     else:
                         hordeling_json = hordeling_response.json()
+                        if os.path.exists(filepath) and os.path.exists(hashpath):
+                            if hordeling_json.get("sha256"):
+                                ti["sha256"] = hordeling_json["sha256"]
+                            # Check the hash
+                            with open(hashpath) as infile:
+                                try:
+                                    hashdata = infile.read().split()[0]
+                                except (IndexError, OSError, IOError, PermissionError):
+                                    hashdata = ""
+
+                            if not ti.get("sha256") or hashdata.lower() == ti["sha256"].lower():
+                                # we already have this ti, consider it downloaded
+                                # the SHA256 might not exist when the ti has been selected in the curation list
+                                # Where we allow them to skip it
+                                if not ti.get("sha256"):
+                                    logger.debug(
+                                        f"Already have Textual Inversion: {ti['filename']}. "
+                                        "Bypassing SHA256 check as there's none stored",
+                                    )
+                                else:
+                                    logger.debug(f"Already have Textual Inversion: {ti['filename']}")
+                                with self._mutex:
+                                    # We store as lower to allow case-insensitive search
+                                    ti["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                    self._add_ti_to_reference(ti)
+                                    if self.is_default_cache_full():
+                                        self.stop_downloading = True
+                                    self.save_cached_reference_to_disk()
+                                break
+
+                        logger.info(f"Starting download of Textual Inversion: {ti['filename']}")
                         response = requests.get(
                             hordeling_json["url"],
                             timeout=self.REQUEST_DOWNLOAD_TIMEOUT,
                         )
                         response.raise_for_status()
                         # Check the data hash
-                        if hordeling_json.get("sha256"):
-                            ti["sha256"] = hordeling_json["sha256"]
                         hash_object = hashlib.sha256()
                         hash_object.update(response.content)
                         sha256 = hash_object.hexdigest()
                         if not ti.get("sha256") or sha256.lower() == ti["sha256"].lower():
                             # wow, we actually got a valid file, save it
-                            with open(filename, "wb") as outfile:
+                            with open(filepath, "wb") as outfile:
                                 outfile.write(response.content)
                             # Save the hash file
-                            with open(hashfile, "wt") as outfile:
+                            with open(hashpath, "wt") as outfile:
                                 outfile.write(f"{sha256} *{ti['filename']}")
 
                             # Shout about it
-                            logger.info(f"Downloaded Textual Inversion {ti['filename']} ({ti['size_kb']} KB)")
+                            logger.info(f"Downloaded Textual Inversion: {ti['filename']} ({ti['size_kb']} KB)")
                             # Maybe we're done
                             with self._mutex:
                                 # We store as lower to allow case-insensitive search
@@ -339,7 +342,7 @@ class TextualInversionModelManager(BaseModelManager):
                         else:
                             # We will retry
                             logger.debug(
-                                f"Downloaded Textual Inversion file for {ti['filename']} didn't match hash. "
+                                f"Downloaded Textual Inversion file {ti['filename']} didn't match hash. "
                                 f"Retry {retries}/{self.MAX_RETRIES}",
                             )
 
