@@ -325,11 +325,18 @@ class Comfy_Horde:
         self._callers = 0
         self._gc_timer = time.time()
         self._counter_mutex = threading.Lock()
-        # FIXME Temporary hack to set the model dir for LORAs
-        _comfy_folder_paths["loras"] = (  # type: ignore
+
+        # These set the default paths for comfyui to look for models and embeddings. From within hordelib,
+        # we aren't ever going to use the default ones, and this may help lubricate any further changes.
+        _comfy_folder_paths["lora"] = (  # type: ignore
             [os.path.join(UserSettings.get_model_directory(), "loras")],
             [".safetensors"],
         )
+        _comfy_folder_paths["embeddings"] = (  # type: ignore
+            [os.path.join(UserSettings.get_model_directory(), "ti")],
+            [".safetensors"],
+        )
+
         # Set custom node path
         _comfy_folder_paths["custom_nodes"] = ([os.path.join(get_hordelib_path(), "nodes")], [])  # type: ignore
         # Load our pipelines
