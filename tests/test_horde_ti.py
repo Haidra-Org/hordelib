@@ -11,17 +11,14 @@ from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestHordeTI:
-    @pytest.fixture(autouse=True, scope="class")
-    def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
-        assert shared_model_manager.manager.ti
-        yield
-
     def test_basic_ti(
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
     ):
+        assert shared_model_manager.manager.ti
+
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
