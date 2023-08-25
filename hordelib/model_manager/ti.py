@@ -10,10 +10,10 @@ import typing
 from collections import deque
 from datetime import datetime, timedelta
 from enum import auto
-from horde_model_reference import LEGACY_REFERENCE_FOLDER
 
 import requests
 from fuzzywuzzy import fuzz
+from horde_model_reference import LEGACY_REFERENCE_FOLDER
 from loguru import logger
 from strenum import StrEnum
 from typing_extensions import override
