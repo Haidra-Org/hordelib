@@ -38,10 +38,14 @@ class LoraModelManager(BaseModelManager):
     LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated&primaryFileOnly=true"
     MAX_RETRIES = 10 if not TESTS_ONGOING else 1
     MAX_DOWNLOAD_THREADS = 3  # max concurrent downloads
-    RETRY_DELAY = 5  # seconds
-    REQUEST_METADATA_TIMEOUT = 30  # seconds
-    REQUEST_DOWNLOAD_TIMEOUT = 300  # seconds
+    RETRY_DELAY = 5
+    """The time to wait between retries in seconds"""
+    REQUEST_METADATA_TIMEOUT = 30
+    """The time to wait for a response from the server in seconds"""
+    REQUEST_DOWNLOAD_TIMEOUT = 300
+    """The time to wait for a response from the server in seconds"""
     THREAD_WAIT_TIME = 2
+    """The time to wait between checking the download queue in seconds"""
 
     def __init__(
         self,
@@ -72,12 +76,14 @@ class LoraModelManager(BaseModelManager):
         self._index_ids = {}
         self._index_orig_names = {}
 
+        models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
+
         super().__init__(
             model_category_name=MODEL_CATEGORY_NAMES.lora,
             download_reference=download_reference,
+            models_db_path=models_db_path,
         )
         # FIXME (shift lora.json handling into horde_model_reference?)
-        self.models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
 
     def loadModelDatabase(self, list_models=False):
         if self.model_reference:

@@ -36,7 +36,9 @@ class CompVisModelManager(BaseModelManager):
         model_name: str,
         **kwargs,
     ) -> dict[str, typing.Any]:
-        embeddings_path = os.getenv("HORDE_MODEL_DIR_EMBEDDINGS", "./")
+        embeddings_path = os.path.join(UserSettings.get_model_directory(), "ti")
+        if not embeddings_path:
+            logger.debug("No embeddings path found, disabling embeddings")
 
         if not kwargs.get("local", False):
             ckpt_path = self.getFullModelPath(model_name)
@@ -44,7 +46,7 @@ class CompVisModelManager(BaseModelManager):
             ckpt_path = os.path.join(self.modelFolderPath, model_name)
         return horde_load_checkpoint(
             ckpt_path=ckpt_path,
-            embeddings_path=embeddings_path,
+            embeddings_path=embeddings_path if embeddings_path else None,
         )
 
     def can_cache_on_disk(self):

@@ -75,6 +75,7 @@ class BaseModelManager(ABC):
         *,
         download_reference: bool = False,
         model_category_name: MODEL_CATEGORY_NAMES = MODEL_CATEGORY_NAMES.default_models,
+        models_db_path: Path | None = None,
     ):
         """Create a new instance of this model manager.
 
@@ -94,10 +95,14 @@ class BaseModelManager(ABC):
         self.tainted_models = []
         self.pkg = importlib_resources.files("hordelib")  # XXX Remove
         self.models_db_name = MODEL_DB_NAMES[model_category_name]
-        self.models_db_path = Path(get_hordelib_path()).joinpath(
-            "model_database/",
-            f"{self.models_db_name}.json",
-        )
+
+        if models_db_path:
+            self.models_db_path = models_db_path
+        else:
+            self.models_db_path = Path(get_hordelib_path()).joinpath(
+                "model_database/",
+                f"{self.models_db_name}.json",
+            )
 
         self.cuda_available = torch.cuda.is_available()  # XXX Remove?
         self.cuda_devices, self.recommended_gpu = self.get_cuda_devices()  # XXX Remove?
@@ -700,7 +705,6 @@ class BaseModelManager(ABC):
             remote_file_size = 0
 
         while retries:
-
             if os.path.exists(partial_pathname):
                 # If file exists, find the size and append to it
                 partial_size = os.path.getsize(partial_pathname)
