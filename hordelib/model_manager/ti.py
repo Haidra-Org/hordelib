@@ -10,6 +10,7 @@ import typing
 from collections import deque
 from datetime import datetime, timedelta
 from enum import auto
+from horde_model_reference import LEGACY_REFERENCE_FOLDER
 
 import requests
 from fuzzywuzzy import fuzz
@@ -63,9 +64,11 @@ class TextualInversionModelManager(BaseModelManager):
         self._index_ids = {}
         self._index_orig_names = {}
 
+        models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("ti.json").resolve()
         super().__init__(
             model_category_name=MODEL_CATEGORY_NAMES.ti,
             download_reference=download_reference,
+            model_db_path=models_db_path,
         )
 
     def loadModelDatabase(self, list_models=False):

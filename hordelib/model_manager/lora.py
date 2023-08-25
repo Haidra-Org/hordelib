@@ -72,12 +72,14 @@ class LoraModelManager(BaseModelManager):
         self._index_ids = {}
         self._index_orig_names = {}
 
+        models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
+
         super().__init__(
             model_category_name=MODEL_CATEGORY_NAMES.lora,
             download_reference=download_reference,
+            models_db_path=models_db_path,
         )
         # FIXME (shift lora.json handling into horde_model_reference?)
-        self.models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
 
     def loadModelDatabase(self, list_models=False):
         if self.model_reference:
