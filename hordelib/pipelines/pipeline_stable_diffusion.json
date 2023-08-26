@@ -111,6 +111,6 @@
                 2
             ]
         },
-        "class_type": "VAEDecodeTiled"
+        "class_type": "VAEDecode"
     }
 }

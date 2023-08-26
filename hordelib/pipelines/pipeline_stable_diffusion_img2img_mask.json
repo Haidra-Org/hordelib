@@ -98,7 +98,7 @@
                 2
             ]
         },
-        "class_type": "VAEDecodeTiled"
+        "class_type": "VAEDecode"
     },
     "16": {
         "inputs": {

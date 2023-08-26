@@ -478,7 +478,7 @@
     },
     {
       "id": 21,
-      "type": "VAEDecodeTiled",
+      "type": "VAEDecode",
       "pos": [
         1963,
         130
@@ -514,7 +514,7 @@
       ],
       "title": "vae_decode",
       "properties": {
-        "Node name for S&R": "VAEDecodeTiled"
+        "Node name for S&R": "VAEDecode"
       }
     }
   ],
