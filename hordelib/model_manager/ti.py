@@ -279,9 +279,9 @@ class TextualInversionModelManager(BaseModelManager):
                         )
                     else:
                         hordeling_json = hordeling_response.json()
+                        if hordeling_json.get("sha256"):
+                            ti["sha256"] = hordeling_json["sha256"]
                         if os.path.exists(filepath) and os.path.exists(hashpath):
-                            if hordeling_json.get("sha256"):
-                                ti["sha256"] = hordeling_json["sha256"]
                             # Check the hash
                             with open(hashpath) as infile:
                                 try:
