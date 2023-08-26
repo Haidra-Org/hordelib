@@ -5,7 +5,6 @@ from unidecode import unidecode
 
 
 class Sanitizer:
-
     VERSION_REMOVER = re.compile(r"([Vv][0-9][0-9.]*)$")
 
     @staticmethod

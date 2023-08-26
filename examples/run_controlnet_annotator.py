@@ -8,7 +8,6 @@ from hordelib.consts import MODEL_CATEGORY_NAMES
 
 
 def main():
-
     hordelib.initialise()
 
     from PIL import Image

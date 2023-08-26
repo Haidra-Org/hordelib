@@ -262,11 +262,9 @@ class LoraDownloader:
                 self._download_lora(lora)
 
     def _start_processing(self):
-
         self.done = False
 
         while not self.done:
-
             # Get some items to download
             self._get_more_items()
 
@@ -297,6 +295,5 @@ class LoraDownloader:
 
 
 if __name__ == "__main__":
-
     downloader = LoraDownloader(allowed_storage=1024)  # MB
     downloader.download(wait=True)

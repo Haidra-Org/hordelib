@@ -127,7 +127,6 @@ def main():
     model_index = 0
     logger.info(f"Found {len(models)} available models")
     while model_index < len(models):
-
         # First we fill ram and vram
         logger.warning("Filling available memory")
         if model_index < len(models):

@@ -270,7 +270,6 @@ class HordeLib:
         return payload
 
     def _final_pipeline_adjustments(self, payload, pipeline_data):
-
         payload = deepcopy(payload)
 
         # Process dynamic prompts
@@ -324,7 +323,6 @@ class HordeLib:
         # Note that we build this between several nodes, the model_loader, clip_skip and the sampler,
         # plus the upscale sampler (used in hires fix) if there is one
         if payload.get("loras") and SharedModelManager.manager.lora:
-
             # Remove any requested LORAs that we don't have
             valid_loras = []
             for lora in payload.get("loras"):
@@ -366,7 +364,6 @@ class HordeLib:
                     valid_loras.append(lora)
             payload["loras"] = valid_loras
             for lora_index, lora in enumerate(payload.get("loras")):
-
                 # Inject a lora node (first lora)
                 if lora_index == 0:
                     pipeline_data[f"lora_{lora_index}"] = {
@@ -395,7 +392,6 @@ class HordeLib:
                     }
 
             for lora_index, lora in enumerate(payload.get("loras")):
-
                 # The first LORA always connects to the model loader
                 if lora_index == 0:
                     self.generator.reconnect_input(pipeline_data, "lora_0.model", "model_loader")

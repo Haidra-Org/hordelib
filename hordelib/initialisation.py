@@ -26,7 +26,6 @@ def initialise(
     clear_logs=False,
     debug_logging=False,
 ):  # XXX # TODO Do we need `model_managers_to_load`?
-
     global _is_initialised
 
     # Wipe existing logs if requested

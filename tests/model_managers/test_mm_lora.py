@@ -12,7 +12,6 @@ class TestModelManagerLora:
         assert os.getenv("TESTS_ONGOING") == "1"
 
     def test_downloading_default_sync(self):
-
         mml = LoraModelManager(
             download_wait=True,
             allowed_adhoc_lora_storage=1024,

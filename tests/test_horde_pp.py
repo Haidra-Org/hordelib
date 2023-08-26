@@ -64,7 +64,6 @@ class TestHordeUpscaling:
         post_process_function: typing.Callable[[dict], PIL.Image.Image | None],
         similarity_constraints: ImageSimilarityConstraints | None = None,
     ):
-
         if similarity_constraints is None:
             similarity_constraints = ImageSimilarityConstraints(
                 cosine_fail_floor=CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL,

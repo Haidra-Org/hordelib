@@ -24,7 +24,6 @@ class HordeLoraLoader:
     CATEGORY = "loaders"
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip, model_manager):
-
         if model_manager.manager is None:
             logger.error("LoraLoader node was not passed a model manager")
             raise RuntimeError
