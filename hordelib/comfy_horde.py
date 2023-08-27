@@ -197,7 +197,7 @@ def horde_load_checkpoint(
     # XXX # This can remain a comfy call, but the rest of the code should be able
     # XXX # to pretend it isn't
     # Redirect IO
-    raise NotImplementedError()
+    raise NotImplementedError
     try:
         stdio = OutputCollector()
         with contextlib.redirect_stdout(stdio):

@@ -16,7 +16,7 @@ import git
 import psutil
 import requests
 import torch
-from horde_model_reference import MODEL_REFERENCE_CATEGORY, LEGACY_REFERENCE_FOLDER, get_model_reference_filename
+from horde_model_reference import LEGACY_REFERENCE_FOLDER, MODEL_REFERENCE_CATEGORY, get_model_reference_filename
 from loguru import logger
 from tqdm import tqdm
 
@@ -28,7 +28,6 @@ from hordelib.comfy_horde import get_torch_device as _get_torch_device
 from hordelib.config_path import get_hordelib_path
 from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES, REMOTE_MODEL_DB
 from hordelib.settings import UserSettings
-
 
 _temp_reference_lookup = {
     MODEL_CATEGORY_NAMES.codeformer: MODEL_REFERENCE_CATEGORY.codeformer,
@@ -235,7 +234,9 @@ class BaseModelManager(ABC):
             logger.debug("Not enough free RAM attempting to free some")
             # Grab a list of models (ModelPatcher) that are loaded on the gpu
             # These are actually returned with the least important at the bottom of the list
-            busy_models = get_models_on_gpu()
+            def busy_models():
+                return None  # get_models_on_gpu()
+
             # Try to find one we have in ram that isn't on the gpu
             idle_model = None
             # idle_model_data = None
