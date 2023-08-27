@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v1.6.5](https://github.com/Haidra-Org/hordelib/compare/v1.6.4...v1.6.5)
+
+27 August 2023
+
+- feat: Automatic downloading of TIs [`#55`](https://github.com/Haidra-Org/hordelib/pull/55) (Divided by Zer0)
+- fix: TI now correctly compares to intended sha256 from hordeling [`45ca52d`](https://github.com/Haidra-Org/hordelib/commit/45ca52d035ff15e6b5a3e8280d645600bce513a5)  (tazlin)
+
 ## [v1.6.4](https://github.com/Haidra-Org/hordelib/compare/v1.6.3...v1.6.4)
 
 2 August 2023
