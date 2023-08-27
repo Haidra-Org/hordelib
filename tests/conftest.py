@@ -55,6 +55,9 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager.manager.blip is not None
     assert SharedModelManager.manager.clip is not None
 
+    # FIXME
+    SharedModelManager.manager.compvis.download_model("SDXL 1.0")
+
     yield SharedModelManager
 
     SharedModelManager._instance = None  # type: ignore
