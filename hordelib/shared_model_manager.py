@@ -4,15 +4,12 @@ import glob
 from pathlib import Path
 from typing import Iterable
 
-from horde_model_reference.legacy.download_live_legacy_dbs import download_all_models as download_live_legacy_dbs
-from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORIES
-from horde_model_reference.path_consts import get_model_reference_filename
+from horde_model_reference.legacy import LegacyReferenceDownloadManager
 from loguru import logger
 from typing_extensions import Self
 
-from hordelib.config_path import get_hordelib_path
-from hordelib.consts import MODEL_CATEGORY_NAMES, REMOTE_PROXY
-from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES, BaseModelManager, ModelManager
+from hordelib.consts import MODEL_CATEGORY_NAMES
+from hordelib.model_manager.hyper import BaseModelManager, ModelManager
 from hordelib.preload import (
     ANNOTATOR_MODEL_SHA_LOOKUP,
     download_all_controlnet_annotators,
@@ -88,8 +85,10 @@ class SharedModelManager:
             if value and passed_arg in MODEL_CATEGORY_NAMES.__members__.values():
                 managers_to_load.append(passed_arg)
 
-        logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
-        download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
+        logger.error("Skipping downloading of legacy databases.")  # FIXME
+
+        # logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
+        # download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
         do_migrations()
         cls.manager.init_model_managers(managers_to_load)
 
@@ -104,8 +103,11 @@ class SharedModelManager:
         args_passed = locals().copy()  # XXX This is temporary
         args_passed.pop("cls")  # XXX This is temporary
 
-        logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
-        download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
+        # logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
+        # download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
+
+        logger.error("Skipping downloading of legacy databases.")  # FIXME
+
         do_migrations()
         cls.manager.init_model_managers(managers_to_load)
 
@@ -123,15 +125,24 @@ class SharedModelManager:
         Returns:
             bool: If the annotators are downloaded and the integrity is OK, this will return True. Otherwise, false.
         """
+        desired_annotator_path = (
+            Path(UserSettings.get_model_directory()).joinpath("controlnet").joinpath("annotator").joinpath("ckpts")
+        )
+
+        if builtins.annotator_ckpts_path == desired_annotator_path:  # type: ignore
+            logger.debug(
+                "Controlnet annotators already downloaded and SHA256 integrity validated.",
+            )
+            return True
+
         annotators_in_legacy_directory = Path(builtins.annotator_ckpts_path).glob("*.pt*")  # type: ignore
 
         for legacy_annotator in annotators_in_legacy_directory:
             logger.warning("Annotator found in legacy directory. This file can be safely deleted:")
             logger.warning(f"{legacy_annotator}")
 
-        builtins.annotator_ckpts_path = (  # type: ignore
-            Path(UserSettings.get_model_directory()).joinpath("controlnet").joinpath("annotator").joinpath("ckpts")
-        )
+        builtins.annotator_ckpts_path = desired_annotator_path  # type: ignore
+
         # XXX # FIXME _PLEASE_
         # XXX The hope here is that this hack using a shared package (builtins) will be temporary
         # XXX until comfy officially releases support for controlnet, and the wrangling of the downloads
@@ -147,7 +158,12 @@ class SharedModelManager:
         # If any annotators are downloaded, check those for SHA integrity first.
         # if any get purged (incomplete download), then we will be able to recover
         # by downloading them below.
-        validate_all_controlnet_annotators(builtins.annotator_ckpts_path)  # type: ignore
+        num_validated = validate_all_controlnet_annotators(builtins.annotator_ckpts_path)  # type: ignore
+        if num_validated == len(ANNOTATOR_MODEL_SHA_LOOKUP):
+            logger.debug(
+                "All controlnet annotators SHA256 integrity validated.",
+            )
+            return True
 
         logger.info(
             "Attempting to preload all controlnet annotators.",

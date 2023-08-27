@@ -16,20 +16,30 @@ import git
 import psutil
 import requests
 import torch
+from horde_model_reference import MODEL_REFERENCE_CATEGORY, LEGACY_REFERENCE_FOLDER, get_model_reference_filename
 from loguru import logger
 from tqdm import tqdm
 
 from hordelib.comfy_horde import (
     cleanup,
-    get_models_on_gpu,
     get_torch_free_vram_mb,
-    load_model_to_gpu,
-    remove_model_from_memory,
 )
 from hordelib.comfy_horde import get_torch_device as _get_torch_device
 from hordelib.config_path import get_hordelib_path
 from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES, REMOTE_MODEL_DB
 from hordelib.settings import UserSettings
+
+
+_temp_reference_lookup = {
+    MODEL_CATEGORY_NAMES.codeformer: MODEL_REFERENCE_CATEGORY.codeformer,
+    MODEL_CATEGORY_NAMES.compvis: MODEL_REFERENCE_CATEGORY.stable_diffusion,
+    MODEL_CATEGORY_NAMES.controlnet: MODEL_REFERENCE_CATEGORY.controlnet,
+    MODEL_CATEGORY_NAMES.esrgan: MODEL_REFERENCE_CATEGORY.esrgan,
+    MODEL_CATEGORY_NAMES.gfpgan: MODEL_REFERENCE_CATEGORY.gfpgan,
+    MODEL_CATEGORY_NAMES.safety_checker: MODEL_REFERENCE_CATEGORY.safety_checker,
+    MODEL_CATEGORY_NAMES.blip: MODEL_REFERENCE_CATEGORY.blip,
+    MODEL_CATEGORY_NAMES.clip: MODEL_REFERENCE_CATEGORY.clip,
+}
 
 
 class BaseModelManager(ABC):
@@ -48,7 +58,7 @@ class BaseModelManager(ABC):
     recommended_gpu: list
     download_reference: bool
     remote_db: str
-    _mutex = threading.RLock()
+
     _disk_write_mutex = threading.Lock()
 
     def get_torch_device(self):
@@ -58,17 +68,16 @@ class BaseModelManager(ABC):
         return self._loaded_models.copy()
 
     def add_loaded_model(self, model_name, model_data):
-        with self._mutex:
-            self._loaded_models[model_name] = model_data
+        self._loaded_models[model_name] = model_data
 
     def remove_loaded_model(self, model_name):
         logger.debug(f"Received request to remove loaded model {model_name}")
-        with self._mutex:
-            if model_name in self._loaded_models:
-                logger.debug(f"Removing loaded model {model_name}")
-                del self._loaded_models[model_name]
-            else:
-                logger.debug(f"Could not find loaded model {model_name}")
+
+        if model_name in self._loaded_models:
+            logger.debug(f"Removing loaded model {model_name}")
+            del self._loaded_models[model_name]
+        else:
+            logger.debug(f"Could not find loaded model {model_name}")
 
     def __init__(
         self,
@@ -96,13 +105,22 @@ class BaseModelManager(ABC):
         self.pkg = importlib_resources.files("hordelib")  # XXX Remove
         self.models_db_name = MODEL_DB_NAMES[model_category_name]
 
-        if models_db_path:
-            self.models_db_path = models_db_path
-        else:
-            self.models_db_path = Path(get_hordelib_path()).joinpath(
+        if not models_db_path:
+            models_db_path = Path(get_hordelib_path()).joinpath(
                 "model_database/",
                 f"{self.models_db_name}.json",
             )
+
+            if model_category_name in _temp_reference_lookup:
+                models_db_path = Path(
+                    get_model_reference_filename(
+                        _temp_reference_lookup[model_category_name],
+                        base_path=LEGACY_REFERENCE_FOLDER,
+                    ),
+                )
+
+        logger.debug(f"Model database path: {models_db_path}")
+        self.models_db_path = models_db_path
 
         self.cuda_available = torch.cuda.is_available()  # XXX Remove?
         self.cuda_devices, self.recommended_gpu = self.get_cuda_devices()  # XXX Remove?
@@ -191,78 +209,77 @@ class BaseModelManager(ABC):
             return {}
 
     def _modelref_to_name(self, modelref):
-        with self._mutex:
-            for name, data in self.get_loaded_models().items():
-                if modelref and data["model"] is modelref:
-                    return name
-            return None
+        for name, data in self.get_loaded_models().items():
+            if modelref and data["model"] is modelref:
+                return name
+        return None
 
     def get_free_ram_mb(self):
         return int(psutil.virtual_memory().available / (1024 * 1024))
 
     def ensure_ram_available(self):
-        with self._mutex:
-            # If we have less than the minimum RAM free, free some up
-            # Although, perhaps we have plenty of available vram, in which case we
-            # can consider moving something from ram to vram.
-            attempts = 2  # if ram isn't being released yet, no point keep trying
-            while (
-                self.get_free_ram_mb() < UserSettings.get_ram_to_leave_free_mb()
-                and attempts
-                and len(self.get_loaded_models()) > 0
-            ):
-                logger.debug(
-                    f"Free RAM is: {self.get_free_ram_mb()} MB, "
-                    f"({len(self.get_loaded_models())} models loaded in RAM)",
-                )
-                logger.debug("Not enough free RAM attempting to free some")
-                # Grab a list of models (ModelPatcher) that are loaded on the gpu
-                # These are actually returned with the least important at the bottom of the list
-                busy_models = get_models_on_gpu()
-                # Try to find one we have in ram that isn't on the gpu
-                idle_model = None
-                idle_model_data = None
-                for ram_model_name, ram_model_data in self.get_loaded_models().items():
-                    if type(ram_model_data["model"]) is not str and ram_model_data["model"] not in busy_models:
-                        idle_model = ram_model_name
-                        idle_model_data = ram_model_data
-                        break
+        # If we have less than the minimum RAM free, free some up
+        # Although, perhaps we have plenty of available vram, in which case we
+        # can consider moving something from ram to vram.
+        return  # FIXME
+        attempts = 2  # if ram isn't being released yet, no point keep trying
+        while (
+            self.get_free_ram_mb() < UserSettings.get_ram_to_leave_free_mb()
+            and attempts
+            and len(self.get_loaded_models()) > 0
+        ):
+            logger.debug(
+                f"Free RAM is: {self.get_free_ram_mb()} MB, "
+                f"({len(self.get_loaded_models())} models loaded in RAM)",
+            )
+            logger.debug("Not enough free RAM attempting to free some")
+            # Grab a list of models (ModelPatcher) that are loaded on the gpu
+            # These are actually returned with the least important at the bottom of the list
+            busy_models = get_models_on_gpu()
+            # Try to find one we have in ram that isn't on the gpu
+            idle_model = None
+            # idle_model_data = None
+            for ram_model_name, ram_model_data in self.get_loaded_models().items():
+                if type(ram_model_data["model"]) is not str and ram_model_data["model"] not in busy_models:
+                    idle_model = ram_model_name
+                    # idle_model_data = ram_model_data
+                    break
 
-                # Should we move to vram rather than disk cache or free completely?
-                # First try to determine the headroom we have on vram and ram even though that requires
-                # that we brave entry into Tazlin's UserSettings trap...
-                vram_headroom = get_torch_free_vram_mb() - UserSettings.get_vram_to_leave_free_mb()
-                ram_headroom = self.get_free_ram_mb() - UserSettings.get_ram_to_leave_free_mb()
-                # Don't try this unless we have 1500MB head room at least
-                if vram_headroom > ram_headroom and vram_headroom > 1500:
-                    logger.debug("More free VRAM than RAM, consider RAM->VRAM migration")
-                    if self.can_move_to_vram() and idle_model and load_model_to_gpu(idle_model_data["model"]):
-                        return
-                    # We failed to move a model to vram, continue with plan A
+            # Should we move to vram rather than disk cache or free completely?
+            # First try to determine the headroom we have on vram and ram even though that requires
+            # that we brave entry into Tazlin's UserSettings trap...
+            vram_headroom = get_torch_free_vram_mb() - UserSettings.get_vram_to_leave_free_mb()
+            ram_headroom = self.get_free_ram_mb() - UserSettings.get_ram_to_leave_free_mb()
+            # Don't try this unless we have 1500MB head room at least
+            if vram_headroom > ram_headroom and vram_headroom > 1500:
+                logger.debug("More free VRAM than RAM, consider RAM->VRAM migration")  # FIXME
+                # if self.can_move_to_vram() and idle_model and horde_load_checkpoint(idle_model_data["model"]):
+                #    return
+                # We failed to move a model to vram, continue with plan A
 
-                # If we didn't have one hanging around in ram not on the gpu
-                # pick the least used gpu model
-                if not idle_model and busy_models:
-                    idle_model = self._modelref_to_name(busy_models[-1])
+            # If we didn't have one hanging around in ram not on the gpu
+            # pick the least used gpu model
+            if not idle_model and busy_models:
+                idle_model = self._modelref_to_name(busy_models[-1])
 
-                if idle_model:
-                    # Can this type of model be cached?
-                    if self.can_cache_on_disk():
-                        logger.debug(f"Moving model {idle_model} to disk to free up RAM")
-                        self.move_to_disk_cache(idle_model)
-                        # Try to release ram right now
-                        cleanup()
-                    elif self.can_auto_unload():
-                        # Unload the model to free ram
-                        self.unload_model(idle_model)
-                        # Try to release ram right now
-                        cleanup()
-                else:
-                    # Nothing else to release
-                    logger.debug("Could not find a model to free RAM")
+            if idle_model:
+                # Can this type of model be cached?
+                if self.can_cache_on_disk():
+                    logger.debug(f"Moving model {idle_model} to disk to free up RAM")
+                    self.move_to_disk_cache(idle_model)
+                    # Try to release ram right now
+                    cleanup()
+                elif self.can_auto_unload():
+                    # Unload the model to free ram
+                    self.unload_model(idle_model)
+                    # Try to release ram right now
+                    cleanup()
+            else:
+                # Nothing else to release
+                logger.debug("Could not find a model to free RAM")
 
-                # Try again if we must
-                attempts -= 1
+            # Try again if we must
+            attempts -= 1
 
     # @abstractmethod # TODO
     def move_to_disk_cache(self, model_name):
@@ -315,55 +332,55 @@ class BaseModelManager(ABC):
             bool | None: `True` if the model was loaded, `False` if it failed to load/download,
                 `None` if the model name doesn't exist in the model reference.
         """
-        with self._mutex:
-            self.ensure_ram_available()
-            local = self.is_local_model(model_name)
-            if not local and model_name not in self.model_reference:
-                logger.error(f"{model_name} not found")
-                return None
-            if not local and model_name not in self.available_models:
-                logger.warning(
-                    f"{model_name} may need to be downloaded, checking...",
-                )
-                download_succeeded = self.download_model(model_name)
-                if not download_succeeded:
-                    logger.error(f"{model_name} failed to download")
+        self.ensure_ram_available()
+        local = self.is_local_model(model_name)
+        if not local and model_name not in self.model_reference:
+            logger.error(f"{model_name} not found")
+            return None
+        if not local and model_name not in self.available_models:
+            logger.warning(
+                f"{model_name} may need to be downloaded, checking...",
+            )
+            download_succeeded = self.download_model(model_name)
+            if not download_succeeded:
+                logger.error(f"{model_name} failed to download")
+                return False
+            logger.info(f"{model_name} Downloaded")
+        if model_name in self.get_loaded_models():
+            logger.debug(f"{model_name} is already loaded")
+            return True
+        if model_name not in self.get_loaded_models():
+            if not local:
+                model_validated = self.validate_model(model_name)
+                if not model_validated:
                     return False
-                logger.info(f"{model_name} Downloaded")
-            if model_name in self.get_loaded_models():
-                logger.debug(f"{model_name} is already loaded")
-                return True
-            if model_name not in self.get_loaded_models():
-                if not local:
-                    model_validated = self.validate_model(model_name)
-                    if not model_validated:
-                        return False
-                tic = time.time()
-                logger.info(
-                    f"Loading {model_name}",
+            tic = time.time()
+            logger.info(
+                f"Loading {model_name}",
+            )
+
+            try:
+                self.add_loaded_model(
+                    model_name,
+                    self.modelToRam(
+                        model_name=model_name,
+                        half_precision=half_precision,
+                        gpu_id=gpu_id,
+                        cpu_only=cpu_only,
+                        **kwargs,
+                    ),
                 )
 
-                try:
-                    self.add_loaded_model(
-                        model_name,
-                        self.modelToRam(
-                            model_name=model_name,
-                            half_precision=half_precision,
-                            gpu_id=gpu_id,
-                            cpu_only=cpu_only,
-                            **kwargs,
-                        ),
-                    )
+            except RuntimeError:
+                # It failed, it happens.
+                logger.error(f"Failed to load model {model_name}")
+                return False
 
-                except RuntimeError:
-                    # It failed, it happens.
-                    logger.error(f"Failed to load model {model_name}")
-                    return False
+            toc = time.time()
 
-                toc = time.time()
+            logger.info(f"Loaded {model_name}: {round(toc-tic,2)} seconds")
+            return True
 
-                logger.info(f"Loaded {model_name}: {round(toc-tic,2)} seconds")
-                return True
         return False
 
     def getFullModelPath(self, model_name: str):
@@ -455,10 +472,9 @@ class BaseModelManager(ABC):
             list[str] | str: The list of models, as a `list` or a comma separated string.
         """
         # return ["Deliberate"]
-        with self._mutex:
-            if string:
-                return ", ".join(self.get_loaded_models().keys())
-            return list(self.get_loaded_models().keys())
+        if string:
+            return ", ".join(self.get_loaded_models().keys())
+        return list(self.get_loaded_models().keys())
 
     def is_model_loaded(self, model_name: str) -> bool:
         """Returns True if the model is loaded, False otherwise.
@@ -469,8 +485,7 @@ class BaseModelManager(ABC):
         Returns:
             _type_: _description_
         """
-        with self._mutex:
-            return model_name in self.get_loaded_models()
+        return model_name in self.get_loaded_models()
 
     def unload_model(self, model_name: str):
         """
@@ -479,34 +494,30 @@ class BaseModelManager(ABC):
         This may not be possible right now, as it may be being used, so we actually issue a request for it to
         be unloaded at the earliest opportunity.
         """
-        with self._mutex:
-            logger.debug(f"Model Manager received unload model {model_name} request (mutex locked)")
-            if model_name in self._loaded_models:
-                # If this model is not in ram, just on disk cache don't try to free memory resources
-                model_data = self._loaded_models[model_name].get("model")
-                if not isinstance(model_data, str):
-                    logger.debug(f"{model_name} is on loaded models list, trying free resources")
-                    self.free_model_resources(model_name)
-                self.remove_loaded_model(model_name)
-                logger.debug("Model Manager done with model unload request (mutex released)")
-                return True
-            else:
-                logger.debug(f"Model {model_name} is not in loaded models list so can't unload")
+        logger.debug(f"Model Manager received unload model {model_name} request")
+        if model_name in self._loaded_models:
+            # If this model is not in ram, just on disk cache don't try to free memory resources
+            model_data = self._loaded_models[model_name].get("model")
+            if not isinstance(model_data, str):
+                logger.debug(f"{model_name} is on loaded models list, trying free resources")
+                self.free_model_resources(model_name)
+            self.remove_loaded_model(model_name)
+            logger.debug("Model Manager done with model unload request")
+            return True
+        else:
+            logger.debug(f"Model {model_name} is not in loaded models list so can't unload")
         logger.debug(f"Model manager done with unload request for model {model_name}")
 
     def free_model_resources(self, model_name: str):
         logger.debug(f"Received request to free model memory resources for {model_name}")
-        with self._mutex:
-            remove_model_from_memory(model_name, self.get_loaded_model(model_name))
 
     def unload_all_models(self):
         """
         Unloads all models
         """
-        with self._mutex:
-            for model in self.get_loaded_models():
-                self.unload_model(model)
-            return True
+        for model in self.get_loaded_models():
+            self.unload_model(model)
+        return True
 
     def taint_model(self, model_name: str):
         """Marks a model as not valid by removing it from available_models"""

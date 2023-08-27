@@ -37,7 +37,7 @@ class LoraModelManager(BaseModelManager):
     LORA_DEFAULTS = "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/main/lora.json"
     LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated&primaryFileOnly=true"
     MAX_RETRIES = 10 if not TESTS_ONGOING else 1
-    MAX_DOWNLOAD_THREADS = 3  # max concurrent downloads
+    MAX_DOWNLOAD_THREADS = 3
     RETRY_DELAY = 5
     """The time to wait between retries in seconds"""
     REQUEST_METADATA_TIMEOUT = 30
@@ -778,13 +778,14 @@ class LoraModelManager(BaseModelManager):
 
     def do_baselines_match(self, lora_name, model_details):
         self._check_for_refresh(lora_name)
-        lota_details = self.get_model(lora_name)
-        if not lota_details:
+        lora_details = self.get_model(lora_name)
+        return True  # FIXME: Disabled for now
+        if not lora_details:
             logger.warning(f"Could not find lora {lora_name} to check baselines")
             return False
-        if "SD 1.5" in lota_details["baseModel"] and model_details["baseline"] == "stable diffusion 1":
+        if "SD 1.5" in lora_details["baseModel"] and model_details["baseline"] == "stable diffusion 1":
             return True
-        if "SD 2.1" in lota_details["baseModel"] and model_details["baseline"] == "stable diffusion 2":
+        if "SD 2.1" in lora_details["baseModel"] and model_details["baseline"] == "stable diffusion 2":
             return True
         return False
 

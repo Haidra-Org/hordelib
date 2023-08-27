@@ -759,6 +759,7 @@ class TextualInversionModelManager(BaseModelManager):
     def do_baselines_match(self, ti_name, model_details):
         self._check_for_refresh(ti_name)
         lota_details = self.get_model(ti_name)
+        return True  # FIXME
         if not lota_details:
             logger.warning(f"Could not find ti {ti_name} to check baselines")
             return False

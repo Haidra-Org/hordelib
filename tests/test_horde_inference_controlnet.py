@@ -62,7 +62,7 @@ class TestHordeInference:
             data["control_type"] = preproc
 
             pil_image = hordelib_instance.basic_inference(data)
-            assert pil_image is not None
+            assert pil_image is not None, f"Failed to generate image for {preproc}"
 
             img_filename = f"controlnet_{preproc}.png"
 

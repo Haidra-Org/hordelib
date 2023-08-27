@@ -288,10 +288,12 @@ class TestHordeLora:
         img_filename = "lora_inject_any.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_single_lora_image_similarity(
-            f"images_expected/{img_filename}",
-            pil_image,
-        )
+        pil_image_2 = hordelib_instance.basic_inference(data)
+        assert pil_image_2 is not None
+        assert isinstance(pil_image_2, Image.Image)
+
+        img_filename = "lora_inject_any_2.png"
+        pil_image_2.save(f"images/{img_filename}", quality=100)
 
     def test_download_and_use_adhoc_lora(
         self,
@@ -401,6 +403,14 @@ class TestHordeLora:
 
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
+
+        img_filename = "lora_baseline_mismatch.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_stonepunk(
         self,

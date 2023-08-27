@@ -7,7 +7,8 @@ from loguru import logger
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.horde import HordeLib
 from hordelib.model_manager.compvis import CompVisModelManager
-from hordelib.shared_model_manager import ALL_MODEL_MANAGER_TYPES, SharedModelManager
+from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES
+from hordelib.shared_model_manager import SharedModelManager
 
 
 @pytest.fixture(scope="session")
@@ -35,7 +36,7 @@ def isolated_comfy_horde_instance(init_horde) -> Comfy_Horde:
     return Comfy_Horde()
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="session")
 def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedModelManager], None, None]:
     SharedModelManager()
     SharedModelManager.load_model_managers(ALL_MODEL_MANAGER_TYPES)
@@ -45,6 +46,7 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager.manager.codeformer is not None
     assert SharedModelManager.manager.compvis is not None
     assert SharedModelManager.manager.controlnet is not None
+    assert SharedModelManager.preloadAnnotators()
     assert SharedModelManager.manager.esrgan is not None
     assert SharedModelManager.manager.gfpgan is not None
     assert SharedModelManager.manager.safety_checker is not None
@@ -52,9 +54,6 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager.manager.ti is not None
     assert SharedModelManager.manager.blip is not None
     assert SharedModelManager.manager.clip is not None
-
-    for model_availible in SharedModelManager.manager.compvis.get_loaded_models():
-        assert SharedModelManager.manager.unload_model(model_availible)
 
     yield SharedModelManager
 
@@ -65,14 +64,14 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
 _testing_model_name = "Deliberate"
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="session")
 def stable_diffusion_model_name_for_testing(shared_model_manager: type[SharedModelManager]) -> str:
-    """Loads the stable diffusion model for testing. This model is used by many tests.
-    This fixture returns the model name as string."""
-    shared_model_manager.load_model_managers([CompVisModelManager])
-
-    assert shared_model_manager.manager.load(_testing_model_name)
     return _testing_model_name
+
+
+@pytest.fixture(scope="session")
+def sdxl_1_0_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    return "SDXL 1.0"
 
 
 @pytest.fixture(scope="session")
@@ -83,12 +82,6 @@ def db0_test_image() -> PIL.Image.Image:
 @pytest.fixture(scope="session")
 def real_image() -> PIL.Image.Image:
     return PIL.Image.open("images/test_annotator.jpg")
-
-
-# TODO
-# @pytest.fixture(scope="function")
-#    yield
-#    assert SharedModelManager.manager.loaded_models
 
 
 def pytest_collection_modifyitems(items):

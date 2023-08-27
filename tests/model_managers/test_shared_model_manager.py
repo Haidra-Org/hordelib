@@ -150,29 +150,29 @@ class TestSharedModelManager:
         shared_model_manager.manager.unload_model("Deliberate")
         shared_model_manager.manager.unload_model("safety_checker")
 
-    def test_get_loaded_models_names(
+    def test_get_available_models(
         self,
         shared_model_manager: type[SharedModelManager],
         load_models_for_type_test,
     ):
-        assert "RealESRGAN_x4plus" in shared_model_manager.manager.get_loaded_models_names()
-        assert "Deliberate" in shared_model_manager.manager.get_loaded_models_names()
-        assert "safety_checker" in shared_model_manager.manager.get_loaded_models_names()
-        assert "Deliberate" in shared_model_manager.manager.get_loaded_models_names(mm_include=["compvis"])
-        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_loaded_models_names(mm_include=["compvis"])
-        assert "safety_checker" not in shared_model_manager.manager.get_loaded_models_names(mm_include=["compvis"])
-        assert "Deliberate" in shared_model_manager.manager.get_loaded_models_names(
+        assert "RealESRGAN_x4plus" in shared_model_manager.manager.get_available_models()
+        assert "Deliberate" in shared_model_manager.manager.get_available_models()
+        assert "safety_checker" in shared_model_manager.manager.get_available_models()
+        assert "Deliberate" in shared_model_manager.manager.get_available_models(mm_include=["compvis"])
+        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_available_models(mm_include=["compvis"])
+        assert "safety_checker" not in shared_model_manager.manager.get_available_models(mm_include=["compvis"])
+        assert "Deliberate" in shared_model_manager.manager.get_available_models(
             mm_include=["compvis", "safety_checker"],
         )
-        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_loaded_models_names(
+        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_available_models(
             mm_include=["compvis", "safety_checker"],
         )
-        assert "safety_checker" in shared_model_manager.manager.get_loaded_models_names(
+        assert "safety_checker" in shared_model_manager.manager.get_available_models(
             mm_include=["compvis", "safety_checker"],
         )
-        assert "Deliberate" in shared_model_manager.manager.get_loaded_models_names(mm_exclude=["esrgan"])
-        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_loaded_models_names(mm_exclude=["esrgan"])
-        assert "safety_checker" in shared_model_manager.manager.get_loaded_models_names(mm_exclude=["esrgan"])
+        assert "Deliberate" in shared_model_manager.manager.get_available_models(mm_exclude=["esrgan"])
+        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_available_models(mm_exclude=["esrgan"])
+        assert "safety_checker" in shared_model_manager.manager.get_available_models(mm_exclude=["esrgan"])
 
     def test_get_available_models_by_types(
         self,

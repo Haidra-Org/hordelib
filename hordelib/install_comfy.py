@@ -121,39 +121,40 @@ class Installer:
         cls._run(f"git checkout {comfy_version}", get_comfyui_path())
 
     @classmethod
-    def apply_patch(cls, patchfile):
+    def apply_patch(cls, patchfile, skip_dot_patch=True):
         # Don't if we're a release version
         if RELEASE_VERSION:
             return
-        # Check if the patch has already been applied
-        result = cls._run_get_result(
-            f"git apply --check {patchfile}",
-            get_comfyui_path(),
-        )
-        could_apply = not result.returncode
-        result = cls._run_get_result(
-            f"git apply --reverse --check {patchfile}",
-            get_comfyui_path(),
-        )
-        could_reverse = not result.returncode
-        if could_apply:
-            # Apply the patch
-            logger.info(f"Applying patch {patchfile}")
-            result = cls._run_get_result(f"git apply {patchfile}", get_comfyui_path())
-            logger.debug(f"{result}")
-        elif could_reverse:
-            # Patch is already applied, all is well
-            logger.info(f"Already applied patch {patchfile}")
-        else:
-            # Couldn't apply or reverse? That's not so good, but maybe we are partially applied?
-            # Reset local changes
-            cls.remove_local_comfyui_changes()
-            # Try to apply the patch
-            logger.info(f"Applying patch {patchfile}")
-            result = cls._run_get_result(f"git apply {patchfile}", get_comfyui_path())
-            logger.debug(f"{result}")
-            if result.returncode:
-                logger.error(f"Could not apply patch {patchfile}")
+        if not skip_dot_patch:  # FIXME
+            # Check if the patch has already been applied
+            result = cls._run_get_result(
+                f"git apply --check {patchfile}",
+                get_comfyui_path(),
+            )
+            could_apply = not result.returncode
+            result = cls._run_get_result(
+                f"git apply --reverse --check {patchfile}",
+                get_comfyui_path(),
+            )
+            could_reverse = not result.returncode
+            if could_apply:
+                # Apply the patch
+                logger.info(f"Applying patch {patchfile}")
+                result = cls._run_get_result(f"git apply {patchfile}", get_comfyui_path())
+                logger.debug(f"{result}")
+            elif could_reverse:
+                # Patch is already applied, all is well
+                logger.info(f"Already applied patch {patchfile}")
+            else:
+                # Couldn't apply or reverse? That's not so good, but maybe we are partially applied?
+                # Reset local changes
+                cls.remove_local_comfyui_changes()
+                # Try to apply the patch
+                logger.info(f"Applying patch {patchfile}")
+                result = cls._run_get_result(f"git apply {patchfile}", get_comfyui_path())
+                logger.debug(f"{result}")
+                if result.returncode:
+                    logger.error(f"Could not apply patch {patchfile}")
 
         # Drop in custom node config
         config_file = os.path.join(get_comfyui_path(), "extra_model_paths.yaml")
