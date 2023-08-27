@@ -49,6 +49,7 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager.manager.gfpgan is not None
     assert SharedModelManager.manager.safety_checker is not None
     assert SharedModelManager.manager.lora is not None
+    assert SharedModelManager.manager.ti is not None
     assert SharedModelManager.manager.blip is not None
     assert SharedModelManager.manager.clip is not None
 
@@ -102,6 +103,7 @@ def pytest_collection_modifyitems(items):
         "tests.test_payload_mapping",
         "test_shared_model_manager",
         "test_mm_lora",
+        "test_mm_ti",
     ]
     MODULES_TO_RUN_LAST = [
         "test.test_blip",

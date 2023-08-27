@@ -20,6 +20,7 @@ from hordelib.model_manager.esrgan import EsrganModelManager
 from hordelib.model_manager.gfpgan import GfpganModelManager
 from hordelib.model_manager.lora import LoraModelManager
 from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
+from hordelib.model_manager.ti import TextualInversionModelManager
 from hordelib.settings import UserSettings
 
 MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES | str, type[BaseModelManager]] = {
@@ -31,6 +32,7 @@ MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES | str, type[BaseModelManag
     MODEL_CATEGORY_NAMES.gfpgan: GfpganModelManager,
     MODEL_CATEGORY_NAMES.safety_checker: SafetyCheckerModelManager,
     MODEL_CATEGORY_NAMES.lora: LoraModelManager,
+    MODEL_CATEGORY_NAMES.ti: TextualInversionModelManager,
     MODEL_CATEGORY_NAMES.blip: BlipModelManager,
     MODEL_CATEGORY_NAMES.clip: ClipModelManager,
 }
@@ -84,6 +86,12 @@ class ModelManager:
         """The Lora model manager instance. Returns `None` if not loaded."""
         found_mm = self.get_mm_pointer(LoraModelManager)
         return found_mm if isinstance(found_mm, LoraModelManager) else None
+
+    @property
+    def ti(self) -> TextualInversionModelManager | None:
+        """The Textual Inversion model manager instance. Returns `None` if not loaded."""
+        found_mm = self.get_mm_pointer(TextualInversionModelManager)
+        return found_mm if isinstance(found_mm, TextualInversionModelManager) else None
 
     @property
     def blip(self) -> BlipModelManager | None:

@@ -41,6 +41,7 @@ class MODEL_CATEGORY_NAMES(StrEnum):
     gfpgan = auto()
     safety_checker = auto()
     lora = auto()
+    ti = auto()
     blip = auto()
     clip = auto()
 
@@ -55,6 +56,7 @@ DEFAULT_MODEL_MANAGERS = {
     MODEL_CATEGORY_NAMES.gfpgan: True,
     MODEL_CATEGORY_NAMES.safety_checker: True,
     MODEL_CATEGORY_NAMES.lora: True,
+    MODEL_CATEGORY_NAMES.ti: True,
     MODEL_CATEGORY_NAMES.blip: True,
     MODEL_CATEGORY_NAMES.clip: True,
 }
@@ -69,6 +71,7 @@ MODEL_DB_NAMES = {
     MODEL_CATEGORY_NAMES.gfpgan: MODEL_CATEGORY_NAMES.gfpgan,
     MODEL_CATEGORY_NAMES.safety_checker: MODEL_CATEGORY_NAMES.safety_checker,
     MODEL_CATEGORY_NAMES.lora: MODEL_CATEGORY_NAMES.lora,
+    MODEL_CATEGORY_NAMES.ti: MODEL_CATEGORY_NAMES.ti,
     MODEL_CATEGORY_NAMES.blip: MODEL_CATEGORY_NAMES.blip,
     MODEL_CATEGORY_NAMES.clip: MODEL_CATEGORY_NAMES.clip,
 }
@@ -83,6 +86,7 @@ MODEL_FOLDER_NAMES = {
     MODEL_CATEGORY_NAMES.gfpgan: MODEL_CATEGORY_NAMES.gfpgan,
     MODEL_CATEGORY_NAMES.safety_checker: MODEL_CATEGORY_NAMES.safety_checker,
     MODEL_CATEGORY_NAMES.lora: MODEL_CATEGORY_NAMES.lora,
+    MODEL_CATEGORY_NAMES.ti: MODEL_CATEGORY_NAMES.ti,
     MODEL_CATEGORY_NAMES.blip: MODEL_CATEGORY_NAMES.blip,
     MODEL_CATEGORY_NAMES.clip: MODEL_CATEGORY_NAMES.clip,
 }
