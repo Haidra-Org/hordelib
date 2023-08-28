@@ -53,6 +53,11 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager.manager.lora is not None
     assert SharedModelManager.manager.ti is not None
 
+    assert SharedModelManager.manager.download_model("Deliberate")
+    assert SharedModelManager.manager.validate_model("Deliberate")
+    assert SharedModelManager.manager.download_model("SDXL 1.0")
+    assert SharedModelManager.manager.validate_model("SDXL 1.0")
+
     yield SharedModelManager
 
     SharedModelManager._instance = None  # type: ignore
