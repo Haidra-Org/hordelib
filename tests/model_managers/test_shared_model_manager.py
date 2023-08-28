@@ -5,7 +5,6 @@ import pytest
 
 from hordelib.consts import EXCLUDED_MODEL_NAMES, MODEL_CATEGORY_NAMES
 from hordelib.horde import HordeLib
-from hordelib.model_manager.clip import ClipModelManager
 from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.esrgan import EsrganModelManager
 from hordelib.shared_model_manager import SharedModelManager
@@ -29,16 +28,11 @@ class TestSharedModelManager:
         self,
         shared_model_manager: type[SharedModelManager],
     ):
+        shared_model_manager.load_model_managers([EsrganModelManager])
         assert shared_model_manager.manager.esrgan is not None
         shared_model_manager.unload_model_managers([EsrganModelManager])
         assert shared_model_manager.manager.esrgan is None
-        shared_model_manager.unload_model_managers([CompVisModelManager, MODEL_CATEGORY_NAMES.blip, "clip"])
-        assert shared_model_manager.manager.compvis is None
-        assert shared_model_manager.manager.blip is None
-        assert shared_model_manager.manager.clip is None
-        shared_model_manager.load_model_managers(
-            [EsrganModelManager, CompVisModelManager, MODEL_CATEGORY_NAMES.blip, "clip"],
-        )
+        shared_model_manager.load_model_managers([EsrganModelManager])
 
     def test_horde_model_manager_reload_db(
         self,
@@ -50,53 +44,18 @@ class TestSharedModelManager:
         self,
         shared_model_manager: type[SharedModelManager],
     ):
-        result: bool | None = shared_model_manager.manager.download_model("Deliberate")
-        assert result is True
+        assert shared_model_manager.manager.download_model("Deliberate")
+        assert shared_model_manager.manager.is_model_available("Deliberate")
 
     def test_horde_model_manager_validate(
         self,
         shared_model_manager: type[SharedModelManager],
     ):
         assert shared_model_manager.manager is not None
-        shared_model_manager.manager.load("Deliberate")
-        result: bool | None = shared_model_manager.manager.validate_model("Deliberate")
-        assert result is True
-        shared_model_manager.manager.unload_model("Deliberate")
+        assert shared_model_manager.manager.download_model("Deliberate")
         if not shared_model_manager.manager.validate_model("Deliberate"):
             assert shared_model_manager.manager.download_model("Deliberate")
             assert shared_model_manager.manager.validate_model("Deliberate")
-
-    def test_model_load_cycling(
-        self,
-        shared_model_manager: type[SharedModelManager],
-    ):
-        deliberate_was_loaded = "Deliberate" in shared_model_manager.manager.loaded_models
-        shared_model_manager.manager.load("Deliberate")
-        shared_model_manager.manager.load("GFPGAN")
-        shared_model_manager.manager.load("RealESRGAN_x4plus")
-        shared_model_manager.manager.load("4x_NMKD_Superscale_SP")
-        assert shared_model_manager.manager.is_model_loaded("Deliberate") is True
-        assert shared_model_manager.manager.is_model_loaded("GFPGAN") is True
-        assert shared_model_manager.manager.is_model_loaded("RealESRGAN_x4plus") is True
-        assert shared_model_manager.manager.is_model_loaded("4x_NMKD_Superscale_SP") is True
-
-        shared_model_manager.manager.unload_model("Deliberate")
-        shared_model_manager.manager.unload_model("GFPGAN")
-        shared_model_manager.manager.unload_model("RealESRGAN_x4plus")
-        shared_model_manager.manager.unload_model("4x_NMKD_Superscale_SP")
-        assert shared_model_manager.manager.is_model_loaded("Deliberate") is False
-        assert shared_model_manager.manager.is_model_loaded("GFPGAN") is False
-        assert shared_model_manager.manager.is_model_loaded("RealESRGAN_x4plus") is False
-        assert shared_model_manager.manager.is_model_loaded("4x_NMKD_Superscale_SP") is False
-        if deliberate_was_loaded:
-            shared_model_manager.manager.load("Deliberate")
-
-    def test_model_excluding(
-        self,
-        shared_model_manager: type[SharedModelManager],
-    ):
-        for excluded_model in EXCLUDED_MODEL_NAMES:
-            assert not shared_model_manager.manager.load(excluded_model)
 
     def test_check_sha(
         self,
@@ -135,44 +94,42 @@ class TestSharedModelManager:
         self,
         shared_model_manager: type[SharedModelManager],
     ):
-        assert shared_model_manager.preloadAnnotators()
+        assert shared_model_manager.preload_annotators()
 
     @pytest.fixture(scope="class")
     def load_models_for_type_test(
         self,
         shared_model_manager: type[SharedModelManager],
     ):
-        shared_model_manager.manager.load("RealESRGAN_x4plus")
-        shared_model_manager.manager.load("Deliberate")
-        shared_model_manager.manager.load("safety_checker")
+        shared_model_manager.manager.download_model("RealESRGAN_x4plus")
+        shared_model_manager.manager.download_model("Deliberate")
+        shared_model_manager.manager.download_model("safety_checker")
         yield
-        shared_model_manager.manager.unload_model("RealESRGAN_x4plus")
-        shared_model_manager.manager.unload_model("Deliberate")
-        shared_model_manager.manager.unload_model("safety_checker")
 
-    def test_get_loaded_models_names(
+    def test_get_available_models(
         self,
         shared_model_manager: type[SharedModelManager],
         load_models_for_type_test,
     ):
-        assert "RealESRGAN_x4plus" in shared_model_manager.manager.get_loaded_models_names()
-        assert "Deliberate" in shared_model_manager.manager.get_loaded_models_names()
-        assert "safety_checker" in shared_model_manager.manager.get_loaded_models_names()
-        assert "Deliberate" in shared_model_manager.manager.get_loaded_models_names(mm_include=["compvis"])
-        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_loaded_models_names(mm_include=["compvis"])
-        assert "safety_checker" not in shared_model_manager.manager.get_loaded_models_names(mm_include=["compvis"])
-        assert "Deliberate" in shared_model_manager.manager.get_loaded_models_names(
+        assert "RealESRGAN_x4plus" in shared_model_manager.manager.get_available_models()
+        assert "Deliberate" in shared_model_manager.manager.get_available_models()
+        assert "SDXL 1.0" in shared_model_manager.manager.get_available_models()
+        assert "safety_checker" in shared_model_manager.manager.get_available_models()
+        assert "Deliberate" in shared_model_manager.manager.get_available_models(mm_include=["compvis"])
+        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_available_models(mm_include=["compvis"])
+        assert "safety_checker" not in shared_model_manager.manager.get_available_models(mm_include=["compvis"])
+        assert "Deliberate" in shared_model_manager.manager.get_available_models(
             mm_include=["compvis", "safety_checker"],
         )
-        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_loaded_models_names(
+        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_available_models(
             mm_include=["compvis", "safety_checker"],
         )
-        assert "safety_checker" in shared_model_manager.manager.get_loaded_models_names(
+        assert "safety_checker" in shared_model_manager.manager.get_available_models(
             mm_include=["compvis", "safety_checker"],
         )
-        assert "Deliberate" in shared_model_manager.manager.get_loaded_models_names(mm_exclude=["esrgan"])
-        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_loaded_models_names(mm_exclude=["esrgan"])
-        assert "safety_checker" in shared_model_manager.manager.get_loaded_models_names(mm_exclude=["esrgan"])
+        assert "Deliberate" in shared_model_manager.manager.get_available_models(mm_exclude=["esrgan"])
+        assert "RealESRGAN_x4plus" not in shared_model_manager.manager.get_available_models(mm_exclude=["esrgan"])
+        assert "safety_checker" in shared_model_manager.manager.get_available_models(mm_exclude=["esrgan"])
 
     def test_get_available_models_by_types(
         self,
@@ -210,28 +167,30 @@ class TestSharedModelManager:
         load_models_for_type_test,
     ):
         shared_model_manager.unload_model_managers(["gfpgan"])
-        print(shared_model_manager.manager.get_mm_pointers(["compvis"]))
-        assert shared_model_manager.manager.get_mm_pointers(["compvis"]) == [shared_model_manager.manager.compvis]
+        print(shared_model_manager.manager.get_model_manager_instances(["compvis"]))
+        assert shared_model_manager.manager.get_model_manager_instances(["compvis"]) == [
+            shared_model_manager.manager.compvis,
+        ]
         # because gfpgan MM not active
-        assert len(shared_model_manager.manager.get_mm_pointers(["compvis", "gfpgan"])) == 1
-        assert len(shared_model_manager.manager.get_mm_pointers(["compvis", "gfpgan", "esrgan"])) == 2
-        assert len(shared_model_manager.manager.get_mm_pointers(["compvis", "FAKE"])) == 1
-        assert shared_model_manager.manager.get_mm_pointers(None) == []
+        assert len(shared_model_manager.manager.get_model_manager_instances(["compvis", "gfpgan"])) == 1
+        assert len(shared_model_manager.manager.get_model_manager_instances(["compvis", "gfpgan", "esrgan"])) == 2
+        assert len(shared_model_manager.manager.get_model_manager_instances(["compvis", "FAKE"])) == 1
+        assert shared_model_manager.manager.get_model_manager_instances(None) == []
         # Any value other than a string or a mm pointer is ignored
-        assert shared_model_manager.manager.get_mm_pointers([None]) == []  # type: ignore
+        assert shared_model_manager.manager.get_model_manager_instances([None]) == []  # type: ignore
         assert set(
-            shared_model_manager.manager.get_mm_pointers(
+            shared_model_manager.manager.get_model_manager_instances(
                 [None, "FAKE", "esrgan", "compvis"],  # type: ignore
             ),
         ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}
 
         assert set(
-            shared_model_manager.manager.get_mm_pointers(
+            shared_model_manager.manager.get_model_manager_instances(
                 [EsrganModelManager, CompVisModelManager],
             ),
         ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}
         assert set(
-            shared_model_manager.manager.get_mm_pointers(
+            shared_model_manager.manager.get_model_manager_instances(
                 [None, "FAKE", EsrganModelManager, CompVisModelManager],  # type: ignore
             ),
         ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}

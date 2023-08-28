@@ -14,6 +14,7 @@ from loguru import logger
 from PIL import Image
 
 from hordelib.comfy_horde import Comfy_Horde
+from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
 from hordelib.utils.image_utils import ImageUtils
@@ -63,6 +64,19 @@ class HordeLib:
         # "<unused>": "BinaryPreprocessor",
         # "<unused>": "ColorPreprocessor",
         # "<unused>": "PiDiNetPreprocessor",
+    }
+
+    CONTROLNET_MODEL_MAP = {
+        "canny": "diff_control_sd15_canny_fp16.safetensors",
+        "hed": "diff_control_sd15_hed_fp16.safetensors",
+        "depth": "diff_control_sd15_depth_fp16.safetensors",
+        "normal": "control_normal_fp16.safetensors",
+        "openpose": "control_openpose_fp16.safetensors",
+        "seg": "control_seg_fp16.safetensors",
+        "scribble": "control_scribble_fp16.safetensors",
+        "fakescribble": "control_scribble_fp16.safetensors",
+        "mlsd": "control_mlsd_fp16.safetensors",
+        "hough": "control_mlsd_fp16.safetensors",
     }
 
     SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting"]
@@ -119,6 +133,7 @@ class HordeLib:
         "negative_prompt.text": "negative_prompt",
         "sampler.steps": "ddim_steps",
         "empty_latent_image.batch_size": "n_iter",
+        "model_loader.ckpt_name": "model",
         "model_loader.model_name": "model",
         "image_loader.image": "source_image",
         "loras": "loras",
@@ -225,6 +240,42 @@ class HordeLib:
         """
         payload = deepcopy(payload)
 
+        if payload.get("model"):
+            if SharedModelManager.manager.compvis.is_model_available(payload["model"]):
+                model_reference_information = SharedModelManager.manager.compvis.get_model(payload["model"])
+                model_config = model_reference_information.get("config")
+                model_files_config = model_config.get("files")
+
+                for file_config_entry in model_files_config:
+                    path_config_item = file_config_entry.get("path")
+                    if path_config_item:
+                        if path_config_item.endswith((".ckpt", ".safetensors")):
+                            payload["model"] = path_config_item
+                            break
+            else:
+                post_processor_model_managers = SharedModelManager.manager.get_model_manager_instances(
+                    [MODEL_CATEGORY_NAMES.codeformer, MODEL_CATEGORY_NAMES.esrgan, MODEL_CATEGORY_NAMES.gfpgan],
+                )
+
+                found_model = False
+
+                for post_processor_model_manager in post_processor_model_managers:
+                    if post_processor_model_manager.is_model_available(payload["model"]):
+                        model_reference_information = post_processor_model_manager.get_model(payload["model"])
+                        model_config = model_reference_information.get("config")
+                        model_files_config = model_config.get("files")
+
+                        for file_config_entry in model_files_config:
+                            path_config_item = file_config_entry.get("path")
+                            if path_config_item:
+                                if path_config_item.endswith((".pth", ".pt", ".safetensors")):
+                                    payload["model"] = path_config_item
+                                    found_model = True
+                                    break
+
+                if not found_model:
+                    raise RuntimeError(f"Model {payload['model']} not found! Is it in a Model Reference?")
+
         # Rather than specify a scheduler, only karras or not karras is specified
         if payload.get("karras", False):
             payload["scheduler"] = "karras"
@@ -327,7 +378,7 @@ class HordeLib:
             valid_loras = []
             for lora in payload.get("loras"):
                 # Determine the actual lora filename
-                if not SharedModelManager.manager.lora.is_local_model(str(lora["name"])):
+                if not SharedModelManager.manager.lora.is_model_availible(str(lora["name"])):
                     adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(str(lora["name"]))
                     if not adhoc_lora:
                         logger.info(f"Adhoc lora requested '{lora['name']}' could not be found in CivitAI. Ignoring!")
@@ -373,9 +424,9 @@ class HordeLib:
                             "lora_name": lora["name"],
                             "strength_model": lora["model"],
                             "strength_clip": lora["clip"],
-                            "model_manager": SharedModelManager,
+                            # "model_manager": SharedModelManager,
                         },
-                        "class_type": "HordeLoraLoader",
+                        "class_type": "LoraLoader",
                     }
                 else:
                     # Subsequent chained loras
@@ -386,9 +437,9 @@ class HordeLib:
                             "lora_name": lora["name"],
                             "strength_model": lora["model"],
                             "strength_clip": lora["clip"],
-                            "model_manager": SharedModelManager,
+                            # "model_manager": SharedModelManager,
                         },
-                        "class_type": "HordeLoraLoader",
+                        "class_type": "LoraLoader",
                     }
 
             for lora_index, lora in enumerate(payload.get("loras")):
@@ -424,7 +475,7 @@ class HordeLib:
                 logger.error(f"Parameter {key} not found")
 
         # Inject our model manager
-        pipeline_params["model_loader.model_manager"] = SharedModelManager
+        # pipeline_params["model_loader.model_manager"] = SharedModelManager
 
         # For hires fix, change the image sizes as we create an intermediate image first
         if payload.get("hires_fix", False):
@@ -439,7 +490,11 @@ class HordeLib:
 
         if payload.get("control_type"):
             # Inject control net model manager
-            pipeline_params["controlnet_model_loader.model_manager"] = SharedModelManager
+            # pipeline_params["controlnet_model_loader.model_manager"] = SharedModelManager
+            model_name = self.CONTROLNET_MODEL_MAP.get(payload.get("control_type"))
+            if not model_name:
+                logger.error(f"Controlnet model for {payload.get('control_type')} not found")
+            pipeline_params["controlnet_model_loader.control_net_name"] = model_name
 
             # Dynamically reconnect nodes in the pipeline to connect the correct pre-processor node
             if payload.get("return_control_map"):
@@ -528,19 +583,6 @@ class HordeLib:
         else:
             return results
 
-    def lock_models(self, models):
-        models = [str(x).strip() for x in models if x]
-        # Try to acquire a model lock, if we can't, wait a while as some other thread
-        # must have these resources locked
-        while not self.generator.lock_models(models):
-            time.sleep(0.1)
-        logger.debug(f"Locked models {','.join(models)}")
-
-    def unlock_models(self, models):
-        models = [x.strip() for x in models if x]
-        self.generator.unlock_models(models)
-        logger.debug(f"Unlocked models {','.join(models)}")
-
     def basic_inference(self, payload, rawpng=False):
         # AIHorde hacks to payload
         payload = self._apply_aihorde_compatibility_hacks(payload)
@@ -555,20 +597,17 @@ class HordeLib:
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
         models: list[str] = []
         # Run the pipeline
-        try:
-            # Add prefix to loras to avoid name collisions with other models
-            models = [f"lora-{x['name']}" for x in payload.get("loras", []) if x]
-            # main model
-            models.append(payload.get("model_loader.model_name"))  # type: ignore # FIXME?
-            # controlnet model
-            models.append(payload.get("controlnet_model_loader.control_net_name"))  # type: ignore # FIXME?
-            # Acquire a lock on all these models
-            self.lock_models(models)
-            # Call the inference pipeline
-            # logger.info(payload)
-            images = self.generator.run_image_pipeline(pipeline_data, payload)
-        finally:
-            self.unlock_models(models)
+
+        # Add prefix to loras to avoid name collisions with other models
+        models = [f"lora-{x['name']}" for x in payload.get("loras", []) if x]
+        # main model        models.append(payload.get("model_loader.model_name"))  # type: ignore # FIXME?
+        # controlnet model
+        models.append(payload.get("controlnet_model_loader.control_net_name"))  # type: ignore # FIXME?
+
+        # Call the inference pipeline
+        # logger.info(payload)
+        images = self.generator.run_image_pipeline(pipeline_data, payload)
+
         return self._process_results(images, rawpng)
 
     def image_upscale(self, payload, rawpng=False) -> Image.Image | None:
@@ -585,12 +624,11 @@ class HordeLib:
         pipeline_name = "image_upscale"
         pipeline_data = self.generator.get_pipeline_data(pipeline_name)
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
+
         # Run the pipeline
-        try:
-            self.lock_models([payload.get("model_loader.model_name")])
-            images = self.generator.run_image_pipeline(pipeline_data, payload)
-        finally:
-            self.unlock_models([payload.get("model_loader.model_name")])
+
+        images = self.generator.run_image_pipeline(pipeline_data, payload)
+
         if images is None:
             return None  # XXX Log error and/or raise Exception here
         # Allow arbitrary resizing by shrinking the image back down
@@ -607,10 +645,9 @@ class HordeLib:
         pipeline_name = "image_facefix"
         pipeline_data = self.generator.get_pipeline_data(pipeline_name)
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
+
         # Run the pipeline
-        try:
-            self.lock_models([payload.get("model_loader.model_name")])
-            images = self.generator.run_image_pipeline(pipeline_data, payload)
-        finally:
-            self.unlock_models([payload.get("model_loader.model_name")])
+
+        images = self.generator.run_image_pipeline(pipeline_data, payload)
+
         return self._process_results(images, rawpng)  # type: ignore # FIXME?

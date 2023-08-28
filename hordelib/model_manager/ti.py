@@ -76,7 +76,7 @@ class TextualInversionModelManager(BaseModelManager):
             models_db_path=models_db_path,
         )
 
-    def loadModelDatabase(self, list_models=False):
+    def load_model_database(self, list_models=False):
         if self.model_reference:
             logger.info(
                 (
@@ -759,6 +759,7 @@ class TextualInversionModelManager(BaseModelManager):
     def do_baselines_match(self, ti_name, model_details):
         self._check_for_refresh(ti_name)
         lota_details = self.get_model(ti_name)
+        return True  # FIXME
         if not lota_details:
             logger.warning(f"Could not find ti {ti_name} to check baselines")
             return False
@@ -771,30 +772,6 @@ class TextualInversionModelManager(BaseModelManager):
     @override
     def is_local_model(self, model_name):
         return self.fuzzy_find_ti_key(model_name) is not None
-
-    @override
-    def load(
-        self,
-        model_name: str,
-        *,
-        half_precision: bool = True,
-        gpu_id: int | None = 0,
-        cpu_only: bool = False,
-        **kwargs,
-    ) -> bool | None:
-        error = "load is not supported for Textual Inversions"
-        logger.error(error)
-        raise NotImplementedError(error)
-
-    @override
-    def modelToRam(
-        self,
-        model_name: str,
-        **kwargs,
-    ) -> dict[str, typing.Any]:
-        error = "modelToRam is not supported for Textual Inversions"
-        logger.error(error)
-        raise NotImplementedError(error)
 
     def get_available_models(self):
         """

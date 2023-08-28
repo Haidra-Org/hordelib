@@ -17,7 +17,7 @@ class DiffusersModelManager(BaseModelManager):
         )
 
     @override
-    def modelToRam(
+    def model_to_ram(
         self,
         model_name: str,
         **kwargs,

@@ -19,11 +19,10 @@ class TestHordeInference:
         """Loads the inpainting model for testing.
         This fixture returns the (str) model name."""
         model_name = "Deliberate Inpainting"
-        if not shared_model_manager.manager.load(model_name):
+        if not shared_model_manager.manager.download_model(model_name):
             shared_model_manager.manager.download_model(model_name)
-            assert shared_model_manager.manager.load(model_name)
+        assert shared_model_manager.manager.is_model_available(model_name)
         yield model_name
-        assert shared_model_manager.manager.unload_model(model_name)
 
     def test_inpainting_alpha_mask(
         self,
@@ -187,3 +186,81 @@ class TestHordeInference:
             f"images_expected/{img_filename}",
             pil_image,
         )
+
+    def test_sdxl_inpainting_alpha_mask(
+        self,
+        sdxl_1_0_base_model_name: str,
+        hordelib_instance: HordeLib,
+    ):
+        data = {
+            "sampler_name": "euler",
+            "cfg_scale": 8,
+            "denoising_strength": 0.9,
+            "seed": 836138046008,
+            "height": 1024,
+            "width": 1024,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a robot sitting a wooden bench in a field",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": sdxl_1_0_base_model_name,
+            "source_image": Image.open("images/test_inpaint_alpha.png"),
+            "source_processing": "inpainting",
+        }
+        pil_image = hordelib_instance.basic_inference(data)
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+
+        img_filename = "sdxl_inpainting_mask_alpha_denoise_0.9.png"
+
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+    def test_sdxl_inpainting_separate_mask(
+        self,
+        sdxl_1_0_base_model_name: str,
+        hordelib_instance: HordeLib,
+    ):
+        data = {
+            "sampler_name": "euler",
+            "cfg_scale": 8,
+            "denoising_strength": 1,
+            "seed": 836138046008,
+            "height": 1024,
+            "width": 1024,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "an iron bench in a field",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": sdxl_1_0_base_model_name,
+            "source_image": Image.open("images/test_inpaint_original.png"),
+            "source_mask": Image.open("images/test_inpaint_mask.png"),
+            "source_processing": "inpainting",
+        }
+
+        for denoise_strength in [1, 0.9, 0.8, 0.7, 0.65, 0.6, 0.5]:
+            data["denoising_strength"] = denoise_strength
+            pil_image = hordelib_instance.basic_inference(data)
+            assert pil_image is not None
+
+            img_filename = f"sdxl_inpainting_mask_separate_denoise_{denoise_strength}.png"
+
+            assert isinstance(pil_image, Image.Image)
+
+            pil_image.save(f"images/{img_filename}", quality=100)

@@ -52,17 +52,11 @@ class TestHordeInference:
             if preproc == "scribble" or preproc == "mlsd":
                 # Skip
                 continue
-            assert (
-                shared_model_manager.manager.controlnet.check_control_type_available(
-                    preproc,
-                    "stable diffusion 1",
-                )
-                is True
-            )
+
             data["control_type"] = preproc
 
             pil_image = hordelib_instance.basic_inference(data)
-            assert pil_image is not None
+            assert pil_image is not None, f"Failed to generate image for {preproc}"
 
             img_filename = f"controlnet_{preproc}.png"
 

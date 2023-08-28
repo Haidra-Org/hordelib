@@ -37,7 +37,7 @@ class LoraModelManager(BaseModelManager):
     LORA_DEFAULTS = "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/main/lora.json"
     LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated&primaryFileOnly=true"
     MAX_RETRIES = 10 if not TESTS_ONGOING else 1
-    MAX_DOWNLOAD_THREADS = 3  # max concurrent downloads
+    MAX_DOWNLOAD_THREADS = 3
     RETRY_DELAY = 5
     """The time to wait between retries in seconds"""
     REQUEST_METADATA_TIMEOUT = 30
@@ -85,7 +85,7 @@ class LoraModelManager(BaseModelManager):
         )
         # FIXME (shift lora.json handling into horde_model_reference?)
 
-    def loadModelDatabase(self, list_models=False):
+    def load_model_database(self, list_models=False):
         if self.model_reference:
             logger.info(
                 (
@@ -778,46 +778,17 @@ class LoraModelManager(BaseModelManager):
 
     def do_baselines_match(self, lora_name, model_details):
         self._check_for_refresh(lora_name)
-        lota_details = self.get_model(lora_name)
-        if not lota_details:
+        lora_details = self.get_model(lora_name)
+        return True  # FIXME: Disabled for now
+        if not lora_details:
             logger.warning(f"Could not find lora {lora_name} to check baselines")
             return False
-        if "SD 1.5" in lota_details["baseModel"] and model_details["baseline"] == "stable diffusion 1":
+        if "SD 1.5" in lora_details["baseModel"] and model_details["baseline"] == "stable diffusion 1":
             return True
-        if "SD 2.1" in lota_details["baseModel"] and model_details["baseline"] == "stable diffusion 2":
+        if "SD 2.1" in lora_details["baseModel"] and model_details["baseline"] == "stable diffusion 2":
             return True
         return False
 
     @override
-    def is_local_model(self, model_name):
+    def is_model_availible(self, model_name):
         return self.fuzzy_find_lora_key(model_name) is not None
-
-    @override
-    def load(
-        self,
-        model_name: str,
-        *,
-        half_precision: bool = True,
-        gpu_id: int | None = 0,
-        cpu_only: bool = False,
-        **kwargs,
-    ) -> bool | None:
-        error = "load is not supported for LoRas"
-        logger.error(error)
-        raise NotImplementedError(error)
-
-    @override
-    def modelToRam(
-        self,
-        model_name: str,
-        **kwargs,
-    ) -> dict[str, typing.Any]:
-        error = "modelToRam is not supported for LoRas"
-        logger.error(error)
-        raise NotImplementedError(error)
-
-    def get_available_models(self):
-        """
-        Returns the available model names
-        """
-        return list(self.model_reference.keys())

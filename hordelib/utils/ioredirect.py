@@ -39,7 +39,7 @@ class OutputCollector(io.TextIOWrapper):
                     is_iterations_per_second = False
 
                 # Add a timestamp to the log
-                message = f"{message} ({perf_counter() - self.start_time:.2f} seconds)"
+                message = f"{message} ({perf_counter() - self.start_time:.2f} seconds in ComfyUI)"
 
                 if not matches:
                     logger.debug(f"Unknown progress bar format?: {message}")

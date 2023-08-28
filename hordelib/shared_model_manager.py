@@ -63,36 +63,6 @@ class SharedModelManager:
         return cls._instance
 
     @classmethod
-    def loadModelManagers(
-        cls,
-        codeformer: bool = False,
-        compvis: bool = False,
-        controlnet: bool = False,
-        # diffusers: bool = False,
-        esrgan: bool = False,
-        gfpgan: bool = False,
-        safety_checker: bool = False,
-        lora: bool = False,
-        ti: bool = False,
-        blip: bool = False,
-        clip: bool = False,
-    ):
-        logger.error("This function is deprecated. Please use load_model_managers instead.")
-        managers_to_load: list[str] = []
-        passed_args = locals().copy()
-        passed_args.pop("cls")
-        for passed_arg, value in passed_args.items():
-            if value and passed_arg in MODEL_CATEGORY_NAMES.__members__.values():
-                managers_to_load.append(passed_arg)
-
-        logger.error("Skipping downloading of legacy databases.")  # FIXME
-
-        # logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
-        # download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
-        do_migrations()
-        cls.manager.init_model_managers(managers_to_load)
-
-    @classmethod
     def load_model_managers(
         cls,
         managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
@@ -119,7 +89,7 @@ class SharedModelManager:
         cls.manager.unload_model_managers(managers_to_unload)
 
     @staticmethod
-    def preloadAnnotators() -> bool:
+    def preload_annotators() -> bool:
         """Preload all annotators. If they are already downloaded, this will only ensure the SHA256 integrity.
 
         Returns:

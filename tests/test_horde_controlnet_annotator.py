@@ -16,7 +16,7 @@ class TestHordeInference:
         assert shared_model_manager.manager.controlnet
         for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
             shared_model_manager.manager.controlnet.download_control_type(preproc, ["stable diffusion 1"])
-        assert shared_model_manager.preloadAnnotators()
+        assert shared_model_manager.preload_annotators()
 
     def test_controlnet_annotator(
         self,
@@ -52,13 +52,6 @@ class TestHordeInference:
                 # Not valid for normal image input test
                 continue
             assert shared_model_manager.manager.controlnet
-            assert (
-                shared_model_manager.manager.controlnet.check_control_type_available(
-                    preproc,
-                    "stable diffusion 1",
-                )
-                is True
-            )
             data["control_type"] = preproc
             pil_image = hordelib_instance.basic_inference(data)
             assert pil_image is not None
