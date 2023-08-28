@@ -331,7 +331,7 @@ class TestHordeInferenceImg2Img:
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (1024, 1024)
 
-        img_filename = "img2img_to_masked_denoise_0.95.png"
+        img_filename = "sdxl_img2img_to_masked_denoise_0.95.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
         assert check_single_inference_image_similarity(
