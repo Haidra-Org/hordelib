@@ -53,7 +53,7 @@ jobs:
       if: ${{ steps.release.outputs.version != '' }}
       run: |
         python -m pip install --upgrade pip
-        python -m pip install build psutil typing-extensions loguru strenum --user
+        python -m pip install build psutil typing-extensions loguru strenum python-dotenv --user
 
     - name: "✏️ Install changelog dependencies"
       if: ${{ steps.release.outputs.version != '' }}
