@@ -194,7 +194,7 @@ class ModelManager:
             resolve_manager_to_load_type: type[BaseModelManager] | None = None
             if isinstance(manager_to_load, type) and issubclass(manager_to_load, BaseModelManager):
                 if manager_to_load not in MODEL_MANAGERS_TYPE_LOOKUP.values():
-                    logger.warning(f"Attempted to load a model manager which doesn't exist: '{manager_to_load}'.")
+                    logger.debug(f"Attempted to load a model manager which doesn't exist: '{manager_to_load}'.")
                     continue
                 resolve_manager_to_load_type = manager_to_load
             elif manager_to_load in MODEL_MANAGERS_TYPE_LOOKUP.keys():
@@ -204,7 +204,7 @@ class ModelManager:
                 continue
 
             if any(mm for mm in self.active_model_managers if isinstance(mm, resolve_manager_to_load_type)):
-                logger.warning(
+                logger.debug(
                     f"Attempted to load a model manager which is already loaded: '{resolve_manager_to_load_type}'.",
                 )
                 continue
