@@ -49,7 +49,7 @@ class TestHordeTI:
         pil_image = hordelib_instance.basic_inference(data)
         assert pil_image is not None
         assert (
-            Path(os.path.join(shared_model_manager.manager.ti.modelFolderPath, "64870.safetensors")).exists() is True
+            Path(os.path.join(shared_model_manager.manager.ti.model_folder_path, "64870.safetensors")).exists() is True
         )
 
         img_filename = "ti_basic.png"

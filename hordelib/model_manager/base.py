@@ -40,7 +40,7 @@ _temp_reference_lookup = {
 
 
 class BaseModelManager(ABC):
-    modelFolderPath: str  # XXX # TODO Convert to `Path`
+    model_folder_path: str  # XXX # TODO Convert to `Path`
     """The path to the directory to store this model type."""
     model_reference: dict  # XXX is this even wanted/used/useful?
     available_models: list[str]  # XXX rework as a property?
@@ -74,10 +74,12 @@ class BaseModelManager(ABC):
             download_reference (bool, optional): Get the model DB from github. Defaults to False.
         """
 
-        self.modelFolderPath = os.path.join(
+        self.model_folder_path = os.path.join(
             UserSettings.get_model_directory(),
             f"{MODEL_FOLDER_NAMES[model_category_name]}",
         )
+
+        os.makedirs(self.model_folder_path, exist_ok=True)
 
         self.model_reference = {}
         self.available_models = []
@@ -189,7 +191,7 @@ class BaseModelManager(ABC):
         """Returns the fully qualified filename for the specified model."""
         ckpt_path = model_name
 
-        return f"{self.modelFolderPath}/{ckpt_path}"
+        return f"{self.model_folder_path}/{ckpt_path}"
 
     def get_model(self, model_name: str):
         return self.model_reference.get(model_name)
@@ -268,6 +270,8 @@ class BaseModelManager(ABC):
                     logger.error(f"Unable to delete {file_details['path']}: {e}.")
                     logger.error(f"Please delete {file_details['path']} if this error persists.")
                 return False
+        if model_name not in self.available_models:
+            self.available_models.append(model_name)
         return True
 
     @staticmethod
@@ -352,7 +356,7 @@ class BaseModelManager(ABC):
         Checks if the file exists and if the checksum is correct
         Returns True if the file is valid, False otherwise
         """
-        full_path = f"{self.modelFolderPath}/{file_details['path']}"
+        full_path = f"{self.model_folder_path}/{file_details['path']}"
 
         # Default to sha256 hashes
         if "sha256sum" in file_details:
@@ -386,7 +390,7 @@ class BaseModelManager(ABC):
         Checks if the file exists
         Returns True if the file exists, False otherwise
         """
-        full_path = f"{self.modelFolderPath}/{file_path}"
+        full_path = f"{self.model_folder_path}/{file_path}"
         return os.path.exists(full_path)
 
     def _is_available(self, files) -> bool:  # FIXME what is `files` type?
@@ -409,8 +413,8 @@ class BaseModelManager(ABC):
         :param file_path: Path of the model's file. File is from the model's files list.
         Downloads a file
         """
-        final_pathname = f"{self.modelFolderPath}/{filename}"
-        partial_pathname = f"{self.modelFolderPath}/{filename}.part"
+        final_pathname = f"{self.model_folder_path}/{filename}"
+        partial_pathname = f"{self.model_folder_path}/{filename}.part"
         filename = os.path.basename(filename)
         os.makedirs(os.path.dirname(final_pathname), exist_ok=True)
 
@@ -576,11 +580,11 @@ class BaseModelManager(ABC):
                         f"{model_name}",
                     )
                 os.makedirs(
-                    os.path.join(self.modelFolderPath, download_path),
+                    os.path.join(self.model_folder_path, download_path),
                     exist_ok=True,
                 )
                 with open(
-                    os.path.join(self.modelFolderPath, os.path.join(download_path, download_name)),
+                    os.path.join(self.model_folder_path, os.path.join(download_path, download_name)),
                     "w",
                 ) as f:
                     f.write(file_content)
@@ -592,28 +596,28 @@ class BaseModelManager(ABC):
                         f"download_path and download_name are required for symlink download type for " f"{model_name}",
                     )
                 os.makedirs(
-                    os.path.join(self.modelFolderPath, download_path),
+                    os.path.join(self.model_folder_path, download_path),
                     exist_ok=True,
                 )
                 os.symlink(
                     symlink,
                     os.path.join(
-                        self.modelFolderPath,
+                        self.model_folder_path,
                         os.path.join(download_path, download_name),
                     ),
                 )
             elif "git" in download[i]:
                 logger.info(f"git clone {download_url} to {file_path}")
                 os.makedirs(
-                    os.path.join(self.modelFolderPath, file_path),
+                    os.path.join(self.model_folder_path, file_path),
                     exist_ok=True,
                 )
-                git.Git(os.path.join(self.modelFolderPath, file_path)).clone(
+                git.Git(os.path.join(self.model_folder_path, file_path)).clone(
                     download_url,
                 )
             elif "unzip" in download[i]:
-                zip_path = f"{self.modelFolderPath}/{download_name}.zip"
-                temp_path = f"{self.modelFolderPath}/{str(uuid4())}/"
+                zip_path = f"{self.model_folder_path}/{download_name}.zip"
+                temp_path = f"{self.model_folder_path}/{str(uuid4())}/"
                 os.makedirs(temp_path, exist_ok=True)
                 if not download_url or not download_path:
                     raise RuntimeError(
@@ -630,7 +634,7 @@ class BaseModelManager(ABC):
                 logger.info(f"moving {temp_path} to {download_path}")
                 shutil.move(
                     temp_path,
-                    os.path.join(self.modelFolderPath, download_path),
+                    os.path.join(self.model_folder_path, download_path),
                 )
 
                 logger.info(f"delete {zip_path}")
@@ -661,7 +665,7 @@ class BaseModelManager(ABC):
         Downloads all models
         """
         # FIXME this has no fall back and always returns true
-        for model in self.get_filtered_model_names(download_all=True):
+        for model in self.model_reference:
             if not self.is_model_available(model):
                 logger.info(f"Downloading {model}")
                 self.download_model(model)

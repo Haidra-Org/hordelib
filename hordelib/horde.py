@@ -378,7 +378,7 @@ class HordeLib:
             valid_loras = []
             for lora in payload.get("loras"):
                 # Determine the actual lora filename
-                if not SharedModelManager.manager.lora.is_model_availible(str(lora["name"])):
+                if not SharedModelManager.manager.lora.is_model_available(str(lora["name"])):
                     adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(str(lora["name"]))
                     if not adhoc_lora:
                         logger.info(f"Adhoc lora requested '{lora['name']}' could not be found in CivitAI. Ignoring!")

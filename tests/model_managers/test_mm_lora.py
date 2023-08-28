@@ -96,8 +96,8 @@ class TestModelManagerLora:
         lora_model_manager.ensure_lora_deleted(22591)
         lora_key = lora_model_manager.fetch_adhoc_lora("22591")
         assert lora_key == "GAG - RPG Potions  |  LoRa 2.1".lower()
-        assert lora_model_manager.is_model_availible("GAG")
-        assert lora_model_manager.is_model_availible("22591")
+        assert lora_model_manager.is_model_available("GAG")
+        assert lora_model_manager.is_model_available("22591")
         assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  LoRa 2.1"
         lora_model_manager.stop_all()
 
@@ -112,7 +112,7 @@ class TestModelManagerLora:
         lora_model_manager.wait_for_adhoc_reset(15)
         lora_model_manager.ensure_lora_deleted(lora_id)
         lora_key = lora_model_manager.fetch_adhoc_lora(lora_id)
-        assert lora_model_manager.is_model_availible(lora_id) is False
+        assert lora_model_manager.is_model_available(lora_id) is False
         assert lora_key is None
         lora_model_manager.stop_all()
 
@@ -128,7 +128,7 @@ class TestModelManagerLora:
         lora_model_manager.wait_for_adhoc_reset(15)
         lora_model_manager.ensure_lora_deleted(lora_id)
         lora_key = lora_model_manager.fetch_adhoc_lora(lora_id)
-        assert lora_model_manager.is_model_availible(lora_id) is True
+        assert lora_model_manager.is_model_available(lora_id) is True
         assert lora_key is not None
         lora_model_manager.stop_all()
 
@@ -145,7 +145,7 @@ class TestModelManagerLora:
         )
         lora_key = lora_model_manager.fetch_adhoc_lora(lora_name)
         assert lora_key is None
-        assert not lora_model_manager.is_model_availible(lora_name)
+        assert not lora_model_manager.is_model_available(lora_name)
         lora_model_manager.stop_all()
 
     ## Disabling this until I can figure out a better way to test these

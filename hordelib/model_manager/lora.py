@@ -96,7 +96,7 @@ class LoraModelManager(BaseModelManager):
             logger.info("Reloading model reference...")
 
         if self.download_reference:
-            os.makedirs(self.modelFolderPath, exist_ok=True)
+            os.makedirs(self.model_folder_path, exist_ok=True)
             self.download_model_reference()
             logger.info("Lora reference download begun asynchronously.")
         else:
@@ -284,7 +284,7 @@ class LoraModelManager(BaseModelManager):
             while retries <= self.MAX_RETRIES:
                 try:
                     # Just before we download this file, check if we already have it
-                    filename = os.path.join(self.modelFolderPath, lora["filename"])
+                    filename = os.path.join(self.model_folder_path, lora["filename"])
                     hashfile = f"{os.path.splitext(filename)[0]}.sha256"
                     if os.path.exists(filename) and os.path.exists(hashfile):
                         # Check the hash
@@ -422,7 +422,7 @@ class LoraModelManager(BaseModelManager):
         self._previous_model_reference = copy.deepcopy(self.model_reference)
         # TODO: Avoid clearing this out, until we know CivitAI is not dead.
         self.model_reference = {}
-        os.makedirs(self.modelFolderPath, exist_ok=True)
+        os.makedirs(self.model_folder_path, exist_ok=True)
         # Start processing in a background thread
         self._thread = threading.Thread(target=self._get_lora_defaults, daemon=True)
         self._thread.start()
@@ -600,7 +600,7 @@ class LoraModelManager(BaseModelManager):
         return None
 
     def find_unused_loras(self):
-        files = glob.glob(f"{self.modelFolderPath}/*.safetensors")
+        files = glob.glob(f"{self.model_folder_path}/*.safetensors")
         filesnames = set()
         for stfile in files:
             filename = os.path.basename(stfile)
@@ -624,7 +624,7 @@ class LoraModelManager(BaseModelManager):
         return loras_to_delete
 
     def delete_lora_files(self, lora_filename: str):
-        filename = os.path.join(self.modelFolderPath, lora_filename)
+        filename = os.path.join(self.model_folder_path, lora_filename)
         if not os.path.exists(filename):
             logger.warning(f"Could not find LoRa file on disk to delete: {filename}")
             return
@@ -790,5 +790,5 @@ class LoraModelManager(BaseModelManager):
         return False
 
     @override
-    def is_model_availible(self, model_name):
+    def is_model_available(self, model_name):
         return self.fuzzy_find_lora_key(model_name) is not None

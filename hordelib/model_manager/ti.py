@@ -87,7 +87,7 @@ class TextualInversionModelManager(BaseModelManager):
             logger.info("Reloading model reference...")
 
         # TI are always stored to disk and the model reference created slowly through ad-hoc requests
-        os.makedirs(self.modelFolderPath, exist_ok=True)
+        os.makedirs(self.model_folder_path, exist_ok=True)
         if self.models_db_path.exists():
             try:
                 self.model_reference = json.loads((self.models_db_path).read_text())
@@ -262,7 +262,7 @@ class TextualInversionModelManager(BaseModelManager):
             while retries <= self.MAX_RETRIES:
                 try:
                     # Just before we download this file, check if we already have it
-                    filepath = os.path.join(self.modelFolderPath, ti["filename"])
+                    filepath = os.path.join(self.model_folder_path, ti["filename"])
                     hashpath = f"{os.path.splitext(filepath)[0]}.sha256"
                     logger.debug(f"Retrieving TI metadata from Hordeling for ID: {ti['filename']}")
                     hordeling_response = requests.get(f"{self.HORDELING_API}/{ti['id']}", timeout=5)
@@ -578,7 +578,7 @@ class TextualInversionModelManager(BaseModelManager):
         return None
 
     def find_unused_tis(self):
-        files = glob.glob(f"{self.modelFolderPath}/*.safetensors")
+        files = glob.glob(f"{self.model_folder_path}/*.safetensors")
         filesnames = set()
         for stfile in files:
             filename = os.path.basename(stfile)
@@ -604,7 +604,7 @@ class TextualInversionModelManager(BaseModelManager):
         return tis_to_delete
 
     def delete_ti_files(self, ti_filename: str):
-        filename = os.path.join(self.modelFolderPath, ti_filename)
+        filename = os.path.join(self.model_folder_path, ti_filename)
         if not os.path.exists(filename):
             logger.warning(f"Could not find Textual Inversion file on disk to delete: {filename}")
             return
