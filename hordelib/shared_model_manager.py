@@ -85,10 +85,16 @@ class SharedModelManager:
             if value and passed_arg in MODEL_CATEGORY_NAMES.__members__.values():
                 managers_to_load.append(passed_arg)
 
-        logger.error("Skipping downloading of legacy databases.")  # FIXME
+        # logger.error("Skipping downloading of legacy databases.")  # FIXME
 
         # logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
         # download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
+
+        lrdm = LegacyReferenceDownloadManager()
+        references = lrdm.download_all_legacy_model_references()
+        for reference in references:
+            logger.debug(f"Legacy reference downloaded: {reference}")
+
         do_migrations()
         cls.manager.init_model_managers(managers_to_load)
 
@@ -106,7 +112,12 @@ class SharedModelManager:
         # logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
         # download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
 
-        logger.error("Skipping downloading of legacy databases.")  # FIXME
+        lrdm = LegacyReferenceDownloadManager()
+        references = lrdm.download_all_legacy_model_references()
+        for reference in references:
+            logger.debug(f"Legacy reference downloaded: {reference}")
+
+        # logger.error("Skipping downloading of legacy databases.")  # FIXME
 
         do_migrations()
         cls.manager.init_model_managers(managers_to_load)
