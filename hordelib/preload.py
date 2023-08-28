@@ -12,6 +12,8 @@ def validate_all_controlnet_annotators(annotatorPath: Path) -> int:
     if annotatorPath.joinpath(".controlnet_annotators").exists():
         return len(ANNOTATOR_MODEL_SHA_LOOKUP)
 
+    annotatorPath.mkdir(parents=True, exist_ok=True)
+
     validated_file_num = 0
     annotators = glob.glob("*.pt*", root_dir=annotatorPath)
     for annotator in annotators:

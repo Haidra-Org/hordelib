@@ -44,19 +44,25 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager()._instance is not None
     assert SharedModelManager.manager is not None
     assert SharedModelManager.manager.codeformer is not None
+    assert SharedModelManager.manager.codeformer.download_all_models()
     assert SharedModelManager.manager.compvis is not None
-    assert SharedModelManager.manager.controlnet is not None
-    assert SharedModelManager.preload_annotators()
-    assert SharedModelManager.manager.esrgan is not None
-    assert SharedModelManager.manager.gfpgan is not None
-    assert SharedModelManager.manager.safety_checker is not None
-    assert SharedModelManager.manager.lora is not None
-    assert SharedModelManager.manager.ti is not None
 
     assert SharedModelManager.manager.download_model("Deliberate")
     assert SharedModelManager.manager.validate_model("Deliberate")
     assert SharedModelManager.manager.download_model("SDXL 1.0")
     assert SharedModelManager.manager.validate_model("SDXL 1.0")
+
+    assert SharedModelManager.manager.controlnet is not None
+    assert SharedModelManager.manager.controlnet.download_all_models()
+    assert SharedModelManager.preload_annotators()
+    assert SharedModelManager.manager.esrgan is not None
+    assert SharedModelManager.manager.esrgan.download_all_models()
+    assert SharedModelManager.manager.gfpgan is not None
+    assert SharedModelManager.manager.gfpgan.download_all_models()
+    assert SharedModelManager.manager.safety_checker is not None
+    assert SharedModelManager.manager.safety_checker.download_all_models()
+    assert SharedModelManager.manager.lora is not None
+    assert SharedModelManager.manager.ti is not None
 
     yield SharedModelManager
 
