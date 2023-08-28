@@ -40,8 +40,11 @@ license-files = ["LICENSE", "CHANGELOG*"]
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
 
+[tool.setuptools.package-dir]
+hordelib = "hordelib"
+
 [tool.setuptools.packages.find]
-exclude = ["ComfyUI", "build", "tests"]
+exclude = ["ComfyUI", "build"]
 namespaces = false
 
 
