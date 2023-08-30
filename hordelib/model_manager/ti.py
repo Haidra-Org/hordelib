@@ -463,7 +463,7 @@ class TextualInversionModelManager(BaseModelManager):
         return None
 
     # Using `get_model` instead of `get_ti` as it exists in the base class
-    def get_model(self, model_name: str) -> dict | None:
+    def get_model_reference_info(self, model_name: str) -> dict | None:
         """Returns the actual ti details dict for the specified model_name search string
         Returns None if ti name not found"""
         ti_name = self.fuzzy_find_ti_key(model_name)
@@ -474,7 +474,7 @@ class TextualInversionModelManager(BaseModelManager):
     def get_ti_filename(self, model_name: str):
         """Returns the actual ti filename for the specified model_name search string
         Returns None if ti name not found"""
-        ti = self.get_model(model_name)
+        ti = self.get_model_reference_info(model_name)
         if not ti:
             return None
         return ti["filename"]
@@ -482,7 +482,7 @@ class TextualInversionModelManager(BaseModelManager):
     def get_ti_name(self, model_name: str):
         """Returns the actual ti name for the specified model_name search string
         Returns None if ti name not found"""
-        ti = self.get_model(model_name)
+        ti = self.get_model_reference_info(model_name)
         if not ti:
             return None
         return ti["name"]
@@ -490,7 +490,7 @@ class TextualInversionModelManager(BaseModelManager):
     def get_ti_id(self, model_name: str):
         """Returns the civitai ti ID for the specified model_name search string
         Returns None if ti name not found"""
-        ti = self.get_model(model_name)
+        ti = self.get_model_reference_info(model_name)
         if not ti:
             return None
         return ti["id"]
@@ -499,7 +499,7 @@ class TextualInversionModelManager(BaseModelManager):
         """Returns a list of triggers for a specified ti name
         Returns an empty list if no triggers are found
         Returns None if ti name not found"""
-        ti = self.get_model(model_name)
+        ti = self.get_model_reference_info(model_name)
         if not ti:
             return None
         triggers = ti.get("triggers")
@@ -612,7 +612,7 @@ class TextualInversionModelManager(BaseModelManager):
         logger.info(f"Deleted Textual Inversion file: {filename}")
 
     def delete_ti(self, ti_name: str):
-        ti_info = self.get_model(ti_name)
+        ti_info = self.get_model_reference_info(ti_name)
         if not ti_info:
             logger.warning(f"Could not find ti {ti_name} to delete")
             return
@@ -674,7 +674,7 @@ class TextualInversionModelManager(BaseModelManager):
         and also initiates a refresh
         Else returns False
         """
-        ti_details = self.get_model(ti_name)
+        ti_details = self.get_model_reference_info(ti_name)
         if not ti_details:
             return True
         refresh = False
@@ -712,7 +712,7 @@ class TextualInversionModelManager(BaseModelManager):
 
     def touch_ti(self, ti_name):
         """Updates the "last_used" key in a ti entry to current UTC time"""
-        ti = self.get_model(ti_name)
+        ti = self.get_model_reference_info(ti_name)
         if not ti:
             logger.warning(f"Could not find ti {ti_name} to touch")
             return
@@ -720,7 +720,7 @@ class TextualInversionModelManager(BaseModelManager):
 
     def get_ti_last_use(self, ti_name):
         """Returns a dateimte object based on the "last_used" key in a ti entry"""
-        ti = self.get_model(ti_name)
+        ti = self.get_model_reference_info(ti_name)
         if not ti:
             logger.warning(f"Could not find ti {ti_name} to get last use")
             return None
@@ -758,7 +758,7 @@ class TextualInversionModelManager(BaseModelManager):
 
     def do_baselines_match(self, ti_name, model_details):
         self._check_for_refresh(ti_name)
-        lota_details = self.get_model(ti_name)
+        lota_details = self.get_model_reference_info(ti_name)
         return True  # FIXME
         if not lota_details:
             logger.warning(f"Could not find ti {ti_name} to check baselines")

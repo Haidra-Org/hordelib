@@ -49,8 +49,6 @@ class BaseModelManager(ABC):
     """Models which seem to be corrupted and should be deleted when the correct replacement is downloaded."""
     models_db_name: str
     models_db_path: Path
-    cuda_available: bool
-    cuda_devices: list
     recommended_gpu: list
     download_reference: bool
     remote_db: str
@@ -104,8 +102,6 @@ class BaseModelManager(ABC):
         logger.debug(f"Model database path: {models_db_path}")
         self.models_db_path = models_db_path
 
-        self.cuda_available = torch.cuda.is_available()  # XXX Remove?
-        self.cuda_devices, self.recommended_gpu = self.get_cuda_devices()  # XXX Remove?
         self.remote_db = f"{REMOTE_MODEL_DB}{self.models_db_name}.json"
         self.download_reference = download_reference
         self.load_model_database()
@@ -193,14 +189,28 @@ class BaseModelManager(ABC):
 
         return f"{self.model_folder_path}/{ckpt_path}"
 
-    def get_model(self, model_name: str):
+    def get_model_reference_info(self, model_name: str):
         return self.model_reference.get(model_name)
 
-    def get_model_files(self, model_name: str):
+    def get_model_file(self, model_name: str) -> Path:
         """
         :param model_name: Name of the model
         Returns the files for a model
         """
+        if model_name not in self.model_reference:
+            raise ValueError(f"Model {model_name} not found in model reference")
+
+        model_file_entries = self.model_reference.get(model_name, {}).get("config", {}).get("files", [])
+
+        for model_file_entry in model_file_entries:
+            path_config_item = model_file_entry.get("path")
+            if path_config_item:
+                if path_config_item.endswith((".ckpt", ".safetensors", ".pt", ".pth", ".bin")):
+                    return Path(path_config_item)
+
+        raise ValueError(f"Model {model_name} does not have a valid file entry")
+
+    def get_model_config_files(self, model_name: str) -> list[dict]:
         return self.model_reference.get(model_name, {}).get("config", {}).get("files", [])
 
     def get_model_download(self, model_name: str):
@@ -221,9 +231,7 @@ class BaseModelManager(ABC):
             model_types = ["ckpt"]
         models_available = []
         for model in self.model_reference:
-            if self.model_reference[model]["type"] in model_types and self._is_available(
-                self.get_model_files(model),
-            ):
+            if self.model_reference[model]["type"] in model_types and self.is_model_available(model):
                 models_available.append(model)
         return models_available
 
@@ -250,26 +258,32 @@ class BaseModelManager(ABC):
         Returns:
             bool | None: `True` if the model is valid, `False` if not, `None` if the model is not on disk.
         """
-        files = self.get_model_files(model_name)
-        logger.debug(f"Validating {model_name} with {len(files)} files")
-        logger.debug(files)
-        for file_details in files:
-            if ".yaml" in file_details["path"]:
+        model_file = self.get_model_file(model_name)
+        logger.debug(f"Validating {model_name}. File: {model_file}")
+
+        if not self.is_file_available(model_file):
+            return None
+
+        file_details = self.get_model_config_files(model_name)
+
+        for file_detail in file_details:
+            if ".yaml" in file_detail["path"]:
                 continue
-            if not self.is_file_available(file_details["path"]):
-                logger.debug(f"File {file_details['path']} not found")
+            if not self.is_file_available(file_detail["path"]):
+                logger.debug(f"File {file_detail['path']} not found")
                 return None
-            if not skip_checksum and not self.validate_file(file_details):
-                logger.warning(f"File {file_details['path']} has different contents to what we expected.")
+            if not skip_checksum and not self.validate_file(file_detail):
+                logger.warning(f"File {file_detail['path']} has different contents to what we expected.")
                 try:
                     # The file must have been considered valid once, or we wouldn't have renamed
                     # it from the ".part" download. Likely there is an update, or a model database hash problem
-                    logger.warning(f"Likely updated, will attempt to re-download {file_details['path']}.")
+                    logger.warning(f"Likely updated, will attempt to re-download {file_detail['path']}.")
                     self.taint_model(model_name)
                 except OSError as e:
-                    logger.error(f"Unable to delete {file_details['path']}: {e}.")
-                    logger.error(f"Please delete {file_details['path']} if this error persists.")
+                    logger.error(f"Unable to delete {file_detail['path']}: {e}.")
+                    logger.error(f"Please delete {file_detail['path']} if this error persists.")
                 return False
+
         if model_name not in self.available_models:
             self.available_models.append(model_name)
         return True
@@ -349,7 +363,7 @@ class BaseModelManager(ABC):
 
         return sha256_hash
 
-    def validate_file(self, file_details):
+    def validate_file(self, file_details: dict) -> bool:
         # FIXME This isn't enough or isn't being called at the right times
         """
         :param file_details: A single file from the model's files list
@@ -384,28 +398,16 @@ class BaseModelManager(ABC):
 
         return True
 
-    def is_file_available(self, file_path: str) -> bool:
+    def is_file_available(self, file_path: str | Path) -> bool:
         """
         :param file_path: Path of the model's file. File is from the model's files list.
         Checks if the file exists
         Returns True if the file exists, False otherwise
         """
-        full_path = f"{self.model_folder_path}/{file_path}"
-        return os.path.exists(full_path)
+        full_path = Path(f"{self.model_folder_path}/{file_path}")
+        sha_file_path = Path(f"{self.model_folder_path}/{full_path.stem}.sha256")
 
-    def _is_available(self, files) -> bool:  # FIXME what is `files` type?
-        """
-        :param files: List of files from the model's files list
-        Checks if all files exist
-        Returns True if all files exist, False otherwise
-        """
-        available = True
-        for file in files:
-            if ".yaml" in file["path"]:
-                continue
-            if not self.is_file_available(file["path"]):
-                available = False
-        return available
+        return full_path.exists() and sha_file_path.exists()
 
     def download_file(self, url: str, filename: str) -> bool:
         """
@@ -545,7 +547,7 @@ class BaseModelManager(ABC):
             logger.debug(f"{model_name} is already available.")
             return True
         download = self.get_model_download(model_name)
-        files = self.get_model_files(model_name)
+        files = self.get_model_config_files(model_name)
         for i in range(len(download)):
             file_path = (
                 f"{download[i]['file_path']}/{download[i]['file_name']}"
@@ -669,8 +671,8 @@ class BaseModelManager(ABC):
             if not self.is_model_available(model):
                 logger.info(f"Downloading {model}")
                 self.download_model(model)
-            else:
-                logger.info(f"{model} is already downloaded.")
+            # else:
+            #   logger.debug(f"{model} is already downloaded.")
         return True
 
     def is_model_available(self, model_name: str) -> bool:
@@ -681,55 +683,4 @@ class BaseModelManager(ABC):
         """
         if model_name not in self.model_reference:
             return False
-        return self._is_available(self.get_model_files(model_name))
-
-    def get_cuda_devices(self):
-        """
-        Checks if CUDA is available.
-        If CUDA is available, it returns a list of all available CUDA devices.
-        If CUDA is not available, it returns an empty list.
-        CUDA Device info: id, name, sm
-        List is sorted by sm (compute capability) in descending order.
-        Also returns the recommended GPU (highest sm).
-        """
-        # XXX Remove? Just make the torch calls or make a util class...s
-
-        if torch.cuda.is_available():
-            number_of_cuda_devices = torch.cuda.device_count()
-            cuda_arch = []
-            for i in range(number_of_cuda_devices):
-                cuda_device = {
-                    "id": i,
-                    "name": torch.cuda.get_device_name(i),
-                    "sm": torch.cuda.get_device_capability(i)[0] * 10 + torch.cuda.get_device_capability(i)[1],
-                }
-                cuda_arch.append(cuda_device)
-            cuda_arch = sorted(cuda_arch, key=lambda k: k["sm"], reverse=True)
-            recommended_gpu = [x for x in cuda_arch if x["sm"] == cuda_arch[0]["sm"]]
-            return cuda_arch, recommended_gpu
-
-        return None, None
-
-    def get_filtered_models(self, **kwargs):
-        """
-        Get all models
-        :param kwargs: filter based on metadata of the model reference db
-        :return: list of models
-        """
-        filtered_models = self.model_reference
-        for keyword in kwargs:
-            iterating_models = filtered_models.copy()
-            filtered_models = {}
-            for model in iterating_models:
-                if iterating_models[model].get(keyword) == kwargs[keyword]:
-                    filtered_models[model] = iterating_models[model]
-        return filtered_models
-
-    def get_filtered_model_names(self, **kwargs):
-        """
-        Get all model names
-        :param kwargs: filter based on metadata of the model reference db
-        :return: list of model names
-        """
-        filtered_models = self.get_filtered_models(**kwargs)
-        return list(filtered_models.keys())
+        return self.is_file_available(self.get_model_file(model_name))

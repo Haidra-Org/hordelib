@@ -487,7 +487,7 @@ class LoraModelManager(BaseModelManager):
         return None
 
     # Using `get_model` instead of `get_lora` as it exists in the base class
-    def get_model(self, model_name: str) -> dict | None:
+    def get_model_reference_info(self, model_name: str) -> dict | None:
         """Returns the actual lora details dict for the specified model_name search string
         Returns None if lora name not found"""
         lora_name = self.fuzzy_find_lora_key(model_name)
@@ -498,7 +498,7 @@ class LoraModelManager(BaseModelManager):
     def get_lora_filename(self, model_name: str):
         """Returns the actual lora filename for the specified model_name search string
         Returns None if lora name not found"""
-        lora = self.get_model(model_name)
+        lora = self.get_model_reference_info(model_name)
         if not lora:
             return None
         return lora["filename"]
@@ -506,7 +506,7 @@ class LoraModelManager(BaseModelManager):
     def get_lora_name(self, model_name: str):
         """Returns the actual lora name for the specified model_name search string
         Returns None if lora name not found"""
-        lora = self.get_model(model_name)
+        lora = self.get_model_reference_info(model_name)
         if not lora:
             return None
         return lora["name"]
@@ -515,7 +515,7 @@ class LoraModelManager(BaseModelManager):
         """Returns a list of triggers for a specified lora name
         Returns an empty list if no triggers are found
         Returns None if lora name not found"""
-        lora = self.get_model(model_name)
+        lora = self.get_model_reference_info(model_name)
         if not lora:
             return None
         triggers = lora.get("triggers")
@@ -632,7 +632,7 @@ class LoraModelManager(BaseModelManager):
         logger.info(f"Deleted LoRa file: {filename}")
 
     def delete_lora(self, lora_name: str):
-        lora_info = self.get_model(lora_name)
+        lora_info = self.get_model_reference_info(lora_name)
         if not lora_info:
             logger.warning(f"Could not find lora {lora_name} to delete")
             return
@@ -694,7 +694,7 @@ class LoraModelManager(BaseModelManager):
         and also initiates a refresh
         Else returns False
         """
-        lora_details = self.get_model(lora_name)
+        lora_details = self.get_model_reference_info(lora_name)
         if not lora_details:
             return True
         refresh = False
@@ -732,7 +732,7 @@ class LoraModelManager(BaseModelManager):
 
     def touch_lora(self, lora_name):
         """Updates the "last_used" key in a lora entry to current UTC time"""
-        lora = self.get_model(lora_name)
+        lora = self.get_model_reference_info(lora_name)
         if not lora:
             logger.warning(f"Could not find lora {lora_name} to touch")
             return
@@ -740,7 +740,7 @@ class LoraModelManager(BaseModelManager):
 
     def get_lora_last_use(self, lora_name):
         """Returns a dateimte object based on the "last_used" key in a lora entry"""
-        lora = self.get_model(lora_name)
+        lora = self.get_model_reference_info(lora_name)
         if not lora:
             logger.warning(f"Could not find lora {lora_name} to get last use")
             return None
@@ -768,7 +768,7 @@ class LoraModelManager(BaseModelManager):
         # We double-check that somehow our search missed it but CivitAI searches differently and found it
         fuzzy_find = self.fuzzy_find_lora_key(lora["id"])
         if fuzzy_find:
-            logger.error(fuzzy_find)
+            logger.debug(f"Found lora with ID: {fuzzy_find}")
             return fuzzy_find
         self._download_queue.append(lora)
         # We need to wait a bit to make sure the threads pick up the download
@@ -778,7 +778,7 @@ class LoraModelManager(BaseModelManager):
 
     def do_baselines_match(self, lora_name, model_details):
         self._check_for_refresh(lora_name)
-        lora_details = self.get_model(lora_name)
+        lora_details = self.get_model_reference_info(lora_name)
         return True  # FIXME: Disabled for now
         if not lora_details:
             logger.warning(f"Could not find lora {lora_name} to check baselines")
