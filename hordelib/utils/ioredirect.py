@@ -32,10 +32,10 @@ class OutputCollector(io.TextIOWrapper):
                 matches = None
                 is_iterations_per_second = None
                 if message.endswith("it/s]"):
-                    matches = regex.match(r"^(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d+]\.?\d*)it/s]", message)
+                    matches = regex.match(r"^(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d]+\.?\d*)it/s]", message)
                     is_iterations_per_second = True
                 elif message.endswith("s/it]"):
-                    matches = regex.match(r"^(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d+]\.?\d*)s/it]", message)
+                    matches = regex.match(r"^(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d]+\.?\d*)s/it]", message)
                     is_iterations_per_second = False
 
                 # Add a timestamp to the log
