@@ -8,7 +8,6 @@ import threading
 import time
 
 from loguru import logger
-from PIL import Image
 
 from hordelib.consts import MODEL_CATEGORY_NAMES
 
@@ -18,8 +17,8 @@ if __name__ != "__main__":
 import hordelib
 
 hordelib.initialise(setup_logging=False)
+from hordelib import SharedModelManager
 from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
 
 random.seed(999)
 

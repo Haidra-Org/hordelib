@@ -1,14 +1,12 @@
 # test_horde.py
-import os
 import typing
-from enum import Enum, auto
 
 import PIL.Image
 import pytest
 from PIL import Image
 
+from hordelib import SharedModelManager
 from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.distance import HistogramDistanceResultCode
 
 from .testing_shared_functions import (

@@ -1,5 +1,3 @@
-import pytest
-
 from hordelib.settings import UserSettings
 from hordelib.utils.distance import (
     CosineSimilarityResultCode,

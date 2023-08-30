@@ -1,12 +1,11 @@
 # test_horde_lora.py
-import os
 from datetime import datetime, timedelta
 
 import pytest
 from PIL import Image
 
-from hordelib.horde import HordeLib
 from hordelib import SharedModelManager
+from hordelib.horde import HordeLib
 
 from .testing_shared_functions import check_single_lora_image_similarity
 

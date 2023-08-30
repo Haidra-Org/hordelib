@@ -1,12 +1,10 @@
 # test_horde.py
-import os
 
-import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
 
-from .testing_shared_functions import CosineSimilarityResultCode, check_single_inference_image_similarity
+from .testing_shared_functions import check_single_inference_image_similarity
 
 SLOW_SAMPLERS = ["k_dpmpp_2s_a", "k_dpmpp_sde", "k_heun", "k_dpm_2", "k_dpm_2_a"]
 

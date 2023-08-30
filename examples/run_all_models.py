@@ -7,9 +7,9 @@ import hordelib
 
 hordelib.initialise(setup_logging=False)
 
+from hordelib import SharedModelManager
 from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
 
 # Set this to where your hordelib tmp model cache is
 os.environ["AIWORKER_TEMP_DIR"] = "d:/temp/ray"

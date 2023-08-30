@@ -2,7 +2,6 @@ from typing import Generator
 
 import pytest
 
-import hordelib
 from hordelib.model_manager.compvis import CompVisModelManager
 
 

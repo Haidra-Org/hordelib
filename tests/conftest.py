@@ -2,13 +2,11 @@ from typing import Generator
 
 import PIL.Image
 import pytest
-from loguru import logger
 
+from hordelib import SharedModelManager
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.horde import HordeLib
-from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES
-from hordelib.shared_model_manager import SharedModelManager
 
 
 @pytest.fixture(scope="session")

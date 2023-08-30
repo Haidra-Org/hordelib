@@ -6,7 +6,6 @@ import os
 import re
 import threading
 import time
-import typing
 from collections import deque
 from datetime import datetime, timedelta
 from enum import auto
@@ -14,7 +13,6 @@ from enum import auto
 import requests
 from fuzzywuzzy import fuzz
 from horde_model_reference import LEGACY_REFERENCE_FOLDER
-from horde_model_reference.path_consts import get_model_reference_filename
 from loguru import logger
 from strenum import StrEnum
 from typing_extensions import override

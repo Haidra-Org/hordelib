@@ -1,13 +1,9 @@
 # test_horde_ti.py
 import os
-from datetime import datetime, timedelta
 from pathlib import Path
 
-import pytest
-from PIL import Image
-
+from hordelib import SharedModelManager
 from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestHordeTI:

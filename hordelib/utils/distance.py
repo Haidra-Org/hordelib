@@ -1,7 +1,7 @@
 # Some of the original implementation of the module was inspired from the following:
 # - https://www.analyticsvidhya.com/blog/2021/03/a-beginners-guide-to-image-similarity-using-python/
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import Enum
 from pathlib import Path
 
 import cv2

@@ -1,5 +1,4 @@
 # test_comfy_install.py
-import os
 
 from hordelib.consts import COMFYUI_VERSION
 from hordelib.install_comfy import Installer

@@ -80,9 +80,9 @@ exclude = '''
 
 [tool.ruff] # XXX this isn't part of CI yet
 line-length=119
-exclude=["comfy_controlnet_preprocessors", "facerestore", "build"]
+exclude=["ComfyUI", "comfy_controlnet_preprocessors", "facerestore", "build"]
 ignore=[
-    "F401", # imported but unused
+    # "F401", # imported but unused
     "E402", # Module level import not at top of file
     "A002", # Argument `x` is shadowing a python builtin
     "A001", # Variable `x` is shadowing a python builtin

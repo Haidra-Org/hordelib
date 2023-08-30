@@ -1,6 +1,7 @@
 import os
 import re
 from collections import deque
+from pathlib import Path
 from typing import Callable
 
 import psutil
@@ -21,7 +22,7 @@ class UserSettings:
     """The amount of VRAM to leave free, defaults to 50% of the current machines VRAM, can be expressed as a number of
      MB or a percentage."""
 
-    _model_directory = ""
+    _model_directory: Path | None = None
     _basedir = ""
 
     def __new__(cls):
@@ -107,7 +108,7 @@ class UserSettings:
         cls._ram_to_leave_free_mb = value
 
     @classmethod
-    def get_model_directory(cls):
+    def get_model_directory(cls) -> Path:
         """The directory where models are stored"""
 
         # We take this as a directory that may contain the worker
@@ -134,9 +135,9 @@ class UserSettings:
             for dirname in dirnames:
                 queue.append(os.path.join(dirpath, dirname))
 
-        cls._model_directory = basedir
+        cls._model_directory = Path(basedir)
         cls._basedir = basedir
-        return basedir
+        return Path(basedir)
 
     # Disable the use of xformers
     disable_xformers = Switch()

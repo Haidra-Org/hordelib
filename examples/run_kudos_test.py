@@ -1,12 +1,8 @@
 # This tests running hordelib standalone, as an external caller would use it.
 # Call with: python -m test.run_memory_test
 # You need all the deps in whatever environment you are running this.
-import os
-import random
-import threading
 import time
 
-import psutil
 from loguru import logger
 from PIL import Image
 
@@ -14,12 +10,10 @@ import hordelib
 
 hordelib.initialise(setup_logging=True, clear_logs=True)
 
-from hordelib.comfy_horde import cleanup
+from hordelib import SharedModelManager
 from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.horde import HordeLib
 from hordelib.settings import UserSettings
-from hordelib.shared_model_manager import SharedModelManager
-from hordelib.utils.gpuinfo import GPUInfo
 
 UserSettings.disable_disk_cache.activate()
 

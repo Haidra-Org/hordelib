@@ -1,8 +1,6 @@
 # Here we try to measure the impact, if any, on inference time with long prompts
 import time
 
-from loguru import logger
-
 import hordelib
 from hordelib.consts import MODEL_CATEGORY_NAMES
 
@@ -26,9 +24,9 @@ def stop_clock():
 def main():
     hordelib.initialise(setup_logging=False)
 
+    from hordelib import SharedModelManager
     from hordelib.horde import HordeLib
     from hordelib.settings import UserSettings
-    from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
     SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis])

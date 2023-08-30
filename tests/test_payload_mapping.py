@@ -1,6 +1,3 @@
-import pytest
-from PIL import Image
-
 from hordelib.horde import HordeLib
 
 

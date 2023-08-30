@@ -1,7 +1,6 @@
 # This tests running hordelib standalone, as an external caller would use it.
 # Call with: python -m test.run_img2img_inpaint_separate_mask
 # You need all the deps in whatever environment you are running this.
-import os
 
 import hordelib
 from hordelib.consts import MODEL_CATEGORY_NAMES
@@ -12,8 +11,8 @@ def main():
 
     from PIL import Image
 
+    from hordelib import SharedModelManager
     from hordelib.horde import HordeLib
-    from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
     SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis])

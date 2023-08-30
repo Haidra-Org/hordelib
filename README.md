@@ -50,7 +50,7 @@ import hordelib
 hordelib.initialise()
 
 from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
+from hordelib import SharedModelManager
 
 # Wherever your models are
 os.environ["AIWORKER_CACHE_HOME"] = "f:/ai/models"

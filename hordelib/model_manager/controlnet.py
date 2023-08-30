@@ -1,14 +1,9 @@
-import os
-import typing
-from enum import auto
 from typing import Iterable
 
 from loguru import logger
 from strenum import StrEnum
-from typing_extensions import override
 
-from hordelib.comfy_horde import horde_load_controlnet
-from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES
+from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.model_manager.base import BaseModelManager
 
 
@@ -54,13 +49,3 @@ class ControlNetModelManager(BaseModelManager):
         """
 
         return f"control_{control_type}{CONTROLNET_BASELINE_APPENDS[sd_baseline]}"
-
-    def get_controlnet_filename(self, controlnet_name: str) -> str | None:
-        """Gets the `.safetensors` filename for the model
-        so that it can be located on disk
-        """
-        for f in self.get_model_files(controlnet_name):
-            if f["path"].endswith("safetensors"):
-                return f["path"]
-        logger.error(f"Could not find {controlnet_name}.safetensors on disk.")
-        return None

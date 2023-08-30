@@ -5,25 +5,19 @@ import os
 import shutil
 import threading
 import time
-import typing
 import zipfile
-from abc import ABC, abstractmethod
+from abc import ABC
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Iterable
 from uuid import uuid4
 
 import git
 import psutil
 import requests
-import torch
 from horde_model_reference import LEGACY_REFERENCE_FOLDER, MODEL_REFERENCE_CATEGORY, get_model_reference_filename
 from loguru import logger
 from tqdm import tqdm
 
-from hordelib.comfy_horde import (
-    cleanup,
-    get_torch_free_vram_mb,
-)
 from hordelib.comfy_horde import get_torch_device as _get_torch_device
 from hordelib.config_path import get_hordelib_path
 from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES, REMOTE_MODEL_DB
@@ -40,7 +34,7 @@ _temp_reference_lookup = {
 
 
 class BaseModelManager(ABC):
-    model_folder_path: str  # XXX # TODO Convert to `Path`
+    model_folder_path: Path
     """The path to the directory to store this model type."""
     model_reference: dict  # XXX is this even wanted/used/useful?
     available_models: list[str]  # XXX rework as a property?
@@ -72,10 +66,7 @@ class BaseModelManager(ABC):
             download_reference (bool, optional): Get the model DB from github. Defaults to False.
         """
 
-        self.model_folder_path = os.path.join(
-            UserSettings.get_model_directory(),
-            f"{MODEL_FOLDER_NAMES[model_category_name]}",
-        )
+        self.model_folder_path = UserSettings.get_model_directory() / f"{MODEL_FOLDER_NAMES[model_category_name]}"
 
         os.makedirs(self.model_folder_path, exist_ok=True)
 

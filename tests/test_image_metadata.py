@@ -1,11 +1,9 @@
 # test_horde.py
 import json
 
-import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestHordeInference:
