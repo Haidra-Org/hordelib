@@ -113,7 +113,7 @@ Custom nodes for ComfyUI providing face restoration.
 
 ## DMCA Abuse
 
-On 26th May 2023 an [individual](https://github.com/hlky) issued a [DMCA takedown notice](https://github.com/github/dmca/blob/master/2023/05/2023-05-26-nataili.md) to Github against `hordelib` which claimed their name had been removed from the copyright header in the AGPL license in the 7 files listed in the takedown notice. This claim was true, and this attribution had been removed by a `hordelib` contributor prior to being committed into the `hordelib` repository. 
+On 26th May 2023 an [individual](https://github.com/hlky) issued a [DMCA takedown notice](https://github.com/github/dmca/blob/master/2023/05/2023-05-26-nataili.md) to Github against `hordelib` which claimed their name had been removed from the copyright header in the AGPL license in the 7 files listed in the takedown notice. This claim was true, and this attribution had been removed by a `hordelib` contributor prior to being committed into the `hordelib` repository.
 
 Unfortunately, it appears the individual making the DMCA claim was acting in bad faith, and even when their name was restored to the copyright attribution in the files, they persisted to press the DMCA takedown claim, which, due to the nature of the Github process, resulted in hordelib being subject to a DMCA takedown on Github.
 

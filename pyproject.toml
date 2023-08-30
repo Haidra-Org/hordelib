@@ -122,5 +122,3 @@ select = [
 "med.py" = ["E501", "UP035"]
 "vit.py" = ["E501", "UP035", "F821"] # F821 looks like a real bug, suppressed only for dev CI purposes
 "run_stress_test.py" = ["F841"]
-
-
