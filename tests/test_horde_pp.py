@@ -5,7 +5,7 @@ import PIL.Image
 import pytest
 from PIL import Image
 
-from hordelib import SharedModelManager
+from hordelib.shared_model_manager import SharedModelManager
 from hordelib.horde import HordeLib
 from hordelib.utils.distance import HistogramDistanceResultCode
 

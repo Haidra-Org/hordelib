@@ -1,5 +1,5 @@
 import hordelib.initialisation
-from hordelib import SharedModelManager
+from hordelib.shared_model_manager import SharedModelManager
 
 
 def main():

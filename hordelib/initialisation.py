@@ -62,7 +62,7 @@ def initialise(
     hordelib.comfy_horde.do_comfy_import()
 
     # Initialise model manager
-    from hordelib import SharedModelManager
+    from hordelib.shared_model_manager import SharedModelManager
 
     SharedModelManager()
 

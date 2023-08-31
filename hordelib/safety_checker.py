@@ -1,7 +1,7 @@
 import numpy as np
 from transformers import CLIPFeatureExtractor
 
-from hordelib import SharedModelManager
+from hordelib.shared_model_manager import SharedModelManager
 
 
 def is_image_nsfw(image):

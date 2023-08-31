@@ -3,7 +3,7 @@ from typing import Generator
 import PIL.Image
 import pytest
 
-from hordelib import SharedModelManager
+from hordelib.shared_model_manager import SharedModelManager
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.horde import HordeLib
 from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES

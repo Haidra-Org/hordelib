@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from hordelib import SharedModelManager
+from hordelib.shared_model_manager import SharedModelManager
 from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.esrgan import EsrganModelManager
 

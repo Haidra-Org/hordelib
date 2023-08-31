@@ -6,7 +6,7 @@ import comfy.model_management
 import comfy.sd
 import folder_paths  # type: ignore
 
-from hordelib import SharedModelManager
+from hordelib.shared_model_manager import SharedModelManager
 
 
 class HordeCheckpointLoader:

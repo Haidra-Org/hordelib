@@ -18,7 +18,7 @@ if __name__ != "__main__":
 import hordelib
 
 hordelib.initialise(setup_logging=False)
-from hordelib import SharedModelManager
+from hordelib.shared_model_manager import SharedModelManager
 from hordelib.horde import HordeLib
 
 random.seed(999)

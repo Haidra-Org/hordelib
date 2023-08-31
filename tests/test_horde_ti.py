@@ -2,7 +2,7 @@
 import os
 from pathlib import Path
 
-from hordelib import SharedModelManager
+from hordelib.shared_model_manager import SharedModelManager
 from hordelib.horde import HordeLib
 
 

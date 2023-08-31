@@ -130,7 +130,7 @@ def main():
     hordelib.initialise(setup_logging=True)
     delta("initialisation")
 
-    from hordelib import SharedModelManager
+    from hordelib.shared_model_manager import SharedModelManager
     from hordelib.horde import HordeLib
 
     try:

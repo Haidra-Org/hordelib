@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 from PIL import Image
 
-from hordelib import SharedModelManager
+from hordelib.shared_model_manager import SharedModelManager
 from hordelib.horde import HordeLib
 
 from .testing_shared_functions import check_single_lora_image_similarity

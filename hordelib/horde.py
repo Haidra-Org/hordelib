@@ -1,8 +1,8 @@
 # horde.py
 # Main interface for the horde to this library.
 from __future__ import annotations
-import io
 
+import io
 import json
 import random
 import sys
@@ -11,7 +11,7 @@ from copy import deepcopy
 from loguru import logger
 from PIL import Image
 
-from hordelib import SharedModelManager
+from hordelib.shared_model_manager import SharedModelManager
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.utils.dynamicprompt import DynamicPromptParser

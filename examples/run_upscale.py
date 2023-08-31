@@ -10,7 +10,7 @@ def main():
 
     from PIL import Image
 
-    from hordelib import SharedModelManager
+    from hordelib.shared_model_manager import SharedModelManager
     from hordelib.consts import MODEL_CATEGORY_NAMES
     from hordelib.horde import HordeLib
 

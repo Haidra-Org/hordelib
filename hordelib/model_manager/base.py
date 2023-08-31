@@ -283,7 +283,7 @@ class BaseModelManager(ABC):
         file_details = self.get_model_config_files(model_name)
 
         for file_detail in file_details:
-            if ".yaml" in file_detail["path"]:
+            if ".yaml" in file_detail["path"] or ".json" in file_detail["path"]:
                 continue
             if not self.is_file_available(file_detail["path"]):
                 logger.debug(f"File {file_detail['path']} not found")
