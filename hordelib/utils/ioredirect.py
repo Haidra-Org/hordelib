@@ -38,6 +38,12 @@ class OutputCollector(io.TextIOWrapper):
                     matches = regex.match(r"^(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d]+\.?\d*)s/it]", message)
                     is_iterations_per_second = False
 
+                # Remove everything in between '|' and '|'
+                message = regex.sub(r"\|.*?\|", "", message)
+
+                # Remove all cases of more than 5 whitespace characters in a row
+                message = regex.sub(r"\s{5,}", " ", message)
+
                 # Add a timestamp to the log
                 message = f"{message} ({perf_counter() - self.start_time:.2f} seconds in ComfyUI)"
 
