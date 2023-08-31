@@ -1,5 +1,8 @@
 recursive-include hordelib *.typed
 
+exclude images/*
+exclude images_expected/*
+
 # Although it looks like these files don't exist, they are created
 # by the build_helper just prior to pypi packaging.
 graft hordelib/_comfyui
