@@ -79,7 +79,7 @@ class HordeLog:
             cls.set_sinks()
 
     @classmethod
-    def set_sinks(cls):
+    def set_sinks(cls) -> None:
         # Remove any existing sinks that we added
         for sink in cls.sinks:
             with contextlib.suppress(ValueError):
@@ -91,7 +91,7 @@ class HordeLog:
         # Get the level corresponding to the verbosity
         # We want to log to stdout at that level
 
-        levels_lookup: list[str, int] = {
+        levels_lookup: dict[int, str] = {
             5: "TRACE",
             10: "DEBUG",
             20: "INFO",
