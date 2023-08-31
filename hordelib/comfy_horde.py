@@ -447,6 +447,8 @@ class Comfy_Horde:
 
         Allows inputs to be missing from the key name, if it is we insert it.
         """
+        num_skipped = 0
+
         for key, value in kwargs.items():
             keys = key.split(".")
             skip = False
@@ -456,8 +458,9 @@ class Comfy_Horde:
 
             for k in keys[:-1]:
                 if k not in current:
-                    logger.debug(f"Attempt to set parameter not defined in this template: {key}")
+                    # logger.debug(f"Attempt to set parameter not defined in this template: {key}")
                     skip = True
+                    num_skipped += 1
                     break
 
                 current = current[k]
@@ -468,12 +471,13 @@ class Comfy_Horde:
                         f"Attempt to set parameter CREATED parameter '{key}'",
                     )
                 current[keys[-1]] = value
+        logger.debug(f"Attempted to set {len(kwargs)} parameters, skipped {num_skipped}")
 
     # Connect the named input to the named node (output).
     # Used for dynamic switching of pipeline graphs
     @classmethod
     def reconnect_input(cls, dct, input, output):
-        logger.debug(f"Request to reconnect input {input} to output {output}")
+        # logger.debug(f"Request to reconnect input {input} to output {output}")
 
         # First check the output even exists
         if output not in dct.keys():
