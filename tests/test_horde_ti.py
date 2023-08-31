@@ -42,7 +42,7 @@ class TestHordeTI:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert (
             Path(os.path.join(shared_model_manager.manager.ti.model_folder_path, "64870.safetensors")).exists() is True
@@ -84,7 +84,7 @@ class TestHordeTI:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
 
         img_filename = "ti_inject.png"
@@ -128,7 +128,7 @@ class TestHordeTI:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
 
         # assert check_single_lora_image_similarity(

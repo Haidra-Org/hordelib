@@ -1,8 +1,6 @@
 # test_setup.py
 import glob
 
-import pytest
-
 from hordelib.horde import HordeLib
 
 
@@ -72,7 +70,7 @@ class TestSetup:
 
         assert data["node1"]["class_type"] == "ShouldNotBeReplaced"
         assert data["node2"]["no_class"] == "NoClassType"
-        # assert data["node3-should-be-replaced"]["class_type"] == "HordeCheckpointLoader"
+        assert data["node3-should-be-replaced"]["class_type"] == "HordeCheckpointLoader"
 
     def test_fix_node_names(self, hordelib_instance: HordeLib):
         # basically we are expecting a search and replace of "1" with the "title" of id 1, etc.

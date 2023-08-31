@@ -136,8 +136,7 @@ __model_load_mutex = threading.Lock()
 
 
 def cleanup():
-    logger.debug("Comfy_Horde cleanup called")
-    gc.collect()
+    logger.debug(f"{len(__models_to_release)} models loaded in comfy")
 
 
 def remove_model_from_memory(model_name, model_data):
@@ -237,7 +236,7 @@ class Comfy_Horde:
     # node types with our own where we need to. This allows easy previewing in ComfyUI
     # which our custom nodes don't allow.
     NODE_REPLACEMENTS = {
-        # "CheckpointLoaderSimple": "HordeCheckpointLoader",
+        "CheckpointLoaderSimple": "HordeCheckpointLoader",
         # "UpscaleModelLoader": "HordeUpscaleModelLoader",
         "SaveImage": "HordeImageOutput",
         "LoadImage": "HordeImageLoader",
@@ -248,11 +247,11 @@ class Comfy_Horde:
 
     # We may wish some ComfyUI standard nodes had different names for consistency. Here
     # we can dynamically rename some node input parameter names.
-    NODE_PARAMETER_REPLACEMENTS = {
-        "HordeCheckpointLoader": {
-            # We name this "model_name" as then we can use the same generic code in our model loaders
-            "ckpt_name": "model_name",
-        },
+    NODE_PARAMETER_REPLACEMENTS: dict[str, dict[str, str]] = {
+        #     "HordeCheckpointLoader": {
+        #         # We name this "model_name" as then we can use the same generic code in our model loaders
+        #         "ckpt_name": "model_name",
+        #     },
     }
     """A mapping of ComfyUI node types which map to a dictionary of node input parameter names to rename."""
 
@@ -294,14 +293,14 @@ class Comfy_Horde:
         _comfy_folder_names_and_paths["loras"] = (
             [
                 _comfy_folder_names_and_paths["loras"][0][0],
-                os.path.join(UserSettings.get_model_directory(), "lora"),
+                str(UserSettings.get_model_directory() / "lora"),
             ],
             _comfy_supported_pt_extensions,
         )
         _comfy_folder_names_and_paths["embeddings"] = (
             [
                 _comfy_folder_names_and_paths["embeddings"][0][0],
-                os.path.join(UserSettings.get_model_directory(), "ti"),
+                str(UserSettings.get_model_directory() / "ti"),
             ],
             _comfy_supported_pt_extensions,
         )
@@ -309,7 +308,7 @@ class Comfy_Horde:
         _comfy_folder_names_and_paths["checkpoints"] = (
             [
                 _comfy_folder_names_and_paths["checkpoints"][0][0],
-                os.path.join(UserSettings.get_model_directory(), "compvis"),
+                str(UserSettings.get_model_directory() / "compvis"),
             ],
             _comfy_supported_ckpt_extensions,
         )
@@ -317,9 +316,9 @@ class Comfy_Horde:
         _comfy_folder_names_and_paths["upscale_models"] = (
             [
                 _comfy_folder_names_and_paths["upscale_models"][0][0],
-                os.path.join(UserSettings.get_model_directory(), "esrgan"),
-                os.path.join(UserSettings.get_model_directory(), "gfpgan"),
-                os.path.join(UserSettings.get_model_directory(), "codeformer"),
+                str(UserSettings.get_model_directory() / "esrgan"),
+                str(UserSettings.get_model_directory() / "gfpgan"),
+                str(UserSettings.get_model_directory() / "codeformer"),
             ],
             _comfy_supported_pt_extensions,
         )
@@ -327,7 +326,7 @@ class Comfy_Horde:
         _comfy_folder_names_and_paths["controlnet"] = (
             [
                 _comfy_folder_names_and_paths["controlnet"][0][0],
-                os.path.join(UserSettings.get_model_directory(), "controlnet"),
+                str(UserSettings.get_model_directory() / "controlnet"),
             ],
             _comfy_supported_pt_extensions,
         )
@@ -336,7 +335,7 @@ class Comfy_Horde:
         _comfy_folder_names_and_paths["custom_nodes"] = (
             [
                 _comfy_folder_names_and_paths["custom_nodes"][0][0],
-                os.path.join(get_hordelib_path(), "nodes"),
+                str(get_hordelib_path() / "nodes"),
             ],
             [],
         )
@@ -399,7 +398,7 @@ class Comfy_Horde:
                 for oldname, newname in Comfy_Horde.NODE_PARAMETER_REPLACEMENTS[node["class_type"]].items():
                     if "inputs" in node and oldname in node["inputs"]:
                         node["inputs"][newname] = node["inputs"][oldname]
-                        del node["inputs"][oldname]
+                        # del node["inputs"][oldname]
                 logger.debug(f"Renamed node input {nodename}.{oldname} to {newname}")  # type: ignore # FIXME
 
         return data
@@ -427,6 +426,7 @@ class Comfy_Horde:
                     break
             renames[nodename] = newname
             newnodes[newname] = oldnode
+
         # Now we've renamed the node names, change any references to them also
         for node in newnodes.values():
             if "inputs" in node:
@@ -597,7 +597,7 @@ class Comfy_Horde:
         # developing and debugging new pipelines. A badly structured pipeline
         # file just results in a cryptic error from comfy
         pretty_pipeline = pformat(pipeline)
-        if False:  # This isn't here Tazlin :)
+        if True:  # This isn't here Tazlin :)
             logger.warning(pretty_pipeline)
 
         # The client_id parameter here is just so we receive comfy callbacks for debugging.

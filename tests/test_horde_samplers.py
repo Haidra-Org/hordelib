@@ -42,7 +42,7 @@ class TestHordeSamplers:
         for sampler in HordeLib.SAMPLERS_MAP.keys():
             data["sampler_name"] = sampler.upper()  # force uppercase to ensure case insensitive
 
-            pil_image = hordelib_instance.basic_inference(data)
+            pil_image = hordelib_instance.basic_inference_single_image(data)
             assert pil_image is not None
 
             img_filename = f"sampler_30_steps_{sampler}.png"
@@ -88,7 +88,7 @@ class TestHordeSamplers:
         for sampler in SLOW_SAMPLERS:
             data["sampler_name"] = sampler
 
-            pil_image = hordelib_instance.basic_inference(data)
+            pil_image = hordelib_instance.basic_inference_single_image(data)
             assert pil_image is not None
 
             img_filename = f"sampler_10_steps_{sampler}.png"

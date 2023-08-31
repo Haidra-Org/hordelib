@@ -18,7 +18,6 @@ from horde_model_reference import LEGACY_REFERENCE_FOLDER, MODEL_REFERENCE_CATEG
 from loguru import logger
 from tqdm import tqdm
 
-from hordelib.comfy_horde import get_torch_device as _get_torch_device
 from hordelib.config_path import get_hordelib_path
 from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES, REMOTE_MODEL_DB
 from hordelib.settings import UserSettings
@@ -170,8 +169,8 @@ class BaseModelManager(ABC):
         """
         return int(psutil.virtual_memory().available / (1024 * 1024))
 
-    def get_model_reference_info(self, model_name: str) -> dict:
-        return self.model_reference.get(model_name, {})
+    def get_model_reference_info(self, model_name: str) -> dict | None:
+        return self.model_reference.get(model_name, None)
 
     def get_model_filename(self, model_name: str) -> Path:
         """Return the filename of the model for a given model name.
@@ -513,7 +512,7 @@ class BaseModelManager(ABC):
                     miniters=1,
                     desc=filename,
                     total=remote_file_size + partial_size,
-                    disable=UserSettings.download_progress_callback is not None,
+                    # disable=UserSettings.download_progress_callback is not None,
                 ) as pbar:
                     downloaded = partial_size
                     for chunk in response.iter_content(chunk_size=1024 * 1024 * 16):

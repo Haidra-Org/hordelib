@@ -1,9 +1,9 @@
 # shared_model_manager.py
 import builtins
-import glob
 from pathlib import Path
 from typing import Iterable
 
+import torch
 from horde_model_reference.legacy import LegacyReferenceDownloadManager
 from loguru import logger
 from typing_extensions import Self
@@ -21,7 +21,7 @@ from hordelib.settings import UserSettings
 def do_migrations():
     """This function should handle any moving of folders or other restructuring from previous versions."""
 
-    diffusers_dir = Path(UserSettings.get_model_directory()).joinpath("diffusers")
+    diffusers_dir = UserSettings.get_model_directory() / "diffusers"
     sd_inpainting_v1_5_ckpt = diffusers_dir.joinpath("sd-v1-5-inpainting.ckpt").resolve()
     sd_inpainting_v1_5_sha256 = diffusers_dir.joinpath("sd-v1-5-inpainting.sha256").resolve()
     if diffusers_dir.exists() and sd_inpainting_v1_5_ckpt.exists():
@@ -29,12 +29,8 @@ def do_migrations():
             "stable_diffusion_inpainting found in diffusers folder and is being moved to compvis",
         )
 
-        target_ckpt_path = (
-            Path(UserSettings.get_model_directory()).joinpath("compvis").joinpath("sd-v1-5-inpainting.ckpt")
-        )
-        target_sha_path = (
-            Path(UserSettings.get_model_directory()).joinpath("compvis").joinpath("sd-v1-5-inpainting.sha256")
-        )
+        target_ckpt_path = UserSettings.get_model_directory() / "compvis" / "sd-v1-5-inpainting.ckpt"
+        target_sha_path = UserSettings.get_model_directory / "compvis" / "sd-v1-5-inpainting.sha256"
 
         try:
             sd_inpainting_v1_5_ckpt.rename(target_ckpt_path)
@@ -55,11 +51,14 @@ def do_migrations():
 class SharedModelManager:
     _instance: Self = None  # type: ignore
     manager: ModelManager
+    cuda_available: bool
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls.manager = ModelManager()
+            cls.cuda_available = torch.cuda.is_available()
+
         return cls._instance
 
     @classmethod
@@ -73,15 +72,10 @@ class SharedModelManager:
         args_passed = locals().copy()  # XXX This is temporary
         args_passed.pop("cls")  # XXX This is temporary
 
-        # logger.debug(f"Redownloading all model databases to {get_hordelib_path()}.")
-        # download_live_legacy_dbs(override_existing=True, proxy_url=REMOTE_PROXY)
-
         lrdm = LegacyReferenceDownloadManager()
         references = lrdm.download_all_legacy_model_references()
         for reference in references:
             logger.debug(f"Legacy reference downloaded: {reference}")
-
-        # logger.error("Skipping downloading of legacy databases.")  # FIXME
 
         do_migrations()
         cls.manager.init_model_managers(managers_to_load)
@@ -100,9 +94,7 @@ class SharedModelManager:
         Returns:
             bool: If the annotators are downloaded and the integrity is OK, this will return True. Otherwise, false.
         """
-        desired_annotator_path = (
-            Path(UserSettings.get_model_directory()).joinpath("controlnet").joinpath("annotator").joinpath("ckpts")
-        )
+        desired_annotator_path = UserSettings.get_model_directory() / "controlnet" / "annotator" / "ckpts"
 
         if builtins.annotator_ckpts_path == desired_annotator_path:  # type: ignore
             logger.debug(

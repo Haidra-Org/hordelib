@@ -3,12 +3,9 @@ import os
 
 import pytest
 
-from hordelib.consts import EXCLUDED_MODEL_NAMES, MODEL_CATEGORY_NAMES
-from hordelib.horde import HordeLib
+from hordelib import SharedModelManager
 from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.esrgan import EsrganModelManager
-from hordelib.shared_model_manager import SharedModelManager
-from hordelib.utils.logger import HordeLog
 
 
 class TestSharedModelManager:
@@ -65,9 +62,11 @@ class TestSharedModelManager:
         assert shared_model_manager.manager is not None
         for model_manager in shared_model_manager.manager.active_model_managers:
             for model in model_manager.available_models:
-                model_file_details = model_manager.get_model_files(model)
+                model_file_details = model_manager.get_model_config_files(model)
                 for file in model_file_details:
                     path = file.get("path")
+                    if not isinstance(path, str):
+                        continue
                     if not (".pt" in path or ".ckpt" in path or ".safetensors" in path):
                         continue
                     model_manager.get_file_sha256_hash(f"{model_manager.model_folder_path}/{path}")

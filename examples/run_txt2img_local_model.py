@@ -40,7 +40,7 @@ def main():
         "n_iter": 1,
         "model": localfile,
     }
-    pil_image = generate.basic_inference(data)
+    pil_image = generate.basic_inference_single_image(data)
     pil_image.save("images/run_txt2img_local.webp", quality=90)
 
 

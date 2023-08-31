@@ -10,8 +10,6 @@ from hordelib import install_comfy
 from hordelib.config_path import get_hordelib_path, set_system_path
 from hordelib.consts import (
     COMFYUI_VERSION,
-    DEFAULT_MODEL_MANAGERS,
-    MODEL_CATEGORY_NAMES,
     RELEASE_VERSION,
 )
 from hordelib.utils.logger import HordeLog
@@ -25,6 +23,7 @@ def initialise(
     setup_logging=True,
     clear_logs=False,
     debug_logging=False,
+    process_id: int | None = None,
 ):  # XXX # TODO Do we need `model_managers_to_load`?
     global _is_initialised
 
@@ -33,13 +32,16 @@ def initialise(
         shutil.rmtree("./logs")
 
     # Setup logging if requested
-    HordeLog.initialise(setup_logging=setup_logging)
+    HordeLog.initialise(
+        setup_logging=setup_logging,
+        process_id=process_id,
+    )
     if debug_logging:
         HordeLog.set_logger_verbosity(5)
         HordeLog.quiesce_logger(0)
 
     # If developer mode, don't permit some things
-    if not RELEASE_VERSION and " " in get_hordelib_path():
+    if not RELEASE_VERSION and " " in str(get_hordelib_path()):
         # Our runtime patching can't handle this
         raise Exception(
             "Do not run this project in developer mode from a path that " "contains spaces in directory names.",
@@ -60,7 +62,7 @@ def initialise(
     hordelib.comfy_horde.do_comfy_import()
 
     # Initialise model manager
-    from hordelib.shared_model_manager import SharedModelManager
+    from hordelib import SharedModelManager
 
     SharedModelManager()
 

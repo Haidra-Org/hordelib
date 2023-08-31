@@ -1,12 +1,12 @@
 # node_model_loader.py
 # Simple proof of concept custom node to load models.
 
-import contextlib
-import os
-import pickle
-import time
 
-from loguru import logger
+import comfy.model_management
+import comfy.sd
+import folder_paths  # type: ignore
+
+from hordelib import SharedModelManager
 
 
 class HordeCheckpointLoader:
@@ -14,8 +14,9 @@ class HordeCheckpointLoader:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "model_manager": ("<model manager instance>",),
-                "model_name": ("<model name>",),
+                "will_load_loras": ("<bool>",),
+                "horde_model_name": ("<horde model name>",),
+                "ckpt_name": ("<ckpt name>",),
             },
         }
 
@@ -26,49 +27,39 @@ class HordeCheckpointLoader:
 
     def load_checkpoint(
         self,
-        model_manager,
-        model_name,
+        will_load_loras: bool,
+        horde_model_name: str,
+        ckpt_name: str | None = None,
+        output_vae=True,
+        output_clip=True,
+        preloading=False,
     ):
-        logger.debug(f"Loading model {model_name} through our custom node")
+        if SharedModelManager.manager.compvis is None:
+            raise ValueError("CompVisModelManager is not initialised.")
 
-        if model_manager.manager is None:
-            logger.error("horde_model_manager appears to be missing!")
-            raise RuntimeError  # XXX better guarantees need to be made
+        same_loaded_model = SharedModelManager.manager._models_in_ram.get(horde_model_name)
 
-        loaded_models = model_manager.manager.loaded_models
-        if model_name not in loaded_models:
-            logger.error(f"Model {model_name} is not loaded")
-            raise RuntimeError  # XXX better guarantees need to be made
+        # Check if the model was previously loaded and if so, not loaded with Loras
+        if same_loaded_model and not same_loaded_model[1]:
+            return same_loaded_model[0]
 
-        model = loaded_models[model_name]["model"]
-        clip = loaded_models[model_name]["clip"]
-        vae = loaded_models[model_name]["vae"]
+        if not ckpt_name:
+            if not SharedModelManager.manager.compvis.is_model_available(horde_model_name):
+                raise ValueError(f"Model {horde_model_name} is not available.")
 
-        # If we got strings, not objects, it's a cache reference, load the cache
-        if type(model) is str:
-            start_time = time.time()
-            logger.info(f"Loading from disk cache model {model_name}")
-            model_cache = model
-            try:
-                with model_manager.manager.disk_read_mutex:
-                    with open(model, "rb") as cache:
-                        model = pickle.load(cache)
-                        vae = pickle.load(cache)
-                        clip = pickle.load(cache)
-                # Record this model as being in ram again
-                model_manager.manager.move_from_disk_cache(model_name, model, clip, vae)
-                logger.info(
-                    f"Loaded model {model_name} from disk cache in {round(time.time() - start_time, 1)} seconds",
-                )
-            except (pickle.PickleError, EOFError):
-                # Most likely corrupt cache file, remove the file
-                with contextlib.suppress(OSError):
-                    os.remove(model)  # ... at least try to remove it
+            ckpt_name = SharedModelManager.manager.compvis.get_model_filename(horde_model_name).name
 
-                raise Exception(f"Model cache file {model_cache} was corrupt. It has been removed.")
+        ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        result = comfy.sd.load_checkpoint_guess_config(
+            ckpt_path,
+            output_vae=output_vae,
+            output_clip=output_clip,
+            embedding_directory=folder_paths.get_folder_paths("embeddings"),
+        )
 
-        # XXX # TODO I would like to revisit this dict->tuple conversion at some point soon
-        return (model, clip, vae)
+        SharedModelManager.manager._models_in_ram[horde_model_name] = result, will_load_loras
+
+        return result
 
 
 NODE_CLASS_MAPPINGS = {"HordeCheckpointLoader": HordeCheckpointLoader}

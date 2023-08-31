@@ -1,14 +1,15 @@
 import contextlib
 import sys
-from functools import partialmethod
 
 from loguru import logger
 
 
 class HordeLog:
     # By default we're at error level or higher
-    verbosity = 20
-    quiet = 0
+    verbosity: int = 20
+    quiet: int = 0
+
+    process_id: int = 0
 
     CUSTOM_STATS_LEVELS = ["STATS"]
 
@@ -72,10 +73,12 @@ class HordeLog:
         sys.exit()
 
     @classmethod
-    def initialise(cls, setup_logging=True):
+    def initialise(cls, setup_logging=True, process_id: int | None = None):
         if setup_logging:
             cls.setup()
             cls.set_sinks()
+            if process_id is not None:
+                cls.process_id = process_id
 
         logger.disable("hordelib.clip.interrogate")
 
@@ -100,31 +103,36 @@ class HordeLog:
                     "sink": sys.stderr,
                     "colorize": True,
                     "filter": cls.is_stderr_log,
+                    "enqueue": True,
                 },
                 {
                     "sink": sys.stdout,
                     "colorize": True,
+                    "enqueue": True,
                 },
                 {
-                    "sink": "logs/bridge.log",
+                    "sink": "logs/bridge.log" if not cls.process_id else f"logs/bridge_{cls.process_id}.log",
                     "level": "DEBUG",
                     "retention": "2 days",
                     "rotation": "1 days",
+                    "enqueue": True,
                 },
                 {
-                    "sink": "logs/stats.log",
+                    "sink": "logs/stats.log" if not cls.process_id else f"logs/stats_{cls.process_id}.log",
                     "level": "STATS",
                     "filter": cls.is_stats_log,
                     "retention": "7 days",
                     "rotation": "1 days",
+                    "enqueue": True,
                 },
                 {
-                    "sink": "logs/trace.log",
+                    "sink": "logs/trace.log" if not cls.process_id else f"logs/trace_{cls.process_id}.log",
                     "level": "ERROR",
                     "retention": "3 days",
                     "rotation": "1 days",
                     "backtrace": True,
                     "diagnose": True,
+                    "enqueue": True,
                 },
             ],
         }

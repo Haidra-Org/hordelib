@@ -1,13 +1,11 @@
 """Home for the controller class ModelManager, and related meta information."""
-import copy
-import os
 import threading
 from typing import Iterable
 
 import torch
 from loguru import logger
 
-from hordelib.consts import EXCLUDED_MODEL_NAMES, MODEL_CATEGORY_NAMES
+from hordelib.consts import MODEL_CATEGORY_NAMES
 
 # from hordelib.model_manager.diffusers import DiffusersModelManager
 from hordelib.model_manager.base import BaseModelManager
@@ -19,7 +17,6 @@ from hordelib.model_manager.gfpgan import GfpganModelManager
 from hordelib.model_manager.lora import LoraModelManager
 from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
 from hordelib.model_manager.ti import TextualInversionModelManager
-from hordelib.settings import UserSettings
 
 MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES | str, type[BaseModelManager]] = {
     MODEL_CATEGORY_NAMES.codeformer: CodeFormerModelManager,
@@ -100,11 +97,10 @@ class ModelManager:
             _models.update(model_manager.model_reference)
         return _models
 
-    def get_model_directory(self, suffix=""):
-        model_dir = (
-            os.path.join(UserSettings.get_model_directory(), suffix) if suffix else UserSettings.get_model_directory()
-        )
-        return model_dir
+    _models_in_ram: dict[str, tuple[dict, bool]] = {}
+    """A dictionary of models which are currently loaded in RAM. The key is the model name, and the value is a tuple
+    of the model object and whether it was loaded with Loras.
+    """
 
     def get_available_models(
         self,
@@ -281,7 +277,7 @@ class ModelManager:
         self,
         mm_include: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
         mm_exclude: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
-    ):
+    ) -> list[str]:
         return self.get_available_models(mm_include, mm_exclude)
 
     def get_model_manager_instance(

@@ -39,7 +39,7 @@ def main():
         "source_image": Image.open("images/test_inpaint.png"),
         "source_processing": "inpainting",
     }
-    pil_image = generate.basic_inference(data)
+    pil_image = generate.basic_inference_single_image(data)
     pil_image.save("images/run_img2img_inpaint.webp", quality=90)
 
 

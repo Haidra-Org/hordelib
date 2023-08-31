@@ -2,9 +2,6 @@ import sys
 from pathlib import Path
 
 
-from pathlib import Path
-
-
 def get_hordelib_path() -> Path:
     """Returns the path hordelib is installed in."""
     current_file_path = Path(__file__).resolve()

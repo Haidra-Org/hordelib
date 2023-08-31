@@ -129,7 +129,7 @@ def generate_images_cnet():
         "source_processing": "img2img",
     }
     horde = HordeLib()
-    pil_image = horde.basic_inference(data)
+    pil_image = horde.basic_inference_single_image(data)
     pil_image.save(
         f"{out_dir}/cnet_{model}_{sampler}_{cnet_type}_{threading.current_thread().ident}_{i}.webp",
         quality=80,
@@ -163,7 +163,7 @@ def generate_images_txt2img():
         "source_processing": "txt2img",
     }
     horde = HordeLib()
-    pil_image = horde.basic_inference(data)
+    pil_image = horde.basic_inference_single_image(data)
     pil_image.save(
         f"{out_dir}/cnet_{model}_{sampler}_{threading.current_thread().ident}_{i}.webp",
         quality=80,

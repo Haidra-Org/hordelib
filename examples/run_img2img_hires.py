@@ -38,7 +38,7 @@ def main():
         "model": "Deliberate",
         "source_image": Image.open("images/test_db0.jpg"),
     }
-    pil_image = generate.basic_inference(data)
+    pil_image = generate.basic_inference_single_image(data)
     pil_image.save("images/run_img2img_hires.webp", quality=90)
 
 

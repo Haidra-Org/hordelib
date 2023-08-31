@@ -170,7 +170,7 @@ def main():
     # overhead
     delta("basic-inference-overhead")
     data["ddim_steps"] = 1
-    pil_image = generate.basic_inference(data)
+    pil_image = generate.basic_inference_single_image(data)
     if not pil_image:
         raise Exception("Image generation failed")
     last = delta("basic-inference-overhead")
@@ -181,7 +181,7 @@ def main():
     for attempt in attempts:
         delta(f"basic-inference-{attempt}-steps")
         data["ddim_steps"] = attempt
-        pil_image = generate.basic_inference(data)
+        pil_image = generate.basic_inference_single_image(data)
         if not pil_image:
             raise Exception("Image generation failed")
         last = delta(f"basic-inference-{attempt}-steps")
@@ -210,7 +210,7 @@ def main():
         data["control_type"] = "hed"
         data["source_processing"] = "img2img"
         delta("controlnet-overhead")
-        pil_image = generate.basic_inference(data)
+        pil_image = generate.basic_inference_single_image(data)
         cnet_overhead = round(delta("controlnet-overhead"), 2)
         # inference
         data["ddim_steps"] = max_iterations
@@ -218,7 +218,7 @@ def main():
         data["control_type"] = "hed"
         data["source_processing"] = "img2img"
         delta("controlnet-inference")
-        pil_image = generate.basic_inference(data)
+        pil_image = generate.basic_inference_single_image(data)
         last = delta("controlnet-inference")
         cnet_its = round(max_iterations / last, 1)
         cnet_raw_its = round(max_iterations / (last - cnet_overhead), 1)

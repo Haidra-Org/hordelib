@@ -54,7 +54,7 @@ class TestHordeInference:
 
             data["control_type"] = preproc
 
-            pil_image = hordelib_instance.basic_inference(data)
+            pil_image = hordelib_instance.basic_inference_single_image(data)
             assert pil_image is not None, f"Failed to generate image for {preproc}"
 
             img_filename = f"controlnet_{preproc}.png"
@@ -98,7 +98,7 @@ class TestHordeInference:
             "source_processing": "img2img",
         }
         assert hordelib_instance is not None
-        image = hordelib_instance.basic_inference(data)
+        image = hordelib_instance.basic_inference_single_image(data)
         assert image is not None
 
     def test_controlnet_strength(
@@ -131,7 +131,7 @@ class TestHordeInference:
         for strength in [1.0, 0.5, 0.2]:
             data["control_strength"] = strength
 
-            pil_image = hordelib_instance.basic_inference(data)
+            pil_image = hordelib_instance.basic_inference_single_image(data)
             assert pil_image is not None
 
             img_filename = f"controlnet_strength_{strength}.png"
@@ -178,7 +178,7 @@ class TestHordeInference:
         for denoise in [0.4, 0.5, 0.6]:
             data["hires_fix_denoising_strength"] = denoise
 
-            pil_image = hordelib_instance.basic_inference(data)
+            pil_image = hordelib_instance.basic_inference_single_image(data)
             assert pil_image is not None
 
             img_filename = f"controlnet_hires_fix_denoise_{denoise}.png"
@@ -216,7 +216,7 @@ class TestHordeInference:
         }
         images_to_compare: list[tuple[str, Image.Image]] = []
 
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
 
         img_filename = "controlnet_image_is_control.png"
