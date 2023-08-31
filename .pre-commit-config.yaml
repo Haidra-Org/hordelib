@@ -18,4 +18,4 @@ repos:
     rev: 'v1.4.1'
     hooks:
     -   id: mypy
-        additional_dependencies: [pydantic, types-colorama, types-docutils, types-Pillow, types-psutil, types-Pygments, types-pywin32, types-PyYAML, types-regex, types-requests, types-setuptools, types-tabulate, types-tqdm, types-urllib3]
+        additional_dependencies: [pydantic, strenum, types-colorama, types-docutils, types-Pillow, types-psutil, types-Pygments, types-pywin32, types-PyYAML, types-regex, types-requests, types-setuptools, types-tabulate, types-tqdm, types-urllib3]
