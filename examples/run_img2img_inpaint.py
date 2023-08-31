@@ -11,8 +11,8 @@ def main():
 
     from PIL import Image
 
-    from hordelib.shared_model_manager import SharedModelManager
     from hordelib.horde import HordeLib
+    from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
     SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis])

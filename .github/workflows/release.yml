@@ -110,4 +110,3 @@ jobs:
     #   with:
     #     webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
     #     content: "New version of hordelib has been published to pypi: ${{ steps.release.outputs.version }}. You can update your worker by running `./update-runtime.sh --hordelib` (Linux) or `update-runtime.cmd --hordelib` (Windows). Changelog: https://t.ly/z2vQ"
-

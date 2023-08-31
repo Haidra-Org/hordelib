@@ -9,6 +9,7 @@ repos:
     rev: 23.7.0
     hooks:
     -   id: black
+        exclude: ^hordelib/nodes/.*\..*$
 -   repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.0.282
     hooks:
@@ -18,4 +19,3 @@ repos:
     hooks:
     -   id: mypy
         additional_dependencies: [pydantic, types-colorama, types-docutils, types-Pillow, types-psutil, types-Pygments, types-pywin32, types-PyYAML, types-regex, types-requests, types-setuptools, types-tabulate, types-tqdm, types-urllib3]
-

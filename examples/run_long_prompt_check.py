@@ -24,9 +24,9 @@ def stop_clock():
 def main():
     hordelib.initialise(setup_logging=False)
 
-    from hordelib.shared_model_manager import SharedModelManager
     from hordelib.horde import HordeLib
     from hordelib.settings import UserSettings
+    from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
     SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis])

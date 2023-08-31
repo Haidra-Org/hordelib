@@ -14,10 +14,10 @@ from hordelib.consts import MODEL_CATEGORY_NAMES
 
 hordelib.initialise(setup_logging=False)
 
-from hordelib.shared_model_manager import SharedModelManager
 from hordelib.comfy_horde import cleanup
 from hordelib.horde import HordeLib
 from hordelib.settings import UserSettings
+from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.gpuinfo import GPUInfo
 
 # Set this to where you want the model cache to go

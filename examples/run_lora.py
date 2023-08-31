@@ -8,9 +8,9 @@ import hordelib
 def main():
     hordelib.initialise(setup_logging=False)
 
-    from hordelib.shared_model_manager import SharedModelManager
     from hordelib.consts import MODEL_CATEGORY_NAMES
     from hordelib.horde import HordeLib
+    from hordelib.shared_model_manager import SharedModelManager
 
     generate = HordeLib()
     SharedModelManager.load_model_managers(

@@ -10,10 +10,10 @@ import hordelib
 
 hordelib.initialise(setup_logging=True, clear_logs=True)
 
-from hordelib.shared_model_manager import SharedModelManager
 from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.horde import HordeLib
 from hordelib.settings import UserSettings
+from hordelib.shared_model_manager import SharedModelManager
 
 UserSettings.disable_disk_cache.activate()
 

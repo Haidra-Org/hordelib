@@ -3,9 +3,9 @@ import os
 
 import pytest
 
-from hordelib.shared_model_manager import SharedModelManager
 from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.esrgan import EsrganModelManager
+from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestSharedModelManager:
