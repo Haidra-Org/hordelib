@@ -152,7 +152,7 @@ class LoraModelManager(BaseModelManager):
                 lora["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 self._add_lora_to_reference(lora)
                 continue
-            logger.debug(f"Downloaded metadata for LoRas {lora['id']} ('{lora['name']}') and added to download queue")
+            # logger.debug(f"Downloaded metadata for LoRas {lora['id']} ('{lora['name']}') and added to download queue")
             self._download_lora(lora)
 
     def _get_json(self, url):
@@ -302,8 +302,8 @@ class LoraModelManager(BaseModelManager):
                                     f"Already have LORA {lora['filename']}. "
                                     "Bypassing SHA256 check as there's none stored",
                                 )
-                            else:
-                                logger.debug(f"Already have LORA {lora['filename']}")
+                            # else:
+                            #     logger.debug(f"Already have LORA {lora['filename']}")
                             with self._mutex:
                                 # We store as lower to allow case-insensitive search
                                 lora["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -774,6 +774,7 @@ class LoraModelManager(BaseModelManager):
         # We need to wait a bit to make sure the threads pick up the download
         time.sleep(self.THREAD_WAIT_TIME)
         self.wait_for_downloads(timeout)
+        self.touch_lora(lora["name"])
         return lora["name"].lower()
 
     def do_baselines_match(self, lora_name, model_details):
@@ -791,4 +792,5 @@ class LoraModelManager(BaseModelManager):
 
     @override
     def is_model_available(self, model_name):
+        self.touch_lora(model_name)
         return self.fuzzy_find_lora_key(model_name) is not None
