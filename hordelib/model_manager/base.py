@@ -94,12 +94,8 @@ class BaseModelManager(ABC):
         self.load_model_database()
 
     def progress(self, desc="done", current=0, total=0):
-        if UserSettings.download_progress_callback:
-            UserSettings.download_progress_callback(desc, current, total)
-
-    @classmethod
-    def set_download_callback(cls, callback):
-        UserSettings.download_progress_callback = callback
+        # TODO
+        return
 
     def load_model_database(self) -> None:
         if self.model_reference:
