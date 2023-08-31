@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import Generator
 
 import PIL.Image
@@ -17,6 +18,12 @@ def init_horde():
     see a characteristic RuntimeError exception if you forget to call this fixture, but you may also see an
     import error from within comfy if your code does not instantiate the `Comfy_Horde` class."""
     assert os.getenv("TESTS_ONGOING")
+
+    examples_path = Path(__file__).parent.parent / "images_expected"
+    assert (
+        examples_path.exists() and examples_path.is_dir()
+    ), "The `images_expected` directory must exist. You can find in in the github repo."
+
     import hordelib
 
     hordelib.initialise(setup_logging=True, debug_logging=True)
