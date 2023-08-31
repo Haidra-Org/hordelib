@@ -18,7 +18,7 @@ def init_horde():
     assert os.getenv("TESTS_ONGOING")
     import hordelib
 
-    hordelib.initialise()
+    hordelib.initialise(setup_logging=True, debug_logging=True)
     from hordelib.settings import UserSettings
 
     UserSettings.set_ram_to_leave_free_mb("100%")
