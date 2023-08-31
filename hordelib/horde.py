@@ -244,7 +244,7 @@ class HordeLib:
             if SharedModelManager.manager.compvis.is_model_available(payload["model"]):
                 payload["model"] = SharedModelManager.manager.compvis.get_model_filename(payload["model"])
             else:
-                post_processor_model_managers = SharedModelManager.get_model_manager_instances(
+                post_processor_model_managers = SharedModelManager.manager.get_model_manager_instances(
                     [MODEL_CATEGORY_NAMES.codeformer, MODEL_CATEGORY_NAMES.esrgan, MODEL_CATEGORY_NAMES.gfpgan],
                 )
 
@@ -252,7 +252,7 @@ class HordeLib:
 
                 for post_processor_model_manager in post_processor_model_managers:
                     if post_processor_model_manager.is_model_available(payload["model"]):
-                        payload["model"] = post_processor_model_manager.get_model_file(payload["model"])
+                        payload["model"] = post_processor_model_manager.get_model_filename(payload["model"])
                         found_model = True
 
                 if not found_model:
@@ -681,7 +681,15 @@ class HordeLib:
         # Allow arbitrary resizing by shrinking the image back down
         if width or height:
             return ImageUtils.shrink_image(Image.open(images[0]["imagedata"]), width, height)
-        return self._process_results(images, rawpng)  # type: ignore # FIXME?
+        result = self._process_results(images, rawpng)
+        if len(result) != 1:
+            raise RuntimeError("Expected a single image but got multiple")
+
+        image = result[0]
+        if not isinstance(image, Image.Image):
+            raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
+
+        return image
 
     def image_facefix(self, payload, rawpng=False) -> Image.Image | None:
         # AIHorde hacks to payload
@@ -697,4 +705,12 @@ class HordeLib:
 
         images = self.generator.run_image_pipeline(pipeline_data, payload)
 
-        return self._process_results(images, rawpng)  # type: ignore # FIXME?
+        result = self._process_results(images, rawpng)
+        if len(result) != 1:
+            raise RuntimeError("Expected a single image but got multiple")
+
+        image = result[0]
+        if not isinstance(image, Image.Image):
+            raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
+
+        return image
