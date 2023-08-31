@@ -113,7 +113,7 @@ def generate_images_cnet():
 
 
 def run_iterations():
-    for i in range(ITERATIONS):
+    for _ in range(ITERATIONS):
         generate_images_cnet()
 
 

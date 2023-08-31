@@ -423,7 +423,7 @@ class HordeLib:
                         "class_type": "LoraLoader",
                     }
 
-            for lora_index, lora in enumerate(payload.get("loras")):
+            for lora_index in range(len(payload.get("loras"))):
                 # The first LORA always connects to the model loader
                 if lora_index == 0:
                     self.generator.reconnect_input(pipeline_data, "lora_0.model", "model_loader")

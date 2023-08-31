@@ -201,7 +201,7 @@ def generate_images_pp_upscale():
 
 
 def run_iterations():
-    for i in range(ITERATIONS):
+    for _ in range(ITERATIONS):
         funcs = [
             generate_images_pp_upscale,
             generate_images_pp,

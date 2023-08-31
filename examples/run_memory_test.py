@@ -67,7 +67,7 @@ def get_available_models():
 def do_inference(model_name, iterations=1):
     """Do some work on the GPU"""
     horde = HordeLib()
-    for i in range(iterations):
+    for _ in range(iterations):
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 7.5,

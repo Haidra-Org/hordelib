@@ -42,7 +42,9 @@ class Installer:
             return ""
 
     @classmethod
-    def _run_get_result(cls, command, directory=get_hordelib_path()):
+    def _run_get_result(cls, command, directory=None):
+        if directory is None:
+            directory = get_hordelib_path()
         # Don't if we're a release version
         if RELEASE_VERSION:
             return None
@@ -55,7 +57,9 @@ class Installer:
         )
 
     @classmethod
-    def _run(cls, command, directory=get_hordelib_path()) -> tuple[bool, str] | None:
+    def _run(cls, command, directory=None) -> tuple[bool, str] | None:
+        if directory is None:
+            directory = get_hordelib_path()
         # Don't if we're a release version
         if RELEASE_VERSION:
             return None

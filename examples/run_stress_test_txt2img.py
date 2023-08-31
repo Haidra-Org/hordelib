@@ -111,7 +111,7 @@ def generate_images():
 
 
 def run_iterations():
-    for i in range(ITERATIONS):
+    for _ in range(ITERATIONS):
         generate_images()
 
 

@@ -93,7 +93,6 @@ class ModelManager:
         """All model manager's internal dictionaries of models, loaded from model database JSON files."""
         _models: dict = {}
         for model_manager in self.active_model_managers:
-            model_manager.model_reference
             _models.update(model_manager.model_reference)
         return _models
 

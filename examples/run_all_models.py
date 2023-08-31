@@ -28,7 +28,7 @@ def add_model(model_name):
 def do_inference(model_name, iterations=1):
     """Do some work on the GPU"""
     horde = HordeLib()
-    for i in range(iterations):
+    for _ in range(iterations):
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 6.5,

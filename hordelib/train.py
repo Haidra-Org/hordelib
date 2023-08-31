@@ -315,7 +315,7 @@ if ENABLE_TRAINING:
 
         num_epochs = trial.suggest_int("num_epochs", MIN_NUMBER_OF_EPOCHS, MAX_NUMBER_OF_EPOCHS)
         total_loss = None
-        for epoch in range(num_epochs):
+        for _ in range(num_epochs):
             # Train the model
             model.train()
             for data, labels in train_loader:
