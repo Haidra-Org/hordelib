@@ -49,9 +49,6 @@ class BaseModelManager(ABC):
 
     _disk_write_mutex = threading.Lock()
 
-    def get_torch_device(self):
-        return _get_torch_device()
-
     def __init__(
         self,
         *,
@@ -77,10 +74,7 @@ class BaseModelManager(ABC):
         self.models_db_name = MODEL_DB_NAMES[model_category_name]
 
         if not models_db_path:
-            models_db_path = Path(get_hordelib_path()).joinpath(
-                "model_database/",
-                f"{self.models_db_name}.json",
-            )
+            models_db_path = get_hordelib_path() / "model_database" / f"{self.models_db_name}.json"
 
             if model_category_name in _temp_reference_lookup:
                 models_db_path = Path(
@@ -89,6 +83,9 @@ class BaseModelManager(ABC):
                         base_path=LEGACY_REFERENCE_FOLDER,
                     ),
                 )
+
+        if models_db_path is None:
+            raise ValueError(f"Model database path not found for {model_category_name}")
 
         logger.debug(f"Model database path: {models_db_path}")
         self.models_db_path = models_db_path
@@ -105,7 +102,7 @@ class BaseModelManager(ABC):
     def set_download_callback(cls, callback):
         UserSettings.download_progress_callback = callback
 
-    def load_model_database(self, list_models=False):
+    def load_model_database(self, list_models: bool = False) -> None:
         if self.model_reference:
             logger.info(
                 (
@@ -147,7 +144,7 @@ class BaseModelManager(ABC):
             for model in self.available_models:
                 logger.info(model)
 
-    def download_model_reference(self):
+    def download_model_reference(self) -> dict:
         try:
             logger.debug(f"Downloading Model Reference for {self.models_db_name}")
             response = requests.get(self.remote_db)
@@ -165,28 +162,27 @@ class BaseModelManager(ABC):
             logger.error("No local copy of Model Reference found!")
             return {}
 
-    def _modelref_to_name(self, modelref):
-        for name, data in self.get_loaded_models().items():
-            if modelref and data["model"] is modelref:
-                return name
-        return None
+    def get_free_ram_mb(self) -> int:
+        """Returns the amount of free RAM in MB rounded down to the nearest integer.
 
-    def get_free_ram_mb(self):
+        Returns:
+            int: The amount of free RAM in MB
+        """
         return int(psutil.virtual_memory().available / (1024 * 1024))
 
-    def get_full_model_path(self, model_name: str):
-        """Returns the fully qualified filename for the specified model."""
-        ckpt_path = model_name
+    def get_model_reference_info(self, model_name: str) -> dict:
+        return self.model_reference.get(model_name, {})
 
-        return f"{self.model_folder_path}/{ckpt_path}"
+    def get_model_filename(self, model_name: str) -> Path:
+        """Return the filename of the model for a given model name.
 
-    def get_model_reference_info(self, model_name: str):
-        return self.model_reference.get(model_name)
+        Args:
+            model_name (str): The name of the model to get the filename for.
 
-    def get_model_file(self, model_name: str) -> Path:
-        """
-        :param model_name: Name of the model
-        Returns the files for a model
+        Returns:
+            Path: The filename of the model.
+        Raises:
+            ValueError: If the model name is not in the model reference.
         """
         if model_name not in self.model_reference:
             raise ValueError(f"Model {model_name} not found in model reference")
@@ -202,22 +198,42 @@ class BaseModelManager(ABC):
         raise ValueError(f"Model {model_name} does not have a valid file entry")
 
     def get_model_config_files(self, model_name: str) -> list[dict]:
+        """Return the config files for a given model name.
+
+        Args:
+            model_name (str): The name of the model to get the config files for.
+
+        Returns:
+            list[dict]: The config files for the model.
+        """
         return self.model_reference.get(model_name, {}).get("config", {}).get("files", [])
 
-    def get_model_download(self, model_name: str):
-        """
-        :param model_name: Name of the model
-        Returns the download details for a model
-        """
-        return self.model_reference[model_name]["config"]["download"]
+    def get_model_download(self, model_name: str) -> dict:
+        """Return the download config for a given model name.
 
-    def get_available_models(self):
+        Args:
+            model_name (str): The name of the model to get the download config for.
+
+        Returns:
+            dict: The download config for the model.
         """
-        Returns the available models
-        """
+
+        return self.model_reference.get(model_name, {}).get("config", {}).get("download", [])
+
+    def get_available_models(self) -> list[str]:
+        """Return the available (downloaded and verified) models."""
         return self.available_models
 
-    def get_available_models_by_types(self, model_types: Iterable[str] | None = None):
+    def get_available_models_by_types(self, model_types: Iterable[str] | None = None) -> list[str]:
+        """Return the available (downloaded and verified) models of a given type.
+
+        Args:
+            model_types (Iterable[str] | None, optional): The type of model to return. See the model
+            reference for valid values. Defaults to None.
+
+        Returns:
+            list[str]: The available models of the given type.
+        """
         if not model_types:
             model_types = ["ckpt"]
         models_available = []
@@ -226,16 +242,26 @@ class BaseModelManager(ABC):
                 models_available.append(model)
         return models_available
 
-    def count_available_models_by_types(self, model_types: Iterable[str] | None = None):
+    def count_available_models_by_types(self, model_types: Iterable[str] | None = None) -> int:
+        """Return the number of available (downloaded and verified) models of a given type.
+
+        Args:
+            model_types (Iterable[str] | None, optional): The type of model to return. See the model
+            reference for valid values. Defaults to None.
+
+        Returns:
+            int: The number of available models of the given type.
+        """
         return len(self.get_available_models_by_types(model_types))
 
-    def taint_model(self, model_name: str):
-        """Marks a model as not valid by removing it from available_models"""
+    def taint_model(self, model_name: str) -> None:
+        """Mark a model as not valid by removing it from available_models"""
         if model_name in self.available_models:
             self.available_models.remove(model_name)
             self.tainted_models.append(model_name)
 
     def taint_models(self, models: list[str]) -> None:
+        """Mark a list of models as not valid by removing them from available_models"""
         for model in models:
             self.taint_model(model)
 
@@ -249,7 +275,7 @@ class BaseModelManager(ABC):
         Returns:
             bool | None: `True` if the model is valid, `False` if not, `None` if the model is not on disk.
         """
-        model_file = self.get_model_file(model_name)
+        model_file = self.get_model_filename(model_name)
         logger.debug(f"Validating {model_name}. File: {model_file}")
 
         if not self.is_file_available(model_file):
@@ -280,17 +306,19 @@ class BaseModelManager(ABC):
         return True
 
     @staticmethod
-    def get_file_md5sum_hash(file_name):  # XXX Convert to path?
+    def get_file_md5sum_hash(file_name: str | Path) -> str | None:
         # XXX There *must* be a library for this.
         # Bail out if the source file doesn't exist
-        if not os.path.isfile(file_name):
+
+        file_name = Path(file_name)
+        if not file_name.exists() or not file_name.is_file():
             return None
 
         # Check if we have a cached md5 hash for the source file
         # and use that unless our source file is newer than our hash
-        md5_file = f"{os.path.splitext(file_name)[0]}.md5"
-        source_timestamp = os.path.getmtime(file_name)
-        hash_timestamp = os.path.getmtime(md5_file) if os.path.isfile(md5_file) else 0
+        md5_file = Path(f"{file_name.parent / file_name.stem}.md5")
+        source_timestamp = file_name.stat().st_mtime
+        hash_timestamp = md5_file.stat().st_mtime if os.path.isfile(md5_file) else 0
         if hash_timestamp > source_timestamp:
             # Use our cached hash
             with open(md5_file) as handle:
@@ -311,7 +339,7 @@ class BaseModelManager(ABC):
         # so we can also use OS tools to manipulate these md5 files
         try:
             with open(md5_file, "w") as handle:
-                handle.write(f"{md5_hash} *{os.path.basename(md5_file)}")
+                handle.write(f"{md5_hash} *{file_name.name}")
         except (OSError, PermissionError):
             logger.debug("Could not write to md5sum file, ignoring")
 
@@ -674,4 +702,4 @@ class BaseModelManager(ABC):
         """
         if model_name not in self.model_reference:
             return False
-        return self.is_file_available(self.get_model_file(model_name))
+        return self.is_file_available(self.get_model_filename(model_name))

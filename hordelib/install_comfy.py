@@ -2,6 +2,7 @@
 # Fetch a specific version of the upstream ComfyUI project
 import os
 import subprocess
+from pathlib import Path
 
 from loguru import logger
 
@@ -22,8 +23,8 @@ class Installer:
     def get_commit_hash(cls) -> str:
         if RELEASE_VERSION:
             return ""
-        head_file = os.path.join(get_comfyui_path(), ".git", "HEAD")
-        if not os.path.exists(head_file):
+        head_file = get_comfyui_path() / ".git" / "HEAD"
+        if not head_file.exists():
             return "NOT FOUND"
         try:
             with open(head_file) as f:
@@ -51,7 +52,7 @@ class Installer:
             shell=True,
             text=True,
             capture_output=True,
-            cwd=directory,
+            cwd=str(directory),
         )
 
     @classmethod
@@ -60,7 +61,7 @@ class Installer:
         if RELEASE_VERSION:
             return None
         try:
-            result = cls._run_get_result(command, directory)
+            result = cls._run_get_result(command, str(directory))
         except Exception as Ex:
             logger.error(Ex)
             return None
@@ -75,15 +76,15 @@ class Installer:
         if RELEASE_VERSION:
             return
         # Install if ComfyUI is missing completely
-        if not os.path.exists(get_comfyui_path()):
-            installdir = os.path.dirname(get_comfyui_path())
+        if not get_comfyui_path().exists():
+            install_dir = get_comfyui_path().parent
             cls._run(
                 "git clone https://github.com/comfyanonymous/ComfyUI.git",
-                installdir,
+                install_dir,
             )
-            cls._run(f"git checkout {comfy_version}", get_comfyui_path())
+            cls._run(f"git checkout {comfy_version}", str(get_comfyui_path()))
             # Apply our patches to comfyui
-            cls.apply_patch(os.path.join(get_hordelib_path(), "install_comfy.patch"))
+            cls.apply_patch(get_hordelib_path() / "install_comfy.patch")
             return
 
         # If it's installed, is it up to date?
@@ -98,7 +99,7 @@ class Installer:
         )
         cls.reset_comfyui_to_version(comfy_version)
         # Apply our patches to comfyui
-        cls.apply_patch(os.path.join(get_hordelib_path(), "install_comfy.patch"))
+        cls.apply_patch(get_hordelib_path() / "install_comfy.patch")
 
     @classmethod
     def remove_local_comfyui_changes(cls):
@@ -121,40 +122,40 @@ class Installer:
         cls._run(f"git checkout {comfy_version}", get_comfyui_path())
 
     @classmethod
-    def apply_patch(cls, patchfile, skip_dot_patch=True):
+    def apply_patch(cls, patch_file: Path, skip_dot_patch: bool = True):
         # Don't if we're a release version
         if RELEASE_VERSION:
             return
         if not skip_dot_patch:  # FIXME
             # Check if the patch has already been applied
             result = cls._run_get_result(
-                f"git apply --check {patchfile}",
+                f"git apply --check {patch_file}",
                 get_comfyui_path(),
             )
             could_apply = not result.returncode
             result = cls._run_get_result(
-                f"git apply --reverse --check {patchfile}",
+                f"git apply --reverse --check {patch_file}",
                 get_comfyui_path(),
             )
             could_reverse = not result.returncode
             if could_apply:
                 # Apply the patch
-                logger.info(f"Applying patch {patchfile}")
-                result = cls._run_get_result(f"git apply {patchfile}", get_comfyui_path())
+                logger.info(f"Applying patch {patch_file}")
+                result = cls._run_get_result(f"git apply {patch_file}", get_comfyui_path())
                 logger.debug(f"{result}")
             elif could_reverse:
                 # Patch is already applied, all is well
-                logger.info(f"Already applied patch {patchfile}")
+                logger.info(f"Already applied patch {patch_file}")
             else:
                 # Couldn't apply or reverse? That's not so good, but maybe we are partially applied?
                 # Reset local changes
                 cls.remove_local_comfyui_changes()
                 # Try to apply the patch
-                logger.info(f"Applying patch {patchfile}")
-                result = cls._run_get_result(f"git apply {patchfile}", get_comfyui_path())
+                logger.info(f"Applying patch {patch_file}")
+                result = cls._run_get_result(f"git apply {patch_file}", get_comfyui_path())
                 logger.debug(f"{result}")
                 if result.returncode:
-                    logger.error(f"Could not apply patch {patchfile}")
+                    logger.error(f"Could not apply patch {patch_file}")
 
         # Drop in custom node config
         config_file = os.path.join(get_comfyui_path(), "extra_model_paths.yaml")

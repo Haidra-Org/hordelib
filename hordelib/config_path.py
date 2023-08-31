@@ -1,24 +1,29 @@
-import os
 import sys
+from pathlib import Path
 
 
-def get_hordelib_path():
+from pathlib import Path
+
+
+def get_hordelib_path() -> Path:
     """Returns the path hordelib is installed in."""
-    current_file_path = os.path.abspath(__file__)
-    return os.path.dirname(current_file_path)
+    current_file_path = Path(__file__).resolve()
+    return current_file_path.parent
 
 
-def get_comfyui_path():
+def get_comfyui_path() -> Path:
     """Returns the path to ComfyUI that hordelib installs and manages."""
-    if os.path.exists(os.path.join(get_hordelib_path(), "_version.py")):
+    hordelib_path = get_hordelib_path()
+    if (hordelib_path / "_version.py").exists():
         # Packaged version
-        return os.path.join(get_hordelib_path(), "_comfyui")
+        return hordelib_path / "_comfyui"
     else:
         # Development version
-        return os.path.join(os.path.dirname(get_hordelib_path()), "ComfyUI")
+        return hordelib_path.parent / "ComfyUI"
 
 
-def set_system_path():
+def set_system_path() -> None:
     """Adds ComfyUI to the python path, as it is not a proper library."""
-    sys.path.append(get_comfyui_path())
-    sys.path.append(os.path.join(get_hordelib_path(), "nodes"))
+    comfyui_path = get_comfyui_path()
+    sys.path.append(str(comfyui_path))
+    sys.path.append(str(get_hordelib_path() / "nodes"))
