@@ -349,7 +349,7 @@ class BaseModelManager(ABC):
             # Use our cached hash
             with open(sha256_file) as handle:
                 return handle.read().split()[0]
-
+        logger.info(f"Calculating sha256sum of {file_name}. This may take a while.")
         # Calculate the hash of the source file
         with open(file_name, "rb") as file_to_check:
             file_hash = hashlib.sha256()
@@ -411,10 +411,16 @@ class BaseModelManager(ABC):
         Checks if the file exists
         Returns True if the file exists, False otherwise
         """
-        full_path = Path(f"{self.model_folder_path}/{file_path}")
-        sha_file_path = Path(f"{self.model_folder_path}/{full_path.stem}.sha256")
+        parsed_full_path = Path(f"{self.model_folder_path}/{file_path}")
+        if parsed_full_path.suffix == ".part":
+            logger.debug(f"File {file_path} is a partial download, skipping")
+            return False
+        sha_file_path = Path(f"{self.model_folder_path}/{parsed_full_path.stem}.sha256")
 
-        return full_path.exists() and sha_file_path.exists()
+        if parsed_full_path.exists() and not sha_file_path.exists():
+            self.get_file_sha256_hash(parsed_full_path)
+
+        return parsed_full_path.exists() and sha_file_path.exists()
 
     def download_file(self, url: str, filename: str) -> bool:
         """
@@ -555,6 +561,9 @@ class BaseModelManager(ABC):
             return True
         download = self.get_model_download(model_name)
         files = self.get_model_config_files(model_name)
+        if self.is_model_available(model_name):
+            logger.debug(f"{model_name} is already downloaded.")
+            return True
         for i in range(len(download)):
             file_path = (
                 f"{download[i]['file_path']}/{download[i]['file_name']}"
@@ -653,7 +662,7 @@ class BaseModelManager(ABC):
                 shutil.rmtree(temp_path)
             else:
                 if not self.is_file_available(file_path) or is_model_tainted:
-                    logger.debug(f"Downloading {download_url} to {file_path}")
+                    logger.debug(f"Downloading {download_url} to {self.model_folder_path / file_path}")
                     if is_model_tainted:
                         logger.debug(f"Model {model_name} is tainted.")
 
