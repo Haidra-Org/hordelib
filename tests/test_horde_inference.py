@@ -101,7 +101,7 @@ class TestHordeInference:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "painting of an cat in a fancy hat in a fancy room",
-            "ddim_steps": 50,
+            "ddim_steps": 15,
             "n_iter": 1,
             "model": sdxl_1_0_base_model_name,
         }
@@ -119,8 +119,8 @@ class TestHordeInference:
         ]
         completed_images: list[tuple[str, Image.Image]] = []
         for resolution in recommended_resolutions:
-            data["height"] = resolution[0]
-            data["width"] = resolution[1]
+            data["width"] = resolution[0]
+            data["height"] = resolution[1]
             pil_image = hordelib_instance.basic_inference_single_image(data)
             assert pil_image is not None
             assert isinstance(pil_image, Image.Image)

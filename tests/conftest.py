@@ -1,5 +1,5 @@
 from typing import Generator
-
+import os
 import PIL.Image
 import pytest
 
@@ -15,6 +15,7 @@ def init_horde():
     You must call this fixture if your test uses a module which imports `hordelib.comfy_horde`. You will usually
     see a characteristic RuntimeError exception if you forget to call this fixture, but you may also see an
     import error from within comfy if your code does not instantiate the `Comfy_Horde` class."""
+    assert os.getenv("TESTS_ONGOING")
     import hordelib
 
     hordelib.initialise()
