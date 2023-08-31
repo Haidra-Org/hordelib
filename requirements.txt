@@ -1,6 +1,6 @@
 # Add this in for tox, comment out for build
 --extra-index-url https://download.pytorch.org/whl/cu118
-horde_model_reference~=0.4.8
+horde_model_reference~=0.4.11
 pydantic
 torch>=2.0.0
 xformers>=0.0.19
@@ -42,5 +42,4 @@ scikit-image
 mediapipe>=0.9.1.0
 unidecode
 fuzzywuzzy
-horde_clipfree==0.0.2
 strenum
