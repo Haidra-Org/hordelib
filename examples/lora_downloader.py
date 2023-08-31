@@ -88,6 +88,7 @@ class LoraDownloader:
                 # Failed badly
                 logger.error(f"LORA download failed {e}")
                 return None
+        return None
 
     def _get_more_items(self):
         if not self._data:
@@ -116,7 +117,7 @@ class LoraDownloader:
         # First remove exotic unicode characters
         filename = filename.encode("ascii", "ignore").decode("ascii")
         # Now exploit characters
-        valid_chars = "-_.() %s%s" % (string.ascii_letters, string.digits)
+        valid_chars = f"-_.() {string.ascii_letters}{string.digits}"
         return "".join(c for c in filename if c in valid_chars)
 
     def _parse_civitai_lora_data(self, item):
@@ -149,7 +150,7 @@ class LoraDownloader:
                 break
         # If we don't have everything required, fail
         if not lora.get("sha256") or not lora.get("filename") or not lora.get("url") or not lora.get("triggers"):
-            return
+            return None
         # Fixup A1111 centric triggers
         for i, trigger in enumerate(lora["triggers"]):
             if re.match("<lora:(.*):.*>", trigger):
@@ -181,7 +182,7 @@ class LoraDownloader:
                         with open(hashfile) as infile:
                             try:
                                 hashdata = infile.read().split()[0]
-                            except (IndexError, OSError, IOError, PermissionError):
+                            except (IndexError, OSError, PermissionError):
                                 hashdata = ""
                         if hashdata.lower() == lora["sha256"].lower():
                             # we already have this lora, consider it downloaded
@@ -205,7 +206,7 @@ class LoraDownloader:
                         with open(filename, "wb") as outfile:
                             outfile.write(response.content)
                         # Save the hash file
-                        with open(hashfile, "wt") as outfile:
+                        with open(hashfile, "w") as outfile:
                             outfile.write(f"{sha256} *{lora['filename']}")
 
                         # Shout about it
@@ -217,9 +218,9 @@ class LoraDownloader:
                             if self._downloaded_mb > self._max_disk:
                                 self.done = True
                         break
-                    else:
-                        logger.debug(f"Downloaded LORA file for {lora['filename']} didn't match hash")
-                        pass  # we will retry
+
+                    logger.debug(f"Downloaded LORA file for {lora['filename']} didn't match hash")
+                    pass  # we will retry
 
                 except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
                     logger.debug(f"Error downloading {lora['filename']} {e}")
@@ -290,7 +291,7 @@ class LoraDownloader:
 
         # Save the final model data index
         filename = os.path.join(self._download_dir, "loras.json")
-        with open(filename, "wt", encoding="utf-8", errors="ignore") as outfile:
+        with open(filename, "w", encoding="utf-8", errors="ignore") as outfile:
             outfile.write(json.dumps(self.model_data, indent=4))
 
 

@@ -83,7 +83,8 @@ class LoraModelManager(BaseModelManager):
         )
         # FIXME (shift lora.json handling into horde_model_reference?)
 
-    def load_model_database(self, list_models=False):
+    @override
+    def load_model_database(self) -> None:
         if self.model_reference:
             logger.info(
                 (
@@ -175,6 +176,7 @@ class LoraModelManager(BaseModelManager):
                 # Failed badly
                 logger.error(f"url '{url}' download failed {e}")
                 return None
+        return None
 
     def _get_more_items(self):
         if not self._data:
@@ -241,18 +243,18 @@ class LoraModelManager(BaseModelManager):
         # If we don't have everything required, fail
         if lora["adhoc"] and not lora.get("sha256"):
             logger.debug(f"Rejecting LoRa {lora.get('name')} because it doesn't have a sha256")
-            return
+            return None
         if not lora.get("filename") or not lora.get("url"):
             logger.debug(f"Rejecting LoRa {lora.get('name')} because it doesn't have a url")
-            return
+            return None
         # We don't want to start downloading GBs of a single LoRa.
         # We just ignore anything over 150Mb. Them's the breaks...
         if lora["adhoc"] and lora["size_mb"] > 220:
             logger.debug(f"Rejecting LoRa {lora.get('name')} because its size is over 220Mb.")
-            return
+            return None
         if lora["adhoc"] and lora["nsfw"] and not self.nsfw:
             logger.debug(f"Rejecting LoRa {lora.get('name')} because worker is SFW.")
-            return
+            return None
         # Fixup A1111 centric triggers
         for i, trigger in enumerate(lora["triggers"]):
             if re.match("<lora:(.*):.*>", trigger):
@@ -289,7 +291,7 @@ class LoraModelManager(BaseModelManager):
                         with open(hashfile) as infile:
                             try:
                                 hashdata = infile.read().split()[0]
-                            except (IndexError, OSError, IOError, PermissionError):
+                            except (IndexError, OSError, PermissionError):
                                 hashdata = ""
                         if not lora.get("sha256") or hashdata.lower() == lora["sha256"].lower():
                             # we already have this lora, consider it downloaded
@@ -323,7 +325,7 @@ class LoraModelManager(BaseModelManager):
                         with open(filename, "wb") as outfile:
                             outfile.write(response.content)
                         # Save the hash file
-                        with open(hashfile, "wt") as outfile:
+                        with open(hashfile, "w") as outfile:
                             outfile.write(f"{sha256} *{lora['filename']}")
 
                         # Shout about it
@@ -338,12 +340,12 @@ class LoraModelManager(BaseModelManager):
                                 self.delete_oldest_lora()
                             self.save_cached_reference_to_disk()
                         break
-                    else:
-                        # We will retry
-                        logger.debug(
-                            f"Downloaded LORA file for {lora['filename']} didn't match hash. "
-                            f"Retry {retries}/{self.MAX_RETRIES}",
-                        )
+
+                    # We will retry
+                    logger.debug(
+                        f"Downloaded LORA file for {lora['filename']} didn't match hash. "
+                        f"Retry {retries}/{self.MAX_RETRIES}",
+                    )
 
                 except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
                     # We will retry
@@ -540,7 +542,7 @@ class LoraModelManager(BaseModelManager):
         return None
 
     def save_cached_reference_to_disk(self):
-        with open(self.models_db_path, "wt", encoding="utf-8", errors="ignore") as outfile:
+        with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
             outfile.write(json.dumps(self.model_reference, indent=4))
 
     def calculate_downloaded_loras(self, mode=DOWNLOAD_SIZE_CHECK.everything):

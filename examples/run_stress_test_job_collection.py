@@ -371,7 +371,7 @@ def run_iterations():
         else:
             with open(
                 f"{out_dir}/{data['desc']}-group_{job_num}-it_{i}_total_{next_job}-{threading.current_thread().ident}.txt",
-                "wt",
+                "w",
             ) as f:
                 f.write("failed")
 

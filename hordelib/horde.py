@@ -201,8 +201,7 @@ class HordeLib:
                 if value.lower() not in values:
                     # not an allowed value, use the default
                     return default
-                else:
-                    value = value.lower()
+                value = value.lower()
             else:
                 if value not in values:
                     # not an allowed value, use the default
@@ -529,11 +528,11 @@ class HordeLib:
         if params.get("control_type"):
             if params.get("return_control_map", False):
                 return "controlnet_annotator"
-            else:
-                if params.get("hires_fix"):
-                    return "controlnet_hires_fix"
-                else:
-                    return "controlnet"
+
+            if params.get("hires_fix"):
+                return "controlnet_hires_fix"
+
+            return "controlnet"
 
         # stable_diffusion_paint, stable_diffusion_img2img_mask
         if params.get("source_processing") == "img2img":
@@ -550,8 +549,8 @@ class HordeLib:
         # stable_diffusion and stable_diffusion_hires_fix
         if params.get("hires_fix", False):
             return "stable_diffusion_hires_fix"
-        else:
-            return "stable_diffusion"  # also includes img2img mode
+
+        return "stable_diffusion"  # also includes img2img mode
 
     def _process_results(
         self,
@@ -652,7 +651,7 @@ class HordeLib:
 
             raise RuntimeError("Expected a list of io.BytesIO but got a mix of types!")
 
-        elif isinstance(result, io.BytesIO):
+        if isinstance(result, io.BytesIO):
             return [result]
 
         raise RuntimeError(f"Expected at least one io.BytesIO. Got {result}.")

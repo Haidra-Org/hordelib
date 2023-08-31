@@ -24,12 +24,11 @@ class HordeDiffControlNetLoader:
             logger.error("controlnet model_manager appears to be missing!")
             raise RuntimeError  # XXX better guarantees need to be made
 
-        merged_model = model_manager.manager.controlnet.merge_controlnet(
+        return model_manager.manager.controlnet.merge_controlnet(
             control_net_name,
             model,
         )
 
-        return merged_model
 
 
 NODE_CLASS_MAPPINGS = {"HordeDiffControlNetLoader": HordeDiffControlNetLoader}

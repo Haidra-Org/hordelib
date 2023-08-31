@@ -131,20 +131,9 @@ def do_comfy_import():
 
 # isort: on
 
-__models_to_release: dict[str, dict[str, typing.Any]] = {}
-__model_load_mutex = threading.Lock()
-
 
 def cleanup():
-    logger.debug(f"{len(__models_to_release)} models loaded in comfy")
-
-
-def remove_model_from_memory(model_name, model_data):
-    logger.debug(f"Comfy_Horde received request to unload {model_name}")
-    with __model_load_mutex:
-        if model_name not in __models_to_release:
-            logger.debug(f"Model {model_name} queued for GPU/RAM unload")
-            __models_to_release[model_name] = model_data
+    logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
 
 
 def get_torch_device():
@@ -155,76 +144,14 @@ def get_torch_free_vram_mb():
     return round(_comfy_get_free_memory() / (1024 * 1024))
 
 
-def unload_model_from_gpu(model):
-    if model in _comfy_current_loaded_models:
-        model.model_unload()
-    garbage_collect()
-
-
 def garbage_collect():
     logger.debug("Comfy_Horde garbage_collect called")
     gc.collect()
     if not torch.cuda.is_available():
-        return None
+        return
     if torch.version.cuda:
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
-
-
-def load_model_to_gpu(model):
-    return _comfy_load_models_gpu(model)
-
-
-def load_torch_file(filename):
-    result = _comfy_load_torch_file(filename)
-    return result
-
-
-def load_state_dict(state_dict):
-    result = _comfy_model_loading.load_state_dict(state_dict)
-    return result
-
-
-def horde_load_checkpoint(
-    ckpt_path: str,
-    output_vae: bool = True,
-    output_clip: bool = True,
-    embeddings_path: str | None = None,
-) -> dict[str, typing.Any]:  # XXX # FIXME 'any'
-    # XXX Needs docstring
-    # XXX # TODO One day this signature should be generic, and not comfy specific
-    # XXX # This can remain a comfy call, but the rest of the code should be able
-    # XXX # to pretend it isn't
-    # Redirect IO
-    raise NotImplementedError
-    try:
-        stdio = OutputCollector()
-        with contextlib.redirect_stdout(stdio):
-            (modelPatcher, clipModel, vae, clipVisionModel) = _comfy_load_checkpoint_guess_config(
-                ckpt_path=ckpt_path,
-                output_vae=output_vae,
-                output_clip=output_clip,
-                embedding_directory=embeddings_path,
-            )
-    except RuntimeError:
-        # Failed, hard to tell why, bad checkpoint, not enough ram, for example
-        raise
-
-    return {
-        "model": modelPatcher,
-        "clip": clipModel,
-        "vae": vae,
-        "clipVisionModel": clipVisionModel,
-    }
-
-
-def horde_load_controlnet(controlnet_path: str, target_model):  # XXX Needs docstring
-    raise NotImplementedError
-    # Redirect IO
-    stdio = OutputCollector()
-    with contextlib.redirect_stdout(stdio):
-        controlnet = _comfy_load_controlnet(ckpt_path=controlnet_path, model=target_model)
-    return controlnet
 
 
 class Comfy_Horde:
@@ -364,8 +291,7 @@ class Comfy_Horde:
         # This class (`Comfy_Horde`) uses duck typing to intercept calls intended for
         # ComfyUI's `PromptServer` class. In particular, it intercepts calls to
         # `PromptServer.send_sync`. See `Comfy_Horde.send_sync` for more details.
-        executor = _comfy_PromptExecutor(self)
-        return executor
+        return _comfy_PromptExecutor(self)
 
     def get_pipeline_data(self, pipeline_name):
         pipeline_data = copy.deepcopy(self.pipelines.get(pipeline_name, {}))
@@ -399,7 +325,7 @@ class Comfy_Horde:
                     if "inputs" in node and oldname in node["inputs"]:
                         node["inputs"][newname] = node["inputs"][oldname]
                         # del node["inputs"][oldname]
-                logger.debug(f"Renamed node input {nodename}.{oldname} to {newname}")  # type: ignore # FIXME
+                logger.debug(f"Renamed node input {nodename}.{oldname} to {newname}")
 
         return data
 
@@ -454,8 +380,7 @@ class Comfy_Horde:
         # First replace comfyui standard types with hordelib node types
         data = self._fix_pipeline_types(data)
         # Now try to find better parameter names
-        data = self._fix_node_names(data, design)
-        return data
+        return self._fix_node_names(data, design)
 
     def _load_pipeline(self, filename: str) -> bool | None:
         """

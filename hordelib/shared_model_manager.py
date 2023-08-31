@@ -1,7 +1,7 @@
 # shared_model_manager.py
 import builtins
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import torch
 from horde_model_reference.legacy import LegacyReferenceDownloadManager

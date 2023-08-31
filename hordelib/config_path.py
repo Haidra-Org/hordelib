@@ -14,9 +14,9 @@ def get_comfyui_path() -> Path:
     if (hordelib_path / "_version.py").exists():
         # Packaged version
         return hordelib_path / "_comfyui"
-    else:
-        # Development version
-        return hordelib_path.parent / "ComfyUI"
+
+    # Development version
+    return hordelib_path.parent / "ComfyUI"
 
 
 def set_system_path() -> None:

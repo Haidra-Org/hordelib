@@ -74,7 +74,8 @@ class TextualInversionModelManager(BaseModelManager):
             models_db_path=models_db_path,
         )
 
-    def load_model_database(self, list_models=False):
+    @override
+    def load_model_database(self) -> None:
         if self.model_reference:
             logger.info(
                 (
@@ -152,6 +153,7 @@ class TextualInversionModelManager(BaseModelManager):
                 # Failed badly
                 logger.error(f"url '{url}' download failed {e}")
                 return None
+        return None
 
     def _get_more_items(self):
         if not self._data:
@@ -219,18 +221,18 @@ class TextualInversionModelManager(BaseModelManager):
         # If we don't have everything required, fail
         if ti["adhoc"] and not ti.get("sha256"):
             logger.debug(f"Rejecting Textual Inversion {ti.get('name')} because it doesn't have a sha256")
-            return
+            return None
         if not ti.get("filename") or not ti.get("url"):
             logger.debug(f"Rejecting Textual Inversion {ti.get('name')} because it doesn't have a url")
-            return
+            return None
         # We don't want to start downloading GBs of a single Textual Inversion.
         # We just ignore anything over 150Mb. Them's the breaks...
         if ti["adhoc"] and ti["size_kb"] > 20000:
             logger.debug(f"Rejecting Textual Inversion {ti.get('name')} because its size is over 20Mb.")
-            return
+            return None
         if ti["adhoc"] and ti["nsfw"] and not self.nsfw:
             logger.debug(f"Rejecting Textual Inversion {ti.get('name')} because worker is SFW.")
-            return
+            return None
         # Fixup A1111 centric triggers
         for i, trigger in enumerate(ti["triggers"]):
             if re.match("<ti:(.*):.*>", trigger):
@@ -284,7 +286,7 @@ class TextualInversionModelManager(BaseModelManager):
                             with open(hashpath) as infile:
                                 try:
                                     hashdata = infile.read().split()[0]
-                                except (IndexError, OSError, IOError, PermissionError):
+                                except (IndexError, OSError, PermissionError):
                                     hashdata = ""
 
                             if not ti.get("sha256") or hashdata.lower() == ti["sha256"].lower():
@@ -322,7 +324,7 @@ class TextualInversionModelManager(BaseModelManager):
                             with open(filepath, "wb") as outfile:
                                 outfile.write(response.content)
                             # Save the hash file
-                            with open(hashpath, "wt") as outfile:
+                            with open(hashpath, "w") as outfile:
                                 outfile.write(f"{sha256} *{ti['filename']}")
 
                             # Shout about it
@@ -337,12 +339,12 @@ class TextualInversionModelManager(BaseModelManager):
                                     self.delete_oldest_ti()
                                 self.save_cached_reference_to_disk()
                             break
-                        else:
-                            # We will retry
-                            logger.debug(
-                                f"Downloaded Textual Inversion file {ti['filename']} didn't match hash. "
-                                f"Retry {retries}/{self.MAX_RETRIES}",
-                            )
+
+                        # We will retry
+                        logger.debug(
+                            f"Downloaded Textual Inversion file {ti['filename']} didn't match hash. "
+                            f"Retry {retries}/{self.MAX_RETRIES}",
+                        )
 
                 except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
                     # We will retry
@@ -524,7 +526,7 @@ class TextualInversionModelManager(BaseModelManager):
         return None
 
     def save_cached_reference_to_disk(self):
-        with open(self.models_db_path, "wt", encoding="utf-8", errors="ignore") as outfile:
+        with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
             outfile.write(json.dumps(self.model_reference, indent=4))
 
     def calculate_downloaded_tis(self, mode=DOWNLOAD_SIZE_CHECK.everything):

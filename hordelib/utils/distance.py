@@ -254,9 +254,7 @@ def get_hist(img: PIL.Image.Image) -> np.ndarray:
     img_array = np.array(img)
 
     # Get the histogram of the image
-    hist = np.histogram(img_array, bins=DEFAULT_HISTOGRAM_BINS, range=DEFAULT_HISTOGRAM_RANGE)[0]
-
-    return hist
+    return np.histogram(img_array, bins=DEFAULT_HISTOGRAM_BINS, range=DEFAULT_HISTOGRAM_RANGE)[0]
 
 
 def L2Norm(hist1: np.ndarray, hist2: np.ndarray) -> float:

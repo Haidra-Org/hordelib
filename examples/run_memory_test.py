@@ -61,8 +61,7 @@ def add_model(model_name):
 
 
 def get_available_models():
-    models = SharedModelManager.manager.get_available_models()
-    return models
+    return SharedModelManager.manager.get_available_models()
 
 
 def do_inference(model_name, iterations=1):
@@ -170,11 +169,11 @@ def main():
         if BACKGROUND_THREAD:
             time.sleep(60)
             break
-        else:
-            model = random.choice(models)
-            logger.info(f"Doing inference with model {model} ({len(models)} models loaded)")
-            do_inference(model)
-            count += 1
+
+        model = random.choice(models)
+        logger.info(f"Doing inference with model {model} ({len(models)} models loaded)")
+        do_inference(model)
+        count += 1
         if count > 20000:
             break
 

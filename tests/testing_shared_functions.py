@@ -1,7 +1,8 @@
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Iterable, TypeAlias
+from typing import TypeAlias
 
 import PIL.Image
 import pytest
@@ -108,7 +109,7 @@ def check_image_similarity_pytest(
             cosine_similarity_result,
             histogram_distance_result,
         )
-    elif cosine_warn or histogram_warn:
+    if cosine_warn or histogram_warn:
         return ImageSimilarityResult(
             ImageSimilarityResultCode.SKIP,
             cosine_similarity_result,

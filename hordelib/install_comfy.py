@@ -36,9 +36,8 @@ class Installer:
             ref_path = os.path.join(".git", *head_contents[5:].split("/"))
 
             with open(ref_path) as f:
-                commit_hash = f.read().strip()
+                return f.read().strip()
 
-            return commit_hash
         except Exception:
             return ""
 
@@ -46,7 +45,7 @@ class Installer:
     def _run_get_result(cls, command, directory=get_hordelib_path()):
         # Don't if we're a release version
         if RELEASE_VERSION:
-            return
+            return None
         return subprocess.run(
             command,
             shell=True,
@@ -159,5 +158,5 @@ class Installer:
 
         # Drop in custom node config
         config_file = os.path.join(get_comfyui_path(), "extra_model_paths.yaml")
-        with open(config_file, "wt") as outfile:
+        with open(config_file, "w") as outfile:
             outfile.write(CUSTOM_NODE_YAML)

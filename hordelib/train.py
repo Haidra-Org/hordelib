@@ -134,8 +134,7 @@ def payload_to_time(model, payload):
 # This is how to load the model required above
 def load_model(model_filename):
     with open(model_filename, "rb") as infile:
-        model = pickle.load(infile)
-    return model
+        return pickle.load(infile)
 
 
 # This is just an helper for walking through the validation dataset one line at a time
@@ -236,8 +235,7 @@ class KudosDataset(Dataset):
         for i, string in enumerate(strings):
             one_hot[i, unique_strings.index(string)] = 1
 
-        combined_row = torch.sum(one_hot, dim=0, keepdim=True)
-        return combined_row
+        return torch.sum(one_hot, dim=0, keepdim=True)
 
     def __len__(self):
         return len(self.data)
@@ -260,7 +258,7 @@ if ENABLE_TRAINING:
                 layers.append(nn.ReLU())  # Use ReLU activation for all layers except the last one
                 # Add a dropout layer
                 if i > 0:
-                    drop = trial.suggest_float("dropout_l{}".format(i), 0.05, 0.2, log=True)
+                    drop = trial.suggest_float(f"dropout_l{i}", 0.05, 0.2, log=True)
                     layers.append(nn.Dropout(drop))
 
         # Create the nn.Sequential model

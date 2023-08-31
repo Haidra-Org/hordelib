@@ -20,10 +20,9 @@ def download_image(url):
     response = requests.get(url)
     if response.status_code == 200:
         image_data = BytesIO(response.content)
-        pil_image = Image.open(image_data)
-        return pil_image
-    else:
-        raise Exception(f"Failed to download image. Status code: {response.status_code}")
+        return Image.open(image_data)
+
+    raise Exception(f"Failed to download image. Status code: {response.status_code}")
 
 
 timings: dict = {}
@@ -34,9 +33,9 @@ def delta(desc):
     if desc not in timings:
         timings[desc] = {"start": time.time(), "end": None}
         return 0
-    else:
-        timings[desc]["end"] = time.time()
-        return timings[desc]["end"] - timings[desc]["start"]
+
+    timings[desc]["end"] = time.time()
+    return timings[desc]["end"] - timings[desc]["start"]
 
 
 def get_os():

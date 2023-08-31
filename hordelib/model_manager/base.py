@@ -7,8 +7,8 @@ import threading
 import time
 import zipfile
 from abc import ABC
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 from uuid import uuid4
 
 import git
@@ -101,7 +101,7 @@ class BaseModelManager(ABC):
     def set_download_callback(cls, callback):
         UserSettings.download_progress_callback = callback
 
-    def load_model_database(self, list_models: bool = False) -> None:
+    def load_model_database(self) -> None:
         if self.model_reference:
             logger.info(
                 (
@@ -128,9 +128,7 @@ class BaseModelManager(ABC):
                     f"Got {len(self.model_reference)} models for {self.models_db_name}.",
                 ),
             )
-        if list_models:
-            for model in self.model_reference:
-                logger.info(model)
+
         models_available = []
         for model in self.model_reference:
             if self.is_model_available(model):
@@ -139,9 +137,6 @@ class BaseModelManager(ABC):
         logger.info(
             f"Got {len(self.available_models)} available models for {self.models_db_name}.",
         )
-        if list_models:
-            for model in self.available_models:
-                logger.info(model)
 
     def download_model_reference(self) -> dict:
         try:
@@ -321,8 +316,7 @@ class BaseModelManager(ABC):
         if hash_timestamp > source_timestamp:
             # Use our cached hash
             with open(md5_file) as handle:
-                md5_hash = handle.read().split()[0]
-            return md5_hash
+                return handle.read().split()[0]
 
         # Calculate the hash of the source file
         with open(file_name, "rb") as file_to_check:
@@ -358,8 +352,7 @@ class BaseModelManager(ABC):
         if hash_timestamp > source_timestamp:
             # Use our cached hash
             with open(sha256_file) as handle:
-                sha256_hash = handle.read().split()[0]
-            return sha256_hash
+                return handle.read().split()[0]
 
         # Calculate the hash of the source file
         with open(file_name, "rb") as file_to_check:

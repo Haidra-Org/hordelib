@@ -141,17 +141,6 @@ class UserSettings:
     # Disable the use of xformers
     disable_xformers = Switch()
 
-    # Disable the display of progress bars when downloading
-    # FIXME We should enable these, but don't yet
-    disable_download_progress = Switch()
-
-    # Disable disk caching completely
-    disable_disk_cache = Switch()
-
-    # Enable batch optimisations. If n_iter > 1 use fast batching. Makes prompts
-    # with more than 75 tokens slower.
-    enable_batch_optimisations = Switch(True)
-
     # Report idle time. If this is enabled a warning is issued if the time
     # between hordelib calls exceeds 1 second.
     enable_idle_time_warning = Switch()
