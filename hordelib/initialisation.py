@@ -35,10 +35,9 @@ def initialise(
     HordeLog.initialise(
         setup_logging=setup_logging,
         process_id=process_id,
+        verbosity_count=5 if debug_logging else 1,
     )
-    if debug_logging:
-        HordeLog.set_logger_verbosity(5)
-        HordeLog.quiesce_logger(0)
+    logger.info(f"Logging initialised for process {process_id}")
 
     # If developer mode, don't permit some things
     if not RELEASE_VERSION and " " in str(get_hordelib_path()):

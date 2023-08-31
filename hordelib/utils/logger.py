@@ -1,5 +1,6 @@
 import contextlib
 import sys
+from pathlib import Path
 
 from loguru import logger
 
@@ -9,7 +10,7 @@ class HordeLog:
     verbosity: int = 20
     quiet: int = 0
 
-    process_id: int = 0
+    process_id: int | None = None
 
     CUSTOM_STATS_LEVELS = ["STATS"]
 
@@ -18,15 +19,7 @@ class HordeLog:
 
     @classmethod
     def set_logger_verbosity(cls, count):
-        # The count comes reversed. So count = 0 means minimum verbosity
-        # While count 5 means maximum verbosity
-        # So the more count we have, the lowe we drop the versbosity maximum
-        cls.verbosity = 20 - (count * 10)
-
-    @classmethod
-    def quiesce_logger(cls, count):
-        # The bigger the count, the more silent we want our logger
-        cls.quiet = count * 10
+        cls.verbosity = 50 - (count * 10)
 
     @classmethod
     def is_stats_log(cls, record):
@@ -73,19 +66,18 @@ class HordeLog:
         sys.exit()
 
     @classmethod
-    def initialise(cls, setup_logging=True, process_id: int | None = None):
+    def initialise(
+        cls,
+        setup_logging=True,
+        process_id: int | None = None,
+        verbosity_count: int = 1,
+        quiet_count: int = 0,
+    ):
+        logger.debug(f"Initialising logger for process {process_id}")
+        cls.set_logger_verbosity(verbosity_count)
         if setup_logging:
-            cls.setup()
+            cls.process_id = process_id
             cls.set_sinks()
-            if process_id is not None:
-                cls.process_id = process_id
-
-        logger.disable("hordelib.clip.interrogate")
-
-    @classmethod
-    def setup(cls):
-        for level in cls.CUSTOM_STATS_LEVELS:
-            logger.level(level, no=cls.verbosity + cls.quiet)
 
     @classmethod
     def set_sinks(cls):
@@ -96,6 +88,28 @@ class HordeLog:
                 logger.remove(sink)
 
         cls.sinks = []
+
+        # Get the level corresponding to the verbosity
+        # We want to log to stdout at that level
+
+        levels_lookup: list[str, int] = {
+            5: "TRACE",
+            10: "DEBUG",
+            20: "INFO",
+            25: "SUCCESS",
+            30: "WARNING",
+            40: "ERROR",
+            50: "CRITICAL",
+        }
+
+        stdout_level = "INFO"
+
+        for level in levels_lookup:
+            if cls.verbosity <= level:
+                stdout_level = levels_lookup[level]
+                break
+
+        print("logs/bridge.log" if cls.process_id is None else f"logs/bridge_{cls.process_id}.log")
 
         config = {
             "handlers": [
@@ -109,16 +123,17 @@ class HordeLog:
                     "sink": sys.stdout,
                     "colorize": True,
                     "enqueue": True,
+                    "level": stdout_level,
                 },
                 {
-                    "sink": "logs/bridge.log" if not cls.process_id else f"logs/bridge_{cls.process_id}.log",
+                    "sink": "logs/bridge.log" if cls.process_id is None else f"logs/bridge_{cls.process_id}.log",
                     "level": "DEBUG",
                     "retention": "2 days",
                     "rotation": "1 days",
                     "enqueue": True,
                 },
                 {
-                    "sink": "logs/stats.log" if not cls.process_id else f"logs/stats_{cls.process_id}.log",
+                    "sink": "logs/stats.log" if cls.process_id is None else f"logs/stats_{cls.process_id}.log",
                     "level": "STATS",
                     "filter": cls.is_stats_log,
                     "retention": "7 days",
@@ -126,7 +141,7 @@ class HordeLog:
                     "enqueue": True,
                 },
                 {
-                    "sink": "logs/trace.log" if not cls.process_id else f"logs/trace_{cls.process_id}.log",
+                    "sink": "logs/trace.log" if cls.process_id is None else f"logs/trace_{cls.process_id}.log",
                     "level": "ERROR",
                     "retention": "3 days",
                     "rotation": "1 days",
@@ -136,5 +151,7 @@ class HordeLog:
                 },
             ],
         }
+        logger.debug(f"Setting up logger for process {cls.process_id}")
 
+        logger.level("STATS", no=25, color="<yellow>", icon="📊")
         cls.sinks = logger.configure(**config)
