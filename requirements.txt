@@ -27,6 +27,7 @@ psutil
 typing-extensions
 distro
 python-dotenv
+strenum
 # image similarity + face fixer custom nodes
 opencv-python
 # controlnet custom nodes
