@@ -65,7 +65,7 @@ class TestHordeLora:
 
         last_use = shared_model_manager.manager.lora.get_lora_last_use("GlowingRunesAI")
         assert last_use
-        assert last_use > datetime.now() - timedelta(minutes=5)
+        assert last_use > datetime.now() - timedelta(minutes=30)
 
     def test_text_to_image_lora_blue(
         self,

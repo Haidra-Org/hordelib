@@ -103,20 +103,18 @@ def real_image() -> PIL.Image.Image:
 def pytest_collection_modifyitems(items):
     """Modifies test items to ensure test modules run in a given order."""
     MODULES_TO_RUN_FIRST = [
-        "test_packaging_errors",
+        "tests.meta.test_packaging_errors",
         "tests.test_initialisation",
         "tests.test_cuda",
         "tests.test_utils",
         "tests.test_comfy_install",
         "tests.test_comfy",
         "tests.test_payload_mapping",
-        "test_shared_model_manager",
-        "test_mm_lora",
-        "test_mm_ti",
+        "tests.model_managers.test_shared_model_manager",
+        "tests.test_mm_lora",
+        "tests.test_mm_ti",
     ]
     MODULES_TO_RUN_LAST = [
-        "test.test_blip",
-        "test.test_clip",
         "tests.test_inference",
         "tests.test_horde_inference",
         "tests.test_horde_inference_img2img",
