@@ -58,6 +58,7 @@ class LoraModelManager(BaseModelManager):
         self._data = None
         self._next_page_url = None
         self._mutex = threading.Lock()
+
         self._file_count = 0
         self._download_threads = {}
         self._download_queue = deque()
@@ -730,13 +731,18 @@ class LoraModelManager(BaseModelManager):
     def stop_all(self):
         self._stop_all_threads = True
 
-    def touch_lora(self, lora_name):
+    def _touch_lora(self, lora_name):
         """Updates the "last_used" key in a lora entry to current UTC time"""
-        lora = self.get_model_reference_info(lora_name)
+        lora_name = lora_name.lower()
+        lora = self.model_reference.get(lora_name)
         if not lora:
             logger.warning(f"Could not find lora {lora_name} to touch")
             return
-        lora["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with self._mutex:
+            lora["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.save_cached_reference_to_disk()
+
+        # logger.debug(f"Touched lora {lora_name}")
 
     def get_lora_last_use(self, lora_name):
         """Returns a dateimte object based on the "last_used" key in a lora entry"""
@@ -774,8 +780,9 @@ class LoraModelManager(BaseModelManager):
         # We need to wait a bit to make sure the threads pick up the download
         time.sleep(self.THREAD_WAIT_TIME)
         self.wait_for_downloads(timeout)
-        self.touch_lora(lora["name"])
-        return lora["name"].lower()
+        lora["name"] = lora["name"].lower()
+        self._touch_lora(lora["name"])
+        return lora["name"]
 
     def do_baselines_match(self, lora_name, model_details):
         self._check_for_refresh(lora_name)
@@ -792,5 +799,6 @@ class LoraModelManager(BaseModelManager):
 
     @override
     def is_model_available(self, model_name):
-        self.touch_lora(model_name)
-        return self.fuzzy_find_lora_key(model_name) is not None
+        found_model_name = self.fuzzy_find_lora_key(model_name)
+        self._touch_lora(found_model_name.lower())
+        return found_model_name is not None
