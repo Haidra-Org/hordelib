@@ -16,6 +16,7 @@ import random
 import threading
 from pprint import pformat
 import requests
+import psutil
 
 import torch
 from loguru import logger
@@ -76,6 +77,7 @@ _comfy_load_controlnet: types.FunctionType
 
 _comfy_get_torch_device: types.FunctionType
 _comfy_get_free_memory: types.FunctionType
+_comfy_get_total_memory: types.FunctionType
 _comfy_load_torch_file: types.FunctionType
 _comfy_model_loading: types.ModuleType
 
@@ -96,37 +98,49 @@ def do_comfy_import():
     global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt
     global _comfy_folder_names_and_paths, _comfy_supported_ckpt_extensions, _comfy_supported_pt_extensions
     global _comfy_load_checkpoint_guess_config, _comfy_load_controlnet
-    global _comfy_get_torch_device, _comfy_get_free_memory, _comfy_load_torch_file, _comfy_model_loading
+    global _comfy_get_torch_device, _comfy_get_free_memory, _comfy_get_total_memory
+    global _comfy_load_torch_file, _comfy_model_loading
     global _canny, _hed, _leres, _midas, _mlsd, _openpose, _pidinet, _uniformer
 
     # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
     # that they should never call through this module into comfy directly. All calls into
     # comfy should be abstracted through functions in this module.
+    output_collector = OutputCollector()
+    with contextlib.redirect_stdout(output_collector), contextlib.redirect_stderr(output_collector):
+        from execution import nodes as _comfy_nodes
+        from execution import PromptExecutor as _comfy_PromptExecutor
+        from execution import validate_prompt as _comfy_validate_prompt
+        from folder_paths import folder_names_and_paths as _comfy_folder_names_and_paths  # type: ignore
+        from folder_paths import supported_ckpt_extensions as _comfy_supported_ckpt_extensions  # type: ignore
+        from folder_paths import supported_pt_extensions as _comfy_supported_pt_extensions  # type: ignore
+        from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config
+        from comfy.sd import load_controlnet as _comfy_load_controlnet
+        from comfy.model_management import current_loaded_models as _comfy_current_loaded_models
+        from comfy.model_management import load_models_gpu as _comfy_load_models_gpu
+        from comfy.model_management import get_torch_device as _comfy_get_torch_device
+        from comfy.model_management import get_free_memory as _comfy_get_free_memory
+        from comfy.model_management import get_total_memory as _comfy_get_total_memory
+        from comfy.utils import load_torch_file as _comfy_load_torch_file
+        from comfy_extras.chainner_models import model_loading as _comfy_model_loading  # type: ignore
+        from hordelib.nodes.comfy_controlnet_preprocessors import (
+            canny as _canny,
+            hed as _hed,
+            leres as _leres,
+            midas as _midas,
+            mlsd as _mlsd,
+            openpose as _openpose,
+            pidinet as _pidinet,
+            uniformer as _uniformer,
+        )
 
-    from execution import nodes as _comfy_nodes
-    from execution import PromptExecutor as _comfy_PromptExecutor
-    from execution import validate_prompt as _comfy_validate_prompt
-    from folder_paths import folder_names_and_paths as _comfy_folder_names_and_paths  # type: ignore
-    from folder_paths import supported_ckpt_extensions as _comfy_supported_ckpt_extensions  # type: ignore
-    from folder_paths import supported_pt_extensions as _comfy_supported_pt_extensions  # type: ignore
-    from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config
-    from comfy.sd import load_controlnet as _comfy_load_controlnet
-    from comfy.model_management import current_loaded_models as _comfy_current_loaded_models
-    from comfy.model_management import load_models_gpu as _comfy_load_models_gpu
-    from comfy.model_management import get_torch_device as _comfy_get_torch_device
-    from comfy.model_management import get_free_memory as _comfy_get_free_memory
-    from comfy.utils import load_torch_file as _comfy_load_torch_file
-    from comfy_extras.chainner_models import model_loading as _comfy_model_loading  # type: ignore
-    from hordelib.nodes.comfy_controlnet_preprocessors import (
-        canny as _canny,
-        hed as _hed,
-        leres as _leres,
-        midas as _midas,
-        mlsd as _mlsd,
-        openpose as _openpose,
-        pidinet as _pidinet,
-        uniformer as _uniformer,
-    )
+        total_vram = get_torch_total_vram_mb()
+        total_ram = psutil.virtual_memory().total / (1024 * 1024)
+        free_ram = psutil.virtual_memory().available / (1024 * 1024)
+
+        free_vram = get_torch_free_vram_mb()
+
+        logger.debug(f"Total VRAM {total_vram:0.0f} MB, Total System RAM {total_ram:0.0f} MB")
+        logger.debug(f"Free VRAM {free_vram:0.0f} MB, Free System RAM {free_ram:0.0f} MB")
 
 
 # isort: on
@@ -138,6 +152,10 @@ def cleanup():
 
 def get_torch_device():
     return _comfy_get_torch_device()
+
+
+def get_torch_total_vram_mb():
+    return round(_comfy_get_total_memory() / (1024 * 1024))
 
 
 def get_torch_free_vram_mb():
@@ -508,7 +526,10 @@ class Comfy_Horde:
             self.images = data["output"]["images"]
             logger.debug("Received output image(s) from comfyui")
         else:
-            logger.debug(f"{label}, {data}, {_id}")
+            if label != "executing":
+                logger.debug(f"{label}, {data}, {_id}")
+            else:
+                logger.debug(f"{label} comfyui node: {data.get('node', '')}")
 
     # Execute the named pipeline and pass the pipeline the parameter provided.
     # For the horde we assume the pipeline returns an array of images.

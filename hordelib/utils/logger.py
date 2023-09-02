@@ -85,8 +85,6 @@ class HordeLog:
                 # Suppress if someone else beat us to it
                 logger.remove(sink)
 
-        cls.sinks = []
-
         # Get the level corresponding to the verbosity
         # We want to log to stdout at that level
 
@@ -106,8 +104,6 @@ class HordeLog:
             if cls.verbosity <= level:
                 stdout_level = levels_lookup[level]
                 break
-
-        print("logs/bridge.log" if cls.process_id is None else f"logs/bridge_{cls.process_id}.log")
 
         config = {
             "handlers": [
@@ -149,7 +145,11 @@ class HordeLog:
                 },
             ],
         }
-        logger.debug(f"Setting up logger for process {cls.process_id}")
 
         logger.level("STATS", no=25, color="<yellow>", icon="📊")
-        cls.sinks = logger.configure(**config)
+        cls.sinks = logger.configure(**config)  # type: ignore
+
+        if cls.process_id is not None:
+            logger.debug(f"Logger finished setting up for process {cls.process_id}")
+        else:
+            logger.debug("Setting up logger for main process")

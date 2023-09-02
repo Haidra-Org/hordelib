@@ -605,7 +605,7 @@ class HordeLib:
         # controlnet model
         models.append(payload.get("controlnet_model_loader.control_net_name"))
 
-        logger.debug(f"Models involved ui: {models}")
+        logger.debug(f"Models involved: {models}")
 
         # Call the inference pipeline
         # logger.info(payload)
