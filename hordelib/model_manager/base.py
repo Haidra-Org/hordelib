@@ -99,31 +99,15 @@ class BaseModelManager(ABC):
 
     def load_model_database(self) -> None:
         if self.model_reference:
-            logger.info(
-                (
-                    "Model reference was already loaded."
-                    f" Got {len(self.model_reference)} models for {self.models_db_name}."
-                ),
-            )
+            logger.info("Model reference was already loaded.")
             logger.info("Reloading model reference...")
+
         is_model_db_present = self.models_db_path.exists()
+
         if self.download_reference or not is_model_db_present:
-            logger.debug(f"Model reference already on disk: {is_model_db_present}")
-            self.model_reference = self.download_model_reference()
-            logger.info(
-                (
-                    "Downloaded model reference.",
-                    f"Got {len(self.model_reference)} models for {self.models_db_name}.",
-                ),
-            )
-        else:
-            self.model_reference = json.loads((self.models_db_path).read_text())
-            logger.info(
-                (
-                    "Loaded model reference from disk.",
-                    f"Got {len(self.model_reference)} models for {self.models_db_name}.",
-                ),
-            )
+            raise NotImplementedError("Downloading model databases is no longer supported within hordelib.")
+
+        self.model_reference = json.loads((self.models_db_path).read_text())
 
         models_available = []
         for model in self.model_reference:
