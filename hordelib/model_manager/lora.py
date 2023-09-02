@@ -153,7 +153,7 @@ class LoraModelManager(BaseModelManager):
                 lora["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 self._add_lora_to_reference(lora)
                 continue
-            # logger.debug(f"Downloaded metadata for LoRas {lora['id']} ('{lora['name']}') and added to download queue")
+            # logger.debug(f"Downloaded metadata for LoRas {lora['id']} ('{lora['name']}') and added to download queue"
             self._download_lora(lora)
 
     def _get_json(self, url):
