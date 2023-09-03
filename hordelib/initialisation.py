@@ -22,7 +22,7 @@ def initialise(
     *,
     setup_logging=True,
     clear_logs=False,
-    debug_logging=False,
+    logging_verbosity=3,
     process_id: int | None = None,
 ):  # XXX # TODO Do we need `model_managers_to_load`?
     global _is_initialised
@@ -35,9 +35,8 @@ def initialise(
     HordeLog.initialise(
         setup_logging=setup_logging,
         process_id=process_id,
-        verbosity_count=5 if debug_logging else 1,
+        verbosity_count=logging_verbosity,
     )
-    logger.info(f"Logging initialised for process {process_id}")
 
     # If developer mode, don't permit some things
     if not RELEASE_VERSION and " " in str(get_hordelib_path()):
@@ -59,6 +58,20 @@ def initialise(
     import hordelib.comfy_horde
 
     hordelib.comfy_horde.do_comfy_import()
+
+    vram_on_start_free = hordelib.comfy_horde.get_torch_free_vram_mb()
+    vram_total = hordelib.comfy_horde.get_torch_total_vram_mb()
+    vram_percent_used = round((vram_total - vram_on_start_free) / vram_total * 100, 2)
+    message_addendum = "This will almost certainly cause issues. "
+    message_addendum += "It is strongly recommended you close other applications before running the worker."
+    if vram_on_start_free < 2000:
+        logger.warning(f"You have less than 2GB of VRAM free. {message_addendum}")
+
+    if vram_percent_used > 60:
+        logger.warning(f"There was already {vram_percent_used}% of VRAM used on start. {message_addendum}")
+
+    if vram_total < 4000:
+        logger.warning("You have less than 4GB of VRAM total. It is likely that generations will happen very slowly.")
 
     # Initialise model manager
     from hordelib.shared_model_manager import SharedModelManager

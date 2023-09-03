@@ -71,7 +71,6 @@ class HordeLog:
         process_id: int | None = None,
         verbosity_count: int = 1,
     ):
-        logger.debug(f"Initialising logger for process {process_id}")
         cls.set_logger_verbosity(verbosity_count)
         if setup_logging:
             cls.process_id = process_id

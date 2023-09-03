@@ -11,6 +11,11 @@ from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES
 from hordelib.shared_model_manager import SharedModelManager
 
 
+@pytest.fixture(scope="function", autouse=True)
+def line_break():
+    print()
+
+
 @pytest.fixture(scope="session")
 def init_horde():
     """This fixture initialises HordeLib and sets the VRAM to leave free to 90%.
@@ -26,7 +31,7 @@ def init_horde():
 
     import hordelib
 
-    hordelib.initialise(setup_logging=True, debug_logging=True)
+    hordelib.initialise(setup_logging=True, logging_verbosity=5)
     from hordelib.settings import UserSettings
 
     UserSettings.set_ram_to_leave_free_mb("100%")

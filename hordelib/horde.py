@@ -118,7 +118,7 @@ class HordeLib:
     }
 
     # pipeline parameter <- hordelib payload parameter mapping
-    PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING = {
+    PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING = {  # FIXME
         "sampler.sampler_name": "sampler_name",
         "sampler.cfg": "cfg_scale",
         "sampler.denoise": "denoising_strength",
@@ -136,6 +136,7 @@ class HordeLib:
         "model_loader.horde_model_name": "model_name",
         "image_loader.image": "source_image",
         "loras": "loras",
+        "tis": "tis",
         "upscale_sampler.denoise": "hires_fix_denoising_strength",
         "upscale_sampler.seed": "seed",
         "upscale_sampler.cfg": "cfg_scale",
@@ -595,17 +596,33 @@ class HordeLib:
         # Final adjustments to the pipeline
         pipeline_data = self.generator.get_pipeline_data(pipeline)
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
-        models: list = []
+
         # Run the pipeline
 
         # Add prefix to loras to avoid name collisions with other models
-        models = [f"lora-{x['name']}" for x in payload.get("loras", []) if x]
-        # main model
-        models.append(payload.get("model_loader.horde_model_name"))
-        # controlnet model
-        models.append(payload.get("controlnet_model_loader.control_net_name"))
+        loras_being_used = [f"lora-{x['name']}" for x in payload.get("loras", []) if x]
+        tis_being_used = [f"ti-{x['name']}" for x in payload.get("tis", []) if x]
 
-        logger.debug(f"Models involved: {models}")
+        # main model
+        main_model = f"{payload.get('model_loader.horde_model_name')}"
+        # controlnet model
+        controlnet_name = payload.get("controlnet_model_loader.control_net_name")
+
+        resolution = f"{payload.get('empty_latent_image.width')}x{payload.get('empty_latent_image.height')}"
+        steps = payload.get("sampler.steps")
+
+        logger.info(f"Generating image {resolution} in size for {steps} steps with model {main_model}.")
+        if "latent_upscale.width" in payload:
+            hires_fix_final_resolution = (
+                f"{payload.get('latent_upscale.width')}x{payload.get('latent_upscale.height')}"
+            )
+            logger.info(f"Using hiresfix, final resolution {hires_fix_final_resolution}.")
+        if controlnet_name:
+            logger.info(f"Using controlnet {controlnet_name}")
+        if loras_being_used:
+            logger.info(f"Using {len(loras_being_used)} LORAs")
+        if tis_being_used:
+            logger.info(f"Using {len(tis_being_used)} TIs")
 
         # Call the inference pipeline
         # logger.info(payload)
