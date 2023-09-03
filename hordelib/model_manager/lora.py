@@ -800,5 +800,7 @@ class LoraModelManager(BaseModelManager):
     @override
     def is_model_available(self, model_name):
         found_model_name = self.fuzzy_find_lora_key(model_name)
+        if found_model_name is None:
+            return False
         self._touch_lora(found_model_name.lower())
-        return found_model_name is not None
+        return True
