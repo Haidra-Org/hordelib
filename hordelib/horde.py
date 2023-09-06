@@ -270,7 +270,6 @@ class HordeLib:
         return payload
 
     def _final_pipeline_adjustments(self, payload, pipeline_data):
-
         payload = deepcopy(payload)
 
         # Process dynamic prompts
@@ -308,23 +307,31 @@ class HordeLib:
                         continue
                     ti_inject = ti.get("inject_ti")
                     ti_strength = ti.get("strength", 1.0)
+                    try:
+                        ti_strength = float(ti_strength)
+                    except (TypeError, ValueError):
+                        ti_strength = 1.0
                     if type(ti_strength) not in [float, int]:
                         ti_strength = 1.0
                     ti_id = SharedModelManager.manager.ti.get_ti_id(str(ti["name"]))
                     if ti_inject == "prompt":
                         payload["prompt"] = f'(embedding:{ti_id}:{ti_strength}),{payload["prompt"]}'
                     elif ti_inject == "negprompt":
-                        if "###" not in payload["prompt"]:
-                            payload["prompt"] += "###"
-                        payload["prompt"] = f'{payload["prompt"]},(embedding:{ti_id}:{ti_strength})'
-                    SharedModelManager.manager.ti.touch_ti(ti_name)
+                        # create negative prompt if empty
+                        if "negative_prompt" not in payload:
+                            payload["negative_prompt"] = ""
+
+                        had_leading_comma = payload["negative_prompt"].startswith(",")
+
+                        payload["negative_prompt"] = f'{payload["negative_prompt"]},(embedding:{ti_id}:{ti_strength})'
+                        if not had_leading_comma:
+                            payload["negative_prompt"] = payload["negative_prompt"].strip(",")
         # Setup controlnet if required
         # For LORAs we completely build the LORA section of the pipeline dynamically, as we have
         # to handle n LORA models which form chained nodes in the pipeline.
         # Note that we build this between several nodes, the model_loader, clip_skip and the sampler,
         # plus the upscale sampler (used in hires fix) if there is one
         if payload.get("loras") and SharedModelManager.manager.lora:
-
             # Remove any requested LORAs that we don't have
             valid_loras = []
             for lora in payload.get("loras"):
@@ -366,7 +373,6 @@ class HordeLib:
                     valid_loras.append(lora)
             payload["loras"] = valid_loras
             for lora_index, lora in enumerate(payload.get("loras")):
-
                 # Inject a lora node (first lora)
                 if lora_index == 0:
                     pipeline_data[f"lora_{lora_index}"] = {
@@ -395,7 +401,6 @@ class HordeLib:
                     }
 
             for lora_index, lora in enumerate(payload.get("loras")):
-
                 # The first LORA always connects to the model loader
                 if lora_index == 0:
                     self.generator.reconnect_input(pipeline_data, "lora_0.model", "model_loader")
@@ -545,18 +550,20 @@ class HordeLib:
         self.generator.unlock_models(models)
         logger.debug(f"Unlocked models {','.join(models)}")
 
-    def basic_inference(self, payload, rawpng=False):
+    def _get_validated_payload_and_pipeline_data(self, payload) -> tuple[dict, dict]:
         # AIHorde hacks to payload
         payload = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format
         payload = self._validate_data_structure(payload)
-        # Resize the source image and mask to actual final width/height requested
-        ImageUtils.resize_sources_to_request(payload)
         # Determine the correct pipeline to use
         pipeline = self._get_appropriate_pipeline(payload)
         # Final adjustments to the pipeline
         pipeline_data = self.generator.get_pipeline_data(pipeline)
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
+        return payload, pipeline_data
+
+    def basic_inference(self, payload, rawpng=False):
+        payload, pipeline_data = self._get_validated_payload_and_pipeline_data(payload)
         models: list[str] = []
         # Run the pipeline
         try:
