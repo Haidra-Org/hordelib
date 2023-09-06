@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v1.6.6](https://github.com/Haidra-Org/hordelib/compare/v1.6.5...v1.6.6)
+
+6 September 2023
+
+- fix: inject negative embeddings correctly [`3608dd5`](https://github.com/Haidra-Org/hordelib/commit/3608dd57681368cb47cf81ef1d0a52257fddfdbb)  (tazlin)
+- fix: (ti inject) don't strip pre-existing trailing comma from neg prompt [`850bdd5`](https://github.com/Haidra-Org/hordelib/commit/850bdd50f277b27d67b56746846eba54316b9acb)  (tazlin)
+- fix: missing image resize [`0a08c5e`](https://github.com/Haidra-Org/hordelib/commit/0a08c5e7d9767e4fadeb9cfec589f6f643117a2b)  (tazlin)
+
 ## [v1.6.5](https://github.com/Haidra-Org/hordelib/compare/v1.6.4...v1.6.5)
 
 27 August 2023
