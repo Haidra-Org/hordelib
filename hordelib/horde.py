@@ -555,6 +555,8 @@ class HordeLib:
         payload = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format
         payload = self._validate_data_structure(payload)
+        # Resize the source image and mask to actual final width/height requested
+        ImageUtils.resize_sources_to_request(payload)
         # Determine the correct pipeline to use
         pipeline = self._get_appropriate_pipeline(payload)
         # Final adjustments to the pipeline
