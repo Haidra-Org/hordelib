@@ -1,8 +1,8 @@
 # test_horde_ti.py
 import os
 from pathlib import Path
-import pytest
 
+import pytest
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
