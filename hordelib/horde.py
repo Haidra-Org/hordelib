@@ -325,7 +325,7 @@ class HordeLib:
 
                         payload["negative_prompt"] = f'{payload["negative_prompt"]},(embedding:{ti_id}:{ti_strength})'
                         if not had_leading_comma:
-                            payload["negative_prompt"] = payload["negative_prompt"].strip(",")
+                            payload["negative_prompt"] = payload["negative_prompt"].lstrip(",")
         # Setup controlnet if required
         # For LORAs we completely build the LORA section of the pipeline dynamically, as we have
         # to handle n LORA models which form chained nodes in the pipeline.

@@ -20,7 +20,7 @@ class TestHordeTI:
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
             "denoising_strength": 1.0,
-            "seed": 1313,
+            "seed": 1312,
             "height": 512,
             "width": 512,
             "karras": False,
@@ -31,7 +31,7 @@ class TestHordeTI:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "(embedding:7523:1.0),Closeup portrait of a Lesotho teenage girl wearing a Seanamarena blanket, "
-            "walking in a field of flowers, holding a bundle of flowers, detailed background, light rays, "
+            "walking in a field of flowers, (holding a bundle of flowers:1.2), detailed background, light rays, "
             "atmospheric lighting###(embedding:7808:0.5),(embedding:64870:1.0)",
             "tis": [
                 {"name": 7523},
@@ -70,7 +70,7 @@ class TestHordeTI:
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
             "denoising_strength": 1.0,
-            "seed": 1313,
+            "seed": 1312,
             "height": 512,
             "width": 512,
             "karras": False,
@@ -81,7 +81,7 @@ class TestHordeTI:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "Closeup portrait of a Lesotho teenage girl wearing a Seanamarena blanket, "
-            "walking in a field of flowers, holding a bundle of flowers, detailed background, light rays, "
+            "walking in a field of flowers, (holding a bundle of flowers:1.2), detailed background, light rays, "
             "atmospheric lighting",
             "tis": [
                 {"name": 7523, "inject_ti": "prompt", "strength": 1.0},
@@ -126,7 +126,7 @@ class TestHordeTI:
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
             "denoising_strength": 1.0,
-            "seed": 1313,
+            "seed": 1312,
             "height": 512,
             "width": 512,
             "karras": False,
@@ -137,7 +137,7 @@ class TestHordeTI:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "Closeup portrait of a Lesotho teenage girl wearing a Seanamarena blanket, "
-            "walking in a field of flowers, holding a bundle of flowers, detailed background, light rays, "
+            "walking in a field of flowers, (holding a bundle of flowers:1.2), detailed background, light rays, "
             "atmospheric lighting",
             "tis": [
                 {"name": 7523, "inject_ti": "prompt", "strength": None},
