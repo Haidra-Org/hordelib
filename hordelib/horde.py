@@ -17,6 +17,8 @@ from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
 from hordelib.utils.image_utils import ImageUtils
 
+from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobResponse
+
 
 class HordeLib:
     _instance: HordeLib | None = None
@@ -266,8 +268,8 @@ class HordeLib:
 
         # Negative and positive prompts are merged together
         if payload.get("prompt"):
-            split_prompts = [x.strip() for x in payload.get("prompt").split("###")][:2]
-            if len(split_prompts) == 2:
+            if "###" in payload.get("prompt"):
+                split_prompts = payload.get("prompt").split("###")
                 payload["prompt"] = split_prompts[0]
                 payload["negative_prompt"] = split_prompts[1]
 
@@ -346,9 +348,15 @@ class HordeLib:
                     if ti_inject == "prompt":
                         payload["prompt"] = f'(embedding:{ti_id}:{ti_strength}),{payload["prompt"]}'
                     elif ti_inject == "negprompt":
-                        if "###" not in payload["prompt"]:
-                            payload["prompt"] += "###"
-                        payload["prompt"] = f'{payload["prompt"]},(embedding:{ti_id}:{ti_strength})'
+                        # create negative prompt if empty
+                        if "negative_prompt" not in payload:
+                            payload["negative_prompt"] = ""
+
+                        had_leading_comma = payload["negative_prompt"].startswith(",")
+
+                        payload["negative_prompt"] = f'{payload["negative_prompt"]},(embedding:{ti_id}:{ti_strength})'
+                        if not had_leading_comma:
+                            payload["negative_prompt"] = payload["negative_prompt"].strip(",")
                     SharedModelManager.manager.ti.touch_ti(ti_name)
         # Setup controlnet if required
         # For LORAs we completely build the LORA section of the pipeline dynamically, as we have
@@ -637,7 +645,10 @@ class HordeLib:
 
         return results
 
-    def basic_inference(self, payload: dict) -> list[Image.Image]:
+    def basic_inference(self, payload: dict | ImageGenerateJobResponse) -> list[Image.Image]:
+        if isinstance(payload, ImageGenerateJobResponse):
+            payload = payload.payload.model_dump()
+
         result = self._inference(payload, single_image_expected=False)
 
         if not isinstance(result, list):
