@@ -119,6 +119,12 @@ class HordeLib:
         "inject_trigger": {"datatype": str},
     }
 
+    TIS_SCHEMA = {
+        "name": {"datatype": str, "default": ""},
+        "inject_ti": {"datatype": str},
+        "strength": {"datatype": float, "min": -10, "max": 10.0, "default": 1.0},
+    }
+
     # pipeline parameter <- hordelib payload parameter mapping
     PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING = {  # FIXME
         "sampler.sampler_name": "sampler_name",
@@ -231,6 +237,13 @@ class HordeLib:
                 data["loras"][i] = self._validate_data_structure(lora, HordeLib.LORA_SCHEMA)
             # Remove invalid loras
             data["loras"] = [x for x in data["loras"] if x.get("name")]
+
+        # Do the same for tis, if we have tis in this data structure
+        if data.get("tis"):
+            for i, ti in enumerate(data.get("tis")):
+                data["tis"][i] = self._validate_data_structure(ti, HordeLib.TIS_SCHEMA)
+            # Remove invalid tis
+            data["tis"] = [x for x in data["tis"] if x.get("name")]
 
         return data
 
@@ -586,13 +599,7 @@ class HordeLib:
 
         return results
 
-    def _inference(
-        self,
-        payload: dict,
-        rawpng: bool = False,
-        *,
-        single_image_expected: bool = True,
-    ) -> list[Image.Image | io.BytesIO] | Image.Image | io.BytesIO:
+    def _get_validated_payload_and_pipeline_data(self, payload: dict) -> tuple[dict, dict]:
         # AIHorde hacks to payload
         payload = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format
@@ -604,6 +611,16 @@ class HordeLib:
         # Final adjustments to the pipeline
         pipeline_data = self.generator.get_pipeline_data(pipeline)
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
+        return payload, pipeline_data
+
+    def _inference(
+        self,
+        payload: dict,
+        rawpng: bool = False,
+        *,
+        single_image_expected: bool = True,
+    ) -> list[Image.Image | io.BytesIO] | Image.Image | io.BytesIO:
+        payload, pipeline_data = self._get_validated_payload_and_pipeline_data(payload)
 
         # Run the pipeline
 
