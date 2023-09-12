@@ -33,7 +33,7 @@ TESTS_ONGOING = os.getenv("TESTS_ONGOING", "0") == "1"
 class TextualInversionModelManager(BaseModelManager):
     TI_API: str = "https://civitai.com/api/v1/models?types=TextualInversion&sort=Highest%20Rated&primaryFileOnly=true"
     HORDELING_API: str = "https://hordeling.aihorde.net/api/v1/embedding"
-    MAX_RETRIES: int = 10 if not TESTS_ONGOING else 1
+    MAX_RETRIES: int = 10 if not TESTS_ONGOING else 3
     MAX_DOWNLOAD_THREADS: int = 3
     """The number of threads to use for downloading (the max number of concurrent downloads)."""
     RETRY_DELAY: int = 5
