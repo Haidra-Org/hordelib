@@ -27,16 +27,25 @@ class OutputCollector(io.TextIOWrapper):
             if not message:
                 return
 
-            # If the line starts with a percentage, it's a progress bar; log at (approximately) 0%, 25%, 50%, 75%, 100%
-            if regex.match(r"^(\d+)%", message):
+            # If the has a percent followed by a pipe, it's a progress bar;
+            # log at (approximately) 0%, 25%, 50%, 75%, 100%
+            if "%|" in message:
                 matches = None
                 is_iterations_per_second = None
-                if message.endswith("it/s]"):
-                    matches = regex.match(r"^(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d]+\.?\d*)it/s]", message)
+                if "DDIM Sampler:" in message:
+                    message = message[len("DDIM Sampler:") :]
+                    message = message.strip()
+                if "it/s]" in message:
+                    matches = regex.match(r"(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d]+\.?\d*)it/s]", message)
                     is_iterations_per_second = True
-                elif message.endswith("s/it]"):
-                    matches = regex.match(r"^(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d]+\.?\d*)s/it]", message)
+                elif "s/it]" in message:
+                    matches = regex.match(r"(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d]+\.?\d*)s/it]", message)
                     is_iterations_per_second = False
+
+                if not matches:
+                    logger.debug(f"Unknown progress bar format?: {message}")
+                    self.deque.append(message)
+                    return
 
                 # Remove everything in between '|' and '|'
                 message = regex.sub(r"\|.*?\|", "", message)
@@ -46,11 +55,6 @@ class OutputCollector(io.TextIOWrapper):
 
                 # Add a timestamp to the log
                 message = f"{message} ({perf_counter() - self.start_time:.2f} seconds in ComfyUI)"
-
-                if not matches:
-                    logger.debug(f"Unknown progress bar format?: {message}")
-                    self.deque.append(message)
-                    return
 
                 # found_percent_number = int(matches.group(1))
                 found_current_step = int(matches.group(2))
@@ -70,7 +74,7 @@ class OutputCollector(io.TextIOWrapper):
                         logger.warning(f"Job Slowdown: Job is running at {iteration_rate} {rate_unit}.")
 
                 if found_current_step == 0:
-                    logger.debug("Job will show progress for the first three steps, and then every 10 steps.")
+                    logger.info("Job will show progress for the first three steps, and then every 10 steps.")
 
                 # Log the first 2 steps, then every 10 steps, then the last step
                 if (
@@ -78,7 +82,7 @@ class OutputCollector(io.TextIOWrapper):
                     or found_current_step % 10 == 0
                     or found_current_step == found_total_steps
                 ):
-                    logger.debug(message)
+                    logger.info(message)
 
             self.deque.append(message)
 
