@@ -49,6 +49,7 @@ class HordeCheckpointLoader:
 
             ckpt_name = SharedModelManager.manager.compvis.get_model_filename(horde_model_name).name
 
+        SharedModelManager.manager._models_in_ram = {}
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
         result = comfy.sd.load_checkpoint_guess_config(
             ckpt_path,
