@@ -9,7 +9,7 @@ from loguru import logger
 from typing_extensions import Self
 
 from hordelib.consts import MODEL_CATEGORY_NAMES
-from hordelib.model_manager.hyper import BaseModelManager, ModelManager
+from hordelib.model_manager.hyper import BaseModelManager, ModelManager, ALL_MODEL_MANAGER_TYPES
 from hordelib.preload import (
     ANNOTATOR_MODEL_SHA_LOOKUP,
     download_all_controlnet_annotators,
@@ -64,7 +64,7 @@ class SharedModelManager:
     @classmethod
     def load_model_managers(
         cls,
-        managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
+        managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = ALL_MODEL_MANAGER_TYPES,
     ):
         if cls.manager is None:
             cls.manager = ModelManager()
