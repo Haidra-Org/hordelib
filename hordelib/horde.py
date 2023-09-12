@@ -8,6 +8,7 @@ import random
 import sys
 from copy import deepcopy
 
+from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobResponse
 from loguru import logger
 from PIL import Image
 
@@ -16,8 +17,6 @@ from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
 from hordelib.utils.image_utils import ImageUtils
-
-from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobResponse
 
 
 class HordeLib:

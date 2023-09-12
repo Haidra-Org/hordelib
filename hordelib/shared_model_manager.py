@@ -9,7 +9,7 @@ from loguru import logger
 from typing_extensions import Self
 
 from hordelib.consts import MODEL_CATEGORY_NAMES
-from hordelib.model_manager.hyper import BaseModelManager, ModelManager, ALL_MODEL_MANAGER_TYPES
+from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES, BaseModelManager, ModelManager
 from hordelib.preload import (
     ANNOTATOR_MODEL_SHA_LOOKUP,
     download_all_controlnet_annotators,
