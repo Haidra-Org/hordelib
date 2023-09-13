@@ -108,6 +108,7 @@ class HordeLib:
         "source_processing": {"datatype": str, "values": SOURCE_IMAGE_PROCESSING_OPTIONS, "default": None},
         "hires_fix_denoising_strength": {"datatype": float, "min": 0.01, "max": 1.0, "default": 0.65},
         "scheduler": {"datatype": str, "values": SCHEDULERS, "default": "normal"},
+        "tiling": {"datatype": bool, "default": False},
         "model_name": {"datatype": str, "default": "stable_diffusion"},  # Used internally by hordelib
     }
 
@@ -151,6 +152,7 @@ class HordeLib:
         "upscale_sampler.sampler_name": "sampler_name",
         "controlnet_apply.strength": "control_strength",
         "controlnet_model_loader.control_net_name": "control_type",
+        "seamless_tiling.seamless_tiling_enabled": "tiling",
     }
 
     # We are a singleton
@@ -371,6 +373,7 @@ class HordeLib:
                             payload["negative_prompt"] = payload["negative_prompt"].strip(",")
                     SharedModelManager.manager.ti.touch_ti(ti_name)
         # Setup controlnet if required
+
         # For LORAs we completely build the LORA section of the pipeline dynamically, as we have
         # to handle n LORA models which form chained nodes in the pipeline.
         # Note that we build this between several nodes, the model_loader, clip_skip and the sampler,

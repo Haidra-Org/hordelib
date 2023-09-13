@@ -1,14 +1,14 @@
 {
     "3": {
         "inputs": {
-            "seed": 843159458049729,
+            "seed": 616023487428678,
             "steps": 20,
             "cfg": 8.0,
             "sampler_name": "euler",
             "scheduler": "normal",
             "denoise": 1.0,
             "model": [
-                "4",
+                "15",
                 0
             ],
             "positive": [
@@ -112,5 +112,14 @@
             ]
         },
         "class_type": "VAEDecode"
+    },
+    "15": {
+        "inputs": {
+            "model": [
+                "4",
+                0
+            ]
+        },
+        "class_type": "HordeSeamlessTiling"
     }
 }

@@ -37,11 +37,11 @@ class HordeCheckpointLoader:
         if SharedModelManager.manager.compvis is None:
             raise ValueError("CompVisModelManager is not initialised.")
 
-        same_loaded_model = SharedModelManager.manager._models_in_ram.get(horde_model_name)
+        # same_loaded_model = SharedModelManager.manager._models_in_ram.get(horde_model_name)
 
         # Check if the model was previously loaded and if so, not loaded with Loras
-        if same_loaded_model and not same_loaded_model[1]:
-            return same_loaded_model[0]
+        # if same_loaded_model and not same_loaded_model[1]:
+        # return same_loaded_model[0]
 
         if not ckpt_name:
             if not SharedModelManager.manager.compvis.is_model_available(horde_model_name):
@@ -58,7 +58,7 @@ class HordeCheckpointLoader:
             embedding_directory=folder_paths.get_folder_paths("embeddings"),
         )
 
-        SharedModelManager.manager._models_in_ram[horde_model_name] = result, will_load_loras
+        # SharedModelManager.manager._models_in_ram[horde_model_name] = result, will_load_loras
 
         return result
 

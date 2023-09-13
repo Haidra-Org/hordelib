@@ -243,3 +243,52 @@ class TestHordeInference:
             f"images_expected/{img_filename}",
             pil_image,
         )
+
+    def test_text_to_image_tiling(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_model_name_for_testing: str,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": True,
+            "hires_fix": True,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "closeup of rocks, texture, pattern, black and white",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": stable_diffusion_model_name_for_testing,
+        }
+        pil_image = hordelib_instance.basic_inference_single_image(data)
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+
+        img_filename = "text_to_image_tiling.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+        data["tiling"] = False
+        pil_image_no_tiling = hordelib_instance.basic_inference_single_image(data)
+        assert pil_image_no_tiling is not None
+        assert isinstance(pil_image_no_tiling, Image.Image)
+
+        img_no_tiling_filename = "text_to_image_no_tiling.png"
+        pil_image_no_tiling.save(f"images/{img_no_tiling_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_no_tiling_filename}",
+            pil_image_no_tiling,
+        )
