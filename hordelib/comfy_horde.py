@@ -136,11 +136,11 @@ def do_comfy_import():
             uniformer as _uniformer,
         )
 
-        import comfy.model_management
+        # import comfy.model_management
 
-        comfy.model_management.vram_state = comfy.model_management.VRAMState.LOW_VRAM
-        comfy.model_management.set_vram_to = comfy.model_management.VRAMState.LOW_VRAM
-        comfy.model_management.DISABLE_SMART_MEMORY = True
+        # comfy.model_management.vram_state = comfy.model_management.VRAMState.LOW_VRAM
+        # comfy.model_management.set_vram_to = comfy.model_management.VRAMState.LOW_VRAM
+        # comfy.model_management.DISABLE_SMART_MEMORY = True
 
         total_vram = get_torch_total_vram_mb()
         total_ram = psutil.virtual_memory().total / (1024 * 1024)
