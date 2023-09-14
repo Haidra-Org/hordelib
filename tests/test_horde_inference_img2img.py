@@ -47,6 +47,45 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    def test_image_to_image_tiling(
+        self,
+        stable_diffusion_model_name_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1,
+            "seed": 666,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": True,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a dinosaur",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": stable_diffusion_model_name_for_testing,
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+        }
+        pil_image = hordelib_instance.basic_inference_single_image(data)
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+        assert pil_image.size == (512, 512)
+
+        img_filename = "image_to_image_tiling.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
     def test_sdxl_image_to_image(
         self,
         hordelib_instance: HordeLib,

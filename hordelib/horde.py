@@ -142,6 +142,7 @@ class HordeLib:
         "model_loader.ckpt_name": "model",
         "model_loader.model_name": "model",
         "model_loader.horde_model_name": "model_name",
+        "model_loader.seamless_tiling_enabled": "tiling",
         "image_loader.image": "source_image",
         "loras": "loras",
         "tis": "tis",
@@ -152,7 +153,6 @@ class HordeLib:
         "upscale_sampler.sampler_name": "sampler_name",
         "controlnet_apply.strength": "control_strength",
         "controlnet_model_loader.control_net_name": "control_type",
-        "seamless_tiling.seamless_tiling_enabled": "tiling",
     }
 
     # We are a singleton

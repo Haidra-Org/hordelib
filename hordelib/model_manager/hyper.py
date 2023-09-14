@@ -96,7 +96,7 @@ class ModelManager:
             _models.update(model_manager.model_reference)
         return _models
 
-    _models_in_ram: dict[str, tuple[dict, bool]] = {}
+    _models_in_ram: dict[str, tuple[object, bool]] = {}
     """A dictionary of models which are currently loaded in RAM. The key is the model name, and the value is a tuple
     of the model object and whether it was loaded with Loras.
     """

@@ -112,6 +112,51 @@ class TestHordeLora:
             pil_image,
         )
 
+    def test_text_to_image_lora_blue_tiled(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        stable_diffusion_model_name_for_testing: str,
+    ):
+        assert shared_model_manager.manager.lora
+
+        # Blue, fuzzy search on version
+        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
+        assert lora_name
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 3.0,
+            "denoising_strength": 1.0,
+            "seed": 304886399544324,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": True,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": f"a dark magical crystal, {trigger}, 8K resolution###blurry, out of focus",
+            "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0}],
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": stable_diffusion_model_name_for_testing,
+        }
+
+        pil_image = hordelib_instance.basic_inference_single_image(data)
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+
+        img_filename = "lora_blue_tiled.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
     def test_text_to_image_lora_blue_weighted(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -797,7 +842,7 @@ class TestHordeLora:
         img_filename = "lora_positive_strength.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_lora_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
