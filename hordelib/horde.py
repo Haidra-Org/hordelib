@@ -11,12 +11,15 @@ from copy import deepcopy
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from loguru import logger
 from PIL import Image
+import PIL.Image
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
 from hordelib.utils.image_utils import ImageUtils
+
+import base64
 
 
 class HordeLib:
@@ -667,6 +670,14 @@ class HordeLib:
     def basic_inference(self, payload: dict | ImageGenerateJobPopResponse) -> list[Image.Image]:
         if isinstance(payload, ImageGenerateJobPopResponse):  # TODO move this to _inference()
             sub_payload = payload.payload.model_dump()
+            source_image = payload.source_image
+
+            # If its a base64 encoded image, decode it
+            if isinstance(source_image, str):
+                source_image_bytes = base64.b64decode(source_image)
+                source_image_pil = Image.open(io.BytesIO(source_image_bytes))
+                sub_payload["source_image"] = source_image_pil
+
             sub_payload["source_processing"] = payload.source_processing
             sub_payload["model"] = payload.model
             payload = sub_payload
