@@ -23,13 +23,13 @@ class HordeLog:
 
     @classmethod
     def is_stats_log(cls, record):
-        if record["level"].name not in HordeLog.CUSTOM_STATS_LEVELS:
+        if record["level"].name in HordeLog.CUSTOM_STATS_LEVELS:
             return False
         return True
 
     @classmethod
     def is_not_stats_log(cls, record):
-        if record["level"].name in HordeLog.CUSTOM_STATS_LEVELS:
+        if record["level"].name not in HordeLog.CUSTOM_STATS_LEVELS:
             return False
         return True
 
@@ -53,7 +53,7 @@ class HordeLog:
         logger.error("Error Message")
         logger.critical("Critical Message")
 
-        logger.log("STATS", "Stats Message")
+        # logger.log("STATS", "Stats Message")
 
         a = 0
 
@@ -124,13 +124,13 @@ class HordeLog:
                     "retention": "2 days",
                     "rotation": "1 days",
                 },
-                {
-                    "sink": "logs/stats.log" if cls.process_id is None else f"logs/stats_{cls.process_id}.log",
-                    "level": "STATS",
-                    "filter": cls.is_stats_log,
-                    "retention": "7 days",
-                    "rotation": "1 days",
-                },
+                # {
+                #     "sink": "logs/stats.log" if cls.process_id is None else f"logs/stats_{cls.process_id}.log",
+                #     "level": "STATS",
+                #     "filter": cls.is_stats_log,
+                #     "retention": "7 days",
+                #     "rotation": "1 days",
+                # },
                 {
                     "sink": "logs/trace.log" if cls.process_id is None else f"logs/trace_{cls.process_id}.log",
                     "level": "ERROR",
@@ -146,7 +146,7 @@ class HordeLog:
             # Remove the first 2 handlers, they're for the main process only
             config["handlers"] = config["handlers"][2:]
 
-        logger.level("STATS", no=25, color="<yellow>", icon="📊")
+        # logger.level("STATS", no=25, color="<yellow>", icon="📊")
         cls.sinks = logger.configure(**config)  # type: ignore
 
         if cls.process_id is not None:
