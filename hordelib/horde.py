@@ -21,6 +21,8 @@ from hordelib.utils.image_utils import ImageUtils
 
 import base64
 
+from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, KNOWN_FACEFIXERS
+
 
 class HordeLib:
     _instance: HordeLib | None = None
@@ -668,7 +670,14 @@ class HordeLib:
         return results
 
     def basic_inference(self, payload: dict | ImageGenerateJobPopResponse) -> list[Image.Image]:
+        post_processing_requested: list[str] | None = None
+
         if isinstance(payload, ImageGenerateJobPopResponse):  # TODO move this to _inference()
+            for post_processor_requested in payload.payload.post_processing:
+                if post_processing_requested is None:
+                    post_processing_requested = []
+                post_processing_requested.append(post_processor_requested)
+
             sub_payload = payload.payload.model_dump()
             source_image = payload.source_image
             mask_image = payload.source_mask
@@ -694,6 +703,34 @@ class HordeLib:
             raise RuntimeError(f"Expected a list of PIL.Image.Image but got {type(result)}")
 
         image_list = [x for x in result if isinstance(x, Image.Image)]
+
+        post_processed: list[PIL.Image.Image] | None = None
+        if post_processing_requested is not None:
+            post_processed = []
+            for image in image_list:
+                final_image = image
+                for post_processing in post_processing_requested:
+                    if post_processing in KNOWN_UPSCALERS.__members__:
+                        final_image = self.image_upscale(
+                            {
+                                "model": post_processing,
+                                "source_image": final_image,
+                            },
+                        )
+
+                    elif post_processing in KNOWN_FACEFIXERS.__members__:
+                        final_image = self.image_facefix(
+                            {
+                                "model": post_processing,
+                                "source_image": final_image,
+                            },
+                        )
+                    elif post_processing == "strip_background":
+                        final_image = ImageUtils.strip_background(final_image)
+
+                post_processed.append(final_image)
+        if post_processed is not None:
+            return post_processed
 
         if len(image_list) == len(result):
             return image_list

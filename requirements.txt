@@ -29,6 +29,7 @@ typing-extensions
 distro
 python-dotenv
 strenum
+rembg
 # image similarity + face fixer custom nodes
 opencv-python
 # controlnet custom nodes
