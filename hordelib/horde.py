@@ -671,12 +671,18 @@ class HordeLib:
         if isinstance(payload, ImageGenerateJobPopResponse):  # TODO move this to _inference()
             sub_payload = payload.payload.model_dump()
             source_image = payload.source_image
+            mask_image = payload.source_mask
 
             # If its a base64 encoded image, decode it
             if isinstance(source_image, str):
                 source_image_bytes = base64.b64decode(source_image)
                 source_image_pil = Image.open(io.BytesIO(source_image_bytes))
                 sub_payload["source_image"] = source_image_pil
+
+            if isinstance(mask_image, str):
+                mask_image_bytes = base64.b64decode(mask_image)
+                mask_image_pil = Image.open(io.BytesIO(mask_image_bytes))
+                sub_payload["source_mask"] = mask_image_pil
 
             sub_payload["source_processing"] = payload.source_processing
             sub_payload["model"] = payload.model
