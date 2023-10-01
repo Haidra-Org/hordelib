@@ -1,4 +1,5 @@
 import contextlib
+import json
 import sys
 
 from loguru import logger
@@ -34,7 +35,7 @@ class HordeLog:
 
     @classmethod
     def is_stderr_log(cls, record):
-        if record["level"].name not in ["ERROR", "CRITICAL", "TRACE"]:
+        if record["level"].name not in ["ERROR", "CRITICAL", "WARNING"]:
             return False
         return True
 
@@ -110,7 +111,6 @@ class HordeLog:
                     "sink": sys.stderr,
                     "colorize": True,
                     "filter": cls.is_stderr_log,
-                    "enqueue": True,
                 },
                 {
                     "sink": sys.stdout,
@@ -123,7 +123,6 @@ class HordeLog:
                     "level": "DEBUG",
                     "retention": "2 days",
                     "rotation": "1 days",
-                    "enqueue": True,
                 },
                 {
                     "sink": "logs/stats.log" if cls.process_id is None else f"logs/stats_{cls.process_id}.log",
@@ -131,7 +130,6 @@ class HordeLog:
                     "filter": cls.is_stats_log,
                     "retention": "7 days",
                     "rotation": "1 days",
-                    "enqueue": True,
                 },
                 {
                     "sink": "logs/trace.log" if cls.process_id is None else f"logs/trace_{cls.process_id}.log",
@@ -140,10 +138,13 @@ class HordeLog:
                     "rotation": "1 days",
                     "backtrace": True,
                     "diagnose": True,
-                    "enqueue": True,
                 },
             ],
         }
+
+        if cls.process_id is not None:
+            # Remove the first 2 handlers, they're for the main process only
+            config["handlers"] = config["handlers"][2:]
 
         logger.level("STATS", no=25, color="<yellow>", icon="📊")
         cls.sinks = logger.configure(**config)  # type: ignore

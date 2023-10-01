@@ -8,7 +8,7 @@ import random
 import sys
 from copy import deepcopy
 
-from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobResponse
+from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from loguru import logger
 from PIL import Image
 
@@ -307,14 +307,14 @@ class HordeLib:
                 if not payload.get("hires_fix_denoising_strength"):
                     payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
 
-        # Remap "denoising" to "controlnet strength", historical hack
-        if payload.get("control_type"):
-            if payload.get("denoising_strength"):
-                if not payload.get("control_strength"):
-                    payload["control_strength"] = payload["denoising_strength"]
-                    del payload["denoising_strength"]
-                else:
-                    del payload["denoising_strength"]
+        # # Remap "denoising" to "controlnet strength", historical hack
+        # if payload.get("control_type"):
+        #     if payload.get("denoising_strength"):
+        #         if not payload.get("control_strength"):
+        #             payload["control_strength"] = payload["denoising_strength"]
+        #             del payload["denoising_strength"]
+        #         else:
+        #             del payload["denoising_strength"]
 
         return payload
 
@@ -664,9 +664,12 @@ class HordeLib:
 
         return results
 
-    def basic_inference(self, payload: dict | ImageGenerateJobResponse) -> list[Image.Image]:
-        if isinstance(payload, ImageGenerateJobResponse):
-            payload = payload.payload.model_dump()
+    def basic_inference(self, payload: dict | ImageGenerateJobPopResponse) -> list[Image.Image]:
+        if isinstance(payload, ImageGenerateJobPopResponse):  # TODO move this to _inference()
+            sub_payload = payload.payload.model_dump()
+            sub_payload["source_processing"] = payload.source_processing
+            sub_payload["model"] = payload.model
+            payload = sub_payload
 
         result = self._inference(payload, single_image_expected=False)
 

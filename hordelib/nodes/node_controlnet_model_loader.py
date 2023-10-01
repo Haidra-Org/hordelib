@@ -30,7 +30,6 @@ class HordeDiffControlNetLoader:
         )
 
 
-
 NODE_CLASS_MAPPINGS = {"HordeDiffControlNetLoader": HordeDiffControlNetLoader}
 
 logger.debug("Loaded HordeDiffControlNetLoader")

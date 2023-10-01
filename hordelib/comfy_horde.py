@@ -136,11 +136,16 @@ def do_comfy_import():
             uniformer as _uniformer,
         )
 
-        # import comfy.model_management
+        import comfy.model_management
 
-        # comfy.model_management.vram_state = comfy.model_management.VRAMState.LOW_VRAM
-        # comfy.model_management.set_vram_to = comfy.model_management.VRAMState.LOW_VRAM
-        # comfy.model_management.DISABLE_SMART_MEMORY = True
+        comfy.model_management.vram_state = comfy.model_management.VRAMState.LOW_VRAM
+        comfy.model_management.set_vram_to = comfy.model_management.VRAMState.LOW_VRAM
+
+        def always_cpu(parameters, dtype):
+            return torch.device("cpu")
+
+        comfy.model_management.unet_inital_load_device = always_cpu
+        comfy.model_management.DISABLE_SMART_MEMORY = True
 
         total_vram = get_torch_total_vram_mb()
         total_ram = psutil.virtual_memory().total / (1024 * 1024)
@@ -158,8 +163,29 @@ def do_comfy_import():
 
 def cleanup():
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
-    _comfy_free_memory(_comfy_get_total_memory() / 2, _comfy_get_torch_device())
-    # _comfy_cleanup_models()
+
+    _comfy_soft_empty_cache()
+    logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
+
+
+def unload_all_models_vram():
+    from hordelib.shared_model_manager import SharedModelManager
+
+    logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
+    # _comfy_free_memory(_comfy_get_total_memory(), _comfy_get_torch_device())
+    for model in _comfy_current_loaded_models:
+        model.model_unload()
+    _comfy_soft_empty_cache()
+    logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
+
+
+def unload_all_models_ram():
+    from hordelib.shared_model_manager import SharedModelManager
+
+    SharedModelManager.manager._models_in_ram = {}
+    logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
+    _comfy_free_memory(_comfy_get_total_memory(), _comfy_get_torch_device())
+    _comfy_cleanup_models()
     _comfy_soft_empty_cache()
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
 

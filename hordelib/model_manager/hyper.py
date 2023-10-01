@@ -1,6 +1,7 @@
 """Home for the controller class ModelManager, and related meta information."""
 import threading
 from collections.abc import Iterable
+from typing import Callable
 
 import torch
 from loguru import logger
@@ -96,7 +97,7 @@ class ModelManager:
             _models.update(model_manager.model_reference)
         return _models
 
-    _models_in_ram: dict[str, tuple[object, bool]] = {}
+    _models_in_ram: dict[str, tuple[tuple, bool]] = {}
     """A dictionary of models which are currently loaded in RAM. The key is the model name, and the value is a tuple
     of the model object and whether it was loaded with Loras.
     """
@@ -208,7 +209,11 @@ class ModelManager:
             if model_manager is not None:
                 model_manager.load_model_database()
 
-    def download_model(self, model_name: str) -> bool | None:
+    def download_model(
+        self,
+        model_name: str,
+        callback: Callable[[int, int], None] | None = None,
+    ) -> bool | None:
         """Looks across all `BaseModelManager` for the model_name and attempts to download it.
 
         Args:
@@ -224,18 +229,21 @@ class ModelManager:
             if model_name not in model_manager.model_reference:
                 continue
 
-            return model_manager.download_model(model_name)
+            return model_manager.download_model(model_name, callback=callback)
         logger.warning(f"Model '{model_name}' not found!")
         return None  # XXX if the download fails, the file causes issues # FIXME
 
-    def download_all(self) -> None:
+    def download_all(
+        self,
+        callback: Callable[[int, int], None] | None = None,
+    ) -> None:
         """Attempts to download all available models for all `BaseModelManager` types."""
         for model_manager_type in MODEL_MANAGERS_TYPE_LOOKUP:
             model_manager: BaseModelManager | None = self.get_model_manager_instance(model_manager_type)
             if model_manager is None:
                 continue
 
-            model_manager.download_all_models()
+            model_manager.download_all_models(callback=callback)
 
     def validate_model(
         self,

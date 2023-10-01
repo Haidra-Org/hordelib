@@ -9,6 +9,7 @@ import zipfile
 from abc import ABC
 from collections.abc import Iterable
 from pathlib import Path
+from typing import Callable
 from uuid import uuid4
 
 import git
@@ -410,7 +411,12 @@ class BaseModelManager(ABC):
 
         return parsed_full_path.exists() and sha_file_path.exists()
 
-    def download_file(self, url: str, filename: str) -> bool:
+    def download_file(
+        self,
+        url: str,
+        filename: str,
+        callback: Callable[[int, int], None] | None = None,
+    ) -> bool:
         """
         :param url: URL of the file to download. URL is from the model's download list.
         :param file_path: Path of the model's file. File is from the model's files list.
@@ -505,6 +511,8 @@ class BaseModelManager(ABC):
                             f.write(chunk)
                             pbar.update(len(chunk))
                             self.progress(filename, downloaded, remote_file_size + partial_size)
+                            if callback:
+                                callback(downloaded, remote_file_size + partial_size)
                 # Successful download, swap the files
                 logger.info(f"Successfully downloaded the file {filename}")
                 self.progress()
@@ -525,7 +533,12 @@ class BaseModelManager(ABC):
                     return False
         return False
 
-    def download_model(self, model_name: str):
+    def download_model(
+        self,
+        model_name: str,
+        *,
+        callback: Callable[[int, int], None] | None = None,
+    ) -> bool | None:
         """
         :param model_name: Name of the model
         Checks if the model is available, downloads the model if it is not available.
@@ -660,13 +673,16 @@ class BaseModelManager(ABC):
                         )
                         return False
 
-                    download_succeeded = self.download_file(download_url, file_path)
+                    download_succeeded = self.download_file(download_url, file_path, callback=callback)
                     if not download_succeeded:
                         return False
 
         return self.validate_model(model_name)
 
-    def download_all_models(self) -> bool:
+    def download_all_models(
+        self,
+        callback: Callable[[int, int], None] | None = None,
+    ) -> bool:
         """
         Downloads all models
         """
@@ -674,7 +690,7 @@ class BaseModelManager(ABC):
         for model in self.model_reference:
             if not self.is_model_available(model):
                 logger.info(f"Downloading {model}")
-                self.download_model(model)
+                self.download_model(model, callback=callback)
             # else:
             #   logger.debug(f"{model} is already downloaded.")
             else:

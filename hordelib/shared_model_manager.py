@@ -53,11 +53,13 @@ class SharedModelManager:
     manager: ModelManager
     cuda_available: bool
 
-    def __new__(cls):
+    def __new__(cls, do_not_load_model_mangers: bool = False):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls.manager = ModelManager()
             cls.cuda_available = torch.cuda.is_available()
+            if not do_not_load_model_mangers:
+                cls.load_model_managers()
 
         return cls._instance
 
