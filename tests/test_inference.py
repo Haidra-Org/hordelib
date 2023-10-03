@@ -15,8 +15,8 @@ class TestInference:
         SharedModelManager().load_model_managers(["compvis", "controlnet"])
 
     def test_unknown_pipeline(self, isolated_comfy_horde_instance: Comfy_Horde):
-        result = isolated_comfy_horde_instance.run_image_pipeline("non-existent-pipeline", {})
-        assert result is None
+        with pytest.raises(ValueError, match="Unknown inference pipeline"):
+            result = isolated_comfy_horde_instance.run_image_pipeline("non-existent-pipeline", {})
 
     def test_stable_diffusion_pipeline(
         self,
