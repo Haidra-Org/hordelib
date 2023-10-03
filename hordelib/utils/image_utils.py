@@ -1,6 +1,6 @@
 from loguru import logger
 from PIL import Image, ImageOps, PngImagePlugin, UnidentifiedImageError
-import rembg
+import rembg  # type: ignore
 
 
 class ImageUtils:
@@ -109,7 +109,8 @@ class ImageUtils:
         dest_image.info["pnginfo"] = pnginfo
         return dest_image
 
-    def strip_background(image):
+    @classmethod
+    def strip_background(cls, image: Image.Image):
         session = rembg.new_session("u2net")
         image = rembg.remove(
             image,
