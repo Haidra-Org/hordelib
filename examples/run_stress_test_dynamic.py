@@ -113,7 +113,7 @@ def generate_images():
     }
     horde = HordeLib()
     logger.warning(f"Starting job with model {model}")
-    pil_image = horde.basic_inference(data)
+    pil_image = horde.basic_inference_single_image(data)
     logger.warning(f"Ended job with model {model}")
     pil_image.save(
         f"{out_dir}/txt2img_{model}_{sampler}_{threading.current_thread().ident}_{i}.webp",
@@ -155,7 +155,7 @@ def generate_images_cnet():
     }
     horde = HordeLib()
     logger.warning(f"Starting cnet job with model {model}")
-    pil_image = horde.basic_inference(data)
+    pil_image = horde.basic_inference_single_image(data)
     logger.warning(f"Ended job with model {model}")
     pil_image.save(
         f"{out_dir}/cnet_{model}_{sampler}_{cnet_type}_{threading.current_thread().ident}_{i}.webp",
@@ -183,7 +183,7 @@ def swap_models():
 
 def run_iterations():
     random.seed()
-    for i in range(ITERATIONS):
+    for _ in range(ITERATIONS):
         funcs = [generate_images, generate_images, generate_images_cnet]
         random.choice(funcs)()
 

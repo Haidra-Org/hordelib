@@ -1,8 +1,6 @@
 # test_setup.py
 import glob
 
-import pytest
-
 from hordelib.horde import HordeLib
 
 

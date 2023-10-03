@@ -246,4 +246,3 @@ if __name__ == '__main__':
     rgb = torch.rand((2, 3, 256, 256)).to(model_management.get_torch_device())
     out = model(rgb)
     print(len(out))
-

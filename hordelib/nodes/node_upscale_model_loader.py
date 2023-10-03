@@ -1,4 +1,6 @@
-from loguru import logger
+import comfy.utils
+import folder_paths  # type: ignore
+from comfy_extras.chainner_models import model_loading  # type: ignore
 
 
 class HordeUpscaleModelLoader:
@@ -7,7 +9,6 @@ class HordeUpscaleModelLoader:
         return {
             "required": {
                 "model_name": ("<model name>",),
-                "model_manager": ("<model manager instance>",),
             },
         }
 
@@ -16,19 +17,11 @@ class HordeUpscaleModelLoader:
 
     CATEGORY = "loaders"
 
-    def load_model(self, model_name, model_manager):
-        logger.debug(f"Loading model {model_name} through our custom node")
-
-        if model_manager.manager is None:
-            logger.error("horde_model_manager appears to be missing!")
-            raise RuntimeError  # XXX better guarantees need to be made
-
-        if model_name not in model_manager.manager.loaded_models:
-            logger.error(f"Model {model_name} is not loaded")
-            raise RuntimeError  # XXX better guarantees need to be made
-        model = model_manager.manager.loaded_models[model_name]["model"]
-        # XXX # TODO I would like to revisit this dict->tuple conversion at some point soon
-        return (model,)
+    def load_model(self, model_name):
+        model_path = folder_paths.get_full_path("upscale_models", model_name)
+        sd = comfy.utils.load_torch_file(model_path, safe_load=True)
+        out = model_loading.load_state_dict(sd).eval()
+        return (out,)
 
 
 NODE_CLASS_MAPPINGS = {"HordeUpscaleModelLoader": HordeUpscaleModelLoader}

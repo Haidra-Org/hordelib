@@ -104,7 +104,7 @@ def generate_images():
         "source_processing": "img2img",
     }
     horde = HordeLib()
-    pil_image = horde.basic_inference(data)
+    pil_image = horde.basic_inference_single_image(data)
     pil_image.save(
         f"{out_dir}/txt2img_{model}_{sampler}_{threading.current_thread().ident}_{i}.webp",
         quality=80,
@@ -112,7 +112,7 @@ def generate_images():
 
 
 def run_iterations():
-    for i in range(ITERATIONS):
+    for _ in range(ITERATIONS):
         generate_images()
 
 

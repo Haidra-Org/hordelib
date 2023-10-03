@@ -1,14 +1,12 @@
 # This tests running hordelib standalone, as an external caller would use it.
 # Call with: python -m test.run_controlnet
 # You need all the deps in whatever environment you are running this.
-import os
 
 import hordelib
 from hordelib.consts import MODEL_CATEGORY_NAMES
 
 
 def main():
-
     hordelib.initialise()
 
     from PIL import Image
@@ -45,7 +43,7 @@ def main():
             # Not valid for normal image input test
             continue
         data["control_type"] = preproc
-        pil_image = generate.basic_inference(data)
+        pil_image = generate.basic_inference_single_image(data)
         pil_image.save(f"images/run_annotator_{preproc}.webp", quality=90)
 
 

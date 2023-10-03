@@ -1,12 +1,12 @@
 # consts.py
-import os
+
 from enum import Enum, auto
 
 from strenum import StrEnum
 
 from hordelib.config_path import get_hordelib_path
 
-COMFYUI_VERSION = "84ea21c815d426000c233e0c7b8c542764335cc8"
+COMFYUI_VERSION = "099226015edcdf595d915f0f39359ef0d83fbba6"
 """The exact version of ComfyUI version to load."""
 
 REMOTE_PROXY = ""
@@ -14,7 +14,7 @@ REMOTE_PROXY = ""
 REMOTE_MODEL_DB = "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/"
 """The default base endpoint where to find model databases. See MODEL_DB_NAMES for valid database names."""
 
-RELEASE_VERSION = os.path.exists(os.path.join(get_hordelib_path(), "_version.py"))
+RELEASE_VERSION = (get_hordelib_path() / "_version.py").exists()
 """A flag for if this is a pypi release or a git dev mode"""
 
 
@@ -57,8 +57,6 @@ DEFAULT_MODEL_MANAGERS = {
     MODEL_CATEGORY_NAMES.safety_checker: True,
     MODEL_CATEGORY_NAMES.lora: True,
     MODEL_CATEGORY_NAMES.ti: True,
-    MODEL_CATEGORY_NAMES.blip: True,
-    MODEL_CATEGORY_NAMES.clip: True,
 }
 """The default model managers to load."""  # XXX Clarify
 
@@ -72,8 +70,6 @@ MODEL_DB_NAMES = {
     MODEL_CATEGORY_NAMES.safety_checker: MODEL_CATEGORY_NAMES.safety_checker,
     MODEL_CATEGORY_NAMES.lora: MODEL_CATEGORY_NAMES.lora,
     MODEL_CATEGORY_NAMES.ti: MODEL_CATEGORY_NAMES.ti,
-    MODEL_CATEGORY_NAMES.blip: MODEL_CATEGORY_NAMES.blip,
-    MODEL_CATEGORY_NAMES.clip: MODEL_CATEGORY_NAMES.clip,
 }
 """The name of the json file (without the extension) of the corresponding model database."""
 
@@ -87,7 +83,5 @@ MODEL_FOLDER_NAMES = {
     MODEL_CATEGORY_NAMES.safety_checker: MODEL_CATEGORY_NAMES.safety_checker,
     MODEL_CATEGORY_NAMES.lora: MODEL_CATEGORY_NAMES.lora,
     MODEL_CATEGORY_NAMES.ti: MODEL_CATEGORY_NAMES.ti,
-    MODEL_CATEGORY_NAMES.blip: MODEL_CATEGORY_NAMES.blip,
-    MODEL_CATEGORY_NAMES.clip: MODEL_CATEGORY_NAMES.clip,
 }
 """The folder name on disk where the models are stored in AIWORKER_CACHE_HOME."""

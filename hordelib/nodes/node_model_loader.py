@@ -1,12 +1,13 @@
 # node_model_loader.py
 # Simple proof of concept custom node to load models.
 
-import contextlib
-import os
-import pickle
-import time
-
+import comfy.model_management
+import comfy.sd
+import folder_paths  # type: ignore
+import torch
 from loguru import logger
+
+from hordelib.shared_model_manager import SharedModelManager
 
 
 class HordeCheckpointLoader:
@@ -14,8 +15,10 @@ class HordeCheckpointLoader:
     def INPUT_TYPES(s):
         return {
             "required": {
-                "model_manager": ("<model manager instance>",),
-                "model_name": ("<model name>",),
+                "will_load_loras": ("<bool>",),
+                "seamless_tiling_enabled": ("<bool>",),
+                "horde_model_name": ("<horde model name>",),
+                "ckpt_name": ("<ckpt name>",),
             },
         }
 
@@ -26,49 +29,83 @@ class HordeCheckpointLoader:
 
     def load_checkpoint(
         self,
-        model_manager,
-        model_name,
+        will_load_loras: bool,
+        seamless_tiling_enabled: bool,
+        horde_model_name: str,
+        ckpt_name: str | None = None,
+        output_vae=True,
+        output_clip=True,
+        preloading=False,
     ):
-        logger.debug(f"Loading model {model_name} through our custom node")
+        logger.debug(f"Loading model {horde_model_name}")
+        logger.debug(f"Will load Loras: {will_load_loras}, seamless tiling: {seamless_tiling_enabled}")
+        if ckpt_name:
+            logger.debug(f"Checkpoint name: {ckpt_name}")
 
-        if model_manager.manager is None:
-            logger.error("horde_model_manager appears to be missing!")
-            raise RuntimeError  # XXX better guarantees need to be made
+        if preloading:
+            logger.debug("Preloading model.")
 
-        loaded_models = model_manager.manager.loaded_models
-        if model_name not in loaded_models:
-            logger.error(f"Model {model_name} is not loaded")
-            raise RuntimeError  # XXX better guarantees need to be made
+        if SharedModelManager.manager.compvis is None:
+            raise ValueError("CompVisModelManager is not initialised.")
 
-        model = loaded_models[model_name]["model"]
-        clip = loaded_models[model_name]["clip"]
-        vae = loaded_models[model_name]["vae"]
+        same_loaded_model = SharedModelManager.manager._models_in_ram.get(horde_model_name)
 
-        # If we got strings, not objects, it's a cache reference, load the cache
-        if type(model) is str:
-            start_time = time.time()
-            logger.info(f"Loading from disk cache model {model_name}")
-            model_cache = model
-            try:
-                with model_manager.manager.disk_read_mutex:
-                    with open(model, "rb") as cache:
-                        model = pickle.load(cache)
-                        vae = pickle.load(cache)
-                        clip = pickle.load(cache)
-                # Record this model as being in ram again
-                model_manager.manager.move_from_disk_cache(model_name, model, clip, vae)
-                logger.info(
-                    f"Loaded model {model_name} from disk cache in {round(time.time() - start_time, 1)} seconds",
-                )
-            except (pickle.PickleError, EOFError):
-                # Most likely corrupt cache file, remove the file
-                with contextlib.suppress(OSError):
-                    os.remove(model)  # ... at least try to remove it
+        # Check if the model was previously loaded and if so, not loaded with Loras
+        if same_loaded_model and not same_loaded_model[1]:
+            if seamless_tiling_enabled:
+                same_loaded_model[0][0].model.apply(make_circular)
+                make_circular_vae(same_loaded_model[0][2])
+            else:
+                same_loaded_model[0][0].model.apply(make_regular)
+                make_regular_vae(same_loaded_model[0][2])
 
-                raise Exception(f"Model cache file {model_cache} was corrupt. It has been removed.")
+            return same_loaded_model[0]
 
-        # XXX # TODO I would like to revisit this dict->tuple conversion at some point soon
-        return (model, clip, vae)
+        if not ckpt_name:
+            if not SharedModelManager.manager.compvis.is_model_available(horde_model_name):
+                raise ValueError(f"Model {horde_model_name} is not available.")
+
+            ckpt_name = SharedModelManager.manager.compvis.get_model_filename(horde_model_name).name
+
+        # Clear references so comfy can free memory as needed
+        SharedModelManager.manager._models_in_ram = {}
+
+        ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        result = comfy.sd.load_checkpoint_guess_config(
+            ckpt_path,
+            output_vae=True,
+            output_clip=True,
+            embedding_directory=folder_paths.get_folder_paths("embeddings"),
+        )
+
+        SharedModelManager.manager._models_in_ram[horde_model_name] = result, will_load_loras
+
+        if seamless_tiling_enabled:
+            result[0].model.apply(make_circular)
+            make_circular_vae(result[2])
+        else:
+            result[0].model.apply(make_regular)
+            make_regular_vae(result[2])
+
+        return result
+
+
+def make_circular(m):
+    if isinstance(m, torch.nn.Conv2d):
+        m.padding_mode = "circular"
+
+
+def make_circular_vae(m):
+    m.first_stage_model.apply(make_circular)
+
+
+def make_regular(m):
+    if isinstance(m, torch.nn.Conv2d):
+        m.padding_mode = "zeros"
+
+
+def make_regular_vae(m):
+    m.first_stage_model.apply(make_regular)
 
 
 NODE_CLASS_MAPPINGS = {"HordeCheckpointLoader": HordeCheckpointLoader}

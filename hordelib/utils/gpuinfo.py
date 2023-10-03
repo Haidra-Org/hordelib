@@ -1,7 +1,9 @@
-import contextlib
 import os
 
-from pynvml.smi import nvidia_smi
+import torch.version
+from loguru import logger
+from pydantic import BaseModel
+from strenum import StrEnum
 
 
 class GPUInfo:
@@ -11,6 +13,8 @@ class GPUInfo:
         self.avg_power = []
         # Average period in samples, default 10 samples per second, period 5 minutes
         self.samples_per_second = 10
+        if not self.is_nvidia():
+            logger.warning("GPU info is only supported on NVIDIA GPUs")
         # Look out for device env var hack
         self.device = int(os.getenv("CUDA_VISIBLE_DEVICES", 0))
 
@@ -32,11 +36,27 @@ class GPUInfo:
                 break
         return walkdata
 
-    def _get_gpu_data(self):
-        with contextlib.suppress(Exception):
+    def is_nvidia(self):
+        if torch.version.cuda is not None:
+            return True
+
+        return False
+
+    def is_amd(self):
+        if torch.version.hip is not None:
+            return True
+
+        return False
+
+    def _get_gpu_data(self) -> dict | None:
+        if self.is_nvidia():
+            from pynvml.smi import nvidia_smi
+
             nvsmi = nvidia_smi.getInstance()
             data = nvsmi.DeviceQuery()
             return data.get("gpu", [None])[self.device]
+
+        return None
 
     def _mem(self, raw):
         unit = "GB"
@@ -71,6 +91,9 @@ class GPUInfo:
         return value
 
     def get_info(self):
+        if not self.is_nvidia():
+            return GPUInfoResult.get_empty_info()
+
         data = self._get_gpu_data()
         if not data:
             return None
@@ -101,18 +124,76 @@ class GPUInfo:
         avg_power = int(sum(self.avg_power) / len(self.avg_power))
         avg_temp = int(sum(self.avg_temp) / len(self.avg_temp))
 
-        return {
-            "product": self.get(data, "product_name", "unknown"),
-            "pci_gen": self.get(data, "pci.pci_gpu_link_info.pcie_gen.current_link_gen", "?"),
-            "pci_width": self.get(data, "pci.pci_gpu_link_info.link_widths.current_link_width", "?"),
-            "fan_speed": f"{self.get(data, 'fan_speed')}{self.get(data, 'fan_speed_unit')}",
-            "vram_total": f"{self._mem(self.get(data, 'fb_memory_usage.total', '0'))}",
-            "vram_used": f"{self._mem(self.get(data, 'fb_memory_usage.used', '0'))}",
-            "vram_free": f"{self._mem(self.get(data, 'fb_memory_usage.free', '0'))}",
-            "load": f"{gpu_util}{self.get(data, 'utilization.unit')}",
-            "temp": f"{gpu_temp}{self.get(data, 'temperature.unit')}",
-            "power": f"{gpu_power}{self.get(data, 'power_readings.unit')}",
-            "avg_load": f"{avg_load}{self.get(data, 'utilization.unit')}",
-            "avg_temp": f"{avg_temp}{self.get(data, 'temperature.unit')}",
-            "avg_power": f"{avg_power}{self.get(data, 'power_readings.unit')}",
-        }
+        vram_total = self.get_total_vram_mb()
+        vram_free = self.get_free_vram_mb()
+        vram_used = vram_total - vram_free
+
+        return GPUInfoResult(
+            supported=True,
+            product=self.get(data, "product_name", "unknown"),
+            pci_gen=self.get(data, "pci.pci_gpu_link_info.pcie_gen.current_link_gen", "?"),
+            pci_width=self.get(data, "pci.pci_gpu_link_info.link_widths.current_link_width", "?"),
+            fan_speed=(self.get(data, "fan_speed"), Unit.percent),
+            vram_total=(vram_total, Unit.megabytes),
+            vram_used=(vram_used, Unit.megabytes),
+            vram_free=(vram_free, Unit.megabytes),
+            load=(gpu_util, Unit.percent),
+            temp=(gpu_temp, Unit.degrees_celsius),
+            power=(gpu_power, Unit.watts),
+            avg_load=(avg_load, Unit.percent),
+            avg_temp=(avg_temp, Unit.degrees_celsius),
+            avg_power=(avg_power, Unit.watts),
+        )
+
+
+class Unit(StrEnum):
+    unitless = ""
+    percent = "%"
+    degrees_celsius = "C"
+    megabytes = "MiB"
+    gigabytes = "GiB"
+    watts = "W"
+
+
+class GPUInfoResult(BaseModel):
+    supported: bool
+    product: str
+    pci_gen: str
+    pci_width: str
+    fan_speed: tuple[int, Unit]
+    vram_total: tuple[int, Unit]
+    vram_used: tuple[int, Unit]
+    vram_free: tuple[int, Unit]
+    load: tuple[int, Unit]
+    temp: tuple[int, Unit]
+    power: tuple[int, Unit]
+    avg_load: tuple[int, Unit]
+    avg_temp: tuple[int, Unit]
+    avg_power: tuple[int, Unit]
+
+    def __str__(self):
+        final_string = ""
+        for key, value in self.model_dump().items():
+            if isinstance(value, tuple):
+                value = f"{value[0]} {value[1]}"
+            final_string += f"{key}: {value}\n"
+        return final_string
+
+    @classmethod
+    def get_empty_info(cls):
+        return GPUInfoResult(
+            supported=False,
+            product="unknown (stats with AMD not supported)",
+            pci_gen="?",
+            pci_width="?",
+            fan_speed=(0, Unit.percent),
+            vram_total=(0, Unit.megabytes),
+            vram_used=(0, Unit.megabytes),
+            vram_free=(0, Unit.megabytes),
+            load=(0, Unit.percent),
+            temp=(0, Unit.degrees_celsius),
+            power=(0, Unit.watts),
+            avg_load=(0, Unit.percent),
+            avg_temp=(0, Unit.degrees_celsius),
+            avg_power=(0, Unit.watts),
+        )

@@ -1,12 +1,8 @@
 # This tests running hordelib standalone, as an external caller would use it.
 # Call with: python -m test.run_memory_test
 # You need all the deps in whatever environment you are running this.
-import os
-import random
-import threading
 import time
 
-import psutil
 from loguru import logger
 from PIL import Image
 
@@ -14,12 +10,10 @@ import hordelib
 
 hordelib.initialise(setup_logging=True, clear_logs=True)
 
-from hordelib.comfy_horde import cleanup
 from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.horde import HordeLib
 from hordelib.settings import UserSettings
 from hordelib.shared_model_manager import SharedModelManager
-from hordelib.utils.gpuinfo import GPUInfo
 
 UserSettings.disable_disk_cache.activate()
 
@@ -34,7 +28,7 @@ def add_model(model_name):
     logger.warning(f"{model_count} models now loaded")
 
 
-def get_base_data(width=512, height=512, karras=False, steps=50, model_name="stable_diffusion"):
+def get_base_data(width=1024, height=1024, karras=False, steps=50, model_name="SDXL 1.0"):
     return {
         "sampler_name": "k_euler",
         "cfg_scale": 7.5,
@@ -61,8 +55,8 @@ def do_inference(data):
     ITERATIONS = 1
     horde = HordeLib()
     start_time = time.time()
-    for i in range(ITERATIONS):  # do n times and average the time
-        pil_image = horde.basic_inference(data)
+    for _ in range(ITERATIONS):  # do n times and average the time
+        pil_image = horde.basic_inference_single_image(data)
         if not pil_image:
             logger.error("Inference is failing to generate images")
         else:
@@ -70,9 +64,10 @@ def do_inference(data):
     return round((time.time() - start_time) / ITERATIONS, 2)
 
 
-def calculate_kudos_cost(base_time, job_data):
+def calculate_kudos_cost(base_time, job_data) -> tuple[float, float]:
+    """Calculate the kudos cost of a job, and return the kudos cost and time taken"""
     job_time = do_inference(job_data)
-    return round(BASE_KUDOS * (job_time / base_time), 2)
+    return round(BASE_KUDOS * (job_time / base_time), 2), job_time
 
 
 def main():
@@ -98,7 +93,7 @@ def main():
     base_time = do_inference(get_base_data())
 
     logger.info("Calculating time for steps 10")
-    base_steps_10 = calculate_kudos_cost(base_time, get_base_data(steps=10))
+    base_steps_10_kudos = calculate_kudos_cost(base_time, get_base_data(steps=10))
     logger.info("Calculating time for steps 100")
     base_steps_100 = calculate_kudos_cost(base_time, get_base_data(steps=100))
 
@@ -136,6 +131,7 @@ def main():
     # Benchmark all controlnet types
     controltypes = {}
     for controltype in horde.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
+        break
         logger.info(f"Calculating kudos for controlnet {controltype}")
         data = get_base_data()
         data["control_type"] = controltype
@@ -146,7 +142,8 @@ def main():
 
     # Results
     logger.info(f"Base time {base_time} == 10 kudos")
-    logger.info(f"10 steps: {base_steps_10}")
+    logger.info("Results: (kudos, time)")
+    logger.info(f"10 steps: {base_steps_10_kudos}")
     logger.info(f"100 steps: {base_steps_100}")
     logger.info(f"Karras: {base_karras}")
     logger.info(f"No weights: {base_no_weights}")

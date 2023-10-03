@@ -1,7 +1,6 @@
 # This tests running hordelib standalone, as an external caller would use it.
 # Call with: python -m test.run_upscale
 # You need all the deps in whatever environment you are running this.
-import os
 
 import hordelib
 

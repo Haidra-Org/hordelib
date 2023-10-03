@@ -1,7 +1,6 @@
 # This tests running hordelib standalone, as an external caller would use it.
 # Call with: python -m test.run_txt2img_local_model
 # You need all the deps in whatever environment you are running this.
-import os
 
 import hordelib
 from hordelib.consts import MODEL_CATEGORY_NAMES
@@ -41,7 +40,7 @@ def main():
         "n_iter": 1,
         "model": localfile,
     }
-    pil_image = generate.basic_inference(data)
+    pil_image = generate.basic_inference_single_image(data)
     pil_image.save("images/run_txt2img_local.webp", quality=90)
 
 

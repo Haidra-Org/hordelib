@@ -28,7 +28,7 @@ def add_model(model_name):
 def do_inference(model_name, iterations=1):
     """Do some work on the GPU"""
     horde = HordeLib()
-    for i in range(iterations):
+    for _ in range(iterations):
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 6.5,
@@ -52,7 +52,7 @@ def do_inference(model_name, iterations=1):
             "n_iter": 1,
             "model": model_name,
         }
-        pil_image = horde.basic_inference(data)
+        pil_image = horde.basic_inference_single_image(data)
         if not pil_image:
             logger.error("Inference is failing to generate images")
         else:

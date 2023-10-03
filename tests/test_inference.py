@@ -1,5 +1,4 @@
 # test_inference.py
-import os
 
 import pytest
 from PIL import Image
@@ -7,18 +6,20 @@ from PIL import Image
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.shared_model_manager import SharedModelManager
 
-from .testing_shared_functions import CosineSimilarityResultCode, check_single_inference_image_similarity
+from .testing_shared_functions import check_single_inference_image_similarity
 
 
 class TestInference:
+    @pytest.fixture(scope="class", autouse=True)
+    def setup(self):
+        SharedModelManager().load_model_managers(["compvis", "controlnet"])
+
     def test_unknown_pipeline(self, isolated_comfy_horde_instance: Comfy_Horde):
-        result = isolated_comfy_horde_instance.run_image_pipeline("non-existent-pipeline", {})
-        assert result is None
+        with pytest.raises(ValueError, match="Unknown inference pipeline"):
+            result = isolated_comfy_horde_instance.run_image_pipeline("non-existent-pipeline", {})
 
     def test_stable_diffusion_pipeline(
         self,
-        stable_diffusion_model_name_for_testing: str,
-        shared_model_manager: type[SharedModelManager],
         isolated_comfy_horde_instance: Comfy_Horde,
     ):
         params = {
@@ -33,9 +34,11 @@ class TestInference:
             "sampler.steps": 25,
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
-            "model_loader.model_name": stable_diffusion_model_name_for_testing,
+            "model_loader.horde_model_name": "Deliberate",
+            "model_loader.ckpt_name": "Deliberate.ckpt",
+            "model_loader.will_load_loras": False,
+            "model_loader.seamless_tiling_enabled": False,
             "clip_skip.stop_at_clip_layer": -1,
-            "model_loader.model_manager": shared_model_manager,
         }
         images = isolated_comfy_horde_instance.run_image_pipeline("stable_diffusion", params)
         assert images is not None
@@ -50,8 +53,6 @@ class TestInference:
 
     def test_stable_diffusion_pipeline_clip_skip(
         self,
-        stable_diffusion_model_name_for_testing: str,
-        shared_model_manager: type[SharedModelManager],
         isolated_comfy_horde_instance: Comfy_Horde,
     ):
         params = {
@@ -66,9 +67,11 @@ class TestInference:
             "sampler.steps": 25,
             "prompt.text": "a closeup photo of a confused dog",
             "negative_prompt.text": "cat, black and white, deformed",
-            "model_loader.model_name": stable_diffusion_model_name_for_testing,
+            "model_loader.horde_model_name": "Deliberate",
+            "model_loader.ckpt_name": "Deliberate.ckpt",
+            "model_loader.will_load_loras": False,
+            "model_loader.seamless_tiling_enabled": False,
             "clip_skip.stop_at_clip_layer": -2,
-            "model_loader.model_manager": shared_model_manager,
         }
         images = isolated_comfy_horde_instance.run_image_pipeline("stable_diffusion", params)
         assert images is not None
@@ -83,8 +86,6 @@ class TestInference:
 
     def test_stable_diffusion_hires_fix_pipeline(
         self,
-        stable_diffusion_model_name_for_testing: str,
-        shared_model_manager: type[SharedModelManager],
         isolated_comfy_horde_instance: Comfy_Horde,
     ):
         params = {
@@ -103,8 +104,10 @@ class TestInference:
             "negative_prompt.text": (
                 "render, cg, drawing, painting, artist, graphics, deformed, black and white, deformed eyes"
             ),
-            "model_loader.model_name": stable_diffusion_model_name_for_testing,
-            "model_loader.model_manager": shared_model_manager,
+            "model_loader.horde_model_name": "Deliberate",
+            "model_loader.ckpt_name": "Deliberate.ckpt",
+            "model_loader.will_load_loras": False,
+            "model_loader.seamless_tiling_enabled": False,
             "empty_latent_image.width": 512,
             "empty_latent_image.height": 512,
             "latent_upscale.width": 768,

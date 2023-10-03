@@ -8,7 +8,6 @@ import threading
 import time
 
 from loguru import logger
-from PIL import Image
 
 from hordelib.consts import MODEL_CATEGORY_NAMES
 
@@ -112,7 +111,7 @@ def generate_images():
 
 
 def run_iterations():
-    for i in range(ITERATIONS):
+    for _ in range(ITERATIONS):
         generate_images()
 
 

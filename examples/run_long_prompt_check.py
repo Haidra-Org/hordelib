@@ -1,8 +1,6 @@
 # Here we try to measure the impact, if any, on inference time with long prompts
 import time
 
-from loguru import logger
-
 import hordelib
 from hordelib.consts import MODEL_CATEGORY_NAMES
 
@@ -83,7 +81,7 @@ def main():
     }
 
     # Warmup
-    generate.basic_inference(basic_data)
+    generate.basic_inference_single_image(basic_data)
 
     i = 1
 
@@ -92,13 +90,13 @@ def main():
         # let us enable comfyui's default behaviour of batch optimisations
         UserSettings.enable_batch_optimisations.activate()
         start_clock(f"{i}a. Inference with default comfyui")
-        generate.basic_inference(basic_data)
+        generate.basic_inference_single_image(basic_data)
         stop_clock()
 
         # no batch optimisations
         UserSettings.enable_batch_optimisations.disable()
         start_clock(f"{i}b. Inference with comfyui batch optimisations disabled")
-        generate.basic_inference(basic_data)
+        generate.basic_inference_single_image(basic_data)
         stop_clock()
 
         i += 1
@@ -108,13 +106,13 @@ def main():
         # let us enable comfyui's default behaviour of batch optimisations
         UserSettings.enable_batch_optimisations.activate()
         start_clock(f"{i}a. Long Prompt Inference with default comfyui")
-        generate.basic_inference(long_prompt_data)
+        generate.basic_inference_single_image(long_prompt_data)
         stop_clock()
 
         # no batch optimisations
         UserSettings.enable_batch_optimisations.disable()
         start_clock(f"{i}b. Long Prompt Inference with comfyui batch optimisations disabled")
-        generate.basic_inference(long_prompt_data)
+        generate.basic_inference_single_image(long_prompt_data)
         stop_clock()
 
         i += 1

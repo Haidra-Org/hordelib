@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - releases
-      
+
 permissions:
   contents: write
   pull-requests: read
@@ -53,7 +53,7 @@ jobs:
       if: ${{ steps.release.outputs.version != '' }}
       run: |
         python -m pip install --upgrade pip
-        python -m pip install build psutil typing-extensions loguru strenum --user
+        python -m pip install build psutil typing-extensions loguru strenum python-dotenv --user
 
     - name: "✏️ Install changelog dependencies"
       if: ${{ steps.release.outputs.version != '' }}
@@ -110,4 +110,3 @@ jobs:
     #   with:
     #     webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
     #     content: "New version of hordelib has been published to pypi: ${{ steps.release.outputs.version }}. You can update your worker by running `./update-runtime.sh --hordelib` (Linux) or `update-runtime.cmd --hordelib` (Windows). Changelog: https://t.ly/z2vQ"
-    
