@@ -244,9 +244,13 @@ class Comfy_Horde:
     """The approximate number of seconds to force garbage collection."""
 
     pipelines: dict
-    images: dict[str, typing.Any]
+    images: list[dict[str, typing.Any]]
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        *,
+        comfyui_callback: typing.Callable[[str, dict, str], None] | None = None,
+    ) -> None:
         """Initialise the Comfy_Horde object.
 
         This must be called before using any of the functions in this module as it sets critical ComfyUI
@@ -271,6 +275,8 @@ class Comfy_Horde:
             # Load our custom nodes
             self._load_custom_nodes()
         stdio.replay()
+
+        self._comfyui_callback = comfyui_callback
 
     def _set_comfyui_paths(self) -> None:
         # These set the default paths for comfyui to look for models and embeddings. From within hordelib,
@@ -559,13 +565,18 @@ class Comfy_Horde:
         current[0] = output
         return True
 
+    _comfyui_callback: typing.Callable[[str, dict, str], None] | None = None
+
     # This is the callback handler for comfy async events.
-    def send_sync(self, label, data, _id):
+    def send_sync(self, label: str, data: dict, _id: str) -> None:
         # Get receive image outputs via this async mechanism
         if "output" in data and "images" in data["output"]:
             self.images = data["output"]["images"]
             logger.debug("Received output image(s) from comfyui")
         else:
+            if self._comfyui_callback is not None:
+                self._comfyui_callback(label, data, _id)
+
             if label != "executing":
                 logger.debug(f"{label}, {data}, {_id}")
             else:
@@ -576,7 +587,7 @@ class Comfy_Horde:
 
     # Execute the named pipeline and pass the pipeline the parameter provided.
     # For the horde we assume the pipeline returns an array of images.
-    def _run_pipeline(self, pipeline: dict, params: dict) -> dict | None:
+    def _run_pipeline(self, pipeline: dict, params: dict) -> list[dict] | None:
         if _comfy_current_loaded_models is None:
             raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
 
@@ -614,7 +625,7 @@ class Comfy_Horde:
         return self.images
 
     # Run a pipeline that returns an image in pixel space
-    def run_image_pipeline(self, pipeline, params: dict) -> dict | None:
+    def run_image_pipeline(self, pipeline, params: dict) -> list[dict[str, typing.Any]]:
         # From the horde point of view, let us assume the output we are interested in
         # is always in a HordeImageOutput node named "output_image". This is an array of
         # dicts of the form:
@@ -632,7 +643,7 @@ class Comfy_Horde:
             # Sanity
             if not pipeline_data:
                 logger.error(f"Unknown inference pipeline: {pipeline}")
-                return None
+                raise ValueError("Unknown inference pipeline")
         else:
             pipeline_data = pipeline
 
@@ -647,7 +658,7 @@ class Comfy_Horde:
         if result:
             return result
 
-        return None
+        raise RuntimeError("Pipeline failed to run")
 
 
 ANNOTATOR_MODEL_SHA_LOOKUP: dict[str, str] = {

@@ -7,6 +7,8 @@ import json
 import random
 import sys
 from copy import deepcopy
+from typing import Callable
+import typing
 
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from loguru import logger
@@ -167,9 +169,13 @@ class HordeLib:
         return cls._instance
 
     # We initialise only ever once (in the lifetime of the singleton)
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        comfyui_callback: Callable[[str, dict, str], None] | None = None,
+    ):
         if not self._initialised:
-            self.generator = Comfy_Horde()
+            self.generator = Comfy_Horde(comfyui_callback=comfyui_callback)
             self.__class__._initialised = True
 
     def _json_hack(self, obj):
@@ -592,7 +598,7 @@ class HordeLib:
 
     def _process_results(
         self,
-        images: list[dict[str, io.BytesIO | str]],
+        images: list[dict[str, typing.Any]],
         rawpng: bool,
     ) -> list[Image.Image | io.BytesIO]:
         if images is None:
@@ -717,7 +723,7 @@ class HordeLib:
         if post_processing_requested is not None:
             post_processed = []
             for image in image_list:
-                final_image = image
+                final_image: PIL.Image.Image | None = image
                 for post_processing in post_processing_requested:
                     if post_processing in KNOWN_UPSCALERS.__members__:
                         final_image = self.image_upscale(
@@ -732,12 +738,18 @@ class HordeLib:
                             {
                                 "model": post_processing,
                                 "source_image": final_image,
+                                "facefixer_strength": payload.get("facefixer_strength", 1.0),
                             },
                         )
                     elif post_processing == "strip_background":
-                        final_image = ImageUtils.strip_background(final_image)
+                        if final_image is not None:
+                            final_image = ImageUtils.strip_background(final_image)
 
-                post_processed.append(final_image)
+                if final_image is None:
+                    logger.error("Post processing failed and there is no output image!")
+                else:
+                    post_processed.append(final_image)
+
         if post_processed is not None:
             return post_processed
 
@@ -775,7 +787,7 @@ class HordeLib:
         # Remember if we were passed width and height, we wouldn't normally be passed width and height
         # because the upscale models upscale to a fixed multiple of image size. However, if we *are*
         # passed a width and height we rescale the upscale output image to this size.
-        width = payload.get("width")
+        width = payload.get("height")
         height = payload.get("width")
         # Check payload types/values and normalise it's format
         payload = self._validate_data_structure(payload)
@@ -788,8 +800,6 @@ class HordeLib:
 
         images = self.generator.run_image_pipeline(pipeline_data, payload)
 
-        if images is None:
-            return None  # XXX Log error and/or raise Exception here
         # Allow arbitrary resizing by shrinking the image back down
         if width or height:
             return ImageUtils.shrink_image(Image.open(images[0]["imagedata"]), width, height)
