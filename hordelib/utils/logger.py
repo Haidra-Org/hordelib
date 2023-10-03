@@ -50,12 +50,6 @@ class HordeLog:
         return not cls.is_stderr_log(record)
 
     @classmethod
-    def is_trace_log(cls, record):
-        if record["level"].name != "ERROR":
-            return False
-        return True
-
-    @classmethod
     def test_logger(cls):
         logger.debug("Debug Message")
         logger.info("Info Message")
