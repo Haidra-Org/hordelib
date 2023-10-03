@@ -90,6 +90,12 @@ class TextualInversionModelManager(BaseModelManager):
         if self.models_db_path.exists():
             try:
                 self.model_reference = json.loads((self.models_db_path).read_text())
+
+                for ti in self.model_reference.values():
+                    self._index_ids[ti["id"]] = ti["name"].lower()
+                    orig_name = ti.get("orig_name", ti["name"]).lower()
+                    self._index_orig_names[orig_name] = ti["name"].lower()
+
                 logger.info("Loaded model reference from disk.")
             except json.JSONDecodeError:
                 logger.error(f"Could not load {self.models_db_name} model reference from disk! Bad JSON?")

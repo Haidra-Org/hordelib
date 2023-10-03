@@ -103,6 +103,12 @@ class LoraModelManager(BaseModelManager):
             if self.models_db_path.exists():
                 try:
                     self.model_reference = json.loads((self.models_db_path).read_text())
+
+                    for lora in self.model_reference.values():
+                        self._index_ids[lora["id"]] = lora["name"].lower()
+                        orig_name = lora.get("orig_name", lora["name"]).lower()
+                        self._index_orig_names[orig_name] = lora["name"].lower()
+
                     logger.info("Loaded model reference from disk.")
                 except json.JSONDecodeError:
                     logger.error(f"Could not load {self.models_db_name} model reference from disk! Bad JSON?")
@@ -367,8 +373,11 @@ class LoraModelManager(BaseModelManager):
             # Start download threads if they aren't already started
             while len(self._download_threads) < self.MAX_DOWNLOAD_THREADS:
                 thread_iter = len(self._download_threads)
+                logger.debug(f"Starting download thread {thread_iter}")
                 thread = threading.Thread(target=self._download_thread, daemon=True, args=(thread_iter,))
                 self._download_threads[thread_iter] = {"thread": thread, "lora": None}
+                logger.debug(f"Started download thread {thread_iter}")
+                logger.debug(f"Download threads: {self._download_threads}")
                 thread.start()
 
             # Add this lora to the download queue
@@ -462,6 +471,7 @@ class LoraModelManager(BaseModelManager):
 
     def fuzzy_find_lora_key(self, lora_name):
         # sname = Sanitizer.remove_version(lora_name).lower()
+        logger.debug(f"Looking for lora {lora_name}")
         if type(lora_name) is int or lora_name.isdigit():
             if int(lora_name) in self._index_ids:
                 return self._index_ids[int(lora_name)]
@@ -753,6 +763,11 @@ class LoraModelManager(BaseModelManager):
         return datetime.strptime(lora["last_used"], "%Y-%m-%d %H:%M:%S")
 
     def fetch_adhoc_lora(self, lora_name, timeout=45):
+        if isinstance(lora_name, str):
+            if lora_name in self.model_reference:
+                self._touch_lora(lora_name)
+                return lora_name
+
         if type(lora_name) is int or lora_name.isdigit():
             url = f"https://civitai.com/api/v1/models/{lora_name}"
         else:
@@ -776,7 +791,8 @@ class LoraModelManager(BaseModelManager):
         if fuzzy_find:
             logger.debug(f"Found lora with ID: {fuzzy_find}")
             return fuzzy_find
-        self._download_queue.append(lora)
+        self._download_lora(lora)
+
         # We need to wait a bit to make sure the threads pick up the download
         time.sleep(self.THREAD_WAIT_TIME)
         self.wait_for_downloads(timeout)
@@ -799,6 +815,9 @@ class LoraModelManager(BaseModelManager):
 
     @override
     def is_model_available(self, model_name):
+        if model_name in self.model_reference:
+            return True
+
         found_model_name = self.fuzzy_find_lora_key(model_name)
         if found_model_name is None:
             return False

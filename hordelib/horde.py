@@ -345,7 +345,11 @@ class HordeLib:
             for ti in payload.get("tis"):
                 # Determine the actual ti filename
                 if not SharedModelManager.manager.ti.is_local_model(str(ti["name"])):
-                    adhoc_ti = SharedModelManager.manager.ti.fetch_adhoc_ti(str(ti["name"]))
+                    try:
+                        adhoc_ti = SharedModelManager.manager.ti.fetch_adhoc_ti(str(ti["name"]))
+                    except Exception as e:
+                        logger.info(f"Error fetching adhoc TI {ti['name']}: ({type(e).__name__}) {e}")
+                        adhoc_ti = None
                     if not adhoc_ti:
                         logger.info(f"Adhoc TI requested '{ti['name']}' could not be found in CivitAI. Ignoring!")
                         continue
@@ -389,7 +393,12 @@ class HordeLib:
             for lora in payload.get("loras"):
                 # Determine the actual lora filename
                 if not SharedModelManager.manager.lora.is_model_available(str(lora["name"])):
-                    adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(str(lora["name"]))
+                    logger.debug(f"Adhoc lora requested '{lora['name']}' not yet downloaded. Downloading...")
+                    try:
+                        adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(str(lora["name"]))
+                    except Exception as e:
+                        logger.info(f"Error fetching adhoc lora {lora['name']}: ({type(e).__name__}) {e}")
+                        adhoc_lora = None
                     if not adhoc_lora:
                         logger.info(f"Adhoc lora requested '{lora['name']}' could not be found in CivitAI. Ignoring!")
                         continue
