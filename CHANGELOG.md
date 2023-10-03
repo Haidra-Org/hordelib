@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+# [v2.0.0](https://github.com/Haidra-Org/hordelib/compare/v1.6.6...v2.0.0)
+
+3 October 2023
+
+- fix: remove any load to ram/vram code, make hordelib single threaded [`98178f3`](https://github.com/Haidra-Org/hordelib/commit/98178f3b983b2887511431372f8194a1a5b3affe)  (tazlin)
+- refactor: comfy handles memory; better multiprocessing scaffolding [`775ecf6`](https://github.com/Haidra-Org/hordelib/commit/775ecf60b9b89966bba8e4fe969a0ddb6d6a1ae4)  (tazlin)
+- feat: worker beta changes [`f6bc72e`](https://github.com/Haidra-Org/hordelib/commit/f6bc72e3a95f935593cd54ac273f5a9c9920db91)  (tazlin)
+
 ## [v1.6.6](https://github.com/Haidra-Org/hordelib/compare/v1.6.5...v1.6.6)
 
 6 September 2023
