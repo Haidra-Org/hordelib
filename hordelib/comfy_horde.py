@@ -173,9 +173,10 @@ def unload_all_models_vram():
 
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
     # _comfy_free_memory(_comfy_get_total_memory(), _comfy_get_torch_device())
-    for model in _comfy_current_loaded_models:
-        model.model_unload()
-    _comfy_soft_empty_cache()
+    with torch.no_grad():
+        for model in _comfy_current_loaded_models:
+            model.model_unload()
+        _comfy_soft_empty_cache()
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
 
 
@@ -184,9 +185,10 @@ def unload_all_models_ram():
 
     SharedModelManager.manager._models_in_ram = {}
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
-    _comfy_free_memory(_comfy_get_total_memory(), _comfy_get_torch_device())
-    _comfy_cleanup_models()
-    _comfy_soft_empty_cache()
+    with torch.no_grad():
+        _comfy_free_memory(_comfy_get_total_memory(), _comfy_get_torch_device())
+        _comfy_cleanup_models()
+        _comfy_soft_empty_cache()
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
 
 
