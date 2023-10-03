@@ -63,10 +63,8 @@ class TestHordeInference:
 
             pil_image.save(f"images/{img_filename}", quality=100)
             images_to_compare.append((f"images_expected/{img_filename}", pil_image))
-
-        for img_filename, pil_image in images_to_compare:
             assert check_single_inference_image_similarity(
-                img_filename,
+                f"images_expected/{img_filename}",
                 pil_image,
             )
 
