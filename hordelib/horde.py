@@ -162,10 +162,18 @@ class HordeLib:
         "controlnet_model_loader.control_net_name": "control_type",
     }
 
+    _comfyui_callback: Callable[[str, dict, str], None] | None = None
+
     # We are a singleton
-    def __new__(cls):
+    def __new__(
+        cls,
+        *,
+        comfyui_callback: Callable[[str, dict, str], None] | None = None,
+    ):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls._comfyui_callback = comfyui_callback
+
         return cls._instance
 
     # We initialise only ever once (in the lifetime of the singleton)
@@ -175,7 +183,9 @@ class HordeLib:
         comfyui_callback: Callable[[str, dict, str], None] | None = None,
     ):
         if not self._initialised:
-            self.generator = Comfy_Horde(comfyui_callback=comfyui_callback)
+            self.generator = Comfy_Horde(
+                comfyui_callback=comfyui_callback if comfyui_callback else self._comfyui_callback,
+            )
             self.__class__._initialised = True
 
     def _json_hack(self, obj):
