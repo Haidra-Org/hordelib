@@ -455,17 +455,17 @@ class TextualInversionModelManager(BaseModelManager):
         if Sanitizer.has_unicode(sname):
             for ti in self._index_orig_names:
                 if sname in ti:
-                    return self._index_orig_names[ti]
+                    return self._index_orig_names[ti].lower().strip()
             # If a unicode name is not found in the orig_names index
             # it won't be found anywhere else, as unicode chars are converted to ascii in the keys
             # This saves us time doing unnecessary fuzzy searches
             return None
         for ti in self.model_reference:
             if sname in ti:
-                return ti
+                return ti.lower().strip()
         for ti in self.model_reference:
             if fuzz.ratio(sname, ti) > 80:
-                return ti
+                return ti.lower().strip()
         return None
 
     # Using `get_model` instead of `get_ti` as it exists in the base class
