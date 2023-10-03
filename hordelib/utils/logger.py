@@ -41,6 +41,16 @@ class HordeLog:
 
     @classmethod
     def is_trace_log(cls, record):
+        if record["level"].name not in ["TRACE", "ERROR", "CRITICAL"]:
+            return False
+        return True
+
+    @classmethod
+    def is_stdout_log(cls, record):
+        return not cls.is_stderr_log(record)
+
+    @classmethod
+    def is_trace_log(cls, record):
         if record["level"].name != "ERROR":
             return False
         return True
@@ -98,11 +108,11 @@ class HordeLog:
             50: "CRITICAL",
         }
 
-        stdout_level = "INFO"
+        verbosity_level = "INFO"
 
         for level in levels_lookup:
             if cls.verbosity <= level:
-                stdout_level = levels_lookup[level]
+                verbosity_level = levels_lookup[level]
                 break
 
         config = {
@@ -111,12 +121,13 @@ class HordeLog:
                     "sink": sys.stderr,
                     "colorize": True,
                     "filter": cls.is_stderr_log,
+                    "level": verbosity_level,
                 },
                 {
                     "sink": sys.stdout,
                     "colorize": True,
-                    "enqueue": True,
-                    "level": stdout_level,
+                    "filter": cls.is_stdout_log,
+                    "level": verbosity_level,
                 },
                 {
                     "sink": "logs/bridge.log" if cls.process_id is None else f"logs/bridge_{cls.process_id}.log",
@@ -133,7 +144,8 @@ class HordeLog:
                 # },
                 {
                     "sink": "logs/trace.log" if cls.process_id is None else f"logs/trace_{cls.process_id}.log",
-                    "level": "ERROR",
+                    "level": "TRACE",
+                    "filter": cls.is_trace_log,
                     "retention": "3 days",
                     "rotation": "1 days",
                     "backtrace": True,
@@ -145,6 +157,10 @@ class HordeLog:
         if cls.process_id is not None:
             # Remove the first 2 handlers, they're for the main process only
             config["handlers"] = config["handlers"][2:]
+
+            # Redirect stdout/stderr to a file
+            sys.stdout = open(f"logs/stdout_{cls.process_id}.log", "w")
+            sys.stderr = open(f"logs/stderr_{cls.process_id}.log", "w")
 
         # logger.level("STATS", no=25, color="<yellow>", icon="📊")
         cls.sinks = logger.configure(**config)  # type: ignore
