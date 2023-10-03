@@ -622,11 +622,28 @@ class TextualInversionModelManager(BaseModelManager):
         if not ti_info:
             logger.warning(f"Could not find ti {ti_name} to delete")
             return
+
         self.delete_ti_files(ti_info["filename"])
-        self._adhoc_tis.remove(ti_name)
-        del self._index_ids[ti_info["id"]]
-        del self._index_orig_names[ti_info["orig_name"].lower()]
-        del self.model_reference[ti_name]
+
+        if ti_name in self._adhoc_tis:
+            self._adhoc_tis.remove(ti_name)
+        else:
+            logger.warning(f"Could not find ti {ti_name} in adhoc tis to delete")
+
+        if ti_info["id"] in self._index_ids:
+            del self._index_ids[ti_info["id"]]
+        else:
+            logger.warning(f"Could not find ti {ti_name} in id index to delete")
+
+        if ti_info["orig_name"].lower() in self._index_orig_names:
+            del self._index_orig_names[ti_info["orig_name"].lower()]
+        else:
+            logger.warning(f"Could not find ti {ti_name} in orig_name index to delete")
+
+        if ti_name in self.model_reference:
+            del self.model_reference[ti_name]
+        else:
+            logger.warning(f"Could not find ti {ti_name} in model_reference to delete")
         self.save_cached_reference_to_disk()
 
     def ensure_ti_deleted(self, ti_name: str):
