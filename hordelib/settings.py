@@ -1,7 +1,7 @@
 import os
 import re
 from collections import deque
-from typing import Callable
+from pathlib import Path
 
 import psutil
 from typing_extensions import Self
@@ -21,7 +21,7 @@ class UserSettings:
     """The amount of VRAM to leave free, defaults to 50% of the current machines VRAM, can be expressed as a number of
      MB or a percentage."""
 
-    _model_directory = ""
+    _model_directory: Path | None = None
     _basedir = ""
 
     def __new__(cls):
@@ -107,7 +107,7 @@ class UserSettings:
         cls._ram_to_leave_free_mb = value
 
     @classmethod
-    def get_model_directory(cls):
+    def get_model_directory(cls) -> Path:
         """The directory where models are stored"""
 
         # We take this as a directory that may contain the worker
@@ -134,32 +134,16 @@ class UserSettings:
             for dirname in dirnames:
                 queue.append(os.path.join(dirpath, dirname))
 
-        cls._model_directory = basedir
+        cls._model_directory = Path(basedir)
         cls._basedir = basedir
-        return basedir
+        return Path(basedir)
 
     # Disable the use of xformers
     disable_xformers = Switch()
 
-    # Disable the display of progress bars when downloading
-    # FIXME We should enable these, but don't yet
-    disable_download_progress = Switch()
-
-    # Disable disk caching completely
-    disable_disk_cache = Switch()
-
-    # Enable batch optimisations. If n_iter > 1 use fast batching. Makes prompts
-    # with more than 75 tokens slower.
-    enable_batch_optimisations = Switch(True)
-
     # Report idle time. If this is enabled a warning is issued if the time
     # between hordelib calls exceeds 1 second.
     enable_idle_time_warning = Switch()
-
-    # Callback for use to broadcast download progress updates
-    # Should be set to a method with a signature (description: str, current: int, total: int)
-    # And will be called with a description of the download, current bytes and total bytes.
-    download_progress_callback: Callable[[str, int, int], None] | None = None
 
 
 _UserSettings = UserSettings()

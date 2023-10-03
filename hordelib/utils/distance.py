@@ -1,7 +1,7 @@
 # Some of the original implementation of the module was inspired from the following:
 # - https://www.analyticsvidhya.com/blog/2021/03/a-beginners-guide-to-image-similarity-using-python/
 from dataclasses import dataclass
-from enum import Enum, auto
+from enum import Enum
 from pathlib import Path
 
 import cv2
@@ -254,9 +254,7 @@ def get_hist(img: PIL.Image.Image) -> np.ndarray:
     img_array = np.array(img)
 
     # Get the histogram of the image
-    hist = np.histogram(img_array, bins=DEFAULT_HISTOGRAM_BINS, range=DEFAULT_HISTOGRAM_RANGE)[0]
-
-    return hist
+    return np.histogram(img_array, bins=DEFAULT_HISTOGRAM_BINS, range=DEFAULT_HISTOGRAM_RANGE)[0]
 
 
 def L2Norm(hist1: np.ndarray, hist2: np.ndarray) -> float:

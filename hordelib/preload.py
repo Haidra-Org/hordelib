@@ -7,9 +7,15 @@ from hordelib.comfy_horde import ANNOTATOR_MODEL_SHA_LOOKUP, download_all_contro
 from hordelib.model_manager.base import BaseModelManager
 
 
-def validate_all_controlnet_annotators(annotatorPath: Path) -> bool:
-    annotators = glob.glob("*.pt*", root_dir=annotatorPath)
+def validate_all_controlnet_annotators(annotatorPath: Path) -> int:
+    # See if the file `.controlnet_annotators` exists
+    if annotatorPath.joinpath(".controlnet_annotators").exists():
+        return len(ANNOTATOR_MODEL_SHA_LOOKUP)
 
+    annotatorPath.mkdir(parents=True, exist_ok=True)
+
+    validated_file_num = 0
+    annotators = glob.glob("*.pt*", root_dir=annotatorPath)
     for annotator in annotators:
         annotator_full_path = annotatorPath.joinpath(annotator)
 
@@ -18,6 +24,7 @@ def validate_all_controlnet_annotators(annotatorPath: Path) -> bool:
                 f"Annotator file {annotator} is not in the model database. Ignoring...",
             )
             logger.warning(f"File location: {annotator_full_path}")
+            validated_file_num += 1
             continue
 
         hash = BaseModelManager.get_file_sha256_hash(annotator_full_path)
@@ -32,8 +39,12 @@ def validate_all_controlnet_annotators(annotatorPath: Path) -> bool:
                     f"Annotator file {annotator} is corrupt. Please delete it and try again.",
                 )
                 logger.error(f"File location: {annotator_full_path}")
-            return False
-    return True
+            return validated_file_num
+
+    # Create a file called `.controlnet_annotators` to indicate that all annotators are valid
+    annotatorPath.joinpath(".controlnet_annotators").touch()
+
+    return validated_file_num
 
 
 __all__ = [

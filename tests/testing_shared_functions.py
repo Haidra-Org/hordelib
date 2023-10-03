@@ -1,8 +1,8 @@
-import json
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import Iterable, TypeAlias
+from typing import TypeAlias
 
 import PIL.Image
 import pytest
@@ -67,7 +67,6 @@ def check_image_similarity_pytest(
     *,
     similarity_constraints: ImageSimilarityConstraints,
 ) -> ImageSimilarityResult:
-
     cosine_similarity_result, histogram_distance_result = evaluate_image_distance(img1, img2)
 
     cosine_fail = (
@@ -110,7 +109,7 @@ def check_image_similarity_pytest(
             cosine_similarity_result,
             histogram_distance_result,
         )
-    elif cosine_warn or histogram_warn:
+    if cosine_warn or histogram_warn:
         return ImageSimilarityResult(
             ImageSimilarityResultCode.SKIP,
             cosine_similarity_result,
@@ -170,7 +169,6 @@ def check_single_lora_image_similarity(
 def check_list_lora_images_similarity(
     list_of_image_pairs: Iterable[tuple[FilePathOrPILImage, FilePathOrPILImage]],
 ) -> bool:
-
     return check_list_images_similarity(
         list_of_image_pairs,
         similarity_constraints=LORA_SIMILARITY_DEFAULTS,
@@ -180,7 +178,6 @@ def check_list_lora_images_similarity(
 def check_list_inference_images_similarity(
     list_of_image_pairs: Iterable[tuple[FilePathOrPILImage, FilePathOrPILImage]],
 ) -> bool:
-
     return check_list_images_similarity(
         list_of_image_pairs,
         similarity_constraints=INFERENCE_SIMILARITY_DEFAULTS,
@@ -192,37 +189,42 @@ def check_list_images_similarity(
     *,
     similarity_constraints: ImageSimilarityConstraints,
 ) -> bool:
-    all_results: list[ImageSimilarityResult] = []
+    all_results: list[tuple[tuple[FilePathOrPILImage, FilePathOrPILImage], ImageSimilarityResult]] = []
     for img1, img2 in list_of_image_pairs:
         image_similarity_result = check_image_similarity_pytest(
             img1,
             img2,
             similarity_constraints=similarity_constraints,
         )
-        all_results.append(image_similarity_result)
+        all_results.append(((img1, img2), image_similarity_result))
 
-    if all(result.result_code == ImageSimilarityResultCode.PASS for result in all_results):
+    if all(result[1].result_code == ImageSimilarityResultCode.PASS for result in all_results):
         return True
 
-    all_failed_results = [result for result in all_results if result.result_code == ImageSimilarityResultCode.FAIL]
-    all_skipped_results = [result for result in all_results if result.result_code == ImageSimilarityResultCode.SKIP]
+    all_failed_results = [result for result in all_results if result[1].result_code == ImageSimilarityResultCode.FAIL]
+    all_skipped_results = [result for result in all_results if result[1].result_code == ImageSimilarityResultCode.SKIP]
 
     complete_error_message = ""
 
     if len(all_failed_results) > 0:
-        for result in all_failed_results:
+        for img_pair, result in all_failed_results:
             complete_error_message += (
                 f"Image similarity check failed:\n"
                 f"cosine_similarity_result={result.cosine_similarity_result},\n"
                 f"histogram_distance_result={result.histogram_distance_result}\n"
             )
+            complete_error_message += f"img1={img_pair[0]}\n"
+            complete_error_message += f"img2={img_pair[1]}\n"
+        complete_error_message += "all_failed_results:\n"
     if len(all_skipped_results) > 0:
-        for result in all_skipped_results:
+        for img_pair, result in all_skipped_results:
             complete_error_message += (
                 f"Image similarity check skipped:\n"
                 f"cosine_similarity_result={result.cosine_similarity_result},\n"
                 f"histogram_distance_result={result.histogram_distance_result}\n"
             )
+            complete_error_message += f"img1={img_pair[0]}\n"
+            complete_error_message += f"img2={img_pair[1]}\n"
     if len(all_failed_results) > 0:
         pytest.fail(complete_error_message)
     elif len(all_skipped_results) > 0:

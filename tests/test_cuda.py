@@ -1,5 +1,4 @@
 # test_inference.py
-import pytest
 import torch
 
 

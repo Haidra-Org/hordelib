@@ -1,10 +1,11 @@
-import pytest
+import time
 
 from hordelib.settings import UserSettings
 from hordelib.utils.distance import (
     CosineSimilarityResultCode,
     HistogramDistanceResultCode,
 )
+from hordelib.utils.gpuinfo import GPUInfo, GPUInfoResult
 
 
 def test_worker_settings_singleton():
@@ -48,3 +49,16 @@ class TestImageDistance:
             if last_value is not None:
                 assert result_code < last_value, "HistogramDistanceResultCode values must be in *descending* order"
             last_value = result_code
+
+
+class TestGPUInfo:
+    def test_gpuinfo_init(self):
+        gpu = GPUInfo()
+        assert gpu is not None
+
+        info = gpu.get_info()
+        assert info is not None
+
+        assert info.vram_total[0] > 0
+        assert info.vram_free[0] > 0
+        assert info.vram_used[0] > 0

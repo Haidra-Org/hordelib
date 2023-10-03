@@ -51,10 +51,10 @@ class TestHordeTI:
     ):
         assert shared_model_manager.manager.ti
 
-        pil_image = hordelib_instance.basic_inference(basic_ti_payload_data)
+        pil_image = hordelib_instance.basic_inference_single_image(basic_ti_payload_data)
         assert pil_image is not None
         assert (
-            Path(os.path.join(shared_model_manager.manager.ti.modelFolderPath, "64870.safetensors")).exists() is True
+            Path(os.path.join(shared_model_manager.manager.ti.model_folder_path, "64870.safetensors")).exists() is True
         )
 
         img_filename = "ti_basic.png"
@@ -106,7 +106,7 @@ class TestHordeTI:
         assert "(embedding:7808:0.5)" in payload["negative_prompt.text"]
         assert "(embedding:64870:1.0)" in payload["negative_prompt.text"]
 
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
 
         img_filename = "ti_inject.png"
@@ -156,7 +156,7 @@ class TestHordeTI:
         assert "(embedding:7808:0.5)" in payload["negative_prompt.text"]
         assert "(embedding:64870:1.0)" in payload["negative_prompt.text"]
 
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
 
         img_filename = "ti_bad_inject.png"

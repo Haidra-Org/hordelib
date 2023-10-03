@@ -61,14 +61,13 @@ def add_model(model_name):
 
 
 def get_available_models():
-    models = SharedModelManager.manager.get_available_models()
-    return models
+    return SharedModelManager.manager.get_available_models()
 
 
 def do_inference(model_name, iterations=1):
     """Do some work on the GPU"""
     horde = HordeLib()
-    for i in range(iterations):
+    for _ in range(iterations):
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 7.5,
@@ -88,7 +87,7 @@ def do_inference(model_name, iterations=1):
             "n_iter": 1,
             "model": model_name,
         }
-        pil_image = horde.basic_inference(data)
+        pil_image = horde.basic_inference_single_image(data)
         if not pil_image:
             logger.error("Inference is failing to generate images")
         else:
@@ -127,7 +126,6 @@ def main():
     model_index = 0
     logger.info(f"Found {len(models)} available models")
     while model_index < len(models):
-
         # First we fill ram and vram
         logger.warning("Filling available memory")
         if model_index < len(models):
@@ -171,11 +169,11 @@ def main():
         if BACKGROUND_THREAD:
             time.sleep(60)
             break
-        else:
-            model = random.choice(models)
-            logger.info(f"Doing inference with model {model} ({len(models)} models loaded)")
-            do_inference(model)
-            count += 1
+
+        model = random.choice(models)
+        logger.info(f"Doing inference with model {model} ({len(models)} models loaded)")
+        do_inference(model)
+        count += 1
         if count > 20000:
             break
 

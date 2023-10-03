@@ -78,7 +78,7 @@ def apply_mediapipe(input_image, detect_pose = True, detect_hands = True):
             model_complexity=2,
             enable_segmentation=False,
             min_detection_confidence=0.5)
-    
+
     hands = mp_hands.Hands(
             static_image_mode=True,
             max_num_hands=8,

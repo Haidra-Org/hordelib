@@ -12,182 +12,181 @@ class TestModelManagerLora:
         assert os.getenv("TESTS_ONGOING") == "1"
 
     def test_downloading_default_sync(self):
-
-        mml = LoraModelManager(
+        lora_model_manager = LoraModelManager(
             download_wait=True,
             allowed_adhoc_lora_storage=1024,
         )
-        mml.download_default_loras(timeout=600)
-        assert mml.are_downloads_complete() is True
-        assert mml.calculate_downloaded_loras() > 0
-        mml.stop_all()
+        lora_model_manager.download_default_loras(timeout=600)
+        assert lora_model_manager.are_downloads_complete() is True
+        assert lora_model_manager.calculate_downloaded_loras() > 0
+        lora_model_manager.stop_all()
 
     def test_downloading_default_async(self):
-        mml = LoraModelManager(
+        lora_model_manager = LoraModelManager(
             download_wait=False,
             allowed_adhoc_lora_storage=1024,
         )
-        mml.download_default_loras()
-        assert mml.are_downloads_complete() is False
-        mml.wait_for_downloads(300)
-        assert mml.are_downloads_complete() is True
-        assert mml.calculate_downloaded_loras() > 0
-        mml.stop_all()
+        lora_model_manager.download_default_loras()
+        assert lora_model_manager.are_downloads_complete() is False
+        lora_model_manager.wait_for_downloads(300)
+        assert lora_model_manager.are_downloads_complete() is True
+        assert lora_model_manager.calculate_downloaded_loras() > 0
+        lora_model_manager.stop_all()
 
     def test_fuzzy_search(self):
-        mml = LoraModelManager(
+        lora_model_manager = LoraModelManager(
             download_wait=False,
             allowed_adhoc_lora_storage=1024,
         )
-        mml.download_default_loras()
-        mml.wait_for_downloads(600)
-        assert mml.fuzzy_find_lora_key("Glowing Runes") == "glowingrunesai"
-        assert mml.fuzzy_find_lora_key("Glowing Robots") is None
-        assert mml.fuzzy_find_lora_key("GlowingRobots") is None
-        assert mml.fuzzy_find_lora_key("GlowingRobotsAI") is None
-        assert mml.fuzzy_find_lora_key("blindbox/大概是盲盒") == "blindbox/da gai shi mang he"
-        assert mml.fuzzy_find_lora_key(25995) == "blindbox/da gai shi mang he"
-        assert mml.fuzzy_find_lora_key("25995") == "blindbox/da gai shi mang he"
-        assert mml.fuzzy_find_lora_key("大概是盲盒") == "blindbox/da gai shi mang he"
-        mml.stop_all()
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        assert lora_model_manager.fuzzy_find_lora_key("Glowing Runes") == "glowingrunesai"
+        assert lora_model_manager.fuzzy_find_lora_key("Glowing Robots") is None
+        assert lora_model_manager.fuzzy_find_lora_key("GlowingRobots") is None
+        assert lora_model_manager.fuzzy_find_lora_key("GlowingRobotsAI") is None
+        assert lora_model_manager.fuzzy_find_lora_key("blindbox/大概是盲盒") == "blindbox/da gai shi mang he"
+        assert lora_model_manager.fuzzy_find_lora_key(25995) == "blindbox/da gai shi mang he"
+        assert lora_model_manager.fuzzy_find_lora_key("25995") == "blindbox/da gai shi mang he"
+        assert lora_model_manager.fuzzy_find_lora_key("大概是盲盒") == "blindbox/da gai shi mang he"
+        lora_model_manager.stop_all()
 
     def test_lora_search(self):
-        mml = LoraModelManager(
+        lora_model_manager = LoraModelManager(
             download_wait=False,
             allowed_adhoc_lora_storage=1024,
         )
-        mml.download_default_loras()
-        mml.wait_for_downloads(600)
-        assert mml.get_lora_name("GlowingRunesAI") == "GlowingRunesAI"
-        assert mml.get_lora_name("GlowingRunes") == "GlowingRunesAI"
-        assert mml.get_lora_name("Glowing Runes") == "GlowingRunesAI"
-        assert len(mml.get_lora_triggers("GlowingRunesAI")) > 1
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        assert lora_model_manager.get_lora_name("GlowingRunesAI") == "GlowingRunesAI"
+        assert lora_model_manager.get_lora_name("GlowingRunes") == "GlowingRunesAI"
+        assert lora_model_manager.get_lora_name("Glowing Runes") == "GlowingRunesAI"
+        assert len(lora_model_manager.get_lora_triggers("GlowingRunesAI")) > 1
         # We can't rely on triggers not changing
-        assert mml.find_lora_trigger("GlowingRunesAI", "blue") is not None
-        assert "blue" in mml.find_lora_trigger("GlowingRunesAI", "blue").lower()
-        assert "red" in mml.find_lora_trigger("GlowingRunesAI", "red").lower()
-        assert mml.find_lora_trigger("GlowingRunesAI", "pale blue") is None  # This is too much to fuzz
-        assert mml.get_lora_name("Dra9onScaleAI") is not None
-        assert mml.get_lora_name("DragonScale") is not None
-        assert mml.get_lora_name("Dragon Scale AI") is not None
-        assert mml.find_lora_trigger("Dra9onScaleAI", "Dr490nSc4leAI") is not None
-        assert mml.find_lora_trigger("DragonScale", "DragonScaleAI") is not None
-        mml.stop_all()
+        assert lora_model_manager.find_lora_trigger("GlowingRunesAI", "blue") is not None
+        assert "blue" in lora_model_manager.find_lora_trigger("GlowingRunesAI", "blue").lower()
+        assert "red" in lora_model_manager.find_lora_trigger("GlowingRunesAI", "red").lower()
+        assert lora_model_manager.find_lora_trigger("GlowingRunesAI", "pale blue") is None  # This is too much to fuzz
+        assert lora_model_manager.get_lora_name("Dra9onScaleAI") is not None
+        assert lora_model_manager.get_lora_name("DragonScale") is not None
+        assert lora_model_manager.get_lora_name("Dragon Scale AI") is not None
+        assert lora_model_manager.find_lora_trigger("Dra9onScaleAI", "Dr490nSc4leAI") is not None
+        assert lora_model_manager.find_lora_trigger("DragonScale", "DragonScaleAI") is not None
+        lora_model_manager.stop_all()
 
     def test_lora_reference(self):
         download_amount = 1024
-        mml = LoraModelManager(
+        lora_model_manager = LoraModelManager(
             allowed_top_lora_storage=download_amount,
             download_wait=False,
             allowed_adhoc_lora_storage=1024,
         )
-        mml.download_default_loras()
-        mml.wait_for_downloads(600)
-        assert len(mml.model_reference) > 0
-        mml.stop_all()
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        assert len(lora_model_manager.model_reference) > 0
+        lora_model_manager.stop_all()
 
     def test_fetch_adhoc_lora(self):
-        mml = LoraModelManager(
+        lora_model_manager = LoraModelManager(
             download_wait=False,
             allowed_adhoc_lora_storage=1024,
         )
-        mml.download_default_loras()
-        mml.wait_for_downloads(600)
-        mml.wait_for_adhoc_reset(15)
-        mml.ensure_lora_deleted(22591)
-        lora_key = mml.fetch_adhoc_lora("22591")
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        lora_model_manager.wait_for_adhoc_reset(15)
+        lora_model_manager.ensure_lora_deleted(22591)
+        lora_key = lora_model_manager.fetch_adhoc_lora("22591")
         assert lora_key == "GAG - RPG Potions  |  LoRa 2.1".lower()
-        assert mml.is_local_model("GAG")
-        assert mml.is_local_model("22591")
-        assert mml.get_lora_name("22591") == "GAG - RPG Potions  |  LoRa 2.1"
-        mml.stop_all()
+        assert lora_model_manager.is_model_available("GAG")
+        assert lora_model_manager.is_model_available("22591")
+        assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  LoRa 2.1".lower()
+        lora_model_manager.stop_all()
 
     def test_reject_adhoc_nsfw_lora(self):
-        mml = LoraModelManager(
+        lora_model_manager = LoraModelManager(
             download_wait=False,
             allowed_adhoc_lora_storage=1024,
         )
         lora_id = 9155
-        mml.download_default_loras(nsfw=False)
-        mml.wait_for_downloads(300)
-        mml.wait_for_adhoc_reset(15)
-        mml.ensure_lora_deleted(lora_id)
-        lora_key = mml.fetch_adhoc_lora(lora_id)
-        assert mml.is_local_model(lora_id) is False
+        lora_model_manager.download_default_loras(nsfw=False)
+        lora_model_manager.wait_for_downloads(300)
+        lora_model_manager.wait_for_adhoc_reset(15)
+        lora_model_manager.ensure_lora_deleted(lora_id)
+        lora_key = lora_model_manager.fetch_adhoc_lora(lora_id)
+        assert lora_model_manager.is_model_available(lora_id) is False
         assert lora_key is None
-        mml.stop_all()
+        lora_model_manager.stop_all()
 
     def test_approve_adhoc_lora(self):
-        mml = LoraModelManager(
+        lora_model_manager = LoraModelManager(
             download_wait=False,
             allowed_adhoc_lora_storage=1024,
         )
-        mml.nsfw = False  # Testing that setting like this is ignored
+        lora_model_manager.nsfw = False  # Testing that setting like this is ignored
         lora_id = 9155
-        mml.download_default_loras(nsfw=True)
-        mml.wait_for_downloads(300)
-        mml.wait_for_adhoc_reset(15)
-        mml.ensure_lora_deleted(lora_id)
-        lora_key = mml.fetch_adhoc_lora(lora_id)
-        assert mml.is_local_model(lora_id) is True
+        lora_model_manager.download_default_loras(nsfw=True)
+        lora_model_manager.wait_for_downloads(300)
+        lora_model_manager.wait_for_adhoc_reset(15)
+        lora_model_manager.ensure_lora_deleted(lora_id)
+        lora_key = lora_model_manager.fetch_adhoc_lora(lora_id)
+        assert lora_model_manager.is_model_available(lora_id) is True
         assert lora_key is not None
-        mml.stop_all()
+        lora_model_manager.stop_all()
 
     def test_adhoc_non_existing(self):
-        mml = LoraModelManager(
+        lora_model_manager = LoraModelManager(
             download_wait=False,
             allowed_adhoc_lora_storage=1024,
         )
-        mml.download_default_loras()
-        mml.wait_for_downloads(600)
-        mml.wait_for_adhoc_reset(15)
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        lora_model_manager.wait_for_adhoc_reset(15)
         lora_name = (
             "__THIS SHOULD NOT EXIST. I SWEAR IF ONE OF YOU UPLOADS A LORA WITH THIS NAME I AM GOING TO BE UPSET!"
         )
-        lora_key = mml.fetch_adhoc_lora(lora_name)
+        lora_key = lora_model_manager.fetch_adhoc_lora(lora_name)
         assert lora_key is None
-        assert not mml.is_local_model(lora_name)
-        mml.stop_all()
+        assert not lora_model_manager.is_model_available(lora_name)
+        lora_model_manager.stop_all()
 
     ## Disabling this until I can figure out a better way to test these
     # def test_unused_loras(self):
-    #     mml = LoraModelManager(
+    #     lora_model_manager = LoraModelManager(
     #         download_wait=False,
     #         allowed_adhoc_lora_storage=1024,
     #     )
-    #     mml.download_default_loras()
-    #     mml.wait_for_downloads(600)
-    #     mml.wait_for_adhoc_reset(15)
-    #     assert mml.find_lora_from_filename("GlowingRunesAI.safetensors") == "glowingrunesai"
-    #     mml.stop_all()
-    #     mml = LoraModelManager(
+    #     lora_model_manager.download_default_loras()
+    #     lora_model_manager.wait_for_downloads(600)
+    #     lora_model_manager.wait_for_adhoc_reset(15)
+    #     assert lora_model_manager.find_lora_from_filename("GlowingRunesAI.safetensors") == "glowingrunesai"
+    #     lora_model_manager.stop_all()
+    #     lora_model_manager = LoraModelManager(
     #         download_wait=False,
     #         allowed_adhoc_lora_storage=100,
     #     )
-    #     assert mml._thread is None
-    #     mml.download_default_loras()
-    #     mml.wait_for_downloads(15)
-    #     mml.wait_for_adhoc_reset(15)
-    #     assert len(mml._adhoc_loras) > 0
-    #     assert mml.is_adhoc_cache_full()
-    #     assert mml.calculate_adhoc_loras_cache() > 100
-    #     assert mml.calculate_adhoc_loras_cache() < 300
-    #     unused_loras = mml.find_unused_loras()
+    #     assert lora_model_manager._thread is None
+    #     lora_model_manager.download_default_loras()
+    #     lora_model_manager.wait_for_downloads(15)
+    #     lora_model_manager.wait_for_adhoc_reset(15)
+    #     assert len(lora_model_manager._adhoc_loras) > 0
+    #     assert lora_model_manager.is_adhoc_cache_full()
+    #     assert lora_model_manager.calculate_adhoc_loras_cache() > 100
+    #     assert lora_model_manager.calculate_adhoc_loras_cache() < 300
+    #     unused_loras = lora_model_manager.find_unused_loras()
     #     assert len(unused_loras) > 0
     #     assert "glowingrunesai" not in unused_loras
     #     assert "dra9onscaleai" not in unused_loras
-    #     mml.stop_all()
-    #     mml = LoraModelManager(
+    #     lora_model_manager.stop_all()
+    #     lora_model_manager = LoraModelManager(
     #         allowed_top_lora_storage=500,
     #         download_wait=False,
     #         allowed_adhoc_lora_storage=100,
     #     )
-    #     assert mml._thread is None
-    #     mml.download_default_loras()
+    #     assert lora_model_manager._thread is None
+    #     lora_model_manager.download_default_loras()
     #     with pytest.raises(Exception):
-    #         mml.delete_unused_loras(0)
-    #     deleted_loras = mml.delete_unused_loras(15)
+    #         lora_model_manager.delete_unused_loras(0)
+    #     deleted_loras = lora_model_manager.delete_unused_loras(15)
     #     assert len(deleted_loras) > 0
-    #     mml.wait_for_adhoc_reset(15)
-    #     assert all("last_used" in lora for lora in mml.model_reference.values())
-    #     mml.stop_all()
+    #     lora_model_manager.wait_for_adhoc_reset(15)
+    #     assert all("last_used" in lora for lora in lora_model_manager.model_reference.values())
+    #     lora_model_manager.stop_all()

@@ -1,4 +1,3 @@
-import copy
 import glob
 import hashlib
 import json
@@ -6,7 +5,6 @@ import os
 import re
 import threading
 import time
-import typing
 from collections import deque
 from datetime import datetime, timedelta
 from enum import auto
@@ -35,7 +33,7 @@ TESTS_ONGOING = os.getenv("TESTS_ONGOING", "0") == "1"
 class TextualInversionModelManager(BaseModelManager):
     TI_API: str = "https://civitai.com/api/v1/models?types=TextualInversion&sort=Highest%20Rated&primaryFileOnly=true"
     HORDELING_API: str = "https://hordeling.aihorde.net/api/v1/embedding"
-    MAX_RETRIES: int = 10 if not TESTS_ONGOING else 1
+    MAX_RETRIES: int = 10 if not TESTS_ONGOING else 3
     MAX_DOWNLOAD_THREADS: int = 3
     """The number of threads to use for downloading (the max number of concurrent downloads)."""
     RETRY_DELAY: int = 5
@@ -76,7 +74,8 @@ class TextualInversionModelManager(BaseModelManager):
             models_db_path=models_db_path,
         )
 
-    def loadModelDatabase(self, list_models=False):
+    @override
+    def load_model_database(self) -> None:
         if self.model_reference:
             logger.info(
                 (
@@ -87,10 +86,16 @@ class TextualInversionModelManager(BaseModelManager):
             logger.info("Reloading model reference...")
 
         # TI are always stored to disk and the model reference created slowly through ad-hoc requests
-        os.makedirs(self.modelFolderPath, exist_ok=True)
+        os.makedirs(self.model_folder_path, exist_ok=True)
         if self.models_db_path.exists():
             try:
                 self.model_reference = json.loads((self.models_db_path).read_text())
+
+                for ti in self.model_reference.values():
+                    self._index_ids[ti["id"]] = ti["name"].lower().strip()
+                    orig_name = ti.get("orig_name", ti["name"]).lower().strip()
+                    self._index_orig_names[orig_name] = ti["name"].lower().strip()
+
                 logger.info("Loaded model reference from disk.")
             except json.JSONDecodeError:
                 logger.error(f"Could not load {self.models_db_name} model reference from disk! Bad JSON?")
@@ -154,6 +159,7 @@ class TextualInversionModelManager(BaseModelManager):
                 # Failed badly
                 logger.error(f"url '{url}' download failed {e}")
                 return None
+        return None
 
     def _get_more_items(self):
         if not self._data:
@@ -221,18 +227,18 @@ class TextualInversionModelManager(BaseModelManager):
         # If we don't have everything required, fail
         if ti["adhoc"] and not ti.get("sha256"):
             logger.debug(f"Rejecting Textual Inversion {ti.get('name')} because it doesn't have a sha256")
-            return
+            return None
         if not ti.get("filename") or not ti.get("url"):
             logger.debug(f"Rejecting Textual Inversion {ti.get('name')} because it doesn't have a url")
-            return
+            return None
         # We don't want to start downloading GBs of a single Textual Inversion.
         # We just ignore anything over 150Mb. Them's the breaks...
         if ti["adhoc"] and ti["size_kb"] > 20000:
             logger.debug(f"Rejecting Textual Inversion {ti.get('name')} because its size is over 20Mb.")
-            return
+            return None
         if ti["adhoc"] and ti["nsfw"] and not self.nsfw:
             logger.debug(f"Rejecting Textual Inversion {ti.get('name')} because worker is SFW.")
-            return
+            return None
         # Fixup A1111 centric triggers
         for i, trigger in enumerate(ti["triggers"]):
             if re.match("<ti:(.*):.*>", trigger):
@@ -262,7 +268,7 @@ class TextualInversionModelManager(BaseModelManager):
             while retries <= self.MAX_RETRIES:
                 try:
                     # Just before we download this file, check if we already have it
-                    filepath = os.path.join(self.modelFolderPath, ti["filename"])
+                    filepath = os.path.join(self.model_folder_path, ti["filename"])
                     hashpath = f"{os.path.splitext(filepath)[0]}.sha256"
                     logger.debug(f"Retrieving TI metadata from Hordeling for ID: {ti['filename']}")
                     hordeling_response = requests.get(f"{self.HORDELING_API}/{ti['id']}", timeout=5)
@@ -286,7 +292,7 @@ class TextualInversionModelManager(BaseModelManager):
                             with open(hashpath) as infile:
                                 try:
                                     hashdata = infile.read().split()[0]
-                                except (IndexError, OSError, IOError, PermissionError):
+                                except (IndexError, OSError, PermissionError):
                                     hashdata = ""
 
                             if not ti.get("sha256") or hashdata.lower() == ti["sha256"].lower():
@@ -324,7 +330,7 @@ class TextualInversionModelManager(BaseModelManager):
                             with open(filepath, "wb") as outfile:
                                 outfile.write(response.content)
                             # Save the hash file
-                            with open(hashpath, "wt") as outfile:
+                            with open(hashpath, "w") as outfile:
                                 outfile.write(f"{sha256} *{ti['filename']}")
 
                             # Shout about it
@@ -339,12 +345,12 @@ class TextualInversionModelManager(BaseModelManager):
                                     self.delete_oldest_ti()
                                 self.save_cached_reference_to_disk()
                             break
-                        else:
-                            # We will retry
-                            logger.debug(
-                                f"Downloaded Textual Inversion file {ti['filename']} didn't match hash. "
-                                f"Retry {retries}/{self.MAX_RETRIES}",
-                            )
+
+                        # We will retry
+                        logger.debug(
+                            f"Downloaded Textual Inversion file {ti['filename']} didn't match hash. "
+                            f"Retry {retries}/{self.MAX_RETRIES}",
+                        )
 
                 except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
                     # We will retry
@@ -406,7 +412,7 @@ class TextualInversionModelManager(BaseModelManager):
             del ti["adhoc"]
         self.model_reference[ti_key] = ti
         self._index_ids[ti["id"]] = ti_key
-        orig_name = ti.get("orig_name", ti["name"]).lower()
+        orig_name = ti.get("orig_name", ti["name"]).lower().strip()
         self._index_orig_names[orig_name] = ti_key
 
     def wait_for_downloads(self, timeout=None):
@@ -445,25 +451,25 @@ class TextualInversionModelManager(BaseModelManager):
         if sname in self.model_reference:
             return sname
         if sname in self._index_orig_names:
-            return self._index_orig_names[sname]
+            return self._index_orig_names[sname].lower().strip()
         if Sanitizer.has_unicode(sname):
             for ti in self._index_orig_names:
                 if sname in ti:
-                    return self._index_orig_names[ti]
+                    return self._index_orig_names[ti].lower().strip()
             # If a unicode name is not found in the orig_names index
             # it won't be found anywhere else, as unicode chars are converted to ascii in the keys
             # This saves us time doing unnecessary fuzzy searches
             return None
         for ti in self.model_reference:
             if sname in ti:
-                return ti
+                return ti.lower().strip()
         for ti in self.model_reference:
             if fuzz.ratio(sname, ti) > 80:
-                return ti
+                return ti.lower().strip()
         return None
 
     # Using `get_model` instead of `get_ti` as it exists in the base class
-    def get_model(self, model_name: str) -> dict | None:
+    def get_model_reference_info(self, model_name: str) -> dict | None:
         """Returns the actual ti details dict for the specified model_name search string
         Returns None if ti name not found"""
         ti_name = self.fuzzy_find_ti_key(model_name)
@@ -474,7 +480,7 @@ class TextualInversionModelManager(BaseModelManager):
     def get_ti_filename(self, model_name: str):
         """Returns the actual ti filename for the specified model_name search string
         Returns None if ti name not found"""
-        ti = self.get_model(model_name)
+        ti = self.get_model_reference_info(model_name)
         if not ti:
             return None
         return ti["filename"]
@@ -482,7 +488,7 @@ class TextualInversionModelManager(BaseModelManager):
     def get_ti_name(self, model_name: str):
         """Returns the actual ti name for the specified model_name search string
         Returns None if ti name not found"""
-        ti = self.get_model(model_name)
+        ti = self.get_model_reference_info(model_name)
         if not ti:
             return None
         return ti["name"]
@@ -490,7 +496,7 @@ class TextualInversionModelManager(BaseModelManager):
     def get_ti_id(self, model_name: str):
         """Returns the civitai ti ID for the specified model_name search string
         Returns None if ti name not found"""
-        ti = self.get_model(model_name)
+        ti = self.get_model_reference_info(model_name)
         if not ti:
             return None
         return ti["id"]
@@ -499,7 +505,7 @@ class TextualInversionModelManager(BaseModelManager):
         """Returns a list of triggers for a specified ti name
         Returns an empty list if no triggers are found
         Returns None if ti name not found"""
-        ti = self.get_model(model_name)
+        ti = self.get_model_reference_info(model_name)
         if not ti:
             return None
         triggers = ti.get("triggers")
@@ -526,7 +532,7 @@ class TextualInversionModelManager(BaseModelManager):
         return None
 
     def save_cached_reference_to_disk(self):
-        with open(self.models_db_path, "wt", encoding="utf-8", errors="ignore") as outfile:
+        with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
             outfile.write(json.dumps(self.model_reference, indent=4))
 
     def calculate_downloaded_tis(self, mode=DOWNLOAD_SIZE_CHECK.everything):
@@ -578,7 +584,7 @@ class TextualInversionModelManager(BaseModelManager):
         return None
 
     def find_unused_tis(self):
-        files = glob.glob(f"{self.modelFolderPath}/*.safetensors")
+        files = glob.glob(f"{self.model_folder_path}/*.safetensors")
         filesnames = set()
         for stfile in files:
             filename = os.path.basename(stfile)
@@ -604,7 +610,7 @@ class TextualInversionModelManager(BaseModelManager):
         return tis_to_delete
 
     def delete_ti_files(self, ti_filename: str):
-        filename = os.path.join(self.modelFolderPath, ti_filename)
+        filename = os.path.join(self.model_folder_path, ti_filename)
         if not os.path.exists(filename):
             logger.warning(f"Could not find Textual Inversion file on disk to delete: {filename}")
             return
@@ -612,15 +618,32 @@ class TextualInversionModelManager(BaseModelManager):
         logger.info(f"Deleted Textual Inversion file: {filename}")
 
     def delete_ti(self, ti_name: str):
-        ti_info = self.get_model(ti_name)
+        ti_info = self.get_model_reference_info(ti_name)
         if not ti_info:
             logger.warning(f"Could not find ti {ti_name} to delete")
             return
+
         self.delete_ti_files(ti_info["filename"])
-        self._adhoc_tis.remove(ti_name)
-        del self._index_ids[ti_info["id"]]
-        del self._index_orig_names[ti_info["orig_name"].lower()]
-        del self.model_reference[ti_name]
+
+        if ti_name in self._adhoc_tis:
+            self._adhoc_tis.remove(ti_name)
+        else:
+            logger.warning(f"Could not find ti {ti_name} in adhoc tis to delete")
+
+        if ti_info["id"] in self._index_ids:
+            del self._index_ids[ti_info["id"]]
+        else:
+            logger.warning(f"Could not find ti {ti_name} in id index to delete")
+
+        if ti_info["orig_name"].lower() in self._index_orig_names:
+            del self._index_orig_names[ti_info["orig_name"].lower()]
+        else:
+            logger.warning(f"Could not find ti {ti_name} in orig_name index to delete")
+
+        if ti_name in self.model_reference:
+            del self.model_reference[ti_name]
+        else:
+            logger.warning(f"Could not find ti {ti_name} in model_reference to delete")
         self.save_cached_reference_to_disk()
 
     def ensure_ti_deleted(self, ti_name: str):
@@ -674,7 +697,7 @@ class TextualInversionModelManager(BaseModelManager):
         and also initiates a refresh
         Else returns False
         """
-        ti_details = self.get_model(ti_name)
+        ti_details = self.get_model_reference_info(ti_name)
         if not ti_details:
             return True
         refresh = False
@@ -712,7 +735,7 @@ class TextualInversionModelManager(BaseModelManager):
 
     def touch_ti(self, ti_name):
         """Updates the "last_used" key in a ti entry to current UTC time"""
-        ti = self.get_model(ti_name)
+        ti = self.get_model_reference_info(ti_name)
         if not ti:
             logger.warning(f"Could not find ti {ti_name} to touch")
             return
@@ -720,7 +743,7 @@ class TextualInversionModelManager(BaseModelManager):
 
     def get_ti_last_use(self, ti_name):
         """Returns a dateimte object based on the "last_used" key in a ti entry"""
-        ti = self.get_model(ti_name)
+        ti = self.get_model_reference_info(ti_name)
         if not ti:
             logger.warning(f"Could not find ti {ti_name} to get last use")
             return None
@@ -758,7 +781,8 @@ class TextualInversionModelManager(BaseModelManager):
 
     def do_baselines_match(self, ti_name, model_details):
         self._check_for_refresh(ti_name)
-        lota_details = self.get_model(ti_name)
+        lota_details = self.get_model_reference_info(ti_name)
+        return True  # FIXME
         if not lota_details:
             logger.warning(f"Could not find ti {ti_name} to check baselines")
             return False
@@ -771,30 +795,6 @@ class TextualInversionModelManager(BaseModelManager):
     @override
     def is_local_model(self, model_name):
         return self.fuzzy_find_ti_key(model_name) is not None
-
-    @override
-    def load(
-        self,
-        model_name: str,
-        *,
-        half_precision: bool = True,
-        gpu_id: int | None = 0,
-        cpu_only: bool = False,
-        **kwargs,
-    ) -> bool | None:
-        error = "load is not supported for Textual Inversions"
-        logger.error(error)
-        raise NotImplementedError(error)
-
-    @override
-    def modelToRam(
-        self,
-        model_name: str,
-        **kwargs,
-    ) -> dict[str, typing.Any]:
-        error = "modelToRam is not supported for Textual Inversions"
-        logger.error(error)
-        raise NotImplementedError(error)
 
     def get_available_models(self):
         """

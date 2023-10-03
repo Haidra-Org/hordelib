@@ -11,7 +11,7 @@ List of my comfyUI node repos: https://github.com/Fannovel16/FN16-ComfyUI-nodes 
 * Fixed https://github.com/Fannovel16/comfy_controlnet_preprocessors/issues/20
 * Fixed typo at ##Nodes
 
-## Model Dependencies 
+## Model Dependencies
 The total disk's free space needed if all models are downloaded is ~1.58 GB. <br>
 All models will be downloaded to `comfy_controlnet_preprocessors/ckpts`
 * network-bsds500.pth (hed): 56.1 MB
@@ -34,7 +34,7 @@ cd comfy_controlnet_preprocessors
 ```
 Next, run install.py. It will download all models by default. <br>
 Add `--no_download_ckpts` to not download any model. <br>
-When a preprocessor node runs, if it can't find the models it need, that models will be downloaded automatically. 
+When a preprocessor node runs, if it can't find the models it need, that models will be downloaded automatically.
 For directly-cloned ComfyUI repo:
 ```
 python install.py
@@ -75,7 +75,7 @@ All preprocessor nodes take an image, usually came from LoadImage node and outpu
 ## Citation
 ### Original ControlNet repo
     @misc{zhang2023adding,
-      title={Adding Conditional Control to Text-to-Image Diffusion Models}, 
+      title={Adding Conditional Control to Text-to-Image Diffusion Models},
       author={Lvmin Zhang and Maneesh Agrawala},
       year={2023},
       eprint={2302.05543},

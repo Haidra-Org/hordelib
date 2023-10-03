@@ -1,16 +1,13 @@
 # test_horde.py
-import os
 
-import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
 
 from .testing_shared_functions import check_single_inference_image_similarity
 
 
-class TestHordeInference:
+class TestHordeInferenceImg2Img:
     def test_image_to_image(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -37,13 +34,92 @@ class TestHordeInference:
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
 
         img_filename = "image_to_image.png"
         pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+    def test_image_to_image_tiling(
+        self,
+        stable_diffusion_model_name_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1,
+            "seed": 666,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": True,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a dinosaur",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": stable_diffusion_model_name_for_testing,
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+        }
+        pil_image = hordelib_instance.basic_inference_single_image(data)
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+        assert pil_image.size == (512, 512)
+
+        img_filename = "image_to_image_tiling.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+    def test_sdxl_image_to_image(
+        self,
+        hordelib_instance: HordeLib,
+        sdxl_1_0_base_model_name: str,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.7,
+            "seed": 666,
+            "height": 1024,
+            "width": 1024,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a dinosaur man",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": sdxl_1_0_base_model_name,
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+        }
+        pil_image = hordelib_instance.basic_inference_single_image(data)
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+
+        img_filename = "sdxl_image_to_image.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert pil_image.size == (1024, 1024)
 
         assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
@@ -76,7 +152,7 @@ class TestHordeInference:
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
@@ -116,7 +192,7 @@ class TestHordeInference:
             "source_processing": "img2img",
         }
         assert hordelib_instance is not None
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (768, 768)
@@ -130,6 +206,7 @@ class TestHordeInference:
     def test_img2img_masked_denoise_1(
         self,
         stable_diffusion_model_name_for_testing: str,
+        sdxl_1_0_base_model_name: str,
         hordelib_instance: HordeLib,
     ):
         data = {
@@ -148,7 +225,8 @@ class TestHordeInference:
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference(data)
+
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
@@ -182,7 +260,7 @@ class TestHordeInference:
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
@@ -216,7 +294,7 @@ class TestHordeInference:
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
@@ -250,12 +328,46 @@ class TestHordeInference:
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
 
         img_filename = "img2img_to_masked_denoise_0.2.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+    def test_sdxl_img2img_masked_denoise_95(
+        self,
+        sdxl_1_0_base_model_name: str,
+        hordelib_instance: HordeLib,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.95,
+            "seed": 3,
+            "height": 1024,
+            "width": 1024,
+            "karras": False,
+            "clip_skip": 1,
+            "prompt": "a mecha robot sitting on a bench",
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": sdxl_1_0_base_model_name,
+            "source_image": Image.open("images/test_img2img_alpha.png"),
+            "source_processing": "img2img",
+        }
+        pil_image = hordelib_instance.basic_inference_single_image(data)
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+        assert pil_image.size == (1024, 1024)
+
+        img_filename = "sdxl_img2img_to_masked_denoise_0.95.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
         assert check_single_inference_image_similarity(
@@ -289,7 +401,7 @@ class TestHordeInference:
             "source_image": "THIS SHOULD FAILOVER TO TEXT2IMG",
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 

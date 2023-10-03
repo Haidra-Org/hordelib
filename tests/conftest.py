@@ -1,13 +1,19 @@
-from typing import Generator
+import os
+from collections.abc import Generator
+from pathlib import Path
 
 import PIL.Image
 import pytest
-from loguru import logger
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.horde import HordeLib
-from hordelib.model_manager.compvis import CompVisModelManager
-from hordelib.shared_model_manager import ALL_MODEL_MANAGER_TYPES, SharedModelManager
+from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES
+from hordelib.shared_model_manager import SharedModelManager
+
+
+@pytest.fixture(scope="function", autouse=True)
+def line_break():
+    print()
 
 
 @pytest.fixture(scope="session")
@@ -16,9 +22,16 @@ def init_horde():
     You must call this fixture if your test uses a module which imports `hordelib.comfy_horde`. You will usually
     see a characteristic RuntimeError exception if you forget to call this fixture, but you may also see an
     import error from within comfy if your code does not instantiate the `Comfy_Horde` class."""
+    assert os.getenv("TESTS_ONGOING")
+
+    examples_path = Path(__file__).parent.parent / "images_expected"
+    assert (
+        examples_path.exists() and examples_path.is_dir()
+    ), "The `images_expected` directory must exist. You can find in in the github repo."
+
     import hordelib
 
-    hordelib.initialise()
+    hordelib.initialise(setup_logging=True, logging_verbosity=5)
     from hordelib.settings import UserSettings
 
     UserSettings.set_ram_to_leave_free_mb("100%")
@@ -35,7 +48,7 @@ def isolated_comfy_horde_instance(init_horde) -> Comfy_Horde:
     return Comfy_Horde()
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="session")
 def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedModelManager], None, None]:
     SharedModelManager()
     SharedModelManager.load_model_managers(ALL_MODEL_MANAGER_TYPES)
@@ -43,18 +56,25 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager()._instance is not None
     assert SharedModelManager.manager is not None
     assert SharedModelManager.manager.codeformer is not None
+    assert SharedModelManager.manager.codeformer.download_all_models()
     assert SharedModelManager.manager.compvis is not None
+
+    assert SharedModelManager.manager.download_model("Deliberate")
+    assert SharedModelManager.manager.validate_model("Deliberate")
+    assert SharedModelManager.manager.download_model("SDXL 1.0")
+    assert SharedModelManager.manager.validate_model("SDXL 1.0")
+
     assert SharedModelManager.manager.controlnet is not None
+    assert SharedModelManager.manager.controlnet.download_all_models()
+    assert SharedModelManager.preload_annotators()
     assert SharedModelManager.manager.esrgan is not None
+    assert SharedModelManager.manager.esrgan.download_all_models()
     assert SharedModelManager.manager.gfpgan is not None
+    assert SharedModelManager.manager.gfpgan.download_all_models()
     assert SharedModelManager.manager.safety_checker is not None
+    assert SharedModelManager.manager.safety_checker.download_all_models()
     assert SharedModelManager.manager.lora is not None
     assert SharedModelManager.manager.ti is not None
-    assert SharedModelManager.manager.blip is not None
-    assert SharedModelManager.manager.clip is not None
-
-    for model_availible in SharedModelManager.manager.compvis.get_loaded_models():
-        assert SharedModelManager.manager.unload_model(model_availible)
 
     yield SharedModelManager
 
@@ -65,14 +85,14 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
 _testing_model_name = "Deliberate"
 
 
-@pytest.fixture(scope="class")
+@pytest.fixture(scope="session")
 def stable_diffusion_model_name_for_testing(shared_model_manager: type[SharedModelManager]) -> str:
-    """Loads the stable diffusion model for testing. This model is used by many tests.
-    This fixture returns the model name as string."""
-    shared_model_manager.load_model_managers([CompVisModelManager])
-
-    assert shared_model_manager.manager.load(_testing_model_name)
     return _testing_model_name
+
+
+@pytest.fixture(scope="session")
+def sdxl_1_0_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    return "SDXL 1.0"
 
 
 @pytest.fixture(scope="session")
@@ -85,29 +105,21 @@ def real_image() -> PIL.Image.Image:
     return PIL.Image.open("images/test_annotator.jpg")
 
 
-# TODO
-# @pytest.fixture(scope="function")
-#    yield
-#    assert SharedModelManager.manager.loaded_models
-
-
 def pytest_collection_modifyitems(items):
     """Modifies test items to ensure test modules run in a given order."""
     MODULES_TO_RUN_FIRST = [
-        "test_packaging_errors",
+        "tests.meta.test_packaging_errors",
         "tests.test_initialisation",
         "tests.test_cuda",
         "tests.test_utils",
         "tests.test_comfy_install",
         "tests.test_comfy",
         "tests.test_payload_mapping",
-        "test_shared_model_manager",
-        "test_mm_lora",
-        "test_mm_ti",
+        "tests.model_managers.test_shared_model_manager",
+        "tests.test_mm_lora",
+        "tests.test_mm_ti",
     ]
     MODULES_TO_RUN_LAST = [
-        "test.test_blip",
-        "test.test_clip",
         "tests.test_inference",
         "tests.test_horde_inference",
         "tests.test_horde_inference_img2img",

@@ -1,7 +1,6 @@
 # This tests running hordelib standalone, as an external caller would use it.
 # Call with: python -m test.run_img2img_outpaint
 # You need all the deps in whatever environment you are running this.
-import os
 
 import hordelib
 from hordelib.consts import MODEL_CATEGORY_NAMES
@@ -40,7 +39,7 @@ def main():
         "source_image": Image.open("images/test_outpaint.png"),
         "source_processing": "outpainting",
     }
-    pil_image = generate.basic_inference(data)
+    pil_image = generate.basic_inference_single_image(data)
     pil_image.save("images/run_img2img_outpaint.webp", quality=90)
 
 

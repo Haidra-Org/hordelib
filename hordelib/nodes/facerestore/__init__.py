@@ -62,10 +62,7 @@ def tensor2img(tensor, rgb2bgr=True, out_type=np.uint8, min_max=(0, 1)):
         (Tensor or list): 3D ndarray of shape (H x W x C) OR 2D ndarray of
         shape (H x W). The channel order is BGR.
     """
-    if not (
-        torch.is_tensor(tensor)
-        or (isinstance(tensor, list) and all(torch.is_tensor(t) for t in tensor))
-    ):
+    if not (torch.is_tensor(tensor) or (isinstance(tensor, list) and all(torch.is_tensor(t) for t in tensor))):
         raise TypeError(f"tensor or list of tensors expected, got {type(tensor)}")
 
     if torch.is_tensor(tensor):
@@ -77,9 +74,7 @@ def tensor2img(tensor, rgb2bgr=True, out_type=np.uint8, min_max=(0, 1)):
 
         n_dim = _tensor.dim()
         if n_dim == 4:
-            img_np = make_grid(
-                _tensor, nrow=int(math.sqrt(_tensor.size(0))), normalize=False
-            ).numpy()
+            img_np = make_grid(_tensor, nrow=int(math.sqrt(_tensor.size(0))), normalize=False).numpy()
             img_np = img_np.transpose(1, 2, 0)
             if rgb2bgr:
                 img_np = cv2.cvtColor(img_np, cv2.COLOR_RGB2BGR)
@@ -94,10 +89,7 @@ def tensor2img(tensor, rgb2bgr=True, out_type=np.uint8, min_max=(0, 1)):
         elif n_dim == 2:
             img_np = _tensor.numpy()
         else:
-            raise TypeError(
-                "Only support 4D, 3D or 2D tensor. "
-                f"But received with dimension: {n_dim}"
-            )
+            raise TypeError("Only support 4D, 3D or 2D tensor. " f"But received with dimension: {n_dim}")
         if out_type == np.uint8:
             # Unlike MATLAB, numpy.unit8() WILL NOT round by default.
             img_np = (img_np * 255.0).round()
@@ -109,7 +101,6 @@ def tensor2img(tensor, rgb2bgr=True, out_type=np.uint8, min_max=(0, 1)):
 
 
 class FaceRestoreWithModel:
-    _mutex = threading.Lock()
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -135,84 +126,77 @@ class FaceRestoreWithModel:
 
     def restore_face(self, upscale_model, image, facedetection):
         # logger.warning(f"mutex:{id(FaceRestoreWithModel._mutex):x} Facerestore with upscale_model {id(upscale_model):x} and detection model {id(facedetection):x} and image {id(image):x}")
-        with FaceRestoreWithModel._mutex:
+        # with FaceRestoreWithModel._mutex:
+        # facedetection = copy.deepcopy(facedetection)
 
-            # facedetection = copy.deepcopy(facedetection)
+        device = model_management.get_torch_device()
+        upscale_model.to(device)
+        face_helper = FaceRestoreHelper(
+            1,
+            face_size=512,
+            crop_ratio=(1, 1),
+            det_model=facedetection,
+            save_ext="png",
+            use_parse=True,
+            device=device,
+        )
 
-            device = model_management.get_torch_device()
-            upscale_model.to(device)
-            face_helper = FaceRestoreHelper(
-                1,
-                face_size=512,
-                crop_ratio=(1, 1),
-                det_model=facedetection,
-                save_ext="png",
-                use_parse=True,
-                device=device,
+        image_np = 255.0 * image.cpu().numpy().squeeze()
+
+        image_np = image_np[:, :, ::-1]
+
+        original_resolution = image_np.shape[0:2]
+
+        if upscale_model is None or face_helper is None:
+            return image
+
+        face_helper.clean_all()
+        face_helper.read_image(image_np)
+        face_helper.get_face_landmarks_5(only_center_face=False, resize=640, eye_dist_threshold=5)
+        face_helper.align_warp_face()
+        restored_face = None
+
+        for idx, cropped_face in enumerate(face_helper.cropped_faces):
+            cropped_face_t = img2tensor(cropped_face / 255.0, bgr2rgb=True, float32=True)
+            normalize(cropped_face_t, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True)
+            cropped_face_t = cropped_face_t.unsqueeze(0).to(device)
+
+            try:
+                with torch.no_grad():
+                    # output = upscale_model(cropped_face_t, w=strength, adain=True)[0]
+                    output = upscale_model(cropped_face_t)[0]
+                    restored_face = tensor2img(output, rgb2bgr=True, min_max=(-1, 1))
+                del output
+                # torch.cuda.empty_cache()
+            except Exception as error:
+                logger.error(f"Failed inference for CodeFormer: {error}")
+                restored_face = tensor2img(cropped_face_t, rgb2bgr=True, min_max=(-1, 1))
+
+            restored_face = restored_face.astype("uint8")
+            face_helper.add_restored_face(restored_face)
+
+        face_helper.get_inverse_affine(None)
+
+        restored_img = face_helper.paste_faces_to_input_image()
+        restored_img = restored_img[:, :, ::-1]
+
+        if original_resolution != restored_img.shape[0:2]:
+            restored_img = cv2.resize(
+                restored_img,
+                (0, 0),
+                fx=original_resolution[1] / restored_img.shape[1],
+                fy=original_resolution[0] / restored_img.shape[0],
+                interpolation=cv2.INTER_LINEAR,
             )
 
-            image_np = 255.0 * image.cpu().numpy().squeeze()
+        face_helper.clean_all()
 
-            image_np = image_np[:, :, ::-1]
+        # restored_img = cv2.cvtColor(restored_face, cv2.COLOR_BGR2RGB)
 
-            original_resolution = image_np.shape[0:2]
+        restored_img_np = np.array(restored_img).astype(np.float32) / 255.0
+        restored_img_tensor = torch.from_numpy(restored_img_np).unsqueeze(0)
 
-            if upscale_model is None or face_helper is None:
-                return image
-        
-            face_helper.clean_all()
-            face_helper.read_image(image_np)
-            face_helper.get_face_landmarks_5(
-                only_center_face=False, resize=640, eye_dist_threshold=5
-            )
-            face_helper.align_warp_face()
-            restored_face = None
-
-            for idx, cropped_face in enumerate(face_helper.cropped_faces):
-                cropped_face_t = img2tensor(
-                    cropped_face / 255.0, bgr2rgb=True, float32=True
-                )
-                normalize(cropped_face_t, (0.5, 0.5, 0.5), (0.5, 0.5, 0.5), inplace=True)
-                cropped_face_t = cropped_face_t.unsqueeze(0).to(device)
-
-                try:
-                    with torch.no_grad():
-                        # output = upscale_model(cropped_face_t, w=strength, adain=True)[0]
-                        output = upscale_model(cropped_face_t)[0]
-                        restored_face = tensor2img(output, rgb2bgr=True, min_max=(-1, 1))
-                    del output
-                    # torch.cuda.empty_cache()
-                except Exception as error:
-                    logger.error(f"Failed inference for CodeFormer: {error}")
-                    restored_face = tensor2img(
-                        cropped_face_t, rgb2bgr=True, min_max=(-1, 1)
-                    )
-
-                restored_face = restored_face.astype("uint8")
-                face_helper.add_restored_face(restored_face)
-
-            face_helper.get_inverse_affine(None)
-
-            restored_img = face_helper.paste_faces_to_input_image()
-            restored_img = restored_img[:, :, ::-1]
-
-            if original_resolution != restored_img.shape[0:2]:
-                restored_img = cv2.resize(
-                    restored_img,
-                    (0, 0),
-                    fx=original_resolution[1] / restored_img.shape[1],
-                    fy=original_resolution[0] / restored_img.shape[0],
-                    interpolation=cv2.INTER_LINEAR,
-                )
-
-            face_helper.clean_all()
-
-            # restored_img = cv2.cvtColor(restored_face, cv2.COLOR_BGR2RGB)
-
-            restored_img_np = np.array(restored_img).astype(np.float32) / 255.0
-            restored_img_tensor = torch.from_numpy(restored_img_np).unsqueeze(0)
-
-            return (restored_img_tensor,)
+        return (restored_img_tensor,)
 
 
 NODE_CLASS_MAPPINGS = {

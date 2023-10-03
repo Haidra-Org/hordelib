@@ -1,7 +1,5 @@
 # test_horde.py
-import os
 import typing
-from enum import Enum, auto
 
 import PIL.Image
 import pytest
@@ -64,7 +62,6 @@ class TestHordeUpscaling:
         post_process_function: typing.Callable[[dict], PIL.Image.Image | None],
         similarity_constraints: ImageSimilarityConstraints | None = None,
     ):
-
         if similarity_constraints is None:
             similarity_constraints = ImageSimilarityConstraints(
                 cosine_fail_floor=CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL,
@@ -72,8 +69,8 @@ class TestHordeUpscaling:
                 histogram_fail_threshold=HistogramDistanceResultCode.VERY_DISSIMILAR_DISTRIBUTION,
                 histogram_warn_threshold=HistogramDistanceResultCode.SIMILAR_DISTRIBUTION,
             )
-        assert cls.shared_model_manager.manager.load(model_name)
-        assert cls.shared_model_manager.manager.is_model_loaded(model_name) is True
+        assert cls.shared_model_manager.manager.download_model(model_name)
+        assert cls.shared_model_manager.manager.is_model_available(model_name) is True
 
         data: dict = (
             custom_data
@@ -92,13 +89,6 @@ class TestHordeUpscaling:
             upscaled_image=pil_image,
             factor=expected_scale_factor,
         )
-
-        assert cls.shared_model_manager.manager.unload_model(model_name)
-        assert cls.shared_model_manager.manager.esrgan
-        assert cls.shared_model_manager.manager.esrgan.is_model_loaded(model_name) is False
-
-        # It is important this is done after the model is unloaded, otherwise if a skip occurs
-        # the models will be left in memory.
 
         assert check_image_similarity_pytest(
             f"images_expected/{image_filename}",

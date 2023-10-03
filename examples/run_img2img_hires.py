@@ -1,14 +1,12 @@
 # This tests running hordelib standalone, as an external caller would use it.
 # Call with: python -m test.run_img2img_hires
 # You need all the deps in whatever environment you are running this.
-import os
 
 import hordelib
 from hordelib.consts import MODEL_CATEGORY_NAMES
 
 
 def main():
-
     hordelib.initialise()
 
     from PIL import Image
@@ -40,7 +38,7 @@ def main():
         "model": "Deliberate",
         "source_image": Image.open("images/test_db0.jpg"),
     }
-    pil_image = generate.basic_inference(data)
+    pil_image = generate.basic_inference_single_image(data)
     pil_image.save("images/run_img2img_hires.webp", quality=90)
 
 

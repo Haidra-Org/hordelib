@@ -1,5 +1,4 @@
-import os
-from typing import Generator
+from collections.abc import Generator
 
 import pytest
 from PIL import Image
@@ -19,11 +18,10 @@ class TestHordeInference:
         """Loads the inpainting model for testing.
         This fixture returns the (str) model name."""
         model_name = "Deliberate Inpainting"
-        if not shared_model_manager.manager.load(model_name):
+        if not shared_model_manager.manager.download_model(model_name):
             shared_model_manager.manager.download_model(model_name)
-            assert shared_model_manager.manager.load(model_name)
+        assert shared_model_manager.manager.is_model_available(model_name)
         yield model_name
-        assert shared_model_manager.manager.unload_model(model_name)
 
     def test_inpainting_alpha_mask(
         self,
@@ -51,7 +49,7 @@ class TestHordeInference:
             "source_image": Image.open("images/test_inpaint_alpha.png"),
             "source_processing": "inpainting",
         }
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
 
         img_filename = "inpainting_mask_alpha.png"
@@ -92,7 +90,7 @@ class TestHordeInference:
             "source_mask": Image.open("images/test_inpaint_mask.png"),
             "source_processing": "inpainting",
         }
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
 
         img_filename = "inpainting_mask_separate.png"
@@ -132,7 +130,7 @@ class TestHordeInference:
             "source_image": Image.open("images/test_inpaint.png"),
             "source_processing": "inpainting",
         }
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
 
         assert isinstance(pil_image, Image.Image)
@@ -173,7 +171,7 @@ class TestHordeInference:
             "source_image": Image.open("images/test_outpaint.png"),
             "source_processing": "outpainting",
         }
-        pil_image = hordelib_instance.basic_inference(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data)
 
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)

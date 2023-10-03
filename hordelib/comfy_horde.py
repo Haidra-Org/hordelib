@@ -16,6 +16,7 @@ import random
 import threading
 from pprint import pformat
 import requests
+import psutil
 
 import torch
 from loguru import logger
@@ -60,18 +61,27 @@ from hordelib.config_path import get_hordelib_path
 # Having read this, I suggest you glance at the code in `hordelib.initialise()` to get a sense of what is going on
 # there, and if you're still confused, ask a hordelib dev who would be happy to share the burden of understanding.
 
+_comfy_load_models_gpu: types.FunctionType
+_comfy_current_loaded_models: list = None  # type: ignore
 
 _comfy_nodes: types.ModuleType
-_comfy_PromptExecutor: types.ModuleType
+_comfy_PromptExecutor: typing.Any
 _comfy_validate_prompt: types.FunctionType
-_comfy_folder_paths: types.ModuleType
+
+_comfy_folder_names_and_paths: dict[str, tuple[list[str], list[str] | set[str]]]
+_comfy_supported_pt_extensions: set[str]
+
 _comfy_load_checkpoint_guess_config: types.FunctionType
-_comfy_load_controlnet: types.FunctionType
-_comfy_model_manager: types.ModuleType | None = None
+
 _comfy_get_torch_device: types.FunctionType
 _comfy_get_free_memory: types.FunctionType
+_comfy_get_total_memory: types.FunctionType
 _comfy_load_torch_file: types.FunctionType
 _comfy_model_loading: types.ModuleType
+_comfy_free_memory: types.FunctionType
+_comfy_cleanup_models: types.FunctionType
+_comfy_soft_empty_cache: types.FunctionType
+
 _canny: types.ModuleType
 _hed: types.ModuleType
 _leres: types.ModuleType
@@ -84,173 +94,124 @@ _uniformer: types.ModuleType
 
 # isort: off
 def do_comfy_import():
-    global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt, _comfy_folder_paths
-    global _comfy_load_checkpoint_guess_config, _comfy_load_controlnet, _comfy_model_manager
-    global _comfy_get_torch_device, _comfy_get_free_memory, _comfy_load_torch_file, _comfy_model_loading
+    global _comfy_current_loaded_models
+    global _comfy_load_models_gpu
+    global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt
+    global _comfy_folder_names_and_paths, _comfy_supported_pt_extensions
+    global _comfy_load_checkpoint_guess_config
+    global _comfy_get_torch_device, _comfy_get_free_memory, _comfy_get_total_memory
+    global _comfy_load_torch_file, _comfy_model_loading
+    global _comfy_free_memory, _comfy_cleanup_models, _comfy_soft_empty_cache
     global _canny, _hed, _leres, _midas, _mlsd, _openpose, _pidinet, _uniformer
 
     # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
     # that they should never call through this module into comfy directly. All calls into
     # comfy should be abstracted through functions in this module.
+    output_collector = OutputCollector()
+    with contextlib.redirect_stdout(output_collector), contextlib.redirect_stderr(output_collector):
+        from execution import nodes as _comfy_nodes
+        from execution import PromptExecutor as _comfy_PromptExecutor
+        from execution import validate_prompt as _comfy_validate_prompt
+        from folder_paths import folder_names_and_paths as _comfy_folder_names_and_paths  # type: ignore
+        from folder_paths import supported_pt_extensions as _comfy_supported_pt_extensions  # type: ignore
+        from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config
+        from comfy.model_management import current_loaded_models as _comfy_current_loaded_models
+        from comfy.model_management import load_models_gpu as _comfy_load_models_gpu
+        from comfy.model_management import get_torch_device as _comfy_get_torch_device
+        from comfy.model_management import get_free_memory as _comfy_get_free_memory
+        from comfy.model_management import get_total_memory as _comfy_get_total_memory
+        from comfy.model_management import free_memory as _comfy_free_memory
+        from comfy.model_management import cleanup_models as _comfy_cleanup_models
+        from comfy.model_management import soft_empty_cache as _comfy_soft_empty_cache
+        from comfy.utils import load_torch_file as _comfy_load_torch_file
+        from comfy_extras.chainner_models import model_loading as _comfy_model_loading  # type: ignore
+        from hordelib.nodes.comfy_controlnet_preprocessors import (
+            canny as _canny,
+            hed as _hed,
+            leres as _leres,
+            midas as _midas,
+            mlsd as _mlsd,
+            openpose as _openpose,
+            pidinet as _pidinet,
+            uniformer as _uniformer,
+        )
 
-    from execution import nodes as _comfy_nodes  # type: ignore
-    from execution import PromptExecutor as _comfy_PromptExecutor  # type: ignore
-    from execution import validate_prompt as _comfy_validate_prompt  # type: ignore
-    from folder_paths import folder_names_and_paths as _comfy_folder_paths  # type: ignore
-    from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config  # type: ignore
-    from comfy.sd import load_controlnet as _comfy_load_controlnet  # type: ignore
-    from comfy.model_management import model_manager as _comfy_model_manager  # type: ignore
-    from comfy.model_management import get_torch_device as _comfy_get_torch_device  # type: ignore
-    from comfy.model_management import get_free_memory as _comfy_get_free_memory  # type: ignore
-    from comfy.utils import load_torch_file as _comfy_load_torch_file  # type: ignore
-    from comfy_extras.chainner_models import model_loading as _comfy_model_loading  # type: ignore
-    from hordelib.nodes.comfy_controlnet_preprocessors import (
-        canny as _canny,  # type: ignore
-        hed as _hed,  # type: ignore
-        leres as _leres,  # type: ignore
-        midas as _midas,  # type: ignore
-        mlsd as _mlsd,  # type: ignore
-        openpose as _openpose,  # type: ignore
-        pidinet as _pidinet,  # type: ignore
-        uniformer as _uniformer,  # type: ignore
-    )
+        import comfy.model_management
+
+        comfy.model_management.vram_state = comfy.model_management.VRAMState.LOW_VRAM
+        comfy.model_management.set_vram_to = comfy.model_management.VRAMState.LOW_VRAM
+
+        def always_cpu(parameters, dtype):
+            return torch.device("cpu")
+
+        comfy.model_management.unet_inital_load_device = always_cpu
+        comfy.model_management.DISABLE_SMART_MEMORY = True
+
+        total_vram = get_torch_total_vram_mb()
+        total_ram = psutil.virtual_memory().total / (1024 * 1024)
+        free_ram = psutil.virtual_memory().available / (1024 * 1024)
+
+        free_vram = get_torch_free_vram_mb()
+
+        logger.debug(f"Total VRAM {total_vram:0.0f} MB, Total System RAM {total_ram:0.0f} MB")
+        logger.debug(f"Free VRAM {free_vram:0.0f} MB, Free System RAM {free_ram:0.0f} MB")
+    output_collector.replay()
 
 
 # isort: on
 
-__models_to_release: dict[str, dict[str, typing.Any]] = {}
-__model_load_mutex = threading.Lock()
-
 
 def cleanup():
-    locked = _comfy_model_manager.sampler_mutex.acquire(timeout=0)  # type: ignore
-    if locked:
-        # Do we have any models waiting to be released?
-        if not __models_to_release:
-            _comfy_model_manager.sampler_mutex.release()  # type: ignore
-            return
+    logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
 
-        # Can we release any of them?
-        for model_name, model_data in __models_to_release.copy().items():
-            if is_model_in_use(model_data["model"]):
-                # We're in the middle of using it, nothing we can do
-                continue
-            # Unload the model from the GPU
-            logger.debug(f"Unloading {model_name} from GPU")
-            unload_model_from_gpu(model_data["model"])
-            # Free ram
-            if "model" in model_data:
-                del model_data["model"]
-            if "clip" in model_data:
-                del model_data["clip"]
-            if "vae" in model_data:
-                del model_data["vae"]
-            if "clipVisionModel" in model_data:
-                del model_data["clipVisionModel"]
-            del model_data
-            with __model_load_mutex:
-                del __models_to_release[model_name]
-            gc.collect()
-            logger.debug(f"Removal of model {model_name} completed")
-
-        _comfy_model_manager.sampler_mutex.release()  # type: ignore
+    _comfy_soft_empty_cache()
+    logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
 
 
-def remove_model_from_memory(model_name, model_data):
-    logger.debug(f"Comfy_Horde received request to unload {model_name}")
-    with __model_load_mutex:
-        if model_name not in __models_to_release:
-            logger.debug(f"Model {model_name} queued for GPU/RAM unload")
-            __models_to_release[model_name] = model_data
+def unload_all_models_vram():
+    from hordelib.shared_model_manager import SharedModelManager
+
+    logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
+    # _comfy_free_memory(_comfy_get_total_memory(), _comfy_get_torch_device())
+    with torch.no_grad():
+        for model in _comfy_current_loaded_models:
+            model.model_unload()
+        _comfy_soft_empty_cache()
+    logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
 
 
-def get_models_on_gpu():
-    return _comfy_model_manager.get_models_on_gpu()  # type: ignore
+def unload_all_models_ram():
+    from hordelib.shared_model_manager import SharedModelManager
+
+    SharedModelManager.manager._models_in_ram = {}
+    logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
+    with torch.no_grad():
+        _comfy_free_memory(_comfy_get_total_memory(), _comfy_get_torch_device())
+        _comfy_cleanup_models()
+        _comfy_soft_empty_cache()
+    logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
 
 
 def get_torch_device():
     return _comfy_get_torch_device()
 
 
+def get_torch_total_vram_mb():
+    return round(_comfy_get_total_memory() / (1024 * 1024))
+
+
 def get_torch_free_vram_mb():
     return round(_comfy_get_free_memory() / (1024 * 1024))
 
 
-def unload_model_from_gpu(model):
-    _comfy_model_manager.unload_model(model)  # type: ignore
-    garbage_collect()
-
-
 def garbage_collect():
+    logger.debug("Comfy_Horde garbage_collect called")
     gc.collect()
     if not torch.cuda.is_available():
-        return None
+        return
     if torch.version.cuda:
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
-
-
-def load_model_to_gpu(model):
-    # Don't bother if there isn't any space
-    if not _comfy_model_manager.have_free_vram():  # type: ignore
-        return
-    # Load the model to the GPU. This would normally be done just before
-    # the model is used for sampling, the caller must want more free ram.
-    return _comfy_model_manager.load_model_gpu(model)  # type: ignore
-
-
-def is_model_in_use(model):
-    return _comfy_model_manager.is_model_in_use(model)  # type: ignore
-
-
-def load_torch_file(filename):
-    result = _comfy_load_torch_file(filename)
-    return result
-
-
-def load_state_dict(state_dict):
-    result = _comfy_model_loading.load_state_dict(state_dict)
-    return result
-
-
-def horde_load_checkpoint(
-    ckpt_path: str,
-    output_vae: bool = True,
-    output_clip: bool = True,
-    embeddings_path: str | None = None,
-) -> dict[str, typing.Any]:  # XXX # FIXME 'any'
-    # XXX Needs docstring
-    # XXX # TODO One day this signature should be generic, and not comfy specific
-    # XXX # This can remain a comfy call, but the rest of the code should be able
-    # XXX # to pretend it isn't
-    # Redirect IO
-    try:
-        stdio = OutputCollector()
-        with contextlib.redirect_stdout(stdio):
-            (modelPatcher, clipModel, vae, clipVisionModel) = _comfy_load_checkpoint_guess_config(
-                ckpt_path=ckpt_path,
-                output_vae=output_vae,
-                output_clip=output_clip,
-                embedding_directory=embeddings_path,
-            )
-    except RuntimeError:
-        # Failed, hard to tell why, bad checkpoint, not enough ram, for example
-        raise
-
-    return {
-        "model": modelPatcher,
-        "clip": clipModel,
-        "vae": vae,
-        "clipVisionModel": clipVisionModel,
-    }
-
-
-def horde_load_controlnet(controlnet_path: str, target_model):  # XXX Needs docstring
-    # Redirect IO
-    stdio = OutputCollector()
-    with contextlib.redirect_stdout(stdio):
-        controlnet = _comfy_load_controlnet(ckpt_path=controlnet_path, model=target_model)
-    return controlnet
 
 
 class Comfy_Horde:
@@ -263,82 +224,51 @@ class Comfy_Horde:
     # which our custom nodes don't allow.
     NODE_REPLACEMENTS = {
         "CheckpointLoaderSimple": "HordeCheckpointLoader",
-        "UpscaleModelLoader": "HordeUpscaleModelLoader",
+        # "UpscaleModelLoader": "HordeUpscaleModelLoader",
         "SaveImage": "HordeImageOutput",
         "LoadImage": "HordeImageLoader",
-        "DiffControlNetLoader": "HordeDiffControlNetLoader",
-        "LoraLoader": "HordeLoraLoader",
+        # "DiffControlNetLoader": "HordeDiffControlNetLoader",
+        # "LoraLoader": "HordeLoraLoader",
     }
+    """A mapping of ComfyUI node types to Horde node types."""
 
     # We may wish some ComfyUI standard nodes had different names for consistency. Here
     # we can dynamically rename some node input parameter names.
-    NODE_PARAMETER_REPLACEMENTS = {
-        "HordeCheckpointLoader": {
-            # We name this "model_name" as then we can use the same generic code in our model loaders
-            "ckpt_name": "model_name",
-        },
+    NODE_PARAMETER_REPLACEMENTS: dict[str, dict[str, str]] = {
+        #     "HordeCheckpointLoader": {
+        #         # We name this "model_name" as then we can use the same generic code in our model loaders
+        #         "ckpt_name": "model_name",
+        #     },
     }
+    """A mapping of ComfyUI node types which map to a dictionary of node input parameter names to rename."""
 
-    # Approximate number of seconds to force garbage collection
     GC_TIME = 30
+    """The approximate number of seconds to force garbage collection."""
 
-    _property_mutex = threading.Lock()
+    pipelines: dict
+    images: list[dict[str, typing.Any]]
 
-    # We maintain one "client_id" per thread
-    @property
-    def client_id(self):
-        with Comfy_Horde._property_mutex:
-            tid = threading.current_thread().ident
-            return self._client_id.get(tid)
+    def __init__(
+        self,
+        *,
+        comfyui_callback: typing.Callable[[str, dict, str], None] | None = None,
+    ) -> None:
+        """Initialise the Comfy_Horde object.
 
-    @client_id.setter
-    def client_id(self, client_id):
-        with Comfy_Horde._property_mutex:
-            tid = threading.current_thread().ident
-            self._client_id[tid] = client_id
-
-    # We maintain one "images" for outputs per thread
-    @property
-    def images(self):
-        with Comfy_Horde._property_mutex:
-            tid = threading.current_thread().ident
-            images = self._images.get(tid)
-            if tid in self._images:
-                del self._images[tid]
-            return images
-
-    @images.setter
-    def images(self, images):
-        with Comfy_Horde._property_mutex:
-            tid = threading.current_thread().ident
-            self._images[tid] = images
-
-    def __init__(self) -> None:
-        if _comfy_model_manager is None:
+        This must be called before using any of the functions in this module as it sets critical ComfyUI
+        globals and settings.
+        """
+        if _comfy_current_loaded_models is None:
             raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
-        self._client_id = {}  # type: ignore
-        self._images = {}  # type: ignore
-        self.pipelines = {}  # type: ignore
-        self._model_locks = []  # type: ignore
-        self._model_lock_mutex = threading.Lock()
+        self.pipelines = {}
         self._exit_time = 0
         self._callers = 0
         self._gc_timer = time.time()
         self._counter_mutex = threading.Lock()
 
-        # These set the default paths for comfyui to look for models and embeddings. From within hordelib,
-        # we aren't ever going to use the default ones, and this may help lubricate any further changes.
-        _comfy_folder_paths["lora"] = (  # type: ignore
-            [os.path.join(UserSettings.get_model_directory(), "loras")],
-            [".safetensors"],
-        )
-        _comfy_folder_paths["embeddings"] = (  # type: ignore
-            [os.path.join(UserSettings.get_model_directory(), "ti")],
-            [".safetensors"],
-        )
+        # Set comfyui paths for checkpoints, loras, etc
+        self._set_comfyui_paths()
 
-        # Set custom node path
-        _comfy_folder_paths["custom_nodes"] = ([os.path.join(get_hordelib_path(), "nodes")], [])  # type: ignore
         # Load our pipelines
         self._load_pipelines()
 
@@ -348,45 +278,86 @@ class Comfy_Horde:
             self._load_custom_nodes()
         stdio.replay()
 
-    def lock_models(self, model_names):
-        """Lock the given model, or list of models.
+        self._comfyui_callback = comfyui_callback
 
-        Return True if the models could be locked, False indicates they are in use already
-        """
-        already_locked = False
-        with self._model_lock_mutex:
-            if isinstance(model_names, str):
-                model_names = [model_names]
-            for model in model_names:
-                if model in self._model_locks:
-                    already_locked = True
-                    break
-            if not already_locked:
-                self._model_locks.extend(model_names)
+    def _set_comfyui_paths(self) -> None:
+        # These set the default paths for comfyui to look for models and embeddings. From within hordelib,
+        # we aren't ever going to use the default ones, and this may help lubricate any further changes.
+        _comfy_folder_names_and_paths["loras"] = (
+            [
+                _comfy_folder_names_and_paths["loras"][0][0],
+                str(UserSettings.get_model_directory() / "lora"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
+        _comfy_folder_names_and_paths["embeddings"] = (
+            [
+                _comfy_folder_names_and_paths["embeddings"][0][0],
+                str(UserSettings.get_model_directory() / "ti"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
 
-        return not already_locked
+        _comfy_folder_names_and_paths["checkpoints"] = (
+            [
+                _comfy_folder_names_and_paths["checkpoints"][0][0],
+                str(UserSettings.get_model_directory() / "compvis"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
 
-    def unlock_models(self, model_names):
-        """The reverse of _lock_models(). Although this can never fail so returns nothing."""
-        with self._model_lock_mutex:
-            if isinstance(model_names, str):
-                model_names = [model_names]
-            for model in model_names:
-                if model in self._model_locks:
-                    self._model_locks.remove(model)
+        _comfy_folder_names_and_paths["upscale_models"] = (
+            [
+                _comfy_folder_names_and_paths["upscale_models"][0][0],
+                str(UserSettings.get_model_directory() / "esrgan"),
+                str(UserSettings.get_model_directory() / "gfpgan"),
+                str(UserSettings.get_model_directory() / "codeformer"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
+
+        _comfy_folder_names_and_paths["controlnet"] = (
+            [
+                _comfy_folder_names_and_paths["controlnet"][0][0],
+                str(UserSettings.get_model_directory() / "controlnet"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
+
+        # Set custom node path
+        _comfy_folder_names_and_paths["custom_nodes"] = (
+            [
+                _comfy_folder_names_and_paths["custom_nodes"][0][0],
+                str(get_hordelib_path() / "nodes"),
+            ],
+            [],
+        )
 
     def _this_dir(self, filename: str, subdir="") -> str:
+        """Return the path to a file in the same directory as this file.
+
+        Args:
+            filename (str): The filename to return the path to.
+            subdir (str, optional): The subdirectory to look in. Defaults to "".
+
+        Returns:
+            str: The path to the file.
+        """
         target_dir = os.path.dirname(os.path.realpath(__file__))
         if subdir:
             target_dir = os.path.join(target_dir, subdir)
         return os.path.join(target_dir, filename)
 
     def _load_custom_nodes(self) -> None:
+        """Force ComfyUI to load its normal custom nodes and the horde custom nodes."""
         _comfy_nodes.init_custom_nodes()
 
-    def _get_executor(self, pipeline):
-        executor = _comfy_PromptExecutor(self)  # type: ignore
-        return executor
+    def _get_executor(self):
+        """Return the ComfyUI PromptExecutor object."""
+        # This class (`Comfy_Horde`) uses duck typing to intercept calls intended for
+        # ComfyUI's `PromptServer` class. In particular, it intercepts calls to
+        # `PromptServer.send_sync`. See `Comfy_Horde.send_sync` for more details.
+        return _comfy_PromptExecutor(self)
 
     def get_pipeline_data(self, pipeline_name):
         pipeline_data = copy.deepcopy(self.pipelines.get(pipeline_name, {}))
@@ -395,6 +366,14 @@ class Comfy_Horde:
         return pipeline_data
 
     def _fix_pipeline_types(self, data: dict) -> dict:
+        """Replace comfyui standard node types with hordelib node types.
+
+        Args:
+            data (dict): The pipeline data.
+
+        Returns:
+            dict: The pipeline resulting from the replacement.
+        """
         # We have a list of nodes and each node has a class type, which we may want to change
         for nodename, node in data.items():
             if ("class_type" in node) and (node["class_type"] in Comfy_Horde.NODE_REPLACEMENTS):
@@ -411,12 +390,21 @@ class Comfy_Horde:
                 for oldname, newname in Comfy_Horde.NODE_PARAMETER_REPLACEMENTS[node["class_type"]].items():
                     if "inputs" in node and oldname in node["inputs"]:
                         node["inputs"][newname] = node["inputs"][oldname]
-                        del node["inputs"][oldname]
-                logger.debug(f"Renamed node input {nodename}.{oldname} to {newname}")  # type: ignore # FIXME
+                        # del node["inputs"][oldname]
+                logger.debug(f"Renamed node input {nodename}.{oldname} to {newname}")
 
         return data
 
     def _fix_node_names(self, data: dict, design: dict) -> dict:
+        """Rename nodes to the "title" set in the design file.
+
+        Args:
+            data (dict): The pipeline data.
+            design (dict): The design data.
+
+        Returns:
+            dict: The pipeline resulting from the renaming.
+        """
         # We have a list of nodes, attempt to rename them to the "title" set
         # in the design file. These must be unique names.
         newnodes = {}
@@ -430,6 +418,7 @@ class Comfy_Horde:
                     break
             renames[nodename] = newname
             newnodes[newname] = oldnode
+
         # Now we've renamed the node names, change any references to them also
         for node in newnodes.values():
             if "inputs" in node:
@@ -453,39 +442,53 @@ class Comfy_Horde:
     # Note also that the format of the design files from web app is expected to change at a fast
     # pace. This is why the only thing that partially relies on that format, is in fact, optional.
     def _patch_pipeline(self, data: dict, design: dict) -> dict:
+        """Patch the pipeline data with the design data."""
         # First replace comfyui standard types with hordelib node types
         data = self._fix_pipeline_types(data)
         # Now try to find better parameter names
-        data = self._fix_node_names(data, design)
-        return data
+        return self._fix_node_names(data, design)
 
     def _load_pipeline(self, filename: str) -> bool | None:
+        """
+        Load a single inference pipeline from a file.
+
+        Args:
+            filename (str): The path to the pipeline file.
+
+        Returns:
+            bool | None: True if the pipeline was loaded successfully, False if it was not, None if there was an error.
+        """
+        # Check if the file exists
         if not os.path.exists(filename):
             logger.error(f"No such inference pipeline file: {filename}")
             return None
 
         try:
+            # Open the pipeline file
             with open(filename) as jsonfile:
-                pipeline_name_rematches = re.match(r".*pipeline_(.*)\.json", filename)
-                if pipeline_name_rematches is None:
+                # Extract the pipeline name from the filename
+                pipeline_name_regex_matches = re.match(r".*pipeline_(.*)\.json", filename)
+                if pipeline_name_regex_matches is None:
                     logger.error(f"Regex parsing failed for: {filename}")
                     return None
 
-                pipeline_name = pipeline_name_rematches[1]
-                data = json.loads(jsonfile.read())
-                # Do we have a design file for this pipeline?
-                design = os.path.join(
+                pipeline_name = pipeline_name_regex_matches[1]
+                # Load the pipeline data from the file
+                pipeline_data = json.loads(jsonfile.read())
+                # Check if there is a design file for this pipeline
+                pipeline_design = os.path.join(
                     os.path.dirname(os.path.dirname(filename)),
                     "pipeline_designs",
                     os.path.basename(filename),
                 )
-                # If we do have a design pipeline, use it to patch the pipeline we loaded.
-                if os.path.exists(design):
+                # If there is a design file, patch the pipeline data with it
+                if os.path.exists(pipeline_design):
                     logger.debug(f"Patching pipeline {pipeline_name}")
-                    with open(design) as designfile:
-                        designdata = json.loads(designfile.read())
-                    data = self._patch_pipeline(data, designdata)
-                self.pipelines[pipeline_name] = data
+                    with open(pipeline_design) as design_file:
+                        design_data = json.loads(design_file.read())
+                    pipeline_data = self._patch_pipeline(pipeline_data, design_data)
+                # Add the pipeline data to the pipelines dictionary
+                self.pipelines[pipeline_name] = pipeline_data
                 logger.debug(f"Loaded inference pipeline: {pipeline_name}")
                 return True
         except (OSError, ValueError):
@@ -493,6 +496,11 @@ class Comfy_Horde:
             return None
 
     def _load_pipelines(self) -> int:
+        """Load all of the inference pipelines from the pipelines directory matching `pipeline_*.json`.
+
+        Returns:
+            int: The number of pipelines loaded.
+        """
         files = glob.glob(self._this_dir("pipeline_*.json", subdir="pipelines"))
         loaded_count = 0
         for file in files:
@@ -500,9 +508,13 @@ class Comfy_Horde:
                 loaded_count += 1
         return loaded_count
 
-    # Inject parameters into a pre-configured pipeline
-    # We allow "inputs" to be missing from the key name, if it is we insert it.
     def _set(self, dct, **kwargs) -> None:
+        """Set the named parameter to the named value in the pipeline template.
+
+        Allows inputs to be missing from the key name, if it is we insert it.
+        """
+        num_skipped = 0
+
         for key, value in kwargs.items():
             keys = key.split(".")
             skip = False
@@ -512,8 +524,9 @@ class Comfy_Horde:
 
             for k in keys[:-1]:
                 if k not in current:
-                    logger.debug(f"Attempt to set unknown pipeline parameter {key}")
+                    # logger.debug(f"Attempt to set parameter not defined in this template: {key}")
                     skip = True
+                    num_skipped += 1
                     break
 
                 current = current[k]
@@ -524,12 +537,13 @@ class Comfy_Horde:
                         f"Attempt to set parameter CREATED parameter '{key}'",
                     )
                 current[keys[-1]] = value
+        logger.debug(f"Attempted to set {len(kwargs)} parameters, skipped {num_skipped}")
 
     # Connect the named input to the named node (output).
     # Used for dynamic switching of pipeline graphs
     @classmethod
     def reconnect_input(cls, dct, input, output):
-        logger.debug(f"Request to reconnect input {input} to output {output}")
+        # logger.debug(f"Request to reconnect input {input} to output {output}")
 
         # First check the output even exists
         if output not in dct.keys():
@@ -553,37 +567,44 @@ class Comfy_Horde:
         current[0] = output
         return True
 
+    _comfyui_callback: typing.Callable[[str, dict, str], None] | None = None
+
     # This is the callback handler for comfy async events.
-    def send_sync(self, label, data, _id):
+    def send_sync(self, label: str, data: dict, _id: str) -> None:
         # Get receive image outputs via this async mechanism
         if "output" in data and "images" in data["output"]:
             self.images = data["output"]["images"]
             logger.debug("Received output image(s) from comfyui")
         else:
-            logger.debug(f"{label}, {data}, {_id}")
+            if self._comfyui_callback is not None:
+                self._comfyui_callback(label, data, _id)
+
+            if label != "executing":
+                logger.debug(f"{label}, {data}, {_id}")
+            else:
+                node_name = data.get("node", "")
+                logger.debug(f"{label} comfyui node: {node_name}")
+                if node_name == "vae_decode":
+                    logger.info("Decoding image from VAE. This may take a while for large images.")
 
     # Execute the named pipeline and pass the pipeline the parameter provided.
     # For the horde we assume the pipeline returns an array of images.
-    def _run_pipeline(self, pipeline: dict, params: dict) -> dict | None:
-        if _comfy_model_manager is None:
+    def _run_pipeline(self, pipeline: dict, params: dict) -> list[dict] | None:
+        if _comfy_current_loaded_models is None:
             raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
-
-        # Update user settings
-        _comfy_model_manager.set_user_reserved_vram(UserSettings.get_vram_to_leave_free_mb())
-        _comfy_model_manager.set_batch_optimisations(UserSettings.enable_batch_optimisations.active)
 
         # Set the pipeline parameters
         self._set(pipeline, **params)
 
-        # Create (or retrieve) our prompt executive
-        inference = self._get_executor(pipeline)
+        # Create (or retrieve) our prompt executor
+        inference = self._get_executor()
 
         # This is useful for dumping the entire pipeline to the terminal when
         # developing and debugging new pipelines. A badly structured pipeline
         # file just results in a cryptic error from comfy
         pretty_pipeline = pformat(pipeline)
         if False:  # This isn't here Tazlin :)
-            logger.error(pretty_pipeline)
+            logger.warning(pretty_pipeline)
 
         # The client_id parameter here is just so we receive comfy callbacks for debugging.
         # We pretend we are a web client and want async callbacks.
@@ -592,7 +613,7 @@ class Comfy_Horde:
             # validate_prompt from comfy returns [bool, str, list]
             # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
             self.client_id = str(uuid.uuid4())
-            valid = _comfy_validate_prompt(pipeline, True)
+            valid = _comfy_validate_prompt(pipeline)
             inference.execute(pipeline, self.client_id, {"client_id": self.client_id}, valid[2])
 
         stdio.replay()
@@ -606,7 +627,7 @@ class Comfy_Horde:
         return self.images
 
     # Run a pipeline that returns an image in pixel space
-    def run_image_pipeline(self, pipeline, params: dict) -> list[dict] | None:
+    def run_image_pipeline(self, pipeline, params: dict) -> list[dict[str, typing.Any]]:
         # From the horde point of view, let us assume the output we are interested in
         # is always in a HordeImageOutput node named "output_image". This is an array of
         # dicts of the form:
@@ -624,7 +645,7 @@ class Comfy_Horde:
             # Sanity
             if not pipeline_data:
                 logger.error(f"Unknown inference pipeline: {pipeline}")
-                return None
+                raise ValueError("Unknown inference pipeline")
         else:
             pipeline_data = pipeline
 
@@ -634,21 +655,12 @@ class Comfy_Horde:
             if idle_time > 1 and UserSettings.enable_idle_time_warning.active:
                 logger.warning(f"No job ran for {round(idle_time, 3)} seconds")
 
-        # We have just been entered
-        with self._counter_mutex:
-            self._callers += 1
-
         result = self._run_pipeline(pipeline_data, params)
 
-        # We are being exited
-        with self._counter_mutex:
-            self._exit_time = time.time()  # type: ignore
-            self._callers -= 1
-
         if result:
-            return result  # type: ignore
+            return result
 
-        return None
+        raise RuntimeError("Pipeline failed to run")
 
 
 ANNOTATOR_MODEL_SHA_LOOKUP: dict[str, str] = {

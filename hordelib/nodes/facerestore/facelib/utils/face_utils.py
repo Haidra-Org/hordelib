@@ -9,12 +9,8 @@ def compute_increased_bbox(bbox, increase_area, preserve_aspect=True):
     height = bot - top
 
     if preserve_aspect:
-        width_increase = max(
-            increase_area, ((1 + 2 * increase_area) * height - width) / (2 * width)
-        )
-        height_increase = max(
-            increase_area, ((1 + 2 * increase_area) * width - height) / (2 * height)
-        )
+        width_increase = max(increase_area, ((1 + 2 * increase_area) * height - width) / (2 * width))
+        height_increase = max(increase_area, ((1 + 2 * increase_area) * width - height) / (2 * height))
     else:
         width_increase = height_increase = increase_area
     left = int(left - width_increase * width)
@@ -238,9 +234,7 @@ def paste_face_back(img, face, inverse_affine):
     # compute the fusion edge based on the area of face
     w_edge = int(total_face_area**0.5) // 20
     erosion_radius = w_edge * 2
-    inv_mask_center = cv2.erode(
-        inv_mask_erosion, np.ones((erosion_radius, erosion_radius), np.uint8)
-    )
+    inv_mask_center = cv2.erode(inv_mask_erosion, np.ones((erosion_radius, erosion_radius), np.uint8))
     blur_size = w_edge * 2
     inv_soft_mask = cv2.GaussianBlur(inv_mask_center, (blur_size + 1, blur_size + 1), 0)
     img = inv_soft_mask * inv_restored_remove_border + (1 - inv_soft_mask) * img
@@ -255,7 +249,7 @@ if __name__ == "__main__":
     from facerestore.facelib.utils.face_restoration_helper import get_largest_face
 
     img_path = "/home/wxt/datasets/ffhq/ffhq_wild/00009.png"
-    img_name = os.splitext(os.path.basename(img_path))[0]
+    img_name = os.path.splitext(os.path.basename(img_path))[0]
 
     # initialize model
     det_net = init_detection_model("retinaface_resnet50", half=False)
@@ -264,9 +258,7 @@ if __name__ == "__main__":
     # if larger than 800, scale it
     scale = max(h / 800, w / 800)
     if scale > 1:
-        img = cv2.resize(
-            img_ori, (int(w / scale), int(h / scale)), interpolation=cv2.INTER_LINEAR
-        )
+        img = cv2.resize(img_ori, (int(w / scale), int(h / scale)), interpolation=cv2.INTER_LINEAR)
 
     with torch.no_grad():
         bboxes = det_net.detect_faces(img, 0.97)

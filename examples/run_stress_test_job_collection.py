@@ -361,7 +361,7 @@ def run_iterations():
         job_num = random.randint(0, len(ACTIVE_JOBS) - 1)
         data = copy.deepcopy(ACTIVE_JOBS[job_num])
         logger.info(f"Starting job {next_job}")
-        pil_image = generate.basic_inference(data)
+        pil_image = generate.basic_inference_single_image(data)
         logger.info(f"Ended job {next_job}")
         if pil_image:
             pil_image.save(
@@ -371,7 +371,7 @@ def run_iterations():
         else:
             with open(
                 f"{out_dir}/{data['desc']}-group_{job_num}-it_{i}_total_{next_job}-{threading.current_thread().ident}.txt",
-                "wt",
+                "w",
             ) as f:
                 f.write("failed")
 

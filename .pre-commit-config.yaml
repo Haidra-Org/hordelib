@@ -1,0 +1,22 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+    -   id: check-yaml
+    -   id: end-of-file-fixer
+    -   id: trailing-whitespace
+-   repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+    -   id: black
+        exclude: ^hordelib/nodes/.*\..*$
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.0.282
+    hooks:
+    -    id: ruff
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: 'v1.4.1'
+    hooks:
+    -   id: mypy
+        exclude: ^examples/.*$ # FIXME
+        additional_dependencies: [pydantic, strenum, types-colorama, types-docutils, types-Pillow, types-psutil, types-Pygments, types-pywin32, types-PyYAML, types-regex, types-requests, types-setuptools, types-tabulate, types-tqdm, types-urllib3]

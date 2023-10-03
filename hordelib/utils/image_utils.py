@@ -1,5 +1,6 @@
 from loguru import logger
 from PIL import Image, ImageOps, PngImagePlugin, UnidentifiedImageError
+import rembg  # type: ignore
 
 
 class ImageUtils:
@@ -75,12 +76,12 @@ class ImageUtils:
         # Check if the provided image is an instance of the PIL.Image.Image class
         if not isinstance(image, Image.Image):
             logger.warning("Bad image passed to shrink_image")
-            return
+            return None
 
         # If both width and height are not specified, return
         if width is None and height is None:
             logger.warning("Bad image size passed to shrink_image")
-            return
+            return None
 
         # Only shrink
         if width >= image.width or height >= image.height:
@@ -96,9 +97,7 @@ class ImageUtils:
                 width = int(height * aspect_ratio)
 
         # Resize the image
-        resized_image = image.resize((width, height), Image.LANCZOS)
-
-        return resized_image
+        return image.resize((width, height), Image.LANCZOS)
 
     @classmethod
     def copy_image_metadata(cls, src_image, dest_image):
@@ -109,3 +108,18 @@ class ImageUtils:
                 pnginfo.add_text(k, v)
         dest_image.info["pnginfo"] = pnginfo
         return dest_image
+
+    @classmethod
+    def strip_background(cls, image: Image.Image):
+        session = rembg.new_session("u2net")
+        image = rembg.remove(
+            image,
+            session=session,
+            only_mask=False,
+            alpha_matting=10,
+            alpha_matting_foreground_threshold=240,
+            alpha_matting_background_threshold=10,
+            alpha_matting_erode_size=10,
+        )
+        del session
+        return image

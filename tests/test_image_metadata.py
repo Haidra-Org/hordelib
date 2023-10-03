@@ -1,11 +1,9 @@
 # test_horde.py
 import json
 
-import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
-from hordelib.shared_model_manager import SharedModelManager
 
 
 class TestHordeInference:
@@ -33,9 +31,10 @@ class TestHordeInference:
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
         }
-        png_data = hordelib_instance.basic_inference(data, rawpng=True)
+        png_data = hordelib_instance.basic_inference_rawpng(data)
         assert png_data is not None
-        image = Image.open(png_data)
+        assert len(png_data) == 1
+        image = Image.open(png_data[0])
         metadata = image.info
         assert "prompt" in metadata
         info = json.loads(metadata["prompt"])

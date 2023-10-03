@@ -2,22 +2,28 @@
 # Main interface for the horde to this library.
 from __future__ import annotations
 
-import glob
+import io
 import json
-import os
 import random
 import sys
-import time
 from copy import deepcopy
+from typing import Callable
+import typing
 
+from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from loguru import logger
 from PIL import Image
+import PIL.Image
 
 from hordelib.comfy_horde import Comfy_Horde
+from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
 from hordelib.utils.image_utils import ImageUtils
-from hordelib.utils.sanitizer import Sanitizer
+
+import base64
+
+from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, KNOWN_FACEFIXERS
 
 
 class HordeLib:
@@ -65,6 +71,19 @@ class HordeLib:
         # "<unused>": "PiDiNetPreprocessor",
     }
 
+    CONTROLNET_MODEL_MAP = {
+        "canny": "diff_control_sd15_canny_fp16.safetensors",
+        "hed": "diff_control_sd15_hed_fp16.safetensors",
+        "depth": "diff_control_sd15_depth_fp16.safetensors",
+        "normal": "control_normal_fp16.safetensors",
+        "openpose": "control_openpose_fp16.safetensors",
+        "seg": "control_seg_fp16.safetensors",
+        "scribble": "control_scribble_fp16.safetensors",
+        "fakescribble": "control_scribble_fp16.safetensors",
+        "mlsd": "control_mlsd_fp16.safetensors",
+        "hough": "control_mlsd_fp16.safetensors",
+    }
+
     SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting"]
 
     SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform"]
@@ -94,19 +113,27 @@ class HordeLib:
         "source_mask": {"datatype": Image.Image, "default": None},
         "source_image": {"datatype": Image.Image, "default": None},
         "source_processing": {"datatype": str, "values": SOURCE_IMAGE_PROCESSING_OPTIONS, "default": None},
-        "hires_fix_denoising_strength": {"datatype": float, "min": 0.0, "max": 1.0, "default": 0.65},
+        "hires_fix_denoising_strength": {"datatype": float, "min": 0.01, "max": 1.0, "default": 0.65},
         "scheduler": {"datatype": str, "values": SCHEDULERS, "default": "normal"},
+        "tiling": {"datatype": bool, "default": False},
+        "model_name": {"datatype": str, "default": "stable_diffusion"},  # Used internally by hordelib
     }
 
     LORA_SCHEMA = {
         "name": {"datatype": str, "default": ""},
-        "model": {"datatype": float, "min": 0.0, "max": 1.0, "default": 1.0},
-        "clip": {"datatype": float, "min": 0.0, "max": 1.0, "default": 1.0},
+        "model": {"datatype": float, "min": -10.0, "max": 10.0, "default": 1.0},
+        "clip": {"datatype": float, "min": -10.0, "max": 10.0, "default": 1.0},
         "inject_trigger": {"datatype": str},
     }
 
+    TIS_SCHEMA = {
+        "name": {"datatype": str, "default": ""},
+        "inject_ti": {"datatype": str},
+        "strength": {"datatype": float, "min": -10, "max": 10.0, "default": 1.0},
+    }
+
     # pipeline parameter <- hordelib payload parameter mapping
-    PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING = {
+    PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING = {  # FIXME
         "sampler.sampler_name": "sampler_name",
         "sampler.cfg": "cfg_scale",
         "sampler.denoise": "denoising_strength",
@@ -119,9 +146,13 @@ class HordeLib:
         "negative_prompt.text": "negative_prompt",
         "sampler.steps": "ddim_steps",
         "empty_latent_image.batch_size": "n_iter",
+        "model_loader.ckpt_name": "model",
         "model_loader.model_name": "model",
+        "model_loader.horde_model_name": "model_name",
+        "model_loader.seamless_tiling_enabled": "tiling",
         "image_loader.image": "source_image",
         "loras": "loras",
+        "tis": "tis",
         "upscale_sampler.denoise": "hires_fix_denoising_strength",
         "upscale_sampler.seed": "seed",
         "upscale_sampler.cfg": "cfg_scale",
@@ -131,16 +162,30 @@ class HordeLib:
         "controlnet_model_loader.control_net_name": "control_type",
     }
 
+    _comfyui_callback: Callable[[str, dict, str], None] | None = None
+
     # We are a singleton
-    def __new__(cls):
+    def __new__(
+        cls,
+        *,
+        comfyui_callback: Callable[[str, dict, str], None] | None = None,
+    ):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
+            cls._comfyui_callback = comfyui_callback
+
         return cls._instance
 
     # We initialise only ever once (in the lifetime of the singleton)
-    def __init__(self):
+    def __init__(
+        self,
+        *,
+        comfyui_callback: Callable[[str, dict, str], None] | None = None,
+    ):
         if not self._initialised:
-            self.generator = Comfy_Horde()
+            self.generator = Comfy_Horde(
+                comfyui_callback=comfyui_callback if comfyui_callback else self._comfyui_callback,
+            )
             self.__class__._initialised = True
 
     def _json_hack(self, obj):
@@ -174,7 +219,7 @@ class HordeLib:
                 value = ((value + (divisible - 1)) // divisible) * divisible
 
         # If we have a minimum, assert it
-        if min and value < min:
+        if min is not None and value < min:
             value = min
 
         # If we have a maximum, assert it
@@ -187,8 +232,7 @@ class HordeLib:
                 if value.lower() not in values:
                     # not an allowed value, use the default
                     return default
-                else:
-                    value = value.lower()
+                value = value.lower()
             else:
                 if value not in values:
                     # not an allowed value, use the default
@@ -216,6 +260,13 @@ class HordeLib:
             # Remove invalid loras
             data["loras"] = [x for x in data["loras"] if x.get("name")]
 
+        # Do the same for tis, if we have tis in this data structure
+        if data.get("tis"):
+            for i, ti in enumerate(data.get("tis")):
+                data["tis"][i] = self._validate_data_structure(ti, HordeLib.TIS_SCHEMA)
+            # Remove invalid tis
+            data["tis"] = [x for x in data["tis"] if x.get("name")]
+
         return data
 
     def _apply_aihorde_compatibility_hacks(self, payload):
@@ -225,6 +276,25 @@ class HordeLib:
         """
         payload = deepcopy(payload)
 
+        if payload.get("model"):
+            payload["model_name"] = payload["model"]
+            if SharedModelManager.manager.compvis.is_model_available(payload["model"]):
+                payload["model"] = SharedModelManager.manager.compvis.get_model_filename(payload["model"])
+            else:
+                post_processor_model_managers = SharedModelManager.manager.get_model_manager_instances(
+                    [MODEL_CATEGORY_NAMES.codeformer, MODEL_CATEGORY_NAMES.esrgan, MODEL_CATEGORY_NAMES.gfpgan],
+                )
+
+                found_model = False
+
+                for post_processor_model_manager in post_processor_model_managers:
+                    if post_processor_model_manager.is_model_available(payload["model"]):
+                        payload["model"] = post_processor_model_manager.get_model_filename(payload["model"])
+                        found_model = True
+
+                if not found_model:
+                    raise RuntimeError(f"Model {payload['model']} not found! Is it in a Model Reference?")
+
         # Rather than specify a scheduler, only karras or not karras is specified
         if payload.get("karras", False):
             payload["scheduler"] = "karras"
@@ -233,8 +303,8 @@ class HordeLib:
 
         # Negative and positive prompts are merged together
         if payload.get("prompt"):
-            split_prompts = [x.strip() for x in payload.get("prompt").split("###")][:2]
-            if len(split_prompts) == 2:
+            if "###" in payload.get("prompt"):
+                split_prompts = payload.get("prompt").split("###")
                 payload["prompt"] = split_prompts[0]
                 payload["negative_prompt"] = split_prompts[1]
 
@@ -258,14 +328,14 @@ class HordeLib:
                 if not payload.get("hires_fix_denoising_strength"):
                     payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
 
-        # Remap "denoising" to "controlnet strength", historical hack
-        if payload.get("control_type"):
-            if payload.get("denoising_strength"):
-                if not payload.get("control_strength"):
-                    payload["control_strength"] = payload["denoising_strength"]
-                    del payload["denoising_strength"]
-                else:
-                    del payload["denoising_strength"]
+        # # Remap "denoising" to "controlnet strength", historical hack
+        # if payload.get("control_type"):
+        #     if payload.get("denoising_strength"):
+        #         if not payload.get("control_strength"):
+        #             payload["control_strength"] = payload["denoising_strength"]
+        #             del payload["denoising_strength"]
+        #         else:
+        #             del payload["denoising_strength"]
 
         return payload
 
@@ -291,7 +361,11 @@ class HordeLib:
             for ti in payload.get("tis"):
                 # Determine the actual ti filename
                 if not SharedModelManager.manager.ti.is_local_model(str(ti["name"])):
-                    adhoc_ti = SharedModelManager.manager.ti.fetch_adhoc_ti(str(ti["name"]))
+                    try:
+                        adhoc_ti = SharedModelManager.manager.ti.fetch_adhoc_ti(str(ti["name"]))
+                    except Exception as e:
+                        logger.info(f"Error fetching adhoc TI {ti['name']}: ({type(e).__name__}) {e}")
+                        adhoc_ti = None
                     if not adhoc_ti:
                         logger.info(f"Adhoc TI requested '{ti['name']}' could not be found in CivitAI. Ignoring!")
                         continue
@@ -300,17 +374,13 @@ class HordeLib:
                     logger.debug(f"Found valid TI {ti_name}")
                     if SharedModelManager.manager.compvis is None:
                         raise RuntimeError("Cannot use TIs without compvis loaded!")
-                    model_details = SharedModelManager.manager.compvis.get_model(payload["model"])
+                    model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model"])
                     # If the ti and model do not match baseline, we ignore the TI
                     if not SharedModelManager.manager.ti.do_baselines_match(ti_name, model_details):
                         logger.info(f"Skipped TI {ti_name} because its baseline does not match the model's")
                         continue
                     ti_inject = ti.get("inject_ti")
                     ti_strength = ti.get("strength", 1.0)
-                    try:
-                        ti_strength = float(ti_strength)
-                    except (TypeError, ValueError):
-                        ti_strength = 1.0
                     if type(ti_strength) not in [float, int]:
                         ti_strength = 1.0
                     ti_id = SharedModelManager.manager.ti.get_ti_id(str(ti["name"]))
@@ -325,8 +395,10 @@ class HordeLib:
 
                         payload["negative_prompt"] = f'{payload["negative_prompt"]},(embedding:{ti_id}:{ti_strength})'
                         if not had_leading_comma:
-                            payload["negative_prompt"] = payload["negative_prompt"].lstrip(",")
+                            payload["negative_prompt"] = payload["negative_prompt"].strip(",")
+                    SharedModelManager.manager.ti.touch_ti(ti_name)
         # Setup controlnet if required
+
         # For LORAs we completely build the LORA section of the pipeline dynamically, as we have
         # to handle n LORA models which form chained nodes in the pipeline.
         # Note that we build this between several nodes, the model_loader, clip_skip and the sampler,
@@ -336,8 +408,13 @@ class HordeLib:
             valid_loras = []
             for lora in payload.get("loras"):
                 # Determine the actual lora filename
-                if not SharedModelManager.manager.lora.is_local_model(str(lora["name"])):
-                    adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(str(lora["name"]))
+                if not SharedModelManager.manager.lora.is_model_available(str(lora["name"])):
+                    logger.debug(f"Adhoc lora requested '{lora['name']}' not yet downloaded. Downloading...")
+                    try:
+                        adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(str(lora["name"]))
+                    except Exception as e:
+                        logger.info(f"Error fetching adhoc lora {lora['name']}: ({type(e).__name__}) {e}")
+                        adhoc_lora = None
                     if not adhoc_lora:
                         logger.info(f"Adhoc lora requested '{lora['name']}' could not be found in CivitAI. Ignoring!")
                         continue
@@ -347,7 +424,7 @@ class HordeLib:
                     logger.debug(f"Found valid lora {lora_name}")
                     if SharedModelManager.manager.compvis is None:
                         raise RuntimeError("Cannot use LORAs without a compvis loaded!")
-                    model_details = SharedModelManager.manager.compvis.get_model(payload["model"])
+                    model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model"])
                     # If the lora and model do not match baseline, we ignore the lora
                     if not SharedModelManager.manager.lora.do_baselines_match(lora_name, model_details):
                         logger.info(f"Skipped lora {lora_name} because its baseline does not match the model's")
@@ -369,7 +446,7 @@ class HordeLib:
                         payload["prompt"] = f'{trigger}, {payload["prompt"]}'
                     # the fixed up and validated filename (Comfy expect the "name" key to be the filename)
                     lora["name"] = SharedModelManager.manager.lora.get_lora_filename(lora_name)
-                    SharedModelManager.manager.lora.touch_lora(lora_name)
+                    SharedModelManager.manager.lora._touch_lora(lora_name)
                     valid_loras.append(lora)
             payload["loras"] = valid_loras
             for lora_index, lora in enumerate(payload.get("loras")):
@@ -382,9 +459,9 @@ class HordeLib:
                             "lora_name": lora["name"],
                             "strength_model": lora["model"],
                             "strength_clip": lora["clip"],
-                            "model_manager": SharedModelManager,
+                            # "model_manager": SharedModelManager,
                         },
-                        "class_type": "HordeLoraLoader",
+                        "class_type": "LoraLoader",
                     }
                 else:
                     # Subsequent chained loras
@@ -395,12 +472,12 @@ class HordeLib:
                             "lora_name": lora["name"],
                             "strength_model": lora["model"],
                             "strength_clip": lora["clip"],
-                            "model_manager": SharedModelManager,
+                            # "model_manager": SharedModelManager,
                         },
-                        "class_type": "HordeLoraLoader",
+                        "class_type": "LoraLoader",
                     }
 
-            for lora_index, lora in enumerate(payload.get("loras")):
+            for lora_index in range(len(payload.get("loras"))):
                 # The first LORA always connects to the model loader
                 if lora_index == 0:
                     self.generator.reconnect_input(pipeline_data, "lora_0.model", "model_loader")
@@ -433,7 +510,8 @@ class HordeLib:
                 logger.error(f"Parameter {key} not found")
 
         # Inject our model manager
-        pipeline_params["model_loader.model_manager"] = SharedModelManager
+        # pipeline_params["model_loader.model_manager"] = SharedModelManager
+        pipeline_params["model_loader.will_load_loras"] = bool(payload.get("loras"))
 
         # For hires fix, change the image sizes as we create an intermediate image first
         if payload.get("hires_fix", False):
@@ -448,7 +526,11 @@ class HordeLib:
 
         if payload.get("control_type"):
             # Inject control net model manager
-            pipeline_params["controlnet_model_loader.model_manager"] = SharedModelManager
+            # pipeline_params["controlnet_model_loader.model_manager"] = SharedModelManager
+            model_name = self.CONTROLNET_MODEL_MAP.get(payload.get("control_type"))
+            if not model_name:
+                logger.error(f"Controlnet model for {payload.get('control_type')} not found")
+            pipeline_params["controlnet_model_loader.control_net_name"] = model_name
 
             # Dynamically reconnect nodes in the pipeline to connect the correct pre-processor node
             if payload.get("return_control_map"):
@@ -500,11 +582,11 @@ class HordeLib:
         if params.get("control_type"):
             if params.get("return_control_map", False):
                 return "controlnet_annotator"
-            else:
-                if params.get("hires_fix"):
-                    return "controlnet_hires_fix"
-                else:
-                    return "controlnet"
+
+            if params.get("hires_fix"):
+                return "controlnet_hires_fix"
+
+            return "controlnet"
 
         # stable_diffusion_paint, stable_diffusion_img2img_mask
         if params.get("source_processing") == "img2img":
@@ -521,36 +603,35 @@ class HordeLib:
         # stable_diffusion and stable_diffusion_hires_fix
         if params.get("hires_fix", False):
             return "stable_diffusion_hires_fix"
-        else:
-            return "stable_diffusion"  # also includes img2img mode
 
-    def _process_results(self, images, rawpng):
+        return "stable_diffusion"  # also includes img2img mode
+
+    def _process_results(
+        self,
+        images: list[dict[str, typing.Any]],
+        rawpng: bool,
+    ) -> list[Image.Image | io.BytesIO]:
         if images is None:
-            return None  # XXX Log error and/or raise Exception here
-        # Return image(s) or raw PNG bytestream
+            logger.error("No images returned from comfy pipeline!")
+            raise RuntimeError("No images returned from comfy pipeline!")
+
+        results: list[Image.Image | io.BytesIO] = []
+
+        # Return image(s) or raw PNG byte stream
         if not rawpng:
             results = [Image.open(x["imagedata"]) for x in images]
         else:
-            results = [x["imagedata"] for x in images]
-        if len(results) == 1:
-            return results[0]
-        else:
-            return results
+            for image in images:
+                image_data = image["imagedata"]
 
-    def lock_models(self, models):
-        models = [str(x).strip() for x in models if x]
-        # Try to acquire a model lock, if we can't, wait a while as some other thread
-        # must have these resources locked
-        while not self.generator.lock_models(models):
-            time.sleep(0.1)
-        logger.debug(f"Locked models {','.join(models)}")
+                if not isinstance(image_data, io.BytesIO):
+                    raise RuntimeError("Raw PNG requested but not available")
 
-    def unlock_models(self, models):
-        models = [x.strip() for x in models if x]
-        self.generator.unlock_models(models)
-        logger.debug(f"Unlocked models {','.join(models)}")
+                results.append(image_data)
 
-    def _get_validated_payload_and_pipeline_data(self, payload) -> tuple[dict, dict]:
+        return results
+
+    def _get_validated_payload_and_pipeline_data(self, payload: dict) -> tuple[dict, dict]:
         # AIHorde hacks to payload
         payload = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format
@@ -564,25 +645,151 @@ class HordeLib:
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
         return payload, pipeline_data
 
-    def basic_inference(self, payload, rawpng=False):
+    def _inference(
+        self,
+        payload: dict,
+        rawpng: bool = False,
+        *,
+        single_image_expected: bool = True,
+    ) -> list[Image.Image | io.BytesIO] | Image.Image | io.BytesIO:
         payload, pipeline_data = self._get_validated_payload_and_pipeline_data(payload)
-        models: list[str] = []
+
         # Run the pipeline
-        try:
-            # Add prefix to loras to avoid name collisions with other models
-            models = [f"lora-{x['name']}" for x in payload.get("loras", []) if x]
-            # main model
-            models.append(payload.get("model_loader.model_name"))  # type: ignore # FIXME?
-            # controlnet model
-            models.append(payload.get("controlnet_model_loader.control_net_name"))  # type: ignore # FIXME?
-            # Acquire a lock on all these models
-            self.lock_models(models)
-            # Call the inference pipeline
-            # logger.info(payload)
-            images = self.generator.run_image_pipeline(pipeline_data, payload)
-        finally:
-            self.unlock_models(models)
-        return self._process_results(images, rawpng)
+
+        # Add prefix to loras to avoid name collisions with other models
+        loras_being_used = [f"lora-{x['name']}" for x in payload.get("loras", []) if x]
+        tis_being_used = [f"ti-{x['name']}" for x in payload.get("tis", []) if x]
+
+        # main model
+        main_model = f"{payload.get('model_loader.horde_model_name')}"
+        # controlnet model
+        controlnet_name = payload.get("controlnet_model_loader.control_net_name")
+
+        resolution = f"{payload.get('empty_latent_image.width')}x{payload.get('empty_latent_image.height')}"
+        steps = payload.get("sampler.steps")
+
+        logger.info(f"Generating image {resolution} in size for {steps} steps with model {main_model}.")
+        if "latent_upscale.width" in payload:
+            hires_fix_final_resolution = (
+                f"{payload.get('latent_upscale.width')}x{payload.get('latent_upscale.height')}"
+            )
+            logger.info(f"Using hiresfix, final resolution {hires_fix_final_resolution}.")
+        if controlnet_name:
+            logger.info(f"Using controlnet {controlnet_name}")
+        if loras_being_used:
+            logger.info(f"Using {len(loras_being_used)} LORAs")
+        if tis_being_used:
+            logger.info(f"Using {len(tis_being_used)} TIs")
+
+        # Call the inference pipeline
+        # logger.info(payload)
+        images = self.generator.run_image_pipeline(pipeline_data, payload)
+
+        results = self._process_results(images, rawpng)
+
+        if single_image_expected:
+            if len(results) != 1:
+                raise RuntimeError("Expected a single image but got multiple")
+            return results[0]
+
+        return results
+
+    def basic_inference(self, payload: dict | ImageGenerateJobPopResponse) -> list[Image.Image]:
+        post_processing_requested: list[str] | None = None
+
+        if isinstance(payload, ImageGenerateJobPopResponse):  # TODO move this to _inference()
+            for post_processor_requested in payload.payload.post_processing:
+                if post_processing_requested is None:
+                    post_processing_requested = []
+                post_processing_requested.append(post_processor_requested)
+
+            sub_payload = payload.payload.model_dump()
+            source_image = payload.source_image
+            mask_image = payload.source_mask
+
+            # If its a base64 encoded image, decode it
+            if isinstance(source_image, str):
+                source_image_bytes = base64.b64decode(source_image)
+                source_image_pil = Image.open(io.BytesIO(source_image_bytes))
+                sub_payload["source_image"] = source_image_pil
+
+            if isinstance(mask_image, str):
+                mask_image_bytes = base64.b64decode(mask_image)
+                mask_image_pil = Image.open(io.BytesIO(mask_image_bytes))
+                sub_payload["source_mask"] = mask_image_pil
+
+            sub_payload["source_processing"] = payload.source_processing
+            sub_payload["model"] = payload.model
+            payload = sub_payload
+
+        result = self._inference(payload, single_image_expected=False)
+
+        if not isinstance(result, list):
+            raise RuntimeError(f"Expected a list of PIL.Image.Image but got {type(result)}")
+
+        image_list = [x for x in result if isinstance(x, Image.Image)]
+
+        post_processed: list[PIL.Image.Image] | None = None
+        if post_processing_requested is not None:
+            post_processed = []
+            for image in image_list:
+                final_image: PIL.Image.Image | None = image
+                for post_processing in post_processing_requested:
+                    if post_processing in KNOWN_UPSCALERS.__members__:
+                        final_image = self.image_upscale(
+                            {
+                                "model": post_processing,
+                                "source_image": final_image,
+                            },
+                        )
+
+                    elif post_processing in KNOWN_FACEFIXERS.__members__:
+                        final_image = self.image_facefix(
+                            {
+                                "model": post_processing,
+                                "source_image": final_image,
+                                "facefixer_strength": payload.get("facefixer_strength", 1.0),
+                            },
+                        )
+                    elif post_processing == "strip_background":
+                        if final_image is not None:
+                            final_image = ImageUtils.strip_background(final_image)
+
+                if final_image is None:
+                    logger.error("Post processing failed and there is no output image!")
+                else:
+                    post_processed.append(final_image)
+
+        if post_processed is not None:
+            return post_processed
+
+        if len(image_list) == len(result):
+            return image_list
+
+        raise RuntimeError("Expected a list of PIL.Image.Image but got a mix of types!")
+
+    def basic_inference_single_image(self, payload: dict) -> Image.Image:
+        result = self._inference(payload, single_image_expected=True)
+        if isinstance(result, Image.Image):
+            return result
+
+        raise RuntimeError(f"Expected a PIL.Image.Image but got {type(result)}")
+
+    def basic_inference_rawpng(self, payload: dict) -> list[io.BytesIO]:
+        """Return the results directly from comfy as (a) raw PNG byte stream(s)."""
+        result = self._inference(payload, rawpng=True, single_image_expected=False)
+
+        if isinstance(result, list):
+            bytes_io_list = [x for x in result if isinstance(x, io.BytesIO)]
+            if len(bytes_io_list) == len(result):
+                return bytes_io_list
+
+            raise RuntimeError("Expected a list of io.BytesIO but got a mix of types!")
+
+        if isinstance(result, io.BytesIO):
+            return [result]
+
+        raise RuntimeError(f"Expected at least one io.BytesIO. Got {result}.")
 
     def image_upscale(self, payload, rawpng=False) -> Image.Image | None:
         # AIHorde hacks to payload
@@ -590,7 +797,7 @@ class HordeLib:
         # Remember if we were passed width and height, we wouldn't normally be passed width and height
         # because the upscale models upscale to a fixed multiple of image size. However, if we *are*
         # passed a width and height we rescale the upscale output image to this size.
-        width = payload.get("width")
+        width = payload.get("height")
         height = payload.get("width")
         # Check payload types/values and normalise it's format
         payload = self._validate_data_structure(payload)
@@ -598,18 +805,23 @@ class HordeLib:
         pipeline_name = "image_upscale"
         pipeline_data = self.generator.get_pipeline_data(pipeline_name)
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
+
         # Run the pipeline
-        try:
-            self.lock_models([payload.get("model_loader.model_name")])
-            images = self.generator.run_image_pipeline(pipeline_data, payload)
-        finally:
-            self.unlock_models([payload.get("model_loader.model_name")])
-        if images is None:
-            return None  # XXX Log error and/or raise Exception here
+
+        images = self.generator.run_image_pipeline(pipeline_data, payload)
+
         # Allow arbitrary resizing by shrinking the image back down
         if width or height:
             return ImageUtils.shrink_image(Image.open(images[0]["imagedata"]), width, height)
-        return self._process_results(images, rawpng)  # type: ignore # FIXME?
+        result = self._process_results(images, rawpng)
+        if len(result) != 1:
+            raise RuntimeError("Expected a single image but got multiple")
+
+        image = result[0]
+        if not isinstance(image, Image.Image):
+            raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
+
+        return image
 
     def image_facefix(self, payload, rawpng=False) -> Image.Image | None:
         # AIHorde hacks to payload
@@ -620,10 +832,17 @@ class HordeLib:
         pipeline_name = "image_facefix"
         pipeline_data = self.generator.get_pipeline_data(pipeline_name)
         payload = self._final_pipeline_adjustments(payload, pipeline_data)
+
         # Run the pipeline
-        try:
-            self.lock_models([payload.get("model_loader.model_name")])
-            images = self.generator.run_image_pipeline(pipeline_data, payload)
-        finally:
-            self.unlock_models([payload.get("model_loader.model_name")])
-        return self._process_results(images, rawpng)  # type: ignore # FIXME?
+
+        images = self.generator.run_image_pipeline(pipeline_data, payload)
+
+        result = self._process_results(images, rawpng)
+        if len(result) != 1:
+            raise RuntimeError("Expected a single image but got multiple")
+
+        image = result[0]
+        if not isinstance(image, Image.Image):
+            raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
+
+        return image

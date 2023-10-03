@@ -36,7 +36,7 @@ class TestModelManagerTI:
         assert ti_key == "EasyNegative".lower()
         assert mmti.is_local_model("7808")
         assert mmti.get_ti_name("7808") == "EasyNegative"
-        assert Path(os.path.join(mmti.modelFolderPath, "7808.safetensors")).exists()
+        assert Path(os.path.join(mmti.model_folder_path, "7808.safetensors")).exists()
         mmti.stop_all()
 
     def test_adhoc_non_existing(self):
