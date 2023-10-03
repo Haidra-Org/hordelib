@@ -92,8 +92,8 @@ class TextualInversionModelManager(BaseModelManager):
                 self.model_reference = json.loads((self.models_db_path).read_text())
 
                 for ti in self.model_reference.values():
-                    self._index_ids[ti["id"]] = ti["name"].lower()
-                    orig_name = ti.get("orig_name", ti["name"]).lower()
+                    self._index_ids[ti["id"]] = ti["name"].lower().strip()
+                    orig_name = ti.get("orig_name", ti["name"]).lower().strip()
                     self._index_orig_names[orig_name] = ti["name"].lower().strip()
 
                 logger.info("Loaded model reference from disk.")
@@ -412,7 +412,7 @@ class TextualInversionModelManager(BaseModelManager):
             del ti["adhoc"]
         self.model_reference[ti_key] = ti
         self._index_ids[ti["id"]] = ti_key
-        orig_name = ti.get("orig_name", ti["name"]).lower()
+        orig_name = ti.get("orig_name", ti["name"]).lower().strip()
         self._index_orig_names[orig_name] = ti_key
 
     def wait_for_downloads(self, timeout=None):
@@ -451,7 +451,7 @@ class TextualInversionModelManager(BaseModelManager):
         if sname in self.model_reference:
             return sname
         if sname in self._index_orig_names:
-            return self._index_orig_names[sname]
+            return self._index_orig_names[sname].lower().strip()
         if Sanitizer.has_unicode(sname):
             for ti in self._index_orig_names:
                 if sname in ti:
