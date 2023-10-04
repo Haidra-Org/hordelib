@@ -56,11 +56,11 @@ class LoraModelManager(BaseModelManager):
     ):
         self.max_adhoc_disk = allowed_adhoc_lora_storage
         try:
-            AIWORKER_LORA_CACHE_SIZE = int(os.getenv("AIWORKER_LORA_CACHE_SIZE"))
+            AIWORKER_LORA_CACHE_SIZE = os.getenv("AIWORKER_LORA_CACHE_SIZE")
             if AIWORKER_LORA_CACHE_SIZE is not None:
-                self.max_adhoc_disk = AIWORKER_LORA_CACHE_SIZE
+                self.max_adhoc_disk = int(AIWORKER_LORA_CACHE_SIZE)
                 logger.debug(f"AIWORKER_LORA_CACHE_SIZE is {self.max_adhoc_disk}")
-        except ValueError:
+        except (ValueError, TypeError):
             self.max_adhoc_disk = AIWORKER_LORA_CACHE_SIZE_DEFAULT
 
         self._max_top_disk = allowed_top_lora_storage
