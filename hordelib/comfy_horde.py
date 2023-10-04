@@ -146,6 +146,7 @@ def do_comfy_import():
 
         comfy.model_management.unet_inital_load_device = always_cpu
         comfy.model_management.DISABLE_SMART_MEMORY = True
+        comfy.model_management.lowvram_available = True
 
         total_vram = get_torch_total_vram_mb()
         total_ram = psutil.virtual_memory().total / (1024 * 1024)
