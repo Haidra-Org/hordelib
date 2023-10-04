@@ -30,6 +30,8 @@ class DOWNLOAD_SIZE_CHECK(StrEnum):
 
 TESTS_ONGOING = os.getenv("TESTS_ONGOING", "0") == "1"
 
+AIWORKER_LORA_CACHE_SIZE_DEFAULT = 10 * 1024  # 10GB
+
 
 class LoraModelManager(BaseModelManager):
     LORA_DEFAULTS = "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/main/lora.json"
@@ -49,12 +51,20 @@ class LoraModelManager(BaseModelManager):
         self,
         download_reference=False,
         allowed_top_lora_storage=10240 if not TESTS_ONGOING else 1024,
-        allowed_adhoc_lora_storage=1024,
+        allowed_adhoc_lora_storage=AIWORKER_LORA_CACHE_SIZE_DEFAULT,
         download_wait=False,
     ):
+        self.max_adhoc_disk = allowed_adhoc_lora_storage
+        try:
+            AIWORKER_LORA_CACHE_SIZE = os.getenv("AIWORKER_LORA_CACHE_SIZE")
+            if AIWORKER_LORA_CACHE_SIZE is not None:
+                self.max_adhoc_disk = int(AIWORKER_LORA_CACHE_SIZE)
+                logger.debug(f"AIWORKER_LORA_CACHE_SIZE is {self.max_adhoc_disk}")
+        except (ValueError, TypeError):
+            self.max_adhoc_disk = AIWORKER_LORA_CACHE_SIZE_DEFAULT
+
         self._max_top_disk = allowed_top_lora_storage
 
-        self.max_adhoc_disk = allowed_adhoc_lora_storage
         self._data = None
         self._next_page_url = None
         self._mutex = threading.Lock()
