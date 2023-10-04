@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v2.0.1](https://github.com/Haidra-Org/hordelib/compare/v2.0.0...v2.0.1)
+
+4 October 2023
+
+- feat: add `AIWORKER_LORA_CACHE_SIZE` env var [`582747d`](https://github.com/Haidra-Org/hordelib/commit/582747d1ba328933ed4fc4b65ba5607e5d92b906)  (tazlin)
+- fix: handle lora env var `None` [`7f4c6f5`](https://github.com/Haidra-Org/hordelib/commit/7f4c6f5679ee35ad00b570460a26e5fd30f0a543)  (tazlin)
+
 # [v2.0.0](https://github.com/Haidra-Org/hordelib/compare/v1.6.6...v2.0.0)
 
 3 October 2023
