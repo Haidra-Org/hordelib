@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.0.2](https://github.com/Haidra-Org/hordelib/compare/v2.0.1...v2.0.2)
+
+5 October 2023
+
+- fix: more relaxed memory management (allows high vram?) [`ed3120a`](https://github.com/Haidra-Org/hordelib/commit/ed3120a23d2986564bf9aff9605a0f9576d71e16)  (tazlin)
+- chore: latest comfyui version [`d8961bb`](https://github.com/Haidra-Org/hordelib/commit/d8961bb2bd20266e970c31ced8a008c218a05817)  (tazlin)
+- feat: use torch 2.1 + CU121 [`e6955ea`](https://github.com/Haidra-Org/hordelib/commit/e6955eaf43ead5d02e4d074e74c3c686b8a34353)  (tazlin)
+
 ## [v2.0.1](https://github.com/Haidra-Org/hordelib/compare/v2.0.0...v2.0.1)
 
 4 October 2023
