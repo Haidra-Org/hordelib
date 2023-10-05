@@ -59,6 +59,8 @@ class HordeCheckpointLoader:
                 same_loaded_model[0][0].model.apply(make_regular)
                 make_regular_vae(same_loaded_model[0][2])
 
+            logger.debug("Model was previously loaded, returning it.")
+
             return same_loaded_model[0]
 
         if not ckpt_name:
