@@ -6,7 +6,7 @@ from strenum import StrEnum
 
 from hordelib.config_path import get_hordelib_path
 
-COMFYUI_VERSION = "099226015edcdf595d915f0f39359ef0d83fbba6"
+COMFYUI_VERSION = "0e763e880f5e838e7a1e3914444cae6790c48627"
 """The exact version of ComfyUI version to load."""
 
 REMOTE_PROXY = ""
@@ -20,11 +20,6 @@ RELEASE_VERSION = (get_hordelib_path() / "_version.py").exists()
 
 class HordeSupportedBackends(Enum):
     ComfyUI = auto()
-
-
-# Models Excluded from hordelib (for now) # FIXME
-# this could easily be a json file on the AI-Horde-image-model-reference repo
-EXCLUDED_MODEL_NAMES = ["pix2pix"]
 
 
 class MODEL_CATEGORY_NAMES(StrEnum):
