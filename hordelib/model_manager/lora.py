@@ -333,6 +333,9 @@ class LoraModelManager(BaseModelManager):
                     logger.info(f"Starting download of LORA {lora['filename']}")
                     response = requests.get(lora["url"], timeout=self.REQUEST_DOWNLOAD_TIMEOUT)
                     response.raise_for_status()
+                    if "reason=download-auth" in response.url:
+                        logger.error(f"Error downloading {lora['filename']}. CivitAI appears to be redirecting us to a login page. Aborting")
+                        break
                     # Check the data hash
                     hash_object = hashlib.sha256()
                     hash_object.update(response.content)
