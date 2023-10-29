@@ -337,6 +337,9 @@ class LoraModelManager(BaseModelManager):
                         cookies=CIVITAI_COOKIES
                     )
                     response.raise_for_status()
+                    if "reason=download-auth" in response.url:
+                        logger.error(f"Error downloading {lora['filename']}. CivitAI appears to be redirecting us to a login page. Aborting")
+                        break
                     # Check the data hash
                     hash_object = hashlib.sha256()
                     hash_object.update(response.content)
