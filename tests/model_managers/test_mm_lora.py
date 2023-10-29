@@ -148,6 +148,21 @@ class TestModelManagerLora:
         assert not lora_model_manager.is_model_available(lora_name)
         lora_model_manager.stop_all()
 
+    def test_fetch_login_lora(self):
+        lora_model_manager = LoraModelManager(
+            download_wait=False,
+            allowed_adhoc_lora_storage=1024,
+        )
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        lora_model_manager.wait_for_adhoc_reset(15)
+        lora_model_manager.ensure_lora_deleted(180552)
+        lora_key = lora_model_manager.fetch_adhoc_lora("180552")
+        assert lora_key == "Anaswara Rajan V1".lower()
+        assert lora_model_manager.is_model_available("180552")
+        lora_model_manager.stop_all()
+
+
     ## Disabling this until I can figure out a better way to test these
     # def test_unused_loras(self):
     #     lora_model_manager = LoraModelManager(

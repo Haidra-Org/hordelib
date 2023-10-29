@@ -17,7 +17,7 @@ from loguru import logger
 from strenum import StrEnum
 from typing_extensions import override
 
-from hordelib.consts import MODEL_CATEGORY_NAMES
+from hordelib.consts import MODEL_CATEGORY_NAMES, CIVITAI_COOKIES
 from hordelib.model_manager.base import BaseModelManager
 from hordelib.utils.sanitizer import Sanitizer
 
@@ -331,7 +331,11 @@ class LoraModelManager(BaseModelManager):
                             break
 
                     logger.info(f"Starting download of LORA {lora['filename']}")
-                    response = requests.get(lora["url"], timeout=self.REQUEST_DOWNLOAD_TIMEOUT)
+                    response = requests.get(
+                        lora["url"], 
+                        timeout=self.REQUEST_DOWNLOAD_TIMEOUT,
+                        cookies=CIVITAI_COOKIES
+                    )
                     response.raise_for_status()
                     # Check the data hash
                     hash_object = hashlib.sha256()
@@ -802,7 +806,6 @@ class LoraModelManager(BaseModelManager):
             logger.debug(f"Found lora with ID: {fuzzy_find}")
             return fuzzy_find
         self._download_lora(lora)
-
         # We need to wait a bit to make sure the threads pick up the download
         time.sleep(self.THREAD_WAIT_TIME)
         self.wait_for_downloads(timeout)
