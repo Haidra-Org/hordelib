@@ -24,7 +24,7 @@ The goal here is to be able to design inference pipelines in the excellent Comfy
 
 If being installed from pypi, use a requirements file of the form:
 ```
---extra-index-url https://download.pytorch.org/whl/cu118
+--extra-index-url https://download.pytorch.org/whl/cu121
 hordelib
 
 ...your other dependencies...
