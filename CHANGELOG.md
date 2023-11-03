@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.1.0](https://github.com/Haidra-Org/hordelib/compare/v2.0.2...v2.1.0)
+
+2 November 2023
+
+- feat: graceful fail if we detect a login redirect [`930a6f9`](https://github.com/Haidra-Org/hordelib/commit/930a6f95c047d8ff3c38f12f0475d198e934d271)  (db0)
+- feat: use comfy dd116abfc48e8023bb425c2dd5bd954ee99d7a9c [`63954b4`](https://github.com/Haidra-Org/hordelib/commit/63954b4de9f802a20f86931dd13609217dfb0de2)  (tazlin)
+- docs: fix reference to old cuda version [`97b83e3`](https://github.com/Haidra-Org/hordelib/commit/97b83e30188f0018365ebf3c26df074f6dde964e)  (tazlin)
+
 ## [v2.0.2](https://github.com/Haidra-Org/hordelib/compare/v2.0.1...v2.0.2)
 
 5 October 2023
