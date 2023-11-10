@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.1.1](https://github.com/Haidra-Org/hordelib/compare/v2.1.0...v2.1.1)
+
+10 November 2023
+
+- tests: fix: adds checks for missing lora image comparisons [`55af765`](https://github.com/Haidra-Org/hordelib/commit/55af765dc777ebb99e6ade86fab908a317221c45)  (tazlin)
+- fix: write out a copy of `model_reference` in lora MM [`6d46a75`](https://github.com/Haidra-Org/hordelib/commit/6d46a75d1ec23123d382ca8a27eae3ef21965a9c)  (tazlin)
+- tests: fix: print out failing image for samplers check [`9f3c92c`](https://github.com/Haidra-Org/hordelib/commit/9f3c92c900b18bd2a1b6509285fa6eba2cb613d8)  (tazlin)
+
 ## [v2.1.0](https://github.com/Haidra-Org/hordelib/compare/v2.0.2...v2.1.0)
 
 2 November 2023
