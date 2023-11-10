@@ -24,7 +24,16 @@ from hordelib.utils.image_utils import ImageUtils
 import base64
 
 from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, KNOWN_FACEFIXERS
+from horde_sdk.ai_horde_api.apimodels.base import GenMetadataEntry # TODO: Switch to importing it without .base once sdk is updated
+from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
 
+class InferenceReturn:
+    image: Image.Image
+    faults: list[GenMetadataEntry]
+
+    def __init__(self, image: Image.Image, faults: list[GenMetadataEntry]):
+        self.image = image
+        self.faults = faults
 
 class HordeLib:
     _instance: HordeLib | None = None
@@ -694,9 +703,10 @@ class HordeLib:
 
         return results
 
-    def basic_inference(self, payload: dict | ImageGenerateJobPopResponse) -> list[Image.Image]:
+    def basic_inference(self, payload: dict | ImageGenerateJobPopResponse) -> list[InferenceReturn]:
         post_processing_requested: list[str] | None = None
 
+        faults = []
         if isinstance(payload, ImageGenerateJobPopResponse):  # TODO move this to _inference()
             for post_processor_requested in payload.payload.post_processing:
                 if post_processing_requested is None:
@@ -709,14 +719,27 @@ class HordeLib:
 
             # If its a base64 encoded image, decode it
             if isinstance(source_image, str):
-                source_image_bytes = base64.b64decode(source_image)
-                source_image_pil = Image.open(io.BytesIO(source_image_bytes))
-                sub_payload["source_image"] = source_image_pil
+                try:
+                    source_image_bytes = base64.b64decode(source_image)
+                    source_image_pil = Image.open(io.BytesIO(source_image_bytes))
+                    sub_payload["source_image"] = source_image_pil
+                except Exception as err:
+                    faults.append(
+                        GenMetadataEntry(METADATA_TYPE.source_image,METADATA_VALUE.parse_failed)
+                    )
+                    logger.warning("Failed to parse source image. Falling back to text2img.")
+                    
 
             if isinstance(mask_image, str):
-                mask_image_bytes = base64.b64decode(mask_image)
-                mask_image_pil = Image.open(io.BytesIO(mask_image_bytes))
-                sub_payload["source_mask"] = mask_image_pil
+                try:
+                    mask_image_bytes = base64.b64decode(mask_image)
+                    mask_image_pil = Image.open(io.BytesIO(mask_image_bytes))
+                    sub_payload["source_mask"] = mask_image_pil
+                except Exception as err:
+                    faults.append(
+                        GenMetadataEntry(METADATA_TYPE.source_mask,METADATA_VALUE.parse_failed)
+                    )
+                    logger.warning("Failed to parse source mask. Ignoring it.")
 
             sub_payload["source_processing"] = payload.source_processing
             sub_payload["model"] = payload.model
@@ -727,12 +750,16 @@ class HordeLib:
         if not isinstance(result, list):
             raise RuntimeError(f"Expected a list of PIL.Image.Image but got {type(result)}")
 
-        image_list = [x for x in result if isinstance(x, Image.Image)]
+        return_list = [
+            # The pre-gen faults (e.g. failing to parse source image) will be shared
+            InferenceReturn(x, faults.copy()) for x in result if isinstance(x, Image.Image)
+        ]
 
         post_processed: list[PIL.Image.Image] | None = None
         if post_processing_requested is not None:
             post_processed = []
-            for image in image_list:
+            for ret in return_list:
+                image = ret.image
                 final_image: PIL.Image.Image | None = image
                 for post_processing in post_processing_requested:
                     if post_processing in KNOWN_UPSCALERS.__members__:
@@ -763,8 +790,8 @@ class HordeLib:
         if post_processed is not None:
             return post_processed
 
-        if len(image_list) == len(result):
-            return image_list
+        if len(return_list) == len(result):
+            return return_list
 
         raise RuntimeError("Expected a list of PIL.Image.Image but got a mix of types!")
 
