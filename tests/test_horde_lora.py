@@ -242,6 +242,10 @@ class TestHordeLora:
 
         img_filename = "lora_blue_low_model_strength.png"
         pil_image.save(f"images/{img_filename}", quality=100)
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
         data["loras"] = [{"name": lora_name, "model": 1.0, "clip": 0.1}]
         pil_image = hordelib_instance.basic_inference_single_image(data)
@@ -250,6 +254,10 @@ class TestHordeLora:
 
         img_filename = "lora_blue_low_clip_strength.png"
         pil_image.save(f"images/{img_filename}", quality=100)
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
         data["loras"] = [{"name": lora_name, "model": 0.1, "clip": 0.1}]
         pil_image = hordelib_instance.basic_inference_single_image(data)
@@ -258,6 +266,10 @@ class TestHordeLora:
 
         img_filename = "lora_blue_low_model_and_clip_strength.png"
         pil_image.save(f"images/{img_filename}", quality=100)
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_text_to_image_lora_blue_negative_strength(
         self,
@@ -295,22 +307,37 @@ class TestHordeLora:
         pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
+
         img_filename = "lora_blue_negative_model_strength.png"
         pil_image.save(f"images/{img_filename}", quality=100)
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
         data["loras"] = [{"name": lora_name, "model": 1.0, "clip": -1.0}]
         pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
+
         img_filename = "lora_blue_negative_clip_strength.png"
         pil_image.save(f"images/{img_filename}", quality=100)
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
         data["loras"] = [{"name": lora_name, "model": -1.0, "clip": -1.0}]
         pil_image = hordelib_instance.basic_inference_single_image(data)
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
+
         img_filename = "lora_blue_negative_model_and_clip_strength.png"
         pil_image.save(f"images/{img_filename}", quality=100)
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_text_to_image_lora_blue_hires_fix(
         self,
@@ -814,6 +841,11 @@ class TestHordeLora:
 
         img_filename = "lora_negative_strength.png"
         pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
         data = {
             "sampler_name": "k_euler",
