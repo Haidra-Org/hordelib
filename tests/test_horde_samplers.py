@@ -1,6 +1,7 @@
 # test_horde.py
 
 from PIL import Image
+from loguru import logger
 
 from hordelib.horde import HordeLib
 
@@ -81,6 +82,7 @@ class TestHordeSamplers:
             images_to_compare.append((f"images_expected/{img_filename}", pil_image))
 
         for img_filename, pil_image in images_to_compare:
+            logger.debug(f"Checking image {img_filename}")
             assert check_single_inference_image_similarity(
                 img_filename,
                 pil_image,
