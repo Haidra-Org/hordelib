@@ -23,9 +23,8 @@ from hordelib.utils.image_utils import ImageUtils
 
 import base64
 
-from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, KNOWN_FACEFIXERS
+from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, KNOWN_FACEFIXERS, METADATA_TYPE, METADATA_VALUE
 from horde_sdk.ai_horde_api.apimodels.base import GenMetadataEntry # TODO: Switch to importing it without .base once sdk is updated
-from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
 
 class ResultingImageReturn:
     image: Image.Image | io.BytesIO
