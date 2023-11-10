@@ -34,7 +34,7 @@ class TestHordeInferenceImg2Img:
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
@@ -73,7 +73,7 @@ class TestHordeInferenceImg2Img:
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
@@ -112,7 +112,7 @@ class TestHordeInferenceImg2Img:
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -152,7 +152,7 @@ class TestHordeInferenceImg2Img:
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
@@ -192,7 +192,7 @@ class TestHordeInferenceImg2Img:
             "source_processing": "img2img",
         }
         assert hordelib_instance is not None
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (768, 768)
@@ -226,7 +226,7 @@ class TestHordeInferenceImg2Img:
             "source_processing": "img2img",
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
@@ -260,7 +260,7 @@ class TestHordeInferenceImg2Img:
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
@@ -294,7 +294,7 @@ class TestHordeInferenceImg2Img:
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
@@ -328,7 +328,7 @@ class TestHordeInferenceImg2Img:
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (512, 512)
@@ -362,7 +362,7 @@ class TestHordeInferenceImg2Img:
             "source_image": Image.open("images/test_img2img_alpha.png"),
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         assert pil_image.size == (1024, 1024)
@@ -401,7 +401,7 @@ class TestHordeInferenceImg2Img:
             "source_image": "THIS SHOULD FAILOVER TO TEXT2IMG",
             "source_processing": "img2img",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 

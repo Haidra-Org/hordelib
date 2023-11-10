@@ -106,7 +106,7 @@ class TestHordeTI:
         assert "(embedding:7808:0.5)" in payload["negative_prompt.text"]
         assert "(embedding:64870:1.0)" in payload["negative_prompt.text"]
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
 
         img_filename = "ti_inject.png"
@@ -156,7 +156,7 @@ class TestHordeTI:
         assert "(embedding:7808:0.5)" in payload["negative_prompt.text"]
         assert "(embedding:64870:1.0)" in payload["negative_prompt.text"]
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
 
         img_filename = "ti_bad_inject.png"

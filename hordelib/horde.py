@@ -814,7 +814,7 @@ class HordeLib:
 
     def basic_inference_single_image(self, payload: dict) -> ResultingImageReturn:
         result = self._inference(payload, single_image_expected=True)
-        if isinstance(result, Image.Image):
+        if isinstance(result, ResultingImageReturn):
             return result
 
         raise RuntimeError(f"Expected a PIL.Image.Image but got {type(result)}")
