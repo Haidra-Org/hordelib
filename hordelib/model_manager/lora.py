@@ -334,7 +334,9 @@ class LoraModelManager(BaseModelManager):
                     response = requests.get(lora["url"], timeout=self.REQUEST_DOWNLOAD_TIMEOUT)
                     response.raise_for_status()
                     if "reason=download-auth" in response.url:
-                        logger.error(f"Error downloading {lora['filename']}. CivitAI appears to be redirecting us to a login page. Aborting")
+                        logger.error(
+                            f"Error downloading {lora['filename']}. CivitAI appears to be redirecting us to a login page. Aborting"
+                        )
                         break
                     # Check the data hash
                     hash_object = hashlib.sha256()
@@ -567,7 +569,7 @@ class LoraModelManager(BaseModelManager):
 
     def save_cached_reference_to_disk(self):
         with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
-            outfile.write(json.dumps(self.model_reference, indent=4))
+            outfile.write(json.dumps(self.model_reference.copy(), indent=4))
 
     def calculate_downloaded_loras(self, mode=DOWNLOAD_SIZE_CHECK.everything):
         total_size = 0
