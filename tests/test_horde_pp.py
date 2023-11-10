@@ -80,7 +80,7 @@ class TestHordeUpscaling:
                 "source_image": target_image,
             }
         )
-        pil_image = post_process_function(data)
+        pil_image = post_process_function(data).image
         assert pil_image is not None
         pil_image.save(f"images/{image_filename}", quality=100)
 

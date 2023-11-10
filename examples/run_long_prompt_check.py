@@ -81,7 +81,7 @@ def main():
     }
 
     # Warmup
-    generate.basic_inference_single_image(basic_data)
+    generate.basic_inference_single_image(basic_data).image
 
     i = 1
 
@@ -90,13 +90,13 @@ def main():
         # let us enable comfyui's default behaviour of batch optimisations
         UserSettings.enable_batch_optimisations.activate()
         start_clock(f"{i}a. Inference with default comfyui")
-        generate.basic_inference_single_image(basic_data)
+        generate.basic_inference_single_image(basic_data).image
         stop_clock()
 
         # no batch optimisations
         UserSettings.enable_batch_optimisations.disable()
         start_clock(f"{i}b. Inference with comfyui batch optimisations disabled")
-        generate.basic_inference_single_image(basic_data)
+        generate.basic_inference_single_image(basic_data).image
         stop_clock()
 
         i += 1
@@ -106,13 +106,13 @@ def main():
         # let us enable comfyui's default behaviour of batch optimisations
         UserSettings.enable_batch_optimisations.activate()
         start_clock(f"{i}a. Long Prompt Inference with default comfyui")
-        generate.basic_inference_single_image(long_prompt_data)
+        generate.basic_inference_single_image(long_prompt_data).image
         stop_clock()
 
         # no batch optimisations
         UserSettings.enable_batch_optimisations.disable()
         start_clock(f"{i}b. Long Prompt Inference with comfyui batch optimisations disabled")
-        generate.basic_inference_single_image(long_prompt_data)
+        generate.basic_inference_single_image(long_prompt_data).image
         stop_clock()
 
         i += 1

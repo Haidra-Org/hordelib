@@ -44,7 +44,7 @@ def main():
             # Not valid for normal image input test
             continue
         data["control_type"] = preproc
-        pil_image = generate.basic_inference_single_image(data)
+        pil_image = generate.basic_inference_single_image(data).image
         pil_image.save(f"images/run_controlnet_{preproc}.webp", quality=90)
 
 

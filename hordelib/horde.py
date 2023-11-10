@@ -27,8 +27,8 @@ from horde_sdk.ai_horde_api.consts import KNOWN_UPSCALERS, KNOWN_FACEFIXERS
 from horde_sdk.ai_horde_api.apimodels.base import GenMetadataEntry # TODO: Switch to importing it without .base once sdk is updated
 from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
 
-class InferenceReturn:
-    image: Image.Image
+class ResultingImageReturn:
+    image: Image.Image | io.BytesIO
     faults: list[GenMetadataEntry]
 
     def __init__(self, image: Image.Image, faults: list[GenMetadataEntry]):
@@ -350,6 +350,7 @@ class HordeLib:
 
     def _final_pipeline_adjustments(self, payload, pipeline_data):
         payload = deepcopy(payload)
+        faults: list[GenMetadataEntry] = []
 
         # Process dynamic prompts
         if new_prompt := DynamicPromptParser(payload["seed"]).parse(payload.get("prompt", "")):
@@ -374,9 +375,15 @@ class HordeLib:
                         adhoc_ti = SharedModelManager.manager.ti.fetch_adhoc_ti(str(ti["name"]))
                     except Exception as e:
                         logger.info(f"Error fetching adhoc TI {ti['name']}: ({type(e).__name__}) {e}")
+                        faults.append(
+                            GenMetadataEntry(METADATA_TYPE.ti,METADATA_VALUE.download_failed,ti['name'])
+                        )
                         adhoc_ti = None
                     if not adhoc_ti:
                         logger.info(f"Adhoc TI requested '{ti['name']}' could not be found in CivitAI. Ignoring!")
+                        faults.append(
+                            GenMetadataEntry(METADATA_TYPE.ti,METADATA_VALUE.download_failed,ti['name'])
+                        )
                         continue
                 ti_name = SharedModelManager.manager.ti.get_ti_name(str(ti["name"]))
                 if ti_name:
@@ -387,6 +394,9 @@ class HordeLib:
                     # If the ti and model do not match baseline, we ignore the TI
                     if not SharedModelManager.manager.ti.do_baselines_match(ti_name, model_details):
                         logger.info(f"Skipped TI {ti_name} because its baseline does not match the model's")
+                        faults.append(
+                            GenMetadataEntry(METADATA_TYPE.ti,METADATA_VALUE.baseline_mismatch,ti_name)
+                        )
                         continue
                     ti_inject = ti.get("inject_ti")
                     ti_strength = ti.get("strength", 1.0)
@@ -423,9 +433,15 @@ class HordeLib:
                         adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(str(lora["name"]))
                     except Exception as e:
                         logger.info(f"Error fetching adhoc lora {lora['name']}: ({type(e).__name__}) {e}")
+                        faults.append(
+                            GenMetadataEntry(METADATA_TYPE.lora,METADATA_VALUE.download_failed,lora['name'])
+                        )
                         adhoc_lora = None
                     if not adhoc_lora:
                         logger.info(f"Adhoc lora requested '{lora['name']}' could not be found in CivitAI. Ignoring!")
+                        faults.append(
+                            GenMetadataEntry(METADATA_TYPE.lora,METADATA_VALUE.download_failed,lora['name'])
+                        )
                         continue
                 # We store the actual lora name to search for the trigger
                 lora_name = SharedModelManager.manager.lora.get_lora_name(str(lora["name"]))
@@ -437,6 +453,9 @@ class HordeLib:
                     # If the lora and model do not match baseline, we ignore the lora
                     if not SharedModelManager.manager.lora.do_baselines_match(lora_name, model_details):
                         logger.info(f"Skipped lora {lora_name} because its baseline does not match the model's")
+                        faults.append(
+                            GenMetadataEntry(METADATA_TYPE.lora,METADATA_VALUE.baseline_mismatch,lora_name)
+                        )
                         continue
                     trigger_inject = lora.get("inject_trigger")
                     trigger = None
@@ -570,7 +589,7 @@ class HordeLib:
         if pipeline_params.get("image_loader.image"):
             self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
 
-        return pipeline_params
+        return pipeline_params, faults
 
     def _get_appropriate_pipeline(self, params):
         # Determine the correct pipeline based on the parameters we have
@@ -640,7 +659,7 @@ class HordeLib:
 
         return results
 
-    def _get_validated_payload_and_pipeline_data(self, payload: dict) -> tuple[dict, dict]:
+    def _get_validated_payload_and_pipeline_data(self, payload: dict) -> tuple[dict, dict, list[GenMetadataEntry]]:
         # AIHorde hacks to payload
         payload = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format
@@ -651,8 +670,8 @@ class HordeLib:
         pipeline = self._get_appropriate_pipeline(payload)
         # Final adjustments to the pipeline
         pipeline_data = self.generator.get_pipeline_data(pipeline)
-        payload = self._final_pipeline_adjustments(payload, pipeline_data)
-        return payload, pipeline_data
+        payload, faults = self._final_pipeline_adjustments(payload, pipeline_data)
+        return payload, pipeline_data, faults
 
     def _inference(
         self,
@@ -660,8 +679,8 @@ class HordeLib:
         rawpng: bool = False,
         *,
         single_image_expected: bool = True,
-    ) -> list[Image.Image | io.BytesIO] | Image.Image | io.BytesIO:
-        payload, pipeline_data = self._get_validated_payload_and_pipeline_data(payload)
+    ) -> list[ResultingImageReturn] | ResultingImageReturn:
+        payload, pipeline_data, faults = self._get_validated_payload_and_pipeline_data(payload)
 
         # Run the pipeline
 
@@ -695,15 +714,16 @@ class HordeLib:
         images = self.generator.run_image_pipeline(pipeline_data, payload)
 
         results = self._process_results(images, rawpng)
+        ret_results = [ResultingImageReturn(r, faults) for r in results]
 
         if single_image_expected:
             if len(results) != 1:
                 raise RuntimeError("Expected a single image but got multiple")
-            return results[0]
+            return ret_results[0]
 
-        return results
+        return ret_results
 
-    def basic_inference(self, payload: dict | ImageGenerateJobPopResponse) -> list[InferenceReturn]:
+    def basic_inference(self, payload: dict | ImageGenerateJobPopResponse) -> list[ResultingImageReturn]:
         post_processing_requested: list[str] | None = None
 
         faults = []
@@ -750,10 +770,7 @@ class HordeLib:
         if not isinstance(result, list):
             raise RuntimeError(f"Expected a list of PIL.Image.Image but got {type(result)}")
 
-        return_list = [
-            # The pre-gen faults (e.g. failing to parse source image) will be shared
-            InferenceReturn(x, faults.copy()) for x in result if isinstance(x, Image.Image)
-        ]
+        return_list = [x for x in result if isinstance(x.image, Image.Image)]
 
         post_processed: list[PIL.Image.Image] | None = None
         if post_processing_requested is not None:
@@ -768,7 +785,7 @@ class HordeLib:
                                 "model": post_processing,
                                 "source_image": final_image,
                             },
-                        )
+                        ).image
 
                     elif post_processing in KNOWN_FACEFIXERS.__members__:
                         final_image = self.image_facefix(
@@ -777,7 +794,7 @@ class HordeLib:
                                 "source_image": final_image,
                                 "facefixer_strength": payload.get("facefixer_strength", 1.0),
                             },
-                        )
+                        ).image
                     elif post_processing == "strip_background":
                         if final_image is not None:
                             final_image = ImageUtils.strip_background(final_image)
@@ -795,7 +812,7 @@ class HordeLib:
 
         raise RuntimeError("Expected a list of PIL.Image.Image but got a mix of types!")
 
-    def basic_inference_single_image(self, payload: dict) -> Image.Image:
+    def basic_inference_single_image(self, payload: dict) -> ResultingImageReturn:
         result = self._inference(payload, single_image_expected=True)
         if isinstance(result, Image.Image):
             return result
@@ -818,7 +835,7 @@ class HordeLib:
 
         raise RuntimeError(f"Expected at least one io.BytesIO. Got {result}.")
 
-    def image_upscale(self, payload, rawpng=False) -> Image.Image | None:
+    def image_upscale(self, payload, rawpng=False) -> ResultingImageReturn | None:
         # AIHorde hacks to payload
         payload = self._apply_aihorde_compatibility_hacks(payload)
         # Remember if we were passed width and height, we wouldn't normally be passed width and height
@@ -831,7 +848,7 @@ class HordeLib:
         # Final adjustments to the pipeline
         pipeline_name = "image_upscale"
         pipeline_data = self.generator.get_pipeline_data(pipeline_name)
-        payload = self._final_pipeline_adjustments(payload, pipeline_data)
+        payload, faults = self._final_pipeline_adjustments(payload, pipeline_data)
 
         # Run the pipeline
 
@@ -848,9 +865,9 @@ class HordeLib:
         if not isinstance(image, Image.Image):
             raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
 
-        return image
+        return ResultingImageReturn(image, faults)
 
-    def image_facefix(self, payload, rawpng=False) -> Image.Image | None:
+    def image_facefix(self, payload, rawpng=False) -> ResultingImageReturn | None:
         # AIHorde hacks to payload
         payload = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format
@@ -858,7 +875,7 @@ class HordeLib:
         # Final adjustments to the pipeline
         pipeline_name = "image_facefix"
         pipeline_data = self.generator.get_pipeline_data(pipeline_name)
-        payload = self._final_pipeline_adjustments(payload, pipeline_data)
+        payload, faults = self._final_pipeline_adjustments(payload, pipeline_data)
 
         # Run the pipeline
 
@@ -872,4 +889,4 @@ class HordeLib:
         if not isinstance(image, Image.Image):
             raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
 
-        return image
+        return ResultingImageReturn(image, faults)

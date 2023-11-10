@@ -32,7 +32,7 @@ def main():
         "model": "CodeFormers",
         "source_image": Image.open("images/test_facefix.png"),
     }
-    pil_image = generate.image_facefix(data)
+    pil_image = generate.image_facefix(data).image
     pil_image.save("images/run_facefix.webp", quality=90)
 
 

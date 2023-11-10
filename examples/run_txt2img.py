@@ -35,7 +35,7 @@ def main():
         "n_iter": 1,
         "model": "Deliberate",
     }
-    pil_image = generate.basic_inference_single_image(data)
+    pil_image = generate.basic_inference_single_image(data).image
     pil_image.save("images/run_txt2img.webp", quality=90)
 
 
