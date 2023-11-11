@@ -34,6 +34,7 @@ class ResultingImageReturn:
 
     def __init__(self, image: Image.Image | None, rawpng: io.BytesIO | None, faults: list[GenMetadataEntry]):
         self.image = image
+        self.rawpng = rawpng
         self.faults = faults
 
         if faults is None:
@@ -915,11 +916,11 @@ class HordeLib:
         if len(result) != 1:
             raise RuntimeError("Expected a single image but got multiple")
 
-        image = result[0]
+        image, rawpng = result[0]
         if not isinstance(image, Image.Image):
             raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
 
-        return ResultingImageReturn(image, faults)
+        return ResultingImageReturn(image=image, rawpng=rawpng, faults=faults)
 
     def image_facefix(self, payload) -> ResultingImageReturn:
         # AIHorde hacks to payload
