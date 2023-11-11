@@ -1,11 +1,9 @@
-import time
-
 from hordelib.settings import UserSettings
 from hordelib.utils.distance import (
     CosineSimilarityResultCode,
     HistogramDistanceResultCode,
 )
-from hordelib.utils.gpuinfo import GPUInfo, GPUInfoResult
+from hordelib.utils.gpuinfo import GPUInfo
 
 
 def test_worker_settings_singleton():

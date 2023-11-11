@@ -7,9 +7,8 @@ import threading
 import time
 import zipfile
 from abc import ABC
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable
 from uuid import uuid4
 
 import git

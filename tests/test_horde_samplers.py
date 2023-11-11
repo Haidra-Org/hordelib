@@ -1,7 +1,7 @@
 # test_horde.py
 
-from PIL import Image
 from loguru import logger
+from PIL import Image
 
 from hordelib.horde import HordeLib
 
