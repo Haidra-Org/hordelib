@@ -5,7 +5,7 @@ import PIL.Image
 import pytest
 from PIL import Image
 
-from hordelib.horde import HordeLib
+from hordelib.horde import HordeLib, ResultingImageReturn
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.distance import HistogramDistanceResultCode
 
@@ -59,7 +59,7 @@ class TestHordeUpscaling:
         target_image: PIL.Image.Image,
         expected_scale_factor: float,
         custom_data: dict | None = None,
-        post_process_function: typing.Callable[[dict], PIL.Image.Image | None],
+        post_process_function: typing.Callable[[dict], ResultingImageReturn | None],
         similarity_constraints: ImageSimilarityConstraints | None = None,
     ):
         if similarity_constraints is None:
@@ -80,7 +80,9 @@ class TestHordeUpscaling:
                 "source_image": target_image,
             }
         )
-        pil_image = post_process_function(data)
+        image_ret = post_process_function(data)
+        assert isinstance(image_ret, ResultingImageReturn)
+        pil_image = image_ret.image
         assert pil_image is not None
         pil_image.save(f"images/{image_filename}", quality=100)
 

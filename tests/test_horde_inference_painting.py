@@ -49,7 +49,7 @@ class TestHordeInference:
             "source_image": Image.open("images/test_inpaint_alpha.png"),
             "source_processing": "inpainting",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
 
         img_filename = "inpainting_mask_alpha.png"
@@ -90,7 +90,7 @@ class TestHordeInference:
             "source_mask": Image.open("images/test_inpaint_mask.png"),
             "source_processing": "inpainting",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
 
         img_filename = "inpainting_mask_separate.png"
@@ -130,7 +130,7 @@ class TestHordeInference:
             "source_image": Image.open("images/test_inpaint.png"),
             "source_processing": "inpainting",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
 
         assert isinstance(pil_image, Image.Image)
@@ -171,7 +171,7 @@ class TestHordeInference:
             "source_image": Image.open("images/test_outpaint.png"),
             "source_processing": "outpainting",
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
 
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)

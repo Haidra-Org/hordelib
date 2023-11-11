@@ -32,7 +32,7 @@ class TestHordeInference:
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -69,7 +69,7 @@ class TestHordeInference:
             "model": sdxl_1_0_base_model_name,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -121,7 +121,7 @@ class TestHordeInference:
         for resolution in recommended_resolutions:
             data["width"] = resolution[0]
             data["height"] = resolution[1]
-            pil_image = hordelib_instance.basic_inference_single_image(data)
+            pil_image = hordelib_instance.basic_inference_single_image(data).image
             assert pil_image is not None
             assert isinstance(pil_image, Image.Image)
 
@@ -160,7 +160,7 @@ class TestHordeInference:
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -196,7 +196,7 @@ class TestHordeInference:
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -232,7 +232,7 @@ class TestHordeInference:
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -268,7 +268,7 @@ class TestHordeInference:
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -281,7 +281,7 @@ class TestHordeInference:
         )
 
         data["tiling"] = False
-        pil_image_no_tiling = hordelib_instance.basic_inference_single_image(data)
+        pil_image_no_tiling = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image_no_tiling is not None
         assert isinstance(pil_image_no_tiling, Image.Image)
 

@@ -32,7 +32,7 @@ def main():
         "model": "RealESRGAN_x4plus",
         "source_image": Image.open("images/test_db0.jpg"),
     }
-    pil_image = generate.image_upscale(data)
+    pil_image = generate.image_upscale(data).image
     pil_image.save("images/run_upscale.webp", quality=90)
 
 

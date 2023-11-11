@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import pytest
 from PIL import Image
 
-from hordelib.horde import HordeLib
+from hordelib.horde import HordeLib, ResultingImageReturn
 from hordelib.shared_model_manager import SharedModelManager
 
 from .testing_shared_functions import check_single_lora_image_similarity
@@ -51,9 +51,12 @@ class TestHordeLora:
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        ret = hordelib_instance.basic_inference_single_image(data)
+        assert isinstance(ret, ResultingImageReturn)
+        pil_image = ret.image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
+        assert len(ret.faults) == 0
 
         img_filename = "lora_red.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -101,7 +104,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -146,7 +149,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -191,7 +194,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -236,7 +239,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -248,7 +251,7 @@ class TestHordeLora:
         )
 
         data["loras"] = [{"name": lora_name, "model": 1.0, "clip": 0.1}]
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -260,7 +263,7 @@ class TestHordeLora:
         )
 
         data["loras"] = [{"name": lora_name, "model": 0.1, "clip": 0.1}]
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -304,7 +307,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -316,7 +319,7 @@ class TestHordeLora:
         )
 
         data["loras"] = [{"name": lora_name, "model": 1.0, "clip": -1.0}]
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -328,7 +331,7 @@ class TestHordeLora:
         )
 
         data["loras"] = [{"name": lora_name, "model": -1.0, "clip": -1.0}]
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -372,7 +375,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -436,7 +439,7 @@ class TestHordeLora:
             "model": "Rev Animated",
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -490,7 +493,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         img_filename = "lora_multiple.png"
@@ -505,7 +508,7 @@ class TestHordeLora:
             {"name": lora_name2, "model": 1.0, "clip": 1.0},
             {"name": lora_name, "model": 1.0, "clip": 1.0},
         ]
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
         img_filename_2 = "lora_multiple_reordered.png"
@@ -553,8 +556,10 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        ret = hordelib_instance.basic_inference_single_image(data)
+        pil_image = ret.image
         assert pil_image is not None
+        assert len(ret.faults) == 1
         # Don't save this one, just testing we didn't crash and burn
 
     def test_lora_trigger_inject_red(
@@ -588,7 +593,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -631,14 +636,14 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
         img_filename = "lora_inject_any.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        pil_image_2 = hordelib_instance.basic_inference_single_image(data)
+        pil_image_2 = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image_2 is not None
         assert isinstance(pil_image_2, Image.Image)
 
@@ -679,7 +684,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -723,7 +728,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
 
     def test_sd21_lora_against_sd15_model(
@@ -757,8 +762,10 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        ret = hordelib_instance.basic_inference_single_image(data)
+        pil_image = ret.image
         assert pil_image is not None
+        # assert len(ret.faults) > 0 #FIXME I thought this would fail? Need to follow up
 
         img_filename = "lora_baseline_mismatch.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -796,7 +803,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -835,7 +842,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 
@@ -868,7 +875,7 @@ class TestHordeLora:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
 

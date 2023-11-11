@@ -52,7 +52,7 @@ class TestHordeInference:
                 continue
             assert shared_model_manager.manager.controlnet
             data["control_type"] = preproc
-            pil_image = hordelib_instance.basic_inference_single_image(data)
+            pil_image = hordelib_instance.basic_inference_single_image(data).image
             assert pil_image is not None
             assert isinstance(pil_image, PIL.Image.Image)
             img_filename = f"annotator_{preproc}.png"

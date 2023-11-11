@@ -16,7 +16,7 @@ class TestInference:
 
     def test_unknown_pipeline(self, isolated_comfy_horde_instance: Comfy_Horde):
         with pytest.raises(ValueError, match="Unknown inference pipeline"):
-            result = isolated_comfy_horde_instance.run_image_pipeline("non-existent-pipeline", {})
+            isolated_comfy_horde_instance.run_image_pipeline("non-existent-pipeline", {})
 
     def test_stable_diffusion_pipeline(
         self,

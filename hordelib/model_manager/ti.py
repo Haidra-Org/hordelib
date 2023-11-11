@@ -443,7 +443,7 @@ class TextualInversionModelManager(BaseModelManager):
 
     def fuzzy_find_ti_key(self, ti_name):
         # sname = Sanitizer.remove_version(ti_name).lower()
-        if type(ti_name) is int or ti_name.isdigit():
+        if isinstance(ti_name, int) or ti_name.isdigit():
             if int(ti_name) in self._index_ids:
                 return self._index_ids[int(ti_name)]
             return None
@@ -750,7 +750,7 @@ class TextualInversionModelManager(BaseModelManager):
         return datetime.strptime(ti["last_used"], "%Y-%m-%d %H:%M:%S")
 
     def fetch_adhoc_ti(self, ti_name, timeout=15):
-        if type(ti_name) is int or ti_name.isdigit():
+        if isinstance(ti_name, int) or ti_name.isdigit():
             url = f"https://civitai.com/api/v1/models/{ti_name}"
         else:
             url = f"{self.TI_API}&nsfw={str(self.nsfw).lower()}&query={ti_name}"

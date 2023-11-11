@@ -52,7 +52,7 @@ def do_inference(model_name, iterations=1):
             "n_iter": 1,
             "model": model_name,
         }
-        pil_image = horde.basic_inference_single_image(data)
+        pil_image = horde.basic_inference_single_image(data).image
         if not pil_image:
             logger.error("Inference is failing to generate images")
         else:
