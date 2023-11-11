@@ -32,7 +32,6 @@ def main():
     )
 
     horde.basic_inference(example_response)
-    pass
 
 
 if __name__ == "__main__":

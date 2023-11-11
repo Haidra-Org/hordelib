@@ -220,16 +220,16 @@ class LoraDownloader:
                         break
 
                     logger.debug(f"Downloaded LORA file for {lora['filename']} didn't match hash")
-                    pass  # we will retry
+                    # we will retry
 
                 except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
                     logger.debug(f"Error downloading {lora['filename']} {e}")
-                    pass  # we will retry
+                    # we will retry
 
                 except Exception as e:
                     # Failed badly, ignore
                     logger.debug(f"Fatal error downloading {lora['filename']} {e}")
-                    pass  # we will retry
+                    # we will retry
 
                 retries += 1
                 logger.debug(f"Retry of LORA file download for {lora['filename']}")
