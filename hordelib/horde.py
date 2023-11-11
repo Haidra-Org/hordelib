@@ -32,17 +32,28 @@ class ResultingImageReturn:
     rawpng: io.BytesIO | None
     faults: list[GenMetadataEntry]
 
-    def __init__(self, image: Image.Image | None, rawpng: io.BytesIO | None, faults: list[GenMetadataEntry]):
-        self.image = image
-        self.rawpng = rawpng
-        self.faults = faults
-
+    def __init__(
+        self,
+        image: Image.Image | None,
+        rawpng: io.BytesIO | None,
+        faults: list[GenMetadataEntry],
+    ):
         if faults is None:
             faults = []
 
         for fault in faults:
             if not isinstance(fault, GenMetadataEntry):
                 raise TypeError("faults must be a list of GenMetadataEntry")
+
+        if image is not None and not isinstance(image, Image.Image):
+            raise TypeError("image must be a PIL.Image.Image")
+
+        if rawpng is not None and not isinstance(rawpng, io.BytesIO):
+            raise TypeError("rawpng must be a io.BytesIO")
+
+        self.image = image
+        self.rawpng = rawpng
+        self.faults = faults
 
 
 class HordeLib:
