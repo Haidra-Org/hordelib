@@ -95,10 +95,10 @@ class TestModelManagerLora:
         lora_model_manager.wait_for_adhoc_reset(15)
         lora_model_manager.ensure_lora_deleted(22591)
         lora_key = lora_model_manager.fetch_adhoc_lora("22591")
-        assert lora_key == "GAG - RPG Potions  |  LoRa 2.1".lower()
+        assert lora_key == "GAG - RPG Potions  |  LoRa xl".lower()
         assert lora_model_manager.is_model_available("GAG")
         assert lora_model_manager.is_model_available("22591")
-        assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  LoRa 2.1".lower()
+        assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  LoRa xl".lower()
         lora_model_manager.stop_all()
 
     def test_reject_adhoc_nsfw_lora(self):

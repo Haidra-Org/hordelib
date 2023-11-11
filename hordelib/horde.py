@@ -374,15 +374,19 @@ class HordeLib:
                         adhoc_ti = SharedModelManager.manager.ti.fetch_adhoc_ti(str(ti["name"]))
                     except Exception as e:
                         logger.info(f"Error fetching adhoc TI {ti['name']}: ({type(e).__name__}) {e}")
-                        faults.append(
-                            GenMetadataEntry(METADATA_TYPE.ti,METADATA_VALUE.download_failed,ti['name'])
-                        )
+                        faults.append(GenMetadataEntry(
+                            type = METADATA_TYPE.ti,
+                            value = METADATA_VALUE.download_failed,
+                            ref = ti['name']
+                        ))
                         adhoc_ti = None
                     if not adhoc_ti:
                         logger.info(f"Adhoc TI requested '{ti['name']}' could not be found in CivitAI. Ignoring!")
-                        faults.append(
-                            GenMetadataEntry(METADATA_TYPE.ti,METADATA_VALUE.download_failed,ti['name'])
-                        )
+                        faults.append(GenMetadataEntry(
+                            type = METADATA_TYPE.ti,
+                            value = METADATA_VALUE.download_failed,
+                            ref = ti['name'],
+                        ))
                         continue
                 ti_name = SharedModelManager.manager.ti.get_ti_name(str(ti["name"]))
                 if ti_name:
@@ -393,9 +397,11 @@ class HordeLib:
                     # If the ti and model do not match baseline, we ignore the TI
                     if not SharedModelManager.manager.ti.do_baselines_match(ti_name, model_details):
                         logger.info(f"Skipped TI {ti_name} because its baseline does not match the model's")
-                        faults.append(
-                            GenMetadataEntry(METADATA_TYPE.ti,METADATA_VALUE.baseline_mismatch,ti_name)
-                        )
+                        faults.append(GenMetadataEntry(
+                            type = METADATA_TYPE.ti,
+                            value = METADATA_VALUE.baseline_mismatch,
+                            ref = ti_name,
+                        ))
                         continue
                     ti_inject = ti.get("inject_ti")
                     ti_strength = ti.get("strength", 1.0)
@@ -432,15 +438,19 @@ class HordeLib:
                         adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(str(lora["name"]))
                     except Exception as e:
                         logger.info(f"Error fetching adhoc lora {lora['name']}: ({type(e).__name__}) {e}")
-                        faults.append(
-                            GenMetadataEntry(METADATA_TYPE.lora,METADATA_VALUE.download_failed,lora['name'])
-                        )
+                        faults.append(GenMetadataEntry(
+                            type = METADATA_TYPE.lora,
+                            value = METADATA_VALUE.download_failed,
+                            ref = lora['name'],
+                        ))
                         adhoc_lora = None
                     if not adhoc_lora:
                         logger.info(f"Adhoc lora requested '{lora['name']}' could not be found in CivitAI. Ignoring!")
-                        faults.append(
-                            GenMetadataEntry(METADATA_TYPE.lora,METADATA_VALUE.download_failed,lora['name'])
-                        )
+                        faults.append(GenMetadataEntry(
+                            type = METADATA_TYPE.lora,
+                            value = METADATA_VALUE.download_failed,
+                            ref = lora['name'],
+                        ))
                         continue
                 # We store the actual lora name to search for the trigger
                 lora_name = SharedModelManager.manager.lora.get_lora_name(str(lora["name"]))
@@ -452,9 +462,11 @@ class HordeLib:
                     # If the lora and model do not match baseline, we ignore the lora
                     if not SharedModelManager.manager.lora.do_baselines_match(lora_name, model_details):
                         logger.info(f"Skipped lora {lora_name} because its baseline does not match the model's")
-                        faults.append(
-                            GenMetadataEntry(METADATA_TYPE.lora,METADATA_VALUE.baseline_mismatch,lora_name)
-                        )
+                        faults.append(GenMetadataEntry(
+                            type = METADATA_TYPE.lora,
+                            value = METADATA_VALUE.baseline_mismatch,
+                            ref = lora_name,
+                        ))
                         continue
                     trigger_inject = lora.get("inject_trigger")
                     trigger = None
@@ -743,9 +755,10 @@ class HordeLib:
                     source_image_pil = Image.open(io.BytesIO(source_image_bytes))
                     sub_payload["source_image"] = source_image_pil
                 except Exception as err:
-                    faults.append(
-                        GenMetadataEntry(METADATA_TYPE.source_image,METADATA_VALUE.parse_failed)
-                    )
+                    faults.append(GenMetadataEntry(
+                        type = METADATA_TYPE.source_image,
+                        value = METADATA_VALUE.parse_failed,
+                    ))
                     logger.warning("Failed to parse source image. Falling back to text2img.")
                     
 
@@ -755,9 +768,10 @@ class HordeLib:
                     mask_image_pil = Image.open(io.BytesIO(mask_image_bytes))
                     sub_payload["source_mask"] = mask_image_pil
                 except Exception as err:
-                    faults.append(
-                        GenMetadataEntry(METADATA_TYPE.source_mask,METADATA_VALUE.parse_failed)
-                    )
+                    faults.append(GenMetadataEntry(
+                        type = METADATA_TYPE.source_mask,
+                        value = METADATA_VALUE.parse_failed,
+                    ))
                     logger.warning("Failed to parse source mask. Ignoring it.")
 
             sub_payload["source_processing"] = payload.source_processing
@@ -823,14 +837,14 @@ class HordeLib:
         result = self._inference(payload, rawpng=True, single_image_expected=False)
 
         if isinstance(result, list):
-            bytes_io_list = [x for x in result if isinstance(x, io.BytesIO)]
+            bytes_io_list = [x.image for x in result if isinstance(x.image, io.BytesIO)]
             if len(bytes_io_list) == len(result):
                 return bytes_io_list
 
             raise RuntimeError("Expected a list of io.BytesIO but got a mix of types!")
 
-        if isinstance(result, io.BytesIO):
-            return [result]
+        if isinstance(result.image, io.BytesIO):
+            return [result.image]
 
         raise RuntimeError(f"Expected at least one io.BytesIO. Got {result}.")
 
@@ -855,7 +869,7 @@ class HordeLib:
 
         # Allow arbitrary resizing by shrinking the image back down
         if width or height:
-            return ImageUtils.shrink_image(Image.open(images[0]["imagedata"]), width, height)
+            return ResultingImageReturn(ImageUtils.shrink_image(Image.open(images[0]["imagedata"]), width, height), faults)
         result = self._process_results(images, rawpng)
         if len(result) != 1:
             raise RuntimeError("Expected a single image but got multiple")

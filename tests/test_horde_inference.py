@@ -281,7 +281,7 @@ class TestHordeInference:
         )
 
         data["tiling"] = False
-        pil_image_no_tiling = hordelib_instance.basic_inference_single_image(data)
+        pil_image_no_tiling = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image_no_tiling is not None
         assert isinstance(pil_image_no_tiling, Image.Image)
 
