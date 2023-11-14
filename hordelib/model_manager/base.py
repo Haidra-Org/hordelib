@@ -704,4 +704,8 @@ class BaseModelManager(ABC):
         """
         if model_name not in self.model_reference:
             return False
+
+        if model_name in self.tainted_models:
+            return False
+
         return self.is_file_available(self.get_model_filename(model_name))
