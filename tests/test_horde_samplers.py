@@ -1,7 +1,7 @@
 # test_horde.py
 
-from PIL import Image
 from loguru import logger
+from PIL import Image
 
 from hordelib.horde import HordeLib
 
@@ -39,7 +39,7 @@ class TestHordeSamplers:
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
         }
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
 
     def test_samplers(
@@ -74,7 +74,7 @@ class TestHordeSamplers:
         for sampler in HordeLib.SAMPLERS_MAP.keys():
             data["sampler_name"] = sampler.upper()  # force uppercase to ensure case insensitive
 
-            pil_image = hordelib_instance.basic_inference_single_image(data)
+            pil_image = hordelib_instance.basic_inference_single_image(data).image
             assert pil_image is not None
 
             img_filename = f"sampler_30_steps_{sampler}.png"
@@ -121,7 +121,7 @@ class TestHordeSamplers:
         for sampler in SLOW_SAMPLERS:
             data["sampler_name"] = sampler
 
-            pil_image = hordelib_instance.basic_inference_single_image(data)
+            pil_image = hordelib_instance.basic_inference_single_image(data).image
             assert pil_image is not None
 
             img_filename = f"sampler_10_steps_{sampler}.png"

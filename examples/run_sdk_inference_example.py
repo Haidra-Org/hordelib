@@ -2,18 +2,18 @@ import hordelib
 
 hordelib.initialise(setup_logging=False, logging_verbosity=5)
 
+from uuid import UUID
+
 from horde_sdk.ai_horde_api import KNOWN_SOURCE_PROCESSING
 from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopPayload,
-    ImageGenerateJobPopSkippedStatus,
     ImageGenerateJobPopResponse,
+    ImageGenerateJobPopSkippedStatus,
 )
 from horde_sdk.ai_horde_api.fields import JobID
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
-
-from uuid import UUID
 
 horde = HordeLib()
 
@@ -31,8 +31,7 @@ def main():
         ),
     )
 
-    result_list = horde.basic_inference(example_response)
-    pass
+    horde.basic_inference(example_response)
 
 
 if __name__ == "__main__":

@@ -129,7 +129,7 @@ def generate_images_cnet():
         "source_processing": "img2img",
     }
     horde = HordeLib()
-    pil_image = horde.basic_inference_single_image(data)
+    pil_image = horde.basic_inference_single_image(data).image
     pil_image.save(
         f"{out_dir}/cnet_{model}_{sampler}_{cnet_type}_{threading.current_thread().ident}_{i}.webp",
         quality=80,
@@ -163,7 +163,7 @@ def generate_images_txt2img():
         "source_processing": "txt2img",
     }
     horde = HordeLib()
-    pil_image = horde.basic_inference_single_image(data)
+    pil_image = horde.basic_inference_single_image(data).image
     pil_image.save(
         f"{out_dir}/cnet_{model}_{sampler}_{threading.current_thread().ident}_{i}.webp",
         quality=80,
@@ -178,7 +178,7 @@ def generate_images_pp():
         "model": model,
         "source_image": Image.open("images/test_facefix.png"),
     }
-    pil_image = generate.image_facefix(data)
+    pil_image = generate.image_facefix(data).image
     pil_image.save(
         f"{out_dir}/pp_{model}_{threading.current_thread().ident}_{i}.webp",
         quality=80,
@@ -193,7 +193,7 @@ def generate_images_pp_upscale():
         "model": model,
         "source_image": Image.open("images/test_db0.jpg"),
     }
-    pil_image = generate.image_upscale(data)
+    pil_image = generate.image_upscale(data).image
     pil_image.save(
         f"{out_dir}/pp_{model}_{threading.current_thread().ident}_{i}.webp",
         quality=80,

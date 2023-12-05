@@ -1,12 +1,11 @@
 import contextlib
-import json
 import sys
 
 from loguru import logger
 
 
 class HordeLog:
-    # By default we're at error level or higher
+    # By default we're at info level or higher
     verbosity: int = 20
     quiet: int = 0
 
@@ -19,7 +18,10 @@ class HordeLog:
 
     @classmethod
     def set_logger_verbosity(cls, count):
-        cls.verbosity = 50 - (count * 10)
+        if count == 2:
+            cls.verbosity = 25
+        else:
+            cls.verbosity = 50 - (count * 10)
 
     @classmethod
     def is_stats_log(cls, record):

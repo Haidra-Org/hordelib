@@ -1,6 +1,6 @@
 # Add this in for tox, comment out for build
 --extra-index-url https://download.pytorch.org/whl/cu121
-horde_sdk>=0.7.10
+horde_sdk>=0.7.22
 horde_model_reference>=0.5.2
 pydantic
 torch>=2.1.0
@@ -35,7 +35,7 @@ opencv-python
 # controlnet custom nodes
 opencv-contrib-python
 opencv-python
-timm==0.6.13
+timm==0.9.10
 torchvision
 scipy
 addict

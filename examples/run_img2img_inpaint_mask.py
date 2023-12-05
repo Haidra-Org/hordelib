@@ -40,7 +40,7 @@ def main():
         "source_mask": Image.open("images/test_inpaint_mask.png"),
         "source_processing": "inpainting",
     }
-    pil_image = generate.basic_inference_single_image(data)
+    pil_image = generate.basic_inference_single_image(data).image
     pil_image.save("images/run_img2img_inpaint_mask.webp", quality=90)
 
 

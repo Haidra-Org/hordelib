@@ -56,7 +56,7 @@ def do_inference(data):
     horde = HordeLib()
     start_time = time.time()
     for _ in range(ITERATIONS):  # do n times and average the time
-        pil_image = horde.basic_inference_single_image(data)
+        pil_image = horde.basic_inference_single_image(data).image
         if not pil_image:
             logger.error("Inference is failing to generate images")
         else:

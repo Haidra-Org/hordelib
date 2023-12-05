@@ -1,6 +1,6 @@
+import rembg  # type: ignore
 from loguru import logger
 from PIL import Image, ImageOps, PngImagePlugin, UnidentifiedImageError
-import rembg  # type: ignore
 
 
 class ImageUtils:

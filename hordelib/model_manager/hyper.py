@@ -1,7 +1,6 @@
 """Home for the controller class ModelManager, and related meta information."""
 import threading
-from collections.abc import Iterable
-from typing import Callable
+from collections.abc import Callable, Iterable
 
 import torch
 from loguru import logger

@@ -434,7 +434,7 @@ class Comfy_Horde:
         for node in newnodes.values():
             if "inputs" in node:
                 for _, input in node["inputs"].items():
-                    if type(input) is list and input and input[0] in renames:
+                    if isinstance(input, list) and input and input[0] in renames:
                         input[0] = renames[input[0]]
         return newnodes
 

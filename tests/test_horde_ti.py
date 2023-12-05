@@ -51,7 +51,7 @@ class TestHordeTI:
     ):
         assert shared_model_manager.manager.ti
 
-        pil_image = hordelib_instance.basic_inference_single_image(basic_ti_payload_data)
+        pil_image = hordelib_instance.basic_inference_single_image(basic_ti_payload_data).image
         assert pil_image is not None
         assert (
             Path(os.path.join(shared_model_manager.manager.ti.model_folder_path, "64870.safetensors")).exists() is True
@@ -93,9 +93,9 @@ class TestHordeTI:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        payload, _ = hordelib_instance._get_validated_payload_and_pipeline_data(data)
+        payload, _, _ = hordelib_instance._get_validated_payload_and_pipeline_data(data)
 
-        basic_payload, _ = hordelib_instance._get_validated_payload_and_pipeline_data(
+        basic_payload, _, _ = hordelib_instance._get_validated_payload_and_pipeline_data(
             basic_ti_payload_data,
         )
 
@@ -106,7 +106,7 @@ class TestHordeTI:
         assert "(embedding:7808:0.5)" in payload["negative_prompt.text"]
         assert "(embedding:64870:1.0)" in payload["negative_prompt.text"]
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
 
         img_filename = "ti_inject.png"
@@ -150,13 +150,13 @@ class TestHordeTI:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        payload, _ = hordelib_instance._get_validated_payload_and_pipeline_data(data)
+        payload, _, _ = hordelib_instance._get_validated_payload_and_pipeline_data(data)
 
         assert "(embedding:7523:1.0)" in payload["prompt.text"]
         assert "(embedding:7808:0.5)" in payload["negative_prompt.text"]
         assert "(embedding:64870:1.0)" in payload["negative_prompt.text"]
 
-        pil_image = hordelib_instance.basic_inference_single_image(data)
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
 
         img_filename = "ti_bad_inject.png"

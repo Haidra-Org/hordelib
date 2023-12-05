@@ -335,7 +335,8 @@ class LoraModelManager(BaseModelManager):
                     response.raise_for_status()
                     if "reason=download-auth" in response.url:
                         logger.error(
-                            f"Error downloading {lora['filename']}. CivitAI appears to be redirecting us to a login page. Aborting"
+                            f"Error downloading {lora['filename']}. "
+                            "CivitAI appears to be redirecting us to a login page. Aborting",
                         )
                         break
                     # Check the data hash
@@ -487,7 +488,7 @@ class LoraModelManager(BaseModelManager):
     def fuzzy_find_lora_key(self, lora_name):
         # sname = Sanitizer.remove_version(lora_name).lower()
         logger.debug(f"Looking for lora {lora_name}")
-        if type(lora_name) is int or lora_name.isdigit():
+        if isinstance(lora_name, int) or lora_name.isdigit():
             if int(lora_name) in self._index_ids:
                 return self._index_ids[int(lora_name)]
             return None
@@ -783,7 +784,7 @@ class LoraModelManager(BaseModelManager):
                 self._touch_lora(lora_name)
                 return lora_name
 
-        if type(lora_name) is int or lora_name.isdigit():
+        if isinstance(lora_name, int) or lora_name.isdigit():
             url = f"https://civitai.com/api/v1/models/{lora_name}"
         else:
             url = f"{self.LORA_API}&nsfw={str(self.nsfw).lower()}&query={lora_name}"
