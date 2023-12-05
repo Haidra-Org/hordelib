@@ -1,5 +1,14 @@
 ## hordelib Changelog
 
+## [v2.2.0](https://github.com/Haidra-Org/hordelib/compare/v2.1.1...v2.2.0)
+
+5 December 2023
+
+- feat: Inference and PP return objects instead of Images [`#96`](https://github.com/Haidra-Org/hordelib/pull/96) (Divided by Zer0)
+- build(deps): bump the python-packages group with 6 updates [`4cbc080`](https://github.com/Haidra-Org/hordelib/commit/4cbc080310560ae7f2bb8e7d665fe1d98fec9643)  (dependabot[bot])
+- chore: add dependabot support [`6b6c001`](https://github.com/Haidra-Org/hordelib/commit/6b6c0018b36a0a3008f4ff6a78acb6bc4ef8ed37)  (tazlin)
+- chore: update pre-commit hooks [`f2808cc`](https://github.com/Haidra-Org/hordelib/commit/f2808cca309cd44b3118871002087dd7caede794)  (tazlin)
+
 ## [v2.1.1](https://github.com/Haidra-Org/hordelib/compare/v2.1.0...v2.1.1)
 
 10 November 2023
