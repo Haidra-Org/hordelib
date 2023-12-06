@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.2.1](https://github.com/Haidra-Org/hordelib/compare/v2.2.0...v2.2.1)
+
+6 December 2023
+
+- feat: update to comfy version `e13454` (SDV support) [`99dcdb1`](https://github.com/Haidra-Org/hordelib/commit/99dcdb12234a82e16bd59a78391729223de63a1f)  (tazlin)
+
 ## [v2.2.0](https://github.com/Haidra-Org/hordelib/compare/v2.1.1...v2.2.0)
 
 5 December 2023
