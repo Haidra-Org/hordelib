@@ -148,6 +148,36 @@ class TestModelManagerLora:
         assert not lora_model_manager.is_model_available(lora_name)
         lora_model_manager.stop_all()
 
+    def test_adhoc_non_existing_intstring_small(self):
+        lora_model_manager = LoraModelManager(
+            download_wait=False,
+            allowed_adhoc_lora_storage=1024,
+        )
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        lora_model_manager.wait_for_adhoc_reset(15)
+        lora_name = "12345"
+        lora_key = lora_model_manager.fetch_adhoc_lora(lora_name)
+        assert lora_model_manager.total_retries_attempted == 0
+        assert lora_key is None
+        assert not lora_model_manager.is_model_available(lora_name)
+        lora_model_manager.stop_all()
+
+    def test_adhoc_non_existing_intstring_large(self):
+        lora_model_manager = LoraModelManager(
+            download_wait=False,
+            allowed_adhoc_lora_storage=1024,
+        )
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        lora_model_manager.wait_for_adhoc_reset(15)
+        lora_name = "99999999999999"
+        lora_key = lora_model_manager.fetch_adhoc_lora(lora_name)
+        assert lora_model_manager.total_retries_attempted == 0
+        assert lora_key is None
+        assert not lora_model_manager.is_model_available(lora_name)
+        lora_model_manager.stop_all()
+
     ## Disabling this until I can figure out a better way to test these
     # def test_unused_loras(self):
     #     lora_model_manager = LoraModelManager(
