@@ -36,9 +36,9 @@ AIWORKER_LORA_CACHE_SIZE_DEFAULT = 10 * 1024  # 10GB
 class LoraModelManager(BaseModelManager):
     LORA_DEFAULTS = "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/main/lora.json"
     LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated&primaryFileOnly=true"
-    MAX_RETRIES = 10 if not TESTS_ONGOING else 1
+    MAX_RETRIES = 10 if not TESTS_ONGOING else 3
     MAX_DOWNLOAD_THREADS = 3
-    RETRY_DELAY = 5
+    RETRY_DELAY = 5 if not TESTS_ONGOING else 0.2
     """The time to wait between retries in seconds"""
     REQUEST_METADATA_TIMEOUT = 30
     """The time to wait for a response from the server in seconds"""
@@ -84,6 +84,7 @@ class LoraModelManager(BaseModelManager):
         self._stop_all_threads = False
         self._index_ids = {}
         self._index_orig_names = {}
+        self.total_retries_attempted = 0
 
         models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
 
@@ -182,7 +183,11 @@ class LoraModelManager(BaseModelManager):
                 return response.json()
 
             except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError):
+                # CivitAI Errors when the model ID is too long
+                if response.status_code in [404, 500]:
+                    return None
                 retries += 1
+                self.total_retries_attempted += 1
                 if retries <= self.MAX_RETRIES:
                     time.sleep(self.RETRY_DELAY)
                 else:
@@ -379,6 +384,7 @@ class LoraModelManager(BaseModelManager):
                     logger.debug(f"Fatal error downloading {lora['filename']} {e}. Retry {retries}/{self.MAX_RETRIES}")
 
                 retries += 1
+                self.total_retries_attempted += 1
                 if retries > self.MAX_RETRIES:
                     break  # fail
 
