@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.2.2](https://github.com/Haidra-Org/hordelib/compare/v2.2.1...v2.2.2)
+
+9 December 2023
+
+- fix: Handle missing lora IDs [`2948c58`](https://github.com/Haidra-Org/hordelib/commit/2948c5899d783a69fd77ecb502b5c7b6903a4dbd)  (db0)
+
 ## [v2.2.1](https://github.com/Haidra-Org/hordelib/compare/v2.2.0...v2.2.1)
 
 6 December 2023
