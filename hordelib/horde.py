@@ -11,7 +11,6 @@ import typing
 from collections.abc import Callable
 from copy import deepcopy
 
-import PIL.Image
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from horde_sdk.ai_horde_api.apimodels.base import (
     GenMetadataEntry,
@@ -827,9 +826,9 @@ class HordeLib:
         if post_processing_requested is not None:
             post_processed = []
             for ret in return_list:
-                image = ret.image
                 single_image_faults = []
-                final_image: PIL.Image.Image | None = image
+                final_image = ret.image
+                final_rawpng = ret.rawpng
                 for post_processing in post_processing_requested:
                     if post_processing in KNOWN_UPSCALERS.__members__:
                         image_ret = self.image_upscale(
