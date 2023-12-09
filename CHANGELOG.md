@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.2.3](https://github.com/Haidra-Org/hordelib/compare/v2.2.2...v2.2.3)
+
+9 December 2023
+
+- fix: must initiate final_rawpng [`2a3483d`](https://github.com/Haidra-Org/hordelib/commit/2a3483d2b0dce6edc6544d0072a6ce3b1eb550db)  (db0)
+
 ## [v2.2.2](https://github.com/Haidra-Org/hordelib/compare/v2.2.1...v2.2.2)
 
 9 December 2023
