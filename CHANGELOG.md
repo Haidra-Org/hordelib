@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v2.2.4](https://github.com/Haidra-Org/hordelib/compare/v2.2.3...v2.2.4)
+
+13 December 2023
+
+- fix: retry hordeling more often; try fewer times on 500s [`ff33292`](https://github.com/Haidra-Org/hordelib/commit/ff3329289f545f74a7bb10eb20b20fb183a9bab5)  (tazlin)
+- fix: do download timeout checks for TIs too [`3155c99`](https://github.com/Haidra-Org/hordelib/commit/3155c994fcc3c95d609ca0ab2fe40e5b39cd181d)  (tazlin)
+
 ## [v2.2.3](https://github.com/Haidra-Org/hordelib/compare/v2.2.2...v2.2.3)
 
 9 December 2023
