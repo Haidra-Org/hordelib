@@ -35,7 +35,11 @@ AIWORKER_LORA_CACHE_SIZE_DEFAULT = 10 * 1024  # 10GB
 
 class LoraModelManager(BaseModelManager):
     LORA_DEFAULTS = "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/main/lora.json"
+    LORA_VERSIONS_DEFAULTS = (
+        "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/main/lora_versions.json"
+    )
     LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated&primaryFileOnly=true"
+    LORA_VERSIONS_API = "https://civitai.com/api/v1/model-versions"
     MAX_RETRIES = 10 if not TESTS_ONGOING else 3
     MAX_DOWNLOAD_THREADS = 3
     RETRY_DELAY = 5 if not TESTS_ONGOING else 0.2
@@ -83,10 +87,12 @@ class LoraModelManager(BaseModelManager):
         self._adhoc_reset_thread = None
         self._stop_all_threads = False
         self._index_ids = {}
+        self._index_version_ids = {}
         self._index_orig_names = {}
         self.total_retries_attempted = 0
 
         models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
+        # versions_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora_versions.json").resolve()
 
         super().__init__(
             model_category_name=MODEL_CATEGORY_NAMES.lora,
@@ -116,9 +122,13 @@ class LoraModelManager(BaseModelManager):
                     self.model_reference = json.loads((self.models_db_path).read_text())
 
                     for lora in self.model_reference.values():
-                        self._index_ids[lora["id"]] = lora["name"].lower()
-                        orig_name = lora.get("orig_name", lora["name"]).lower()
-                        self._index_orig_names[orig_name] = lora["name"].lower()
+                        if lora["id"] not in self._index_ids:
+                            self._index_ids[lora["id"]] = {}
+                        self._index_ids[lora["id"]][lora["version_id"]] = lora["key"]
+                        orig_name = lora.get("orig_name", lora["key"])
+                        if orig_name not in self._index_orig_names:
+                            self._index_orig_names[orig_name] = {}
+                        self._index_orig_names[orig_name][lora["version_id"]] = lora["key"]
 
                     logger.info("Loaded model reference from disk.")
                 except json.JSONDecodeError:
@@ -149,15 +159,31 @@ class LoraModelManager(BaseModelManager):
             logger.error(f"_get_lora_defaults() raised {err}")
             raise err
 
-    def _add_lora_ids_to_download_queue(self, lora_ids, adhoc=False, version_compare=None):
-        idsq = "&ids=".join([str(id) for id in lora_ids])
-        url = f"https://civitai.com/api/v1/models?limit=100&ids={idsq}"
-        data = self._get_json(url)
-        if not data:
-            logger.warning(f"metadata for LoRa {lora_ids} could not be downloaded!")
-            return
-        for lora_data in data.get("items", []):
-            lora = self._parse_civitai_lora_data(lora_data, adhoc=adhoc)
+    def _add_lora_ids_to_download_queue(self, lora_ids, adhoc=False, version_compare=None, id_type="lora"):
+        if id_type == "version":
+            # CivitAI doesn't support fetching multiple versions from the same API call, so we have to loop
+            for version_id in lora_ids:
+                model_items = []
+                if isinstance(version_id, str) and not version_id.isdigit:
+                    logger.warning(f"Non-integer lora model version sent: {version_id}. Ignoring...")
+                url = f"https://civitai.com/api/v1/model-versions/{version_id}"
+                data = self._get_json(url)
+                if not data:
+                    logger.warning(f"metadata for LoRa {lora_ids} could not be downloaded!")
+                    return
+                model_items.append(data)
+                lora_id = data["modelId"]
+                lora_data = self._get_json(f"https://civitai.com/api/v1/models/{lora_id}")
+        else:
+            idsq = "&ids=".join([str(id) for id in lora_ids])
+            url = f"https://civitai.com/api/v1/models?limit=100&ids={idsq}"
+            data = self._get_json(url)
+            if not data:
+                logger.warning(f"metadata for LoRa {lora_ids} could not be downloaded!")
+                return
+            model_items = data.get("items", [])
+        for lora_data in model_items:
+            lora = self._parse_civitai_lora_data(lora_data, adhoc=adhoc, item_type=id_type)
             # If we're comparing versions, then we don't download if the existing lora metadata matches
             # Instead we just refresh metadata information
             if not lora:
@@ -223,7 +249,7 @@ class LoraModelManager(BaseModelManager):
                 self._data = None
                 self._next_page_url = None  # give up
 
-    def _parse_civitai_lora_data(self, item, adhoc=False):
+    def _parse_civitai_lora_data(self, item, adhoc=False, item_type="lora"):
         """Return a simplified dictionary with the information we actually need about a lora"""
         lora = {
             "name": "",
@@ -238,19 +264,24 @@ class LoraModelManager(BaseModelManager):
             "nsfw": False,
         }
         # get top version
-        try:
-            version = item.get("modelVersions", {})[0]
-        except IndexError:
-            version = {}
+        if item_type == "version":
+            version = item
+        else:
+            try:
+                version = item.get("modelVersions", {})[0]
+            except IndexError:
+                version = {}
         # Get model triggers
         triggers = version.get("trainedWords", [])
         # get first file that is a primary file and a safetensor
         for file in version.get("files", {}):
             if file.get("primary", False) and file.get("name", "").endswith(".safetensors"):
-                lora["name"] = Sanitizer.sanitise_model_name(item.get("name", ""))
+                sanitized_name = Sanitizer.sanitise_model_name(item.get("name", ""))
+                lora["name"] = sanitized_name
+                lora["key"] = f'{sanitized_name}_{version.get("id", 0)}'
                 lora["orig_name"] = item.get("name", "")
                 lora["id"] = item.get("id", 0)
-                lora["filename"] = f'{Sanitizer.sanitise_filename(lora["name"])}.safetensors'
+                lora["filename"] = f'{sanitized_name}_{version.get("id", 0)}.safetensors'
                 lora["sha256"] = file.get("hashes", {}).get("SHA256")
                 try:
                     lora["size_mb"] = round(file.get("sizeKB", 0) / 1024)
@@ -261,6 +292,7 @@ class LoraModelManager(BaseModelManager):
                 lora["nsfw"] = item.get("nsfw", True)
                 lora["baseModel"] = version.get("baseModel", "SD 1.5")
                 lora["version_id"] = version.get("id", 0)
+                lora["is_versioned"] = True
                 break
         # If we don't have everything required, fail
         if lora["adhoc"] and not lora.get("sha256"):
@@ -435,15 +467,20 @@ class LoraModelManager(BaseModelManager):
                 self._process_items()
 
     def _add_lora_to_reference(self, lora):
-        lora_key = lora["name"].lower().strip()
+        lora_key = lora["key"]
         if lora.get("adhoc", False):
             self._adhoc_loras.add(lora_key)
             # Once added to our set, we don't need to specify it was adhoc anymore
             del lora["adhoc"]
         self.model_reference[lora_key] = lora
-        self._index_ids[lora["id"]] = lora_key
+        if lora["id"] not in self._index_ids:
+            self._index_ids[lora["id"]] = {}
+        self._index_ids[lora["id"]][lora["version_id"]] = lora_key
+        self._index_version_ids[lora["version_id"]] = lora_key
         orig_name = lora.get("orig_name", lora["name"]).lower()
-        self._index_orig_names[orig_name] = lora_key
+        if orig_name not in self._index_orig_names:
+            self._index_orig_names[orig_name] = {}
+        self._index_orig_names[orig_name][lora["version_id"]] = lora_key
 
     def download_default_loras(self, nsfw=True, timeout=None):
         """Start up a background thread downloading and return immediately"""
@@ -495,18 +532,27 @@ class LoraModelManager(BaseModelManager):
         # sname = Sanitizer.remove_version(lora_name).lower()
         logger.debug(f"Looking for lora {lora_name}")
         if isinstance(lora_name, int) or lora_name.isdigit():
+            if int(lora_name) in self._index_version_ids:
+                return self._index_version_ids[int(lora_name)]
+            # If we search for lora by its ID, then we always return the latest version
             if int(lora_name) in self._index_ids:
-                return self._index_ids[int(lora_name)]
+                version_ids = list(self._index_ids[int(lora_name)])
+                version_ids.sort()
+                return version_ids[0]
             return None
         sname = lora_name.lower().strip()
         if sname in self.model_reference:
             return sname
         if sname in self._index_orig_names:
-            return self._index_orig_names[sname]
+            version_ids = list(self._index_orig_names[sname])
+            version_ids.sort()
+            return version_ids[0]
         if Sanitizer.has_unicode(sname):
             for lora in self._index_orig_names:
                 if sname in lora:
-                    return self._index_orig_names[lora]
+                    version_ids = list(self._index_orig_names[lora])
+                    version_ids.sort()
+                    return version_ids[0]
             # If a unicode name is not found in the orig_names index
             # it won't be found anywhere else, as unicode chars are converted to ascii in the keys
             # This saves us time doing unnecessary fuzzy searches
@@ -664,16 +710,22 @@ class LoraModelManager(BaseModelManager):
         os.remove(filename)
         logger.info(f"Deleted LoRa file: {filename}")
 
-    def delete_lora(self, lora_name: str):
-        lora_info = self.get_model_reference_info(lora_name)
+    def delete_lora(self, lora_key: str):
+        lora_info = self.get_model_reference_info(lora_key)
         if not lora_info:
-            logger.warning(f"Could not find lora {lora_name} to delete")
+            logger.warning(f"Could not find lora {lora_key} to delete")
             return
         self.delete_lora_files(lora_info["filename"])
-        self._adhoc_loras.remove(lora_name)
-        del self._index_ids[lora_info["id"]]
-        del self._index_orig_names[lora_info["orig_name"].lower()]
-        del self.model_reference[lora_name]
+        self._adhoc_loras.remove(lora_key)
+        del self._index_version_ids[lora_info["version_id"]]
+        del self._index_ids[lora_info["id"]][lora_info["version_id"]]
+        if len(self._index_ids[lora_info["id"]]) == 0:
+            del self._index_ids[lora_info["id"]]
+        orig_name = lora_info["orig_name"].lower()
+        del self._index_orig_names[orig_name][lora_info["version_id"]]
+        if len(self._index_orig_names[orig_name]) == 0:
+            del self._index_orig_names[orig_name]
+        del self.model_reference[lora_key]
         self.save_cached_reference_to_disk()
 
     def ensure_lora_deleted(self, lora_name: str):
@@ -784,7 +836,7 @@ class LoraModelManager(BaseModelManager):
             return None
         return datetime.strptime(lora["last_used"], "%Y-%m-%d %H:%M:%S")
 
-    def fetch_adhoc_lora(self, lora_name, timeout=45):
+    def fetch_adhoc_lora(self, lora_name, timeout=45, id_type="lora"):
         if isinstance(lora_name, str):
             if lora_name in self.model_reference:
                 self._touch_lora(lora_name)
