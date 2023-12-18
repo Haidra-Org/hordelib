@@ -36,7 +36,7 @@ class TextualInversionModelManager(BaseModelManager):
     MAX_RETRIES: int = 10 if not TESTS_ONGOING else 3
     MAX_DOWNLOAD_THREADS: int = 3
     """The number of threads to use for downloading (the max number of concurrent downloads)."""
-    RETRY_DELAY: int = 5
+    RETRY_DELAY: float = 3 if not TESTS_ONGOING else 0.2
     """The time to wait between retries in seconds"""
     REQUEST_METADATA_TIMEOUT: int = 30
     """The time to wait for a metadata request to complete in seconds"""
@@ -66,6 +66,7 @@ class TextualInversionModelManager(BaseModelManager):
         self._stop_all_threads = False
         self._index_ids = {}
         self._index_orig_names = {}
+        self.total_retries_attempted = 0
 
         models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("ti.json").resolve()
         super().__init__(
@@ -148,7 +149,11 @@ class TextualInversionModelManager(BaseModelManager):
                 return response.json()
 
             except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError):
+                # CivitAI Errors when the model ID is too long
+                if response.status_code in [404, 500]:
+                    return None
                 retries += 1
+                self.total_retries_attempted += 1
                 if retries <= self.MAX_RETRIES:
                     time.sleep(self.RETRY_DELAY)
                 else:
@@ -276,9 +281,17 @@ class TextualInversionModelManager(BaseModelManager):
                         if hordeling_response.status_code == 404:
                             logger.debug(f"Textual Inversion: {ti['filename']} could not be found on AI Hordeling.")
                             break
+
+                        if hordeling_response.status_code == 500:
+                            retries += 2
+                            logger.debug(
+                                "AI Hordeing reported an internal error when downloading metadata. "
+                                "Fewer retries will be attempted.",
+                            )
+
                         # We will retry
                         logger.debug(
-                            "AI Horeling reported error when downloading metadata "
+                            "AI Hordeling reported error when downloading metadata "
                             f"for Textual Inversion: {ti['filename']}: "
                             f"{hordeling_response.json()}"
                             f"Retry {retries}/{self.MAX_RETRIES}",
@@ -361,6 +374,7 @@ class TextualInversionModelManager(BaseModelManager):
                     logger.debug(f"Fatal error downloading {ti['filename']} {e}. Retry {retries}/{self.MAX_RETRIES}")
 
                 retries += 1
+                self.total_retries_attempted += 1
                 if retries > self.MAX_RETRIES:
                     break  # fail
 
