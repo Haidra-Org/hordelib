@@ -146,8 +146,7 @@ class LoraModelManager(BaseModelManager):
                             new_hashfile = f"{os.path.splitext(new_filename)[0]}.sha256"
                             os.rename(old_hashfile, new_hashfile)
                             new_lora_entry = {
-                                "name": lora["name"],
-                                "key": lora_key,
+                                "name": lora["name"].lower().strip(),
                                 "orig_name": lora["orig_name"],
                                 "id": lora["id"],
                                 "nsfw": lora["nsfw"],
@@ -281,7 +280,6 @@ class LoraModelManager(BaseModelManager):
         """Return a simplified dictionary with the information we actually need about a lora"""
         lora = {
             "name": "",
-            "key": "",
             "orig_name": "",
             "id": "",
             "nsfw": False,
@@ -317,16 +315,15 @@ class LoraModelManager(BaseModelManager):
         for file in version.get("files", {}):
             if file.get("primary", False) and file.get("name", "").endswith(".safetensors"):
                 sanitized_name = Sanitizer.sanitise_model_name(lora_name)
-                lora_key = sanitized_name.lower().strip()
-                lora["name"] = sanitized_name
-                lora["key"] = lora_key
+                lora_name = sanitized_name.lower().strip()
+                lora["name"] = sanitized_name.lower()
                 lora["orig_name"] = lora_name
                 lora["id"] = lora_id
                 lora["nsfw"] = lora_nsfw
                 lora["versions"] = {}
                 lora["versions"][lora_version] = {}
-                lora["versions"][lora_version]["inject"] = f'{lora_key}_{version.get("id", 0)}'
-                lora["versions"][lora_version]["filename"] = f'{lora_key}_{version.get("id", 0)}.safetensors'
+                lora["versions"][lora_version]["inject"] = f'{lora_name}_{version.get("id", 0)}'
+                lora["versions"][lora_version]["filename"] = f'{lora_name}_{version.get("id", 0)}.safetensors'
                 lora["versions"][lora_version]["sha256"] = file.get("hashes", {}).get("SHA256")
                 lora["versions"][lora_version]["adhoc"] = adhoc
                 try:
@@ -340,7 +337,7 @@ class LoraModelManager(BaseModelManager):
                 lora["versions"][lora_version]["baseModel"] = version.get("baseModel", "SD 1.5")
                 lora["versions"][lora_version]["version_id"] = version.get("id", 0)
                 # To be able to refer back to the parent if needed
-                lora["versions"][lora_version]["lora_key"] = lora_key
+                lora["versions"][lora_version]["lora_key"] = lora_name
                 break
         # If we don't have everything required, fail
         if lora["versions"][lora_version]["adhoc"] and not lora["versions"][lora_version].get("sha256"):
@@ -532,7 +529,7 @@ class LoraModelManager(BaseModelManager):
                 self._process_items()
 
     def _add_lora_to_reference(self, lora):
-        lora_key = lora["key"]
+        lora_key = lora["name"]
         if lora.get("adhoc", False):
             self._adhoc_loras.add(lora_key)
             # Once added to our set, we don't need to specify it was adhoc anymore
@@ -780,7 +777,7 @@ class LoraModelManager(BaseModelManager):
         if not lora_info:
             logger.warning(f"Could not find lora version {lora_version} to delete")
             return
-        lora_key = lora_info["key"]
+        lora_key = lora_info["name"]
         self.delete_lora_files(lora_info["versions"][lora_version]["filename"])
         self._adhoc_loras.remove(lora_key)
         del self._index_ids[lora_info["id"]]
@@ -957,11 +954,11 @@ class LoraModelManager(BaseModelManager):
         # We need to wait a bit to make sure the threads pick up the download
         time.sleep(self.THREAD_WAIT_TIME)
         self.wait_for_downloads(timeout)
+        version = self.find_latest_version(lora)
         if id_type == "version":
-            lora["versions"][lora_name]["inject"]
-        lora["name"] = lora["name"].lower()
-        self._touch_lora(lora["name"])
-        return lora["name"]
+            version = lora_name
+        self._touch_lora(lora["name"], version)
+        return lora["versions"][lora_name]["inject"]
 
     def do_baselines_match(self, lora_name, model_details):
         self._check_for_refresh(lora_name)
