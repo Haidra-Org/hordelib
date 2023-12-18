@@ -39,7 +39,6 @@ class LoraModelManager(BaseModelManager):
         "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/main/lora_versions.json"
     )
     LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated&primaryFileOnly=true"
-    LORA_VERSIONS_API = "https://civitai.com/api/v1/model-versions"
     MAX_RETRIES = 10 if not TESTS_ONGOING else 3
     MAX_DOWNLOAD_THREADS = 3
     RETRY_DELAY = 5 if not TESTS_ONGOING else 0.2
@@ -92,7 +91,6 @@ class LoraModelManager(BaseModelManager):
         self.total_retries_attempted = 0
 
         models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
-        # versions_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora_versions.json").resolve()
 
         super().__init__(
             model_category_name=MODEL_CATEGORY_NAMES.lora,
@@ -121,6 +119,42 @@ class LoraModelManager(BaseModelManager):
                 try:
                     self.model_reference = json.loads((self.models_db_path).read_text())
 
+                    for old_lora_key in self.model_reference.keys():
+                        lora = self.model_reference[old_lora_key]
+                        if "versions" not in lora:
+                            lora_key = lora["name"].lower().strip()
+                            version = {
+                                "inject": f'{lora_key}_{lora["version_id"]}',
+                                "filename": f'{lora_key}_{lora["version_id"]}.safetensors',
+                                "sha256": lora["sha256"],
+                                "adhoc": lora["adhoc"],
+                                "size_mb": lora["size_mb"],
+                                "url": lora["url"],
+                                "triggers": lora["triggers"],
+                                "baseModel": lora["baseModel"],
+                                "version_id": lora["version_id"],
+                                "lora_key": lora_key,
+                            }
+                            old_filename = os.path.join(self.model_folder_path, lora["filename"])
+                            new_filename = os.path.join(self.model_folder_path, version["filename"])
+                            logger.warning(
+                                f"Old LoRa format detected for {lora_key}. Converting format and renaming files: "
+                                f"{old_filename} -> {new_filename}",
+                            )
+                            os.rename(old_filename, new_filename)
+                            old_hashfile = f"{os.path.splitext(old_filename)[0]}.sha256"
+                            new_hashfile = f"{os.path.splitext(new_filename)[0]}.sha256"
+                            os.rename(old_hashfile, new_hashfile)
+                            new_lora_entry = {
+                                "name": lora["name"],
+                                "key": lora_key,
+                                "orig_name": lora["orig_name"],
+                                "id": lora["id"],
+                                "nsfw": lora["nsfw"],
+                                "versions": {lora["version_id"]: version},
+                            }
+                            del self.model_reference[old_lora_key]
+                            self.model_reference[lora_key] = new_lora_entry
                     for lora in self.model_reference.values():
                         self._index_ids[lora["id"]] = lora["name"].lower()
                         orig_name = lora.get("orig_name", lora["name"]).lower()
@@ -247,6 +281,7 @@ class LoraModelManager(BaseModelManager):
         """Return a simplified dictionary with the information we actually need about a lora"""
         lora = {
             "name": "",
+            "key": "",
             "orig_name": "",
             "id": "",
             "nsfw": False,
@@ -409,7 +444,6 @@ class LoraModelManager(BaseModelManager):
                         # Save the hash file
                         with open(hashfile, "w") as outfile:
                             outfile.write(f"{sha256} *{lora['versions'][version]['filename']}")
-
                         # Shout about it
                         logger.info(
                             f"Downloaded LORA {lora['versions'][version]['filename']} "
