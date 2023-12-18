@@ -304,6 +304,8 @@ class LoraModelManager(BaseModelManager):
                 lora["versions"][lora_version]["triggers"] = triggers
                 lora["versions"][lora_version]["baseModel"] = version.get("baseModel", "SD 1.5")
                 lora["versions"][lora_version]["version_id"] = version.get("id", 0)
+                # To be able to refer back to the parent if needed
+                lora["versions"][lora_version]["lora_key"] = lora_key
                 break
         # If we don't have everything required, fail
         if lora["versions"][lora_version]["adhoc"] and not lora["versions"][lora_version].get("sha256"):
@@ -349,6 +351,9 @@ class LoraModelManager(BaseModelManager):
             # Normally a lora in this method should only have one version specified
             # So we can use this method to extract it.
             version = self.find_latest_version(lora)
+            if version is None:
+                logger.warning("Lora without version sent to the download queue. This should never happen. Ignoring")
+                continue
             while retries <= self.MAX_RETRIES:
                 try:
                     # Just before we download this file, check if we already have it
@@ -768,33 +773,34 @@ class LoraModelManager(BaseModelManager):
             time.sleep(0.2)
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._adhoc_loras = set()
+        unsorted_items = []
         sorted_items = []
+        for plora_key, plora in self._previous_model_reference.items():
+            for version in plora.get("versions", []):
+                unsorted_items.append(plora_key, version)
         try:
             sorted_items = sorted(
-                self._previous_model_reference.items(),
+                unsorted_items,
                 key=lambda x: x[1].get("last_used", now),
                 reverse=True,
             )
         except Exception as err:
             logger.error(err)
         while not self.is_adhoc_cache_full() and len(sorted_items) > 0:
-            prevlora_key, prevlora_value = sorted_items.pop()
+            prevlora_key, prevversion = sorted_items.pop()
             if prevlora_key in self.model_reference:
                 continue
             # If False, it will initiates a redownload and call _add_lora_to_reference() later
             if self._check_for_refresh(prevlora_key):
-                self._add_lora_to_reference(prevlora_value)
+                if "last_used" not in prevversion:
+                    prevversion["last_used"] = now
+                # We create a temp lora dict holding the just one version (the one we want to keep)
+                # The _add_lora_to_reference() will anyway merge versions if we keep more than 1
+                temp_lora = self._previous_model_reference[prevlora_key].copy()
+                temp_lora["versions"] = {}
+                temp_lora["versions"][prevversion["version_id"]] = prevversion
+                self._add_lora_to_reference(temp_lora)
             self._adhoc_loras.add(prevlora_key)
-        for lora_key in self.model_reference:
-            if lora_key in self._previous_model_reference:
-                self.model_reference[lora_key]["last_used"] = self._previous_model_reference[lora_key].get(
-                    "last_used",
-                    now,
-                )
-        # Final assurance that all our loras have a last_used timestamp
-        for lora in self.model_reference.values():
-            if "last_used" not in lora:
-                lora["last_used"] = now
         self._previous_model_reference = {}
         with self._mutex:
             self.save_cached_reference_to_disk()
@@ -810,7 +816,7 @@ class LoraModelManager(BaseModelManager):
         refresh = False
         if "last_checked" not in lora_details:
             refresh = True
-        elif "baseModel" not in lora_details:
+        elif "versions" not in lora_details:
             refresh = True
         else:
             lora_datetime = datetime.strptime(lora_details["last_checked"], "%Y-%m-%d %H:%M:%S")
@@ -850,15 +856,19 @@ class LoraModelManager(BaseModelManager):
         with self._mutex:
             if version is None:
                 version = self.find_latest_version(lora)
+            if version is None:
+                return
             lora["versions"][version]["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             self.save_cached_reference_to_disk()
 
         # logger.debug(f"Touched lora {lora_name}")
 
-    def find_latest_version(self, lora):
-        all_versions = list(lora["versions"].keys())
-        all_versions.sort(reverse=True)
-        return all_versions[0]
+    def find_latest_version(self, lora) -> str | None:
+        all_versions = list(lora.get("versions", {}).keys())
+        if len(all_versions) > 0:
+            all_versions.sort(reverse=True)
+            return all_versions[0]
+        return None
 
     def get_lora_last_use(self, lora_name):
         """Returns a dateimte object based on the "last_used" key in a lora entry"""
