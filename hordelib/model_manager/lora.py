@@ -122,12 +122,13 @@ class LoraModelManager(BaseModelManager):
                     for old_lora_key in self.model_reference.keys():
                         lora = self.model_reference[old_lora_key]
                         if "versions" not in lora:
+                            logger.info(lora)
                             lora_key = lora["name"].lower().strip()
                             version = {
                                 "inject": f'{lora_key}_{lora["version_id"]}',
                                 "filename": f'{lora_key}_{lora["version_id"]}.safetensors',
                                 "sha256": lora["sha256"],
-                                "adhoc": lora["adhoc"],
+                                "adhoc": lora.get("adhoc"),
                                 "size_mb": lora["size_mb"],
                                 "url": lora["url"],
                                 "triggers": lora["triggers"],
@@ -542,7 +543,7 @@ class LoraModelManager(BaseModelManager):
             if new_lora_version not in self.model_reference[lora_key]["versions"]:
                 self.model_reference[lora_key]["versions"][new_lora_version] = lora["versions"][new_lora_version]
         self._index_ids[lora["id"]] = lora_key
-        self._index_version_ids[lora["version_id"]] = lora_key
+        self._index_version_ids[lora["versions"][new_lora_version]] = lora_key
         orig_name = lora.get("orig_name", lora["name"]).lower()
         self._index_orig_names[orig_name] = lora_key
 
