@@ -118,15 +118,16 @@ class LoraModelManager(BaseModelManager):
             if self.models_db_path.exists():
                 try:
                     self.model_reference = json.loads((self.models_db_path).read_text())
-
+                    new_model_reference = {}
                     for old_lora_key in self.model_reference.keys():
                         lora = self.model_reference[old_lora_key]
                         if "versions" not in lora:
                             logger.info(lora)
-                            lora_key = lora["name"].lower().strip()
+                            lora_key = Sanitizer.sanitise_model_name(lora["orig_name"]).lower().strip()
+                            lora_filename = f'{Sanitizer.sanitise_filename(lora["orig_name"])}_{lora["version_id"]}'
                             version = {
-                                "inject": f'{lora_key}_{lora["version_id"]}',
-                                "filename": f'{lora_key}_{lora["version_id"]}.safetensors',
+                                "inject": lora_filename,
+                                "filename": f"{lora_filename}.safetensors",
                                 "sha256": lora["sha256"],
                                 "adhoc": lora.get("adhoc"),
                                 "size_mb": lora["size_mb"],
@@ -147,19 +148,20 @@ class LoraModelManager(BaseModelManager):
                             new_hashfile = f"{os.path.splitext(new_filename)[0]}.sha256"
                             os.rename(old_hashfile, new_hashfile)
                             new_lora_entry = {
-                                "name": lora["name"].lower().strip(),
+                                "name": lora_key,
                                 "orig_name": lora["orig_name"],
                                 "id": lora["id"],
                                 "nsfw": lora["nsfw"],
                                 "versions": {lora["version_id"]: version},
                             }
-                            del self.model_reference[old_lora_key]
-                            self.model_reference[lora_key] = new_lora_entry
-                    for lora in self.model_reference.values():
+                            new_model_reference[lora_key] = new_lora_entry
+                        else:
+                            new_model_reference[old_lora_key] = lora
+                    for lora in new_model_reference.values():
                         self._index_ids[lora["id"]] = lora["name"].lower()
                         orig_name = lora.get("orig_name", lora["name"]).lower()
                         self._index_orig_names[orig_name] = lora["name"].lower()
-
+                    self.model_reference = new_model_reference
                     logger.info("Loaded model reference from disk.")
                 except json.JSONDecodeError:
                     logger.error(f"Could not load {self.models_db_name} model reference from disk! Bad JSON?")
@@ -167,7 +169,8 @@ class LoraModelManager(BaseModelManager):
             else:
                 logger.error(f"Could not load {self.models_db_name} model reference from disk! File not found.")
                 self.model_reference = {}
-
+            with self._mutex:
+                self.save_cached_reference_to_disk()
             logger.info(
                 (f"Got {len(self.model_reference)} models for {self.models_db_name}.",),
             )
@@ -316,15 +319,16 @@ class LoraModelManager(BaseModelManager):
         for file in version.get("files", {}):
             if file.get("primary", False) and file.get("name", "").endswith(".safetensors"):
                 sanitized_name = Sanitizer.sanitise_model_name(lora_name)
-                lora_name = sanitized_name.lower().strip()
-                lora["name"] = sanitized_name.lower()
+                lora_filename = f'{Sanitizer.sanitise_filename(lora_name)}_{version.get("id", 0)}'
+                lora_key = sanitized_name.lower().strip()
+                lora["name"] = lora_key
                 lora["orig_name"] = lora_name
                 lora["id"] = lora_id
                 lora["nsfw"] = lora_nsfw
                 lora["versions"] = {}
                 lora["versions"][lora_version] = {}
-                lora["versions"][lora_version]["inject"] = f'{lora_name}_{version.get("id", 0)}'
-                lora["versions"][lora_version]["filename"] = f'{lora_name}_{version.get("id", 0)}.safetensors'
+                lora["versions"][lora_version]["inject"] = lora_filename
+                lora["versions"][lora_version]["filename"] = f"{lora_filename}.safetensors"
                 lora["versions"][lora_version]["sha256"] = file.get("hashes", {}).get("SHA256")
                 lora["versions"][lora_version]["adhoc"] = adhoc
                 try:
@@ -338,7 +342,7 @@ class LoraModelManager(BaseModelManager):
                 lora["versions"][lora_version]["baseModel"] = version.get("baseModel", "SD 1.5")
                 lora["versions"][lora_version]["version_id"] = version.get("id", 0)
                 # To be able to refer back to the parent if needed
-                lora["versions"][lora_version]["lora_key"] = lora_name
+                lora["versions"][lora_version]["lora_key"] = lora_key
                 break
         # If we don't have everything required, fail
         if lora["versions"][lora_version]["adhoc"] and not lora["versions"][lora_version].get("sha256"):
@@ -535,15 +539,17 @@ class LoraModelManager(BaseModelManager):
             self._adhoc_loras.add(lora_key)
             # Once added to our set, we don't need to specify it was adhoc anymore
             del lora["adhoc"]
+        # A lora coming to add to our reference should only have 1 version
+        # we do the version merge in this function
+        new_lora_version = list(lora["versions"].keys())[0]
         if lora_key not in self.model_reference:
             self.model_reference[lora_key] = lora
         else:
             # If we already know of one version of this lora, we simply add the extra version to our versions
-            new_lora_version = list(lora["versions"].keys())[0]
             if new_lora_version not in self.model_reference[lora_key]["versions"]:
                 self.model_reference[lora_key]["versions"][new_lora_version] = lora["versions"][new_lora_version]
         self._index_ids[lora["id"]] = lora_key
-        self._index_version_ids[lora["versions"][new_lora_version]] = lora_key
+        self._index_version_ids[new_lora_version] = lora_key
         orig_name = lora.get("orig_name", lora["name"]).lower()
         self._index_orig_names[orig_name] = lora_key
 
@@ -593,12 +599,15 @@ class LoraModelManager(BaseModelManager):
                 return False
         return True
 
-    def fuzzy_find_lora_key(self, lora_name):
+    def fuzzy_find_lora_key(self, lora_name: int | str, is_version=False):
         # sname = Sanitizer.remove_version(lora_name).lower()
+        if is_version:
+            if isinstance(lora_name, int) or lora_name.isdigit():
+                if int(lora_name) in self._index_version_ids:
+                    return self._index_version_ids[int(lora_name)]
+            return None
         logger.debug(f"Looking for lora {lora_name}")
         if isinstance(lora_name, int) or lora_name.isdigit():
-            if int(lora_name) in self._index_version_ids:
-                return self._index_version_ids[int(lora_name)]
             if int(lora_name) in self._index_ids:
                 return self._index_ids[int(lora_name)]
             return None
@@ -642,7 +651,8 @@ class LoraModelManager(BaseModelManager):
 
     def get_lora_name(self, model_name: str):
         """Returns the actual lora name for the specified model_name search string
-        Returns None if lora name not found"""
+        Returns None if lora name not found
+        The lora name is effectively the key in the dictionary"""
         lora = self.get_model_reference_info(model_name)
         if not lora:
             return None
@@ -689,7 +699,8 @@ class LoraModelManager(BaseModelManager):
                 continue
             if mode == DOWNLOAD_SIZE_CHECK.adhoc and lora not in self._adhoc_loras:
                 continue
-            total_size += self.model_reference[lora]["size_mb"]
+            for version in self.model_reference[lora]["versions"]:
+                total_size += self.model_reference[lora]["versions"][version]["size_mb"]
         return total_size
 
     def calculate_default_loras_cache(self):
@@ -809,7 +820,7 @@ class LoraModelManager(BaseModelManager):
         sorted_items = []
         for plora_key, plora in self._previous_model_reference.items():
             for version in plora.get("versions", []):
-                unsorted_items.append(plora_key, version)
+                unsorted_items.append((plora_key, version))
         try:
             sorted_items = sorted(
                 unsorted_items,
@@ -978,7 +989,6 @@ class LoraModelManager(BaseModelManager):
     def is_model_available(self, model_name):
         if model_name in self.model_reference:
             return True
-
         found_model_name = self.fuzzy_find_lora_key(model_name)
         if found_model_name is None:
             return False

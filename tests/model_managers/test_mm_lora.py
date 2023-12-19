@@ -44,10 +44,10 @@ class TestModelManagerLora:
         assert lora_model_manager.fuzzy_find_lora_key("Glowing Robots") is None
         assert lora_model_manager.fuzzy_find_lora_key("GlowingRobots") is None
         assert lora_model_manager.fuzzy_find_lora_key("GlowingRobotsAI") is None
-        assert lora_model_manager.fuzzy_find_lora_key("blindbox/大概是盲盒") == "blindbox/da gai shi mang he"
         assert lora_model_manager.fuzzy_find_lora_key(25995) == "blindbox/da gai shi mang he"
         assert lora_model_manager.fuzzy_find_lora_key("25995") == "blindbox/da gai shi mang he"
         assert lora_model_manager.fuzzy_find_lora_key("大概是盲盒") == "blindbox/da gai shi mang he"
+        assert lora_model_manager.fuzzy_find_lora_key("blindbox/大概是盲盒") == "blindbox/da gai shi mang he"
         lora_model_manager.stop_all()
 
     def test_lora_search(self):
@@ -57,9 +57,9 @@ class TestModelManagerLora:
         )
         lora_model_manager.download_default_loras()
         lora_model_manager.wait_for_downloads(600)
-        assert lora_model_manager.get_lora_name("GlowingRunesAI") == "GlowingRunesAI"
-        assert lora_model_manager.get_lora_name("GlowingRunes") == "GlowingRunesAI"
-        assert lora_model_manager.get_lora_name("Glowing Runes") == "GlowingRunesAI"
+        assert lora_model_manager.get_lora_name("GlowingRunesAI") == "glowingrunesai"
+        assert lora_model_manager.get_lora_name("GlowingRunes") == "glowingrunesai"
+        assert lora_model_manager.get_lora_name("Glowing Runes") == "glowingrunesai"
         assert len(lora_model_manager.get_lora_triggers("GlowingRunesAI")) > 1
         # We can't rely on triggers not changing
         assert lora_model_manager.find_lora_trigger("GlowingRunesAI", "blue") is not None
