@@ -19,7 +19,8 @@ class Sanitizer:
         # First remove exotic unicode characters
         filename = unidecode(filename)
         # Now exploit characters
-        valid_chars = f"-_.() {string.ascii_letters}{string.digits}"
+        valid_chars = f"-_.(){string.ascii_letters}{string.digits}"
+        filename.replace(" ", "_")
         valid_name = "".join(c for c in filename if c in valid_chars)
         return valid_name.strip()
 
