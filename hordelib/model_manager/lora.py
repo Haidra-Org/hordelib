@@ -302,8 +302,8 @@ class LoraModelManager(BaseModelManager):
                 if lora_data is None:
                     logger.debug(f"Rejecting LoRa version {lora_id} because we can't retrieve it's model data")
                     return None
-                lora_name = lora_data.get("name", "")
-                lora_nsfw = lora_data.get("nsfw", True)
+            lora_name = lora_data.get("name", "")
+            lora_nsfw = lora_data.get("nsfw", True)
         # If it's a full model, we only grab the first version in the list
         else:
             try:
@@ -544,6 +544,8 @@ class LoraModelManager(BaseModelManager):
             del lora["adhoc"]
         # A lora coming to add to our reference should only have 1 version
         # we do the version merge in this function
+        # We convert the lora version to string when using it as key
+        # To avoid converting the lora_name to int every time later
         new_lora_version = list(lora["versions"].keys())[0]
         if lora_key not in self.model_reference:
             self.model_reference[lora_key] = lora
@@ -609,13 +611,17 @@ class LoraModelManager(BaseModelManager):
                 return False
         return True
 
-    def find_lora_key_by_version(self, lora_version: int | str) -> str | None:
+    def find_lora_key_by_version(self, lora_version: int | str) -> int | None:
+        version = self.ensure_is_version(lora_version)
+        if version in self._index_version_ids:
+            return self._index_version_ids[version]
+        return None
+
+    def ensure_is_version(self, lora_version: int | str) -> int | None:
         if not isinstance(lora_version, int):
             if not lora_version.isdigit():
                 return None
-        if int(lora_version) in self._index_version_ids:
-            return self._index_version_ids[int(lora_version)]
-        return None
+        return int(lora_version)
 
     def fuzzy_find_lora_key(self, lora_name: int | str):
         # sname = Sanitizer.remove_version(lora_name).lower()
@@ -647,7 +653,7 @@ class LoraModelManager(BaseModelManager):
         return None
 
     # Using `get_model` instead of `get_lora` as it exists in the base class
-    def get_model_reference_info(self, model_name: str, is_version: bool = False) -> dict | None:
+    def get_model_reference_info(self, model_name: str | int, is_version: bool = False) -> dict | None:
         """Returns the actual lora details dict for the specified model_name search string
         Returns None if lora name not found"""
         if is_version:
@@ -702,7 +708,7 @@ class LoraModelManager(BaseModelManager):
         # and then we keep returning previous items
         return []
 
-    def get_lora_prompt_inject(self, model_name: str, is_version: bool = False):
+    def get_lora_prompt_inject(self, model_name: str | int, is_version: bool = False) -> str | None:
         """Returns the value to inject into the prompt to load this lora
         Returns an empty list if no triggers are found
         Returns None if lora name not found"""
@@ -710,7 +716,10 @@ class LoraModelManager(BaseModelManager):
         if not lora:
             return None
         if is_version:
-            prompt_inject = lora["versions"][model_name].get("inject")
+            version = self.ensure_is_version(model_name)
+            if version is None:
+                return None
+            prompt_inject = lora["versions"][version].get("inject")
         else:
             lora_version = self.get_latest_version(lora)
             if lora_version is None:
@@ -830,7 +839,7 @@ class LoraModelManager(BaseModelManager):
         os.remove(filename)
         logger.info(f"Deleted LoRa file: {filename}")
 
-    def delete_lora(self, lora_version: str):
+    def delete_lora(self, lora_version: int):
         """Deletes the version passed. If not versions remains, forgets the lora"""
         lora_info = self.get_model_reference_info(lora_version, is_version=True)
         if not lora_info:
@@ -838,11 +847,11 @@ class LoraModelManager(BaseModelManager):
             return
         lora_key = lora_info["name"]
         self.delete_lora_files(lora_info["versions"][lora_version]["filename"])
-        del self.model_reference["versions"][lora_version]
-        if len(self.model_reference["versions"]) == 0:
+        del self._index_version_ids[lora_version]
+        del lora_info["versions"][lora_version]
+        if len(lora_info["versions"]) == 0:
             self._adhoc_loras.remove(lora_key)
             del self._index_ids[lora_info["id"]]
-            del self._index_version_ids[lora_version]
             del self._index_orig_names[lora_info["orig_name"].lower()]
             del self.model_reference[lora_key]
         with self._mutex:
@@ -853,7 +862,7 @@ class LoraModelManager(BaseModelManager):
         lora_key = self.fuzzy_find_lora_key(lora_name)
         if not lora_key:
             return
-        for version in self.model_reference[lora_key]["versions"].keys():
+        for version in list(self.model_reference[lora_key]["versions"].keys()):
             self.delete_lora(version)
 
     def reset_adhoc_loras(self):
@@ -940,7 +949,7 @@ class LoraModelManager(BaseModelManager):
     def stop_all(self):
         self._stop_all_threads = True
 
-    def _touch_lora(self, lora_name: str, is_version: bool = False):
+    def _touch_lora(self, lora_name: str | int, is_version: bool = False):
         """Updates the "last_used" key in a lora entry to current UTC time"""
         lora = self.get_model_reference_info(lora_name, is_version)
         if not lora:
@@ -949,20 +958,19 @@ class LoraModelManager(BaseModelManager):
         if not is_version:
             version = self.find_latest_version(lora)
         else:
-            version = lora_name
+            version = self.ensure_is_version(lora_name)
         if version is None:
             return
         lora["versions"][version]["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         with self._mutex:
             self.save_cached_reference_to_disk()
-
         # logger.debug(f"Touched lora {lora_name}")
 
-    def find_latest_version(self, lora) -> str | None:
+    def find_latest_version(self, lora) -> int | None:
         all_versions = list(lora.get("versions", {}).keys())
         if len(all_versions) > 0:
             all_versions.sort(reverse=True)
-            return all_versions[0]
+            return self.ensure_is_version(all_versions[0])
         return None
 
     def get_latest_version(self, lora) -> dict | None:

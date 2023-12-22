@@ -104,6 +104,28 @@ class TestModelManagerLora:
         assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  LoRa xl".lower()
         lora_model_manager.stop_all()
 
+    def test_fetch_specific_lora_version(self):
+        lora_model_manager = LoraModelManager(
+            download_wait=False,
+            allowed_adhoc_lora_storage=1024,
+        )
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        lora_model_manager.wait_for_adhoc_reset(15)
+
+        lora_model_manager.ensure_lora_deleted(22591)
+        lora_key = lora_model_manager.fetch_adhoc_lora("26975", is_version=True)
+        lora_prompt_inject = lora_model_manager.get_lora_prompt_inject("22591")
+        assert lora_key == "gag - rpg potions  |  lora xl"
+        assert lora_prompt_inject == "GAG-RPGPotionsLoRaXL_26975"
+        assert lora_model_manager.is_model_available("22591")
+        assert isinstance(lora_model_manager.get_model_reference_info("26975", is_version=True), dict)
+        assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  lora xl".lower()
+        lora_model_manager.fetch_adhoc_lora("22591")
+        assert lora_model_manager.get_lora_prompt_inject("22591") == "GAG-RPGPotionsLoRaXL_26975"
+        assert lora_model_manager.get_lora_prompt_inject(26975, is_version=True) == "GAG-RPGPotionsLoRaXL_26975"
+        lora_model_manager.stop_all()
+
     def test_reject_adhoc_nsfw_lora(self):
         lora_model_manager = LoraModelManager(
             download_wait=False,
