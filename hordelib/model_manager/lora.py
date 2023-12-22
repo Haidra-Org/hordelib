@@ -163,7 +163,6 @@ class LoraModelManager(BaseModelManager):
                         self._index_orig_names[orig_name] = lora["name"]
                     self.model_reference = new_model_reference
                     logger.info("Loaded model reference from disk.")
-                    logger.debug(22591 in self._index_ids)
                     logger.debug(new_model_reference.keys())
                 except json.JSONDecodeError:
                     logger.error(f"Could not load {self.models_db_name} model reference from disk! Bad JSON?")
@@ -556,7 +555,6 @@ class LoraModelManager(BaseModelManager):
         self._index_version_ids[new_lora_version] = lora_key
         orig_name = lora.get("orig_name", lora["name"]).lower()
         self._index_orig_names[orig_name] = lora_key
-        logger.debug([22591 in self._index_ids, "gag - rpg potions  |  lora xl" in self.model_reference])
 
     def download_default_loras(self, nsfw=True, timeout=None):
         """Start up a background thread downloading and return immediately"""
@@ -566,7 +564,7 @@ class LoraModelManager(BaseModelManager):
         self.nsfw = nsfw
         self._previous_model_reference = copy.deepcopy(self.model_reference)
         # TODO: Avoid clearing this out, until we know CivitAI is not dead.
-        self.model_reference = {}
+        self.clear_all_references()
         os.makedirs(self.model_folder_path, exist_ok=True)
         # Start processing in a background thread
         self._thread = threading.Thread(target=self._get_lora_defaults, daemon=True)
@@ -577,6 +575,12 @@ class LoraModelManager(BaseModelManager):
         if self.is_adhoc_reset_complete():
             self._adhoc_reset_thread = threading.Thread(target=self.reset_adhoc_loras, daemon=True)
             self._adhoc_reset_thread.start()
+
+    def clear_all_references(self):
+        self.model_reference = {}
+        self._index_ids = {}
+        self._index_version_ids = {}
+        self._index_orig_names = {}
 
     def wait_for_downloads(self, timeout=None):
         rtr = 0
@@ -618,7 +622,6 @@ class LoraModelManager(BaseModelManager):
         logger.debug(f"Looking for lora {lora_name}")
         if isinstance(lora_name, int) or lora_name.isdigit():
             if int(lora_name) in self._index_ids:
-                logger.debug([22591 in self._index_ids, "gag - rpg potions  |  lora xl" in self.model_reference])
                 return self._index_ids[int(lora_name)]
             return None
         if lora_name in self.model_reference:
@@ -635,11 +638,11 @@ class LoraModelManager(BaseModelManager):
             return None
         for lora in self.model_reference:
             if lora_name in lora:
-                logger.debug("ad")
                 return lora
         for lora in self.model_reference:
             if fuzz.ratio(lora_name, lora) > 80:
-                logger.debug("af")
+                return lora
+            if fuzz.ratio(lora_name, self.model_reference[lora]["orig_name"]) > 80:
                 return lora
         return None
 
@@ -844,7 +847,6 @@ class LoraModelManager(BaseModelManager):
             del self.model_reference[lora_key]
         with self._mutex:
             self.save_cached_reference_to_disk()
-        logger.debug([22591 in self._index_ids, "gag - rpg potions  |  lora xl" in self.model_reference])
 
     def ensure_lora_deleted(self, lora_name: str):
         logger.debug(f"Ensuring {lora_name} is deleted")
@@ -895,6 +897,7 @@ class LoraModelManager(BaseModelManager):
         self._previous_model_reference = {}
         with self._mutex:
             self.save_cached_reference_to_disk()
+        logger.debug("Finished lora reset")
 
     def _check_for_refresh(self, lora_name: str):
         """Returns True if a refresh is needed
@@ -1053,5 +1056,5 @@ class LoraModelManager(BaseModelManager):
         found_model_name = self.fuzzy_find_lora_key(model_name)
         if found_model_name is None:
             return False
-        self._touch_lora(found_model_name.lower())
+        self._touch_lora(found_model_name)
         return True

@@ -100,7 +100,7 @@ class TestModelManagerLora:
         assert lora_key == "gag - rpg potions  |  lora xl"
         assert lora_prompt_inject == "GAG-RPGPotionsLoRaXL_197256"
         assert lora_model_manager.is_model_available("22591")
-        assert lora_model_manager.is_model_available("GAG - rpg potions")
+        assert lora_model_manager.is_model_available("GAG - rpg potions  |  LoRa xl")
         assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  LoRa xl".lower()
         lora_model_manager.stop_all()
 
