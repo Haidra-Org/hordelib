@@ -126,7 +126,6 @@ class LoraModelManager(BaseModelManager):
                             lora_key = Sanitizer.sanitise_model_name(lora["orig_name"]).lower().strip()
                             lora_filename = f'{Sanitizer.sanitise_filename(lora["orig_name"])}_{lora["version_id"]}'
                             version = {
-                                "inject": lora_filename,
                                 "filename": f"{lora_filename}.safetensors",
                                 "sha256": lora["sha256"],
                                 "adhoc": lora.get("adhoc"),
@@ -328,7 +327,6 @@ class LoraModelManager(BaseModelManager):
                 lora["nsfw"] = lora_nsfw
                 lora["versions"] = {}
                 lora["versions"][lora_version] = {}
-                lora["versions"][lora_version]["inject"] = lora_filename
                 lora["versions"][lora_version]["filename"] = f"{lora_filename}.safetensors"
                 lora["versions"][lora_version]["sha256"] = file.get("hashes", {}).get("SHA256")
                 lora["versions"][lora_version]["adhoc"] = adhoc
@@ -708,25 +706,6 @@ class LoraModelManager(BaseModelManager):
         # and then we keep returning previous items
         return []
 
-    def get_lora_prompt_inject(self, model_name: str | int, is_version: bool = False) -> str | None:
-        """Returns the value to inject into the prompt to load this lora
-        Returns an empty list if no triggers are found
-        Returns None if lora name not found"""
-        lora = self.get_model_reference_info(model_name, is_version)
-        if not lora:
-            return None
-        if is_version:
-            version = self.ensure_is_version(model_name)
-            if version is None:
-                return None
-            prompt_inject = lora["versions"][version].get("inject")
-        else:
-            lora_version = self.get_latest_version(lora)
-            if lora_version is None:
-                return None
-            prompt_inject = lora_version.get("inject")
-        return prompt_inject
-
     def find_lora_trigger(self, model_name: str, trigger_search: str, is_version: bool = False):
         """Searches for a specific trigger for a specified lora name
         Returns None if string not found even with fuzzy search"""
@@ -985,12 +964,18 @@ class LoraModelManager(BaseModelManager):
         if not lora:
             logger.warning(f"Could not find lora {lora_name} to get last use")
             return None
-        return datetime.strptime(lora["last_used"], "%Y-%m-%d %H:%M:%S")
+        if is_version:
+            version = self.ensure_is_version(lora_name)
+        else:
+            version = self.find_latest_version(lora)
+        if version is None:
+            return None
+        return datetime.strptime(lora["versions"][version]["last_used"], "%Y-%m-%d %H:%M:%S")
 
     def fetch_adhoc_lora(self, lora_name, timeout=45, is_version: bool = False):
         """Checks if a LoRa is available
         If not, immediately downloads it
-        Finally, returns a tuple with the lora key and text to inject into the prompt for comfyUI to load the lora"""
+        Finally, returns the lora name"""
         if isinstance(lora_name, str):
             if lora_name in self.model_reference:
                 self._touch_lora(lora_name)
@@ -1066,3 +1051,8 @@ class LoraModelManager(BaseModelManager):
             return False
         self._touch_lora(found_model_name)
         return True
+
+    def is_lora_available(self, lora_name: str, is_version: bool = False):
+        if is_version:
+            return self.ensure_is_version(lora_name) in self._index_version_ids
+        return self.is_model_available(lora_name)
