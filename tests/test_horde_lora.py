@@ -69,7 +69,7 @@ class TestHordeLora:
         last_use = shared_model_manager.manager.lora.get_lora_last_use("GlowingRunesAI")
         assert last_use
         if not (last_use > datetime.now() - timedelta(minutes=1)):
-            pytest.skip("Lora last use not updated")
+            raise Exception("Last use of lora was not updated")
 
     def test_text_to_image_lora_blue(
         self,
