@@ -153,6 +153,7 @@ class HordeLib:
         "model": {"datatype": float, "min": -10.0, "max": 10.0, "default": 1.0},
         "clip": {"datatype": float, "min": -10.0, "max": 10.0, "default": 1.0},
         "inject_trigger": {"datatype": str},
+        "is_version": {"datatype": bool},
     }
 
     TIS_SCHEMA = {
