@@ -391,7 +391,7 @@ class LoraModelManager(BaseModelManager):
                 self._download_threads[thread_number]["lora"] = lora
             except IndexError:
                 # Nothing in the queue
-                logger.debug(f"Lora download thread {thread_number} idle.")
+                # logger.debug(f"Lora download thread {thread_number} idle.")
                 self._download_threads[thread_number]["lora"] = None
                 time.sleep(self.THREAD_WAIT_TIME)
                 continue
