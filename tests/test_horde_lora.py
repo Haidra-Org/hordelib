@@ -703,8 +703,8 @@ class TestHordeLora:
     ):
         assert shared_model_manager.manager.lora
 
-        lora_name = "26975"
-        shared_model_manager.manager.lora.ensure_lora_deleted("22591")
+        lora_name = "238435"
+        shared_model_manager.manager.lora.ensure_lora_deleted("3228913")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -719,13 +719,7 @@ class TestHordeLora:
             "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
-            "prompt": (
-                "a skull in a bottle with colorful liquid, painting of one health potion, "
-                "colorful concept art, potion of healing, potion, fantasy game art style, "
-                "colorfull illustration, magic potions, concept art design illustration, "
-                "alchemy concept, 3 d epic illustrations, hyper realistic poison bottle, "
-                "magical potions, health potion, detailed game art illustration, by Justin Gerard"
-            ),
+            "prompt": "cat made of crystalz in a mythical forest, masterpiece, intricate details, wide shot",
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any", "is_version": True}],
             "ddim_steps": 20,
             "n_iter": 1,
