@@ -464,10 +464,13 @@ class HordeLib:
                 verstext = ""
                 if is_version:
                     verstext = " version"
-                if not SharedModelManager.manager.lora.is_lora_available(str(lora["name"]), is_version):
+                if not SharedModelManager.manager.lora.is_lora_available(str(lora["name"]), is_version=is_version):
                     logger.debug(f"Adhoc lora requested '{lora['name']}' not yet downloaded. Downloading...")
                     try:
-                        adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(str(lora["name"]), is_version)
+                        adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(
+                            str(lora["name"]),
+                            is_version=is_version,
+                        )
                     except Exception as e:
                         logger.info(f"Error fetching adhoc lora {lora['name']}: ({type(e).__name__}) {e}")
                         faults.append(
@@ -503,7 +506,11 @@ class HordeLib:
                         raise RuntimeError("Cannot use LORAs without a compvis loaded!")
                     model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model"])
                     # If the lora and model do not match baseline, we ignore the lora
-                    if not SharedModelManager.manager.lora.do_baselines_match(lora_name, model_details, is_version):
+                    if not SharedModelManager.manager.lora.do_baselines_match(
+                        lora_name,
+                        model_details,
+                        is_version=is_version,
+                    ):
                         logger.info(
                             f"Skipped lora{verstext} {lora_name} because its baseline does not match the model's",
                         )
@@ -518,11 +525,11 @@ class HordeLib:
                     trigger_inject = lora.get("inject_trigger")
                     trigger = None
                     if trigger_inject == "any":
-                        triggers = SharedModelManager.manager.lora.get_lora_triggers(lora_name, is_version)
+                        triggers = SharedModelManager.manager.lora.get_lora_triggers(lora_name, is_version=is_version)
                         if triggers:
                             trigger = random.choice(triggers)
                     elif trigger_inject == "all":
-                        triggers = SharedModelManager.manager.lora.get_lora_triggers(lora_name, is_version)
+                        triggers = SharedModelManager.manager.lora.get_lora_triggers(lora_name, is_version=is_version)
                         if triggers:
                             trigger = ", ".join(triggers)
                     elif trigger_inject is not None:
@@ -535,8 +542,8 @@ class HordeLib:
                         # We inject at the start, to avoid throwing it in a negative prompt
                         payload["prompt"] = f'{trigger}, {payload["prompt"]}'
                     # the fixed up and validated filename (Comfy expect the "name" key to be the filename)
-                    lora["name"] = SharedModelManager.manager.lora.get_lora_filename(lora_name, is_version)
-                    SharedModelManager.manager.lora._touch_lora(lora_name, is_version)
+                    lora["name"] = SharedModelManager.manager.lora.get_lora_filename(lora_name, is_version=is_version)
+                    SharedModelManager.manager.lora._touch_lora(lora_name, is_version=is_version)
                     valid_loras.append(lora)
             payload["loras"] = valid_loras
             for lora_index, lora in enumerate(payload.get("loras")):
