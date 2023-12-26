@@ -704,7 +704,7 @@ class TestHordeLora:
         assert shared_model_manager.manager.lora
 
         lora_name = "238435"
-        shared_model_manager.manager.lora.ensure_lora_deleted("3228913")
+        shared_model_manager.manager.lora.ensure_lora_deleted("180780")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
