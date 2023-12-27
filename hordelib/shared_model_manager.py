@@ -1,6 +1,7 @@
 # shared_model_manager.py
 import builtins
 from collections.abc import Iterable
+from multiprocessing.synchronize import Lock as multiprocessing_lock
 from pathlib import Path
 
 import torch
@@ -67,6 +68,8 @@ class SharedModelManager:
     def load_model_managers(
         cls,
         managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = ALL_MODEL_MANAGER_TYPES,
+        *,
+        multiprocessing_lock: multiprocessing_lock | None = None,
     ):
         if cls.manager is None:
             cls.manager = ModelManager()
@@ -80,7 +83,10 @@ class SharedModelManager:
             logger.debug(f"Legacy reference downloaded: {reference}")
 
         do_migrations()
-        cls.manager.init_model_managers(managers_to_load)
+        cls.manager.init_model_managers(
+            managers_to_load,
+            multiprocessing_lock=multiprocessing_lock,
+        )
 
     @classmethod
     def unload_model_managers(
