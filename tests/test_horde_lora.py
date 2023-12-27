@@ -69,7 +69,7 @@ class TestHordeLora:
         last_use = shared_model_manager.manager.lora.get_lora_last_use("GlowingRunesAI")
         assert last_use
         if not (last_use > datetime.now() - timedelta(minutes=1)):
-            pytest.skip("Lora last use not updated")
+            raise Exception("Last use of lora was not updated")
 
     def test_text_to_image_lora_blue(
         self,
@@ -689,6 +689,48 @@ class TestHordeLora:
         assert isinstance(pil_image, Image.Image)
 
         img_filename = "lora_download_adhoc.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
+    def test_download_and_use_specific_version_lora(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        stable_diffusion_model_name_for_testing: str,
+    ):
+        assert shared_model_manager.manager.lora
+
+        lora_name = "238435"
+        shared_model_manager.manager.lora.ensure_lora_deleted("180780")
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 8.0,
+            "denoising_strength": 1.0,
+            "seed": 1312,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "cat made of crystalz in a mythical forest, masterpiece, intricate details, wide shot",
+            "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any", "is_version": True}],
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": stable_diffusion_model_name_for_testing,
+        }
+
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+
+        img_filename = "lora_version_adhoc.png"
         pil_image.save(f"images/{img_filename}", quality=100)
         assert check_single_lora_image_similarity(
             f"images_expected/{img_filename}",

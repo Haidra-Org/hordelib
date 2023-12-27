@@ -6,8 +6,10 @@ import re
 import threading
 import time
 from collections import deque
+from contextlib import nullcontext
 from datetime import datetime, timedelta
 from enum import auto
+from multiprocessing.synchronize import Lock as multiprocessing_lock
 
 import requests
 from fuzzywuzzy import fuzz
@@ -45,27 +47,32 @@ class TextualInversionModelManager(BaseModelManager):
     THREAD_WAIT_TIME: int = 2
     """The time to wait between checking the download queue in seconds"""
 
+    _file_lock: multiprocessing_lock | nullcontext
+
     def __init__(
         self,
         download_reference=False,
+        multiprocessing_lock: multiprocessing_lock | None = None,
+        **kwargs,
     ):
         self._data = None
         self._next_page_url = None
+        self._file_lock = multiprocessing_lock or nullcontext()
         self._mutex = threading.Lock()
         self._file_count = 0
-        self._download_threads = {}
-        self._download_queue = deque()
+        self._download_threads = {}  # type: ignore # FIXME: add type
+        self._download_queue = deque()  # type: ignore # FIXME: add type
         self._thread = None
         self.stop_downloading = True
         # Not yet handled, as we need a global reference to search through.
-        self._previous_model_reference = {}
-        self._adhoc_tis = set()
+        self._previous_model_reference = {}  # type: ignore # FIXME: add type
+        self._adhoc_tis = set()  # type: ignore # FIXME: add type
         # If false, this MM will only download SFW tis
         self.nsfw = True
         self._adhoc_reset_thread = None
         self._stop_all_threads = False
-        self._index_ids = {}
-        self._index_orig_names = {}
+        self._index_ids = {}  # type: ignore # FIXME: add type
+        self._index_orig_names = {}  # type: ignore # FIXME: add type
         self.total_retries_attempted = 0
 
         models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("ti.json").resolve()
@@ -319,7 +326,7 @@ class TextualInversionModelManager(BaseModelManager):
                                     )
                                 else:
                                     logger.debug(f"Already have Textual Inversion: {ti['filename']}")
-                                with self._mutex:
+                                with self._mutex, self._file_lock:
                                     # We store as lower to allow case-insensitive search
                                     ti["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     self._add_ti_to_reference(ti)
@@ -349,7 +356,7 @@ class TextualInversionModelManager(BaseModelManager):
                             # Shout about it
                             logger.info(f"Downloaded Textual Inversion: {ti['filename']} ({ti['size_kb']} KB)")
                             # Maybe we're done
-                            with self._mutex:
+                            with self._mutex, self._file_lock:
                                 # We store as lower to allow case-insensitive search
                                 ti["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                 ti["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -381,7 +388,7 @@ class TextualInversionModelManager(BaseModelManager):
                 time.sleep(self.RETRY_DELAY)
 
     def _download_ti(self, ti):
-        with self._mutex:
+        with self._mutex, self._file_lock:
             # Start download threads if they aren't already started
             while len(self._download_threads) < self.MAX_DOWNLOAD_THREADS:
                 thread_iter = len(self._download_threads)

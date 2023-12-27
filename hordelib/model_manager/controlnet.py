@@ -19,10 +19,15 @@ CONTROLNET_BASELINE_APPENDS: dict[CONTROLNET_BASELINE_NAMES | str, str] = {
 
 
 class ControlNetModelManager(BaseModelManager):
-    def __init__(self, download_reference=False):
+    def __init__(
+        self,
+        download_reference=False,
+        **kwargs,
+    ):
         super().__init__(
             model_category_name=MODEL_CATEGORY_NAMES.controlnet,
             download_reference=download_reference,
+            **kwargs,
         )
 
     def download_control_type(

@@ -44,10 +44,10 @@ class TestModelManagerLora:
         assert lora_model_manager.fuzzy_find_lora_key("Glowing Robots") is None
         assert lora_model_manager.fuzzy_find_lora_key("GlowingRobots") is None
         assert lora_model_manager.fuzzy_find_lora_key("GlowingRobotsAI") is None
-        assert lora_model_manager.fuzzy_find_lora_key("blindbox/大概是盲盒") == "blindbox/da gai shi mang he"
         assert lora_model_manager.fuzzy_find_lora_key(25995) == "blindbox/da gai shi mang he"
         assert lora_model_manager.fuzzy_find_lora_key("25995") == "blindbox/da gai shi mang he"
         assert lora_model_manager.fuzzy_find_lora_key("大概是盲盒") == "blindbox/da gai shi mang he"
+        assert lora_model_manager.fuzzy_find_lora_key("blindbox/大概是盲盒") == "blindbox/da gai shi mang he"
         lora_model_manager.stop_all()
 
     def test_lora_search(self):
@@ -57,9 +57,9 @@ class TestModelManagerLora:
         )
         lora_model_manager.download_default_loras()
         lora_model_manager.wait_for_downloads(600)
-        assert lora_model_manager.get_lora_name("GlowingRunesAI") == "GlowingRunesAI"
-        assert lora_model_manager.get_lora_name("GlowingRunes") == "GlowingRunesAI"
-        assert lora_model_manager.get_lora_name("Glowing Runes") == "GlowingRunesAI"
+        assert lora_model_manager.get_lora_name("GlowingRunesAI") == "glowingrunesai"
+        assert lora_model_manager.get_lora_name("GlowingRunes") == "glowingrunesai"
+        assert lora_model_manager.get_lora_name("Glowing Runes") == "glowingrunesai"
         assert len(lora_model_manager.get_lora_triggers("GlowingRunesAI")) > 1
         # We can't rely on triggers not changing
         assert lora_model_manager.find_lora_trigger("GlowingRunesAI", "blue") is not None
@@ -93,12 +93,31 @@ class TestModelManagerLora:
         lora_model_manager.download_default_loras()
         lora_model_manager.wait_for_downloads(600)
         lora_model_manager.wait_for_adhoc_reset(15)
+
         lora_model_manager.ensure_lora_deleted(22591)
         lora_key = lora_model_manager.fetch_adhoc_lora("22591")
-        assert lora_key == "GAG - RPG Potions  |  LoRa xl".lower()
-        assert lora_model_manager.is_model_available("GAG")
+        assert lora_key == "gag - rpg potions  |  lora xl"
         assert lora_model_manager.is_model_available("22591")
+        assert lora_model_manager.is_model_available("GAG - rpg potions  |  LoRa xl")
         assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  LoRa xl".lower()
+        lora_model_manager.stop_all()
+
+    def test_fetch_specific_lora_version(self):
+        lora_model_manager = LoraModelManager(
+            download_wait=False,
+            allowed_adhoc_lora_storage=1024,
+        )
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        lora_model_manager.wait_for_adhoc_reset(15)
+
+        lora_model_manager.ensure_lora_deleted(22591)
+        lora_key = lora_model_manager.fetch_adhoc_lora("26975", is_version=True)
+        assert lora_key == "gag - rpg potions  |  lora xl"
+        assert lora_model_manager.is_model_available("22591")
+        assert isinstance(lora_model_manager.get_model_reference_info("26975", is_version=True), dict)
+        assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  lora xl".lower()
+        lora_model_manager.fetch_adhoc_lora("22591")
         lora_model_manager.stop_all()
 
     def test_reject_adhoc_nsfw_lora(self):
