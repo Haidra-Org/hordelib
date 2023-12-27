@@ -1,6 +1,7 @@
 """Home for the controller class ModelManager, and related meta information."""
 import threading
 from collections.abc import Callable, Iterable
+from multiprocessing.synchronize import Lock as multiprocessing_lock
 
 import torch
 from loguru import logger
@@ -155,6 +156,7 @@ class ModelManager:
     def init_model_managers(
         self,
         managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
+        multiprocessing_lock: multiprocessing_lock | None = None,
     ) -> None:
         for manager_to_load in managers_to_load:
             resolve_manager_to_load_type: type[BaseModelManager] | None = None
@@ -174,7 +176,11 @@ class ModelManager:
                     f"Attempted to load a model manager which is already loaded: '{resolve_manager_to_load_type}'.",
                 )
                 continue
-            self.active_model_managers.append(resolve_manager_to_load_type())
+            self.active_model_managers.append(
+                resolve_manager_to_load_type(
+                    multiprocessing_lock=multiprocessing_lock,
+                ),
+            )
 
     def unload_model_managers(
         self,

@@ -54,6 +54,7 @@ class BaseModelManager(ABC):
         download_reference: bool = False,
         model_category_name: MODEL_CATEGORY_NAMES = MODEL_CATEGORY_NAMES.default_models,
         models_db_path: Path | None = None,
+        **kwargs,
     ):
         """Create a new instance of this model manager.
 
@@ -61,6 +62,9 @@ class BaseModelManager(ABC):
             model_category_name (MODEL_CATEGORY_NAMES): The category of model to manage.
             download_reference (bool, optional): Get the model DB from github. Defaults to False.
         """
+
+        if len(kwargs) > 0:
+            logger.debug(f"Unused kwargs in {type(self)}: {kwargs}")
 
         self.model_folder_path = UserSettings.get_model_directory() / f"{MODEL_FOLDER_NAMES[model_category_name]}"
 
