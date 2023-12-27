@@ -177,7 +177,7 @@ class TestHordeLora:
             "karras": False,
             "tiling": False,
             "hires_fix": False,
-            "clip_skip": 2,
+            "clip_skip": 1,
             "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
@@ -188,7 +188,7 @@ class TestHordeLora:
                 "intricitaly hyperdetailed,amazing depth,expansive details, cracked surface,"
                 "on display, iridescent surface,Anna Dittmann,Dominic Qwek,complex masterwork"
             ),
-            "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any", "is_version": True}],
+            "loras": [{"name": lora_name, "model": 1.0, "clip": 0.75, "inject_trigger": "any", "is_version": True}],
             "ddim_steps": 3,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
