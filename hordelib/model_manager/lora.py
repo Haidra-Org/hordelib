@@ -73,6 +73,7 @@ class LoraModelManager(BaseModelManager):
         self._data = None
         self._next_page_url = None
         self._mutex = threading.Lock()
+        self._file_mutex = threading.Lock()
         self._download_mutex = threading.Lock()
         self._file_lock: InterProcessReaderWriterLock
         self._adhoc_loras_savefile: Path
@@ -124,8 +125,9 @@ class LoraModelManager(BaseModelManager):
         else:
             if self.models_db_path.exists():
                 try:
-                    with self._file_lock.read_lock():
-                        self.model_reference = json.loads((self.models_db_path).read_text())
+                    with self._file_mutex:
+                        with self._file_lock.read_lock():
+                            self.model_reference = json.loads((self.models_db_path).read_text())
                     new_model_reference = {}
                     for old_lora_key in self.model_reference.keys():
                         lora = self.model_reference[old_lora_key]
@@ -570,26 +572,27 @@ class LoraModelManager(BaseModelManager):
             self._index_orig_names[orig_name] = lora_key
 
     def reload_reference_from_disk(self):
-        with self._file_lock.read_lock():
-            reloaded_model_reference: dict = json.loads((self.models_db_path).read_text())
-            if self.models_db_path.exists():
-                reloaded_adhoc_loras = set(json.loads((self._adhoc_loras_savefile).read_text()))
-            else:
-                reloaded_adhoc_loras = set()
-            reloaded_index_ids = {}
-            reloaded_index_orig_names = {}
-            reloaded_index_version_ids = {}
-            for lora in self.model_reference.values():
-                reloaded_index_ids[lora["id"]] = lora["name"]
-                orig_name = lora.get("orig_name", lora["name"]).lower()
-                reloaded_index_orig_names[orig_name] = lora["name"]
-                for version in lora["versions"]:
-                    reloaded_index_version_ids[version] = lora["name"]
-            self.model_reference = reloaded_model_reference
-            self._adhoc_loras = reloaded_adhoc_loras
-            self._index_ids = reloaded_index_ids
-            self._index_orig_names = reloaded_index_orig_names
-            self._index_version_ids = reloaded_index_version_ids
+        with self._file_mutex:
+            with self._file_lock.read_lock():
+                reloaded_model_reference: dict = json.loads((self.models_db_path).read_text())
+                if self.models_db_path.exists():
+                    reloaded_adhoc_loras = set(json.loads((self._adhoc_loras_savefile).read_text()))
+                else:
+                    reloaded_adhoc_loras = set()
+                reloaded_index_ids = {}
+                reloaded_index_orig_names = {}
+                reloaded_index_version_ids = {}
+                for lora in self.model_reference.values():
+                    reloaded_index_ids[lora["id"]] = lora["name"]
+                    orig_name = lora.get("orig_name", lora["name"]).lower()
+                    reloaded_index_orig_names[orig_name] = lora["name"]
+                    for version in lora["versions"]:
+                        reloaded_index_version_ids[version] = lora["name"]
+                self.model_reference = reloaded_model_reference
+                self._adhoc_loras = reloaded_adhoc_loras
+                self._index_ids = reloaded_index_ids
+                self._index_orig_names = reloaded_index_orig_names
+                self._index_version_ids = reloaded_index_version_ids
 
     def download_default_loras(self, nsfw=True, timeout=None):
         """Start up a background thread downloading and return immediately"""
@@ -761,11 +764,12 @@ class LoraModelManager(BaseModelManager):
         return None
 
     def save_cached_reference_to_disk(self):
-        with self._file_lock.write_lock():
-            with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
-                outfile.write(json.dumps(self.model_reference.copy(), indent=4))
-            with open(self._adhoc_loras_savefile, "w", encoding="utf-8", errors="ignore") as outfile:
-                outfile.write(json.dumps(list(self._adhoc_loras), indent=4))
+        with self._file_mutex:
+            with self._file_lock.write_lock():
+                with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
+                    outfile.write(json.dumps(self.model_reference.copy(), indent=4))
+                with open(self._adhoc_loras_savefile, "w", encoding="utf-8", errors="ignore") as outfile:
+                    outfile.write(json.dumps(list(self._adhoc_loras), indent=4))
 
     def calculate_downloaded_loras(self, mode=DOWNLOAD_SIZE_CHECK.everything):
         total_size = 0
