@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.3.0](https://github.com/Haidra-Org/hordelib/compare/v2.2.4...v2.3.0)
+
+27 December 2023
+
+- feat: allows multiple lora versions [`#127`](https://github.com/Haidra-Org/hordelib/pull/127) (Divided by Zer0)
+
 ## [v2.2.4](https://github.com/Haidra-Org/hordelib/compare/v2.2.3...v2.2.4)
 
 13 December 2023
