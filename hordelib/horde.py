@@ -76,6 +76,7 @@ class HordeLib:
         "uni_pc": "uni_pc",
         "uni_pc_bh2": "uni_pc_bh2",
         "plms": "euler",
+        "lcm": "lcm",
     }
 
     # Horde names on the left, our node names on the right
