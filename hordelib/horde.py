@@ -115,7 +115,7 @@ class HordeLib:
 
     SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting"]
 
-    SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform"]
+    SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform", "sgm_uniform", "exponential"]
 
     # Describe a valid payload, it's types and bounds. All incoming payload data is validated against,
     # and normalised to, this schema.
@@ -657,7 +657,6 @@ class HordeLib:
         # the source image instead of the latent noise generator
         if pipeline_params.get("image_loader.image"):
             self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
-
         return pipeline_params, faults
 
     def _get_appropriate_pipeline(self, params):
