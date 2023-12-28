@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.3.1](https://github.com/Haidra-Org/hordelib/compare/v2.3.0...v2.3.1)
+
+28 December 2023
+
+- fix: support comfyui args; detect pipeline changes between runs [`5089ac2`](https://github.com/Haidra-Org/hordelib/commit/5089ac2e7fbf465d93e5ddeb35b5d79f307b011f)  (tazlin)
+- ci: don't test `k_dpmpp_sde` so stringently [`1d9c938`](https://github.com/Haidra-Org/hordelib/commit/1d9c93812bbef8b873ceb80b5d7c49f0540a4448)  (tazlin)
+- feat: update to comfy version `c78214` [`8dff541`](https://github.com/Haidra-Org/hordelib/commit/8dff5413d190ef5dae6e05272d12e6cd1f859093)  (tazlin)
+
 ## [v2.3.0](https://github.com/Haidra-Org/hordelib/compare/v2.2.4...v2.3.0)
 
 27 December 2023
