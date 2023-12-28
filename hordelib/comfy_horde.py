@@ -194,7 +194,8 @@ _last_pipeline_settings_hash = ""
 def recursive_output_delete_if_changed_hijack(prompt: dict, old_prompt, outputs, current_item):
     global _last_pipeline_settings_hash
     if current_item == "prompt":
-        pipeline_settings_hash = hashlib.md5(json.dumps(prompt).encode("utf-8")).hexdigest()
+        pipeline_settings_hash = hashlib.md5(json.dumps(prompt, skipkeys=True).encode("utf-8")).hexdigest()
+        logger.debug(f"pipeline_settings: {pipeline_settings_hash}")
         logger.debug(f"pipeline_settings_hash: {pipeline_settings_hash}")
 
         if pipeline_settings_hash != _last_pipeline_settings_hash:
@@ -202,7 +203,7 @@ def recursive_output_delete_if_changed_hijack(prompt: dict, old_prompt, outputs,
             logger.debug("Pipeline settings changed")
 
         if old_prompt:
-            old_pipeline_settings_hash = hashlib.md5(json.dumps(old_prompt).encode("utf-8")).hexdigest()
+            old_pipeline_settings_hash = hashlib.md5(json.dumps(old_prompt, skipkeys=True).encode("utf-8")).hexdigest()
             logger.debug(f"old_pipeline_settings_hash: {old_pipeline_settings_hash}")
             if pipeline_settings_hash != old_pipeline_settings_hash:
                 logger.debug("Pipeline settings changed from old_prompt")
