@@ -179,6 +179,14 @@ class LoraModelManager(BaseModelManager):
                             }
                             new_model_reference[lora_key] = new_lora_entry
                         else:
+                            existing_versions = {}
+                            for version in lora["versions"]:
+                                filepath = os.path.join(self.model_folder_path, lora["versions"][version]["filename"])
+                                if not Path(f"{filepath}").exists():
+                                    logger.warning(f"{filepath} doesn't exist. Removing lora version from reference.")
+                                    continue
+                                existing_versions[version] = lora["versions"][version]
+                            lora["versions"] = existing_versions
                             new_model_reference[old_lora_key] = lora
                     for lora in new_model_reference.values():
                         self._index_ids[lora["id"]] = lora["name"]
