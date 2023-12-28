@@ -196,8 +196,8 @@ def recursive_output_delete_if_changed_hijack(prompt: dict, old_prompt, outputs,
     if current_item == "prompt":
         logger.debug(f"pipeline_settings: {prompt}")
         serprompt = prompt.copy()
-        if "source_image" in serprompt:
-            serprompt["source_image"] = "source_image"
+        if serprompt.get("image_loader", {}).get("inputs", {}).get("image"):
+            serprompt["image_loader"]["inputs"]["source_image"] = "source_image"
         if "source_mask" in serprompt:
             serprompt["source_image"] = "source_mask"
         pipeline_settings_hash = hashlib.md5(json.dumps(serprompt).encode("utf-8")).hexdigest()
