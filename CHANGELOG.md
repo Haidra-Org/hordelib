@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.3.2](https://github.com/Haidra-Org/hordelib/compare/v2.3.1...v2.3.2)
+
+28 December 2023
+
+- fix: purge caches for comfyui executor [`048e856`](https://github.com/Haidra-Org/hordelib/commit/048e856f5da12e4d98d2a46900b1d862a44090f2)  (tazlin)
+
 ## [v2.3.1](https://github.com/Haidra-Org/hordelib/compare/v2.3.0...v2.3.1)
 
 28 December 2023
