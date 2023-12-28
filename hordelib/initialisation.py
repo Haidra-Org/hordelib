@@ -24,7 +24,21 @@ def initialise(
     clear_logs=False,
     logging_verbosity=3,
     process_id: int | None = None,
-):  # XXX # TODO Do we need `model_managers_to_load`?
+    force_normal_vram_mode: bool = True,
+    extra_comfyui_args: list[str] | None = None,
+):
+    """Initialise hordelib. This is required before using any other hordelib functions.
+
+    Args:
+        setup_logging (bool | None, optional): Whether to use hordelib's loguru logging system. Defaults to True.
+        clear_logs (bool, optional): Whether logs should be purged when loading loguru. Defaults to False.
+        logging_verbosity (int, optional): The message level of logging. Defaults to 3.
+        process_id (int | None, optional): If this is is being used in a child processes, the identifier. \
+            Defaults to None.
+        force_low_vram (bool, optional): Whether to forcibly disable ComfyUI's high/med vram modes. Defaults to False.
+        extra_comfyui_args (list[str] | None, optional): Any additional CLI args for comfyui that should be used. \
+            Defaults to None.
+    """
     global _is_initialised
 
     # Wipe existing logs if requested
@@ -58,7 +72,10 @@ def initialise(
 
     import hordelib.comfy_horde
 
-    hordelib.comfy_horde.do_comfy_import()
+    hordelib.comfy_horde.do_comfy_import(
+        force_normal_vram_mode=force_normal_vram_mode,
+        extra_comfyui_args=extra_comfyui_args,
+    )
 
     vram_on_start_free = hordelib.comfy_horde.get_torch_free_vram_mb()
     vram_total = hordelib.comfy_horde.get_torch_total_vram_mb()
