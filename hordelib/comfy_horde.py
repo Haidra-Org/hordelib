@@ -678,6 +678,10 @@ class Comfy_Horde:
             # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
             self.client_id = str(uuid.uuid4())
             valid = _comfy_validate_prompt(pipeline)
+            inference.outputs = {}
+            inference.object_storage = {}
+            inference.outputs_ui = {}
+            inference.old_prompt = {}
             inference.execute(pipeline, self.client_id, {"client_id": self.client_id}, valid[2])
 
         stdio.replay()
