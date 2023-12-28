@@ -5,9 +5,9 @@ from PIL import Image
 
 from hordelib.horde import HordeLib
 
-from .testing_shared_functions import check_single_inference_image_similarity
+from .testing_shared_functions import check_single_inference_image_similarity, check_single_lora_image_similarity
 
-SLOW_SAMPLERS = ["k_dpmpp_2s_a", "k_dpmpp_sde", "k_heun", "k_dpm_2", "k_dpm_2_a"]
+SLOW_SAMPLERS = ["k_dpmpp_2s_a", "k_heun", "k_dpm_2", "k_dpm_2_a"]  # "k_dpmpp_sde",
 
 
 class TestHordeSamplers:
@@ -41,6 +41,45 @@ class TestHordeSamplers:
         }
         pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
+
+    def test_k_dpmpp_sde_sampler(
+        self,
+        stable_diffusion_model_name_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_sde",
+            "cfg_scale": 6.5,
+            "denoising_strength": 1.0,
+            "seed": 3688490319,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": (
+                "a woman closeup made out of metal, (cyborg:1.1), realistic skin, (detailed wire:1.3), "
+                "(intricate details), hdr, (intricate details, hyperdetailed:1.2), cinematic shot, "
+                "vignette, centered"
+            ),
+            "ddim_steps": 30,
+            "n_iter": 1,
+            "model": stable_diffusion_model_name_for_testing,
+        }
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image is not None
+
+        img_filename = "sampler_30_steps_k_dpmpp_sde.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_samplers(
         self,

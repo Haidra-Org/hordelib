@@ -4,6 +4,7 @@ import contextlib
 import copy
 import gc
 import glob
+import hashlib
 import json
 import os
 import re
@@ -82,6 +83,8 @@ _comfy_free_memory: types.FunctionType
 _comfy_cleanup_models: types.FunctionType
 _comfy_soft_empty_cache: types.FunctionType
 
+_comfy_recursive_output_delete_if_changed: types.FunctionType
+
 _canny: types.ModuleType
 _hed: types.ModuleType
 _leres: types.ModuleType
@@ -93,10 +96,11 @@ _uniformer: types.ModuleType
 
 
 # isort: off
-def do_comfy_import():
+def do_comfy_import(force_normal_vram_mode: bool = False, extra_comfyui_args: list[str] | None = None) -> None:
     global _comfy_current_loaded_models
     global _comfy_load_models_gpu
     global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt
+    global _comfy_recursive_output_delete_if_changed
     global _comfy_folder_names_and_paths, _comfy_supported_pt_extensions
     global _comfy_load_checkpoint_guess_config
     global _comfy_get_torch_device, _comfy_get_free_memory, _comfy_get_total_memory
@@ -104,14 +108,33 @@ def do_comfy_import():
     global _comfy_free_memory, _comfy_cleanup_models, _comfy_soft_empty_cache
     global _canny, _hed, _leres, _midas, _mlsd, _openpose, _pidinet, _uniformer
 
+    logger.info("Disabling smart memory")
+
+    sys.argv.append("--disable-smart-memory")
+
+    if force_normal_vram_mode:
+        logger.info("Forcing normal vram mode")
+        sys.argv.append("--normalvram")
+
+    if extra_comfyui_args is not None:
+        sys.argv.extend(extra_comfyui_args)
+
     # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
     # that they should never call through this module into comfy directly. All calls into
     # comfy should be abstracted through functions in this module.
     output_collector = OutputCollector()
     with contextlib.redirect_stdout(output_collector), contextlib.redirect_stderr(output_collector):
+        from comfy.options import enable_args_parsing
+
+        enable_args_parsing()
+        import execution
         from execution import nodes as _comfy_nodes
         from execution import PromptExecutor as _comfy_PromptExecutor
         from execution import validate_prompt as _comfy_validate_prompt
+        from execution import recursive_output_delete_if_changed
+
+        _comfy_recursive_output_delete_if_changed = recursive_output_delete_if_changed  # type: ignore
+        execution.recursive_output_delete_if_changed = recursive_output_delete_if_changed_hijack
         from folder_paths import folder_names_and_paths as _comfy_folder_names_and_paths  # type: ignore
         from folder_paths import supported_pt_extensions as _comfy_supported_pt_extensions  # type: ignore
         from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config
@@ -147,7 +170,7 @@ def do_comfy_import():
         # return torch.device("cpu")
 
         # comfy.model_management.unet_inital_load_device = always_cpu
-        comfy.model_management.DISABLE_SMART_MEMORY = True
+        # comfy.model_management.DISABLE_SMART_MEMORY = True
         # comfy.model_management.lowvram_available = True
 
         # comfy.model_management.unet_offload_device = _unet_offload_device_hijack
@@ -164,6 +187,36 @@ def do_comfy_import():
 
 
 # isort: on
+
+_last_pipeline_settings_hash = ""
+
+
+def recursive_output_delete_if_changed_hijack(prompt: dict, old_prompt, outputs, current_item):
+    global _last_pipeline_settings_hash
+    if current_item == "prompt":
+        pipeline_settings_hash = hashlib.md5(json.dumps(prompt).encode("utf-8")).hexdigest()
+        logger.debug(f"pipeline_settings_hash: {pipeline_settings_hash}")
+
+        if pipeline_settings_hash != _last_pipeline_settings_hash:
+            _last_pipeline_settings_hash = pipeline_settings_hash
+            logger.debug("Pipeline settings changed")
+
+        if old_prompt:
+            old_pipeline_settings_hash = hashlib.md5(json.dumps(old_prompt).encode("utf-8")).hexdigest()
+            logger.debug(f"old_pipeline_settings_hash: {old_pipeline_settings_hash}")
+            if pipeline_settings_hash != old_pipeline_settings_hash:
+                logger.debug("Pipeline settings changed from old_prompt")
+
+    if current_item == "prompt" or current_item == "negative_prompt":
+        try:
+            prompt_text = prompt[current_item]["inputs"]["text"]
+            prompt_hash = hashlib.md5(prompt_text.encode("utf-8")).hexdigest()
+            logger.debug(f"{current_item} hash: {prompt_hash}")
+        except KeyError:
+            pass
+
+    global _comfy_recursive_output_delete_if_changed
+    return _comfy_recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item)
 
 
 def cleanup():
