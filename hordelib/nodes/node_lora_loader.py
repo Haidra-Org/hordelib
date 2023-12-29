@@ -30,7 +30,7 @@ class HordeLoraLoader:
         if strength_model == 0 and strength_clip == 0:
             return (model, clip)
 
-        if lora_name == "":
+        if lora_name is None or lora_name == "" or lora_name == "None":
             logger.warning("No lora name provided, skipping lora loading")
             return (model, clip)
 
