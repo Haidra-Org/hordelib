@@ -559,7 +559,7 @@ class HordeLib:
                             "strength_clip": lora["clip"],
                             # "model_manager": SharedModelManager,
                         },
-                        "class_type": "LoraLoader",
+                        "class_type": "HordeLoraLoader",
                     }
                 else:
                     # Subsequent chained loras
@@ -572,7 +572,7 @@ class HordeLib:
                             "strength_clip": lora["clip"],
                             # "model_manager": SharedModelManager,
                         },
-                        "class_type": "LoraLoader",
+                        "class_type": "HordeLoraLoader",
                     }
 
             for lora_index in range(len(payload.get("loras"))):
