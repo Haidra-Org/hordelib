@@ -99,7 +99,7 @@ class LoraModelManager(BaseModelManager):
         self._index_version_ids = {}  # type: ignore # FIXME: add type
         self._index_orig_names = {}  # type: ignore # FIXME: add type
         self.total_retries_attempted = 0
-        self._default_lora_ids = list | None
+        self._default_lora_ids: list = []
 
         models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
 
