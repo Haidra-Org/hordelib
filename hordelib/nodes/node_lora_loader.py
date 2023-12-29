@@ -40,12 +40,14 @@ class HordeLoraLoader:
 
         loras_on_disk = folder_paths.get_filename_list("loras")
 
-        folder_paths.filename_list_cache["loras"] = ()
-        lora_path = folder_paths.get_full_path("loras", lora_name)
+        if "loras" in folder_paths.filename_list_cache:
+            del folder_paths.filename_list_cache["loras"]
 
         if lora_name not in loras_on_disk:
             logger.warning(f"Lora file {lora_name} does not exist, skipping lora loading")
             return (model, clip)
+
+        lora_path = folder_paths.get_full_path("loras", lora_name)
 
         lora = None
         if self.loaded_lora is not None:

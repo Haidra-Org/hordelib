@@ -685,7 +685,8 @@ class Comfy_Horde:
             valid = _comfy_validate_prompt(pipeline)
             import folder_paths
 
-            folder_paths.filename_list_cache["embeddings"] = ()
+            if "embeddings" in folder_paths.filename_list_cache:
+                del folder_paths.filename_list_cache["embeddings"]
             inference.execute(pipeline, self.client_id, {"client_id": self.client_id}, valid[2])
 
         stdio.replay()
