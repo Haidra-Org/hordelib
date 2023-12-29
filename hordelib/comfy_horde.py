@@ -333,6 +333,8 @@ class Comfy_Horde:
         self._gc_timer = time.time()
         self._counter_mutex = threading.Lock()
 
+        self.images = []
+
         # Set comfyui paths for checkpoints, loras, etc
         self._set_comfyui_paths()
 
