@@ -194,7 +194,6 @@ _last_pipeline_settings_hash = ""
 def recursive_output_delete_if_changed_hijack(prompt: dict, old_prompt, outputs, current_item):
     global _last_pipeline_settings_hash
     if current_item == "prompt":
-        logger.debug(f"pipeline_settings: {prompt}")
         try:
             pipeline_settings_hash = hashlib.md5(json.dumps(prompt).encode("utf-8")).hexdigest()
             logger.debug(f"pipeline_settings_hash: {pipeline_settings_hash}")
