@@ -99,6 +99,7 @@ class LoraModelManager(BaseModelManager):
         self._index_version_ids = {}  # type: ignore # FIXME: add type
         self._index_orig_names = {}  # type: ignore # FIXME: add type
         self.total_retries_attempted = 0
+        self._default_lora_ids: list = []
 
         models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
 
@@ -178,6 +179,14 @@ class LoraModelManager(BaseModelManager):
                             }
                             new_model_reference[lora_key] = new_lora_entry
                         else:
+                            existing_versions = {}
+                            for version in lora["versions"]:
+                                filepath = os.path.join(self.model_folder_path, lora["versions"][version]["filename"])
+                                if not Path(f"{filepath}").exists():
+                                    logger.warning(f"{filepath} doesn't exist. Removing lora version from reference.")
+                                    continue
+                                existing_versions[version] = lora["versions"][version]
+                            lora["versions"] = existing_versions
                             new_model_reference[old_lora_key] = lora
                     for lora in new_model_reference.values():
                         self._index_ids[lora["id"]] = lora["name"]
@@ -206,10 +215,11 @@ class LoraModelManager(BaseModelManager):
 
     def _get_lora_defaults(self):
         try:
-            json_ret = self._get_json(self.LORA_DEFAULTS)
-            if not json_ret:
+            self._default_lora_ids = self._get_json(self.LORA_DEFAULTS)
+            if not isinstance(self._default_lora_ids, list):
                 logger.error("Could not download default LoRas reference!")
-            self._add_lora_ids_to_download_queue(json_ret)
+                self._default_lora_ids = []
+            self._add_lora_ids_to_download_queue(self._default_lora_ids)
 
         except Exception as err:
             logger.error(f"_get_lora_defaults() raised {err}")
@@ -375,7 +385,11 @@ class LoraModelManager(BaseModelManager):
             return None
         # We don't want to start downloading GBs of a single LoRa.
         # We just ignore anything over 150Mb. Them's the breaks...
-        if lora["versions"][lora_version]["adhoc"] and lora["versions"][lora_version]["size_mb"] > 220:
+        if (
+            lora["versions"][lora_version]["adhoc"]
+            and lora["versions"][lora_version]["size_mb"] > 220
+            and lora["id"] not in self._default_lora_ids
+        ):
             logger.debug(f"Rejecting LoRa {lora.get('name')} version {lora_version} because its size is over 220Mb.")
             return None
         if lora["versions"][lora_version]["adhoc"] and lora["nsfw"] and not self.nsfw:

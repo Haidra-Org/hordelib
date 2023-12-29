@@ -76,6 +76,7 @@ class HordeLib:
         "uni_pc": "uni_pc",
         "uni_pc_bh2": "uni_pc_bh2",
         "plms": "euler",
+        "lcm": "lcm",
     }
 
     # Horde names on the left, our node names on the right
@@ -115,7 +116,7 @@ class HordeLib:
 
     SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting"]
 
-    SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform"]
+    SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform", "sgm_uniform", "exponential"]
 
     # Describe a valid payload, it's types and bounds. All incoming payload data is validated against,
     # and normalised to, this schema.
@@ -558,7 +559,7 @@ class HordeLib:
                             "strength_clip": lora["clip"],
                             # "model_manager": SharedModelManager,
                         },
-                        "class_type": "LoraLoader",
+                        "class_type": "HordeLoraLoader",
                     }
                 else:
                     # Subsequent chained loras
@@ -571,7 +572,7 @@ class HordeLib:
                             "strength_clip": lora["clip"],
                             # "model_manager": SharedModelManager,
                         },
-                        "class_type": "LoraLoader",
+                        "class_type": "HordeLoraLoader",
                     }
 
             for lora_index in range(len(payload.get("loras"))):
@@ -657,7 +658,6 @@ class HordeLib:
         # the source image instead of the latent noise generator
         if pipeline_params.get("image_loader.image"):
             self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
-
         return pipeline_params, faults
 
     def _get_appropriate_pipeline(self, params):
