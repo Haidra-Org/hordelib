@@ -13,24 +13,30 @@ from .testing_shared_functions import check_single_lora_image_similarity
 class TestHordeLora:
     @pytest.fixture(autouse=True, scope="class")
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
+        # TODO: Why did having the default loras downloaded here cause an indefinite hang?
         assert shared_model_manager.manager.lora
-        shared_model_manager.manager.lora.download_default_loras()
-        shared_model_manager.manager.lora.wait_for_downloads()
         yield
-        shared_model_manager.manager.lora.stop_all()
+
+    @pytest.fixture(scope="class")
+    def lora_GlowingRunesAI(self, shared_model_manager: type[SharedModelManager]) -> str:
+        assert shared_model_manager.manager.lora
+        name = shared_model_manager.manager.lora.fetch_adhoc_lora("GlowingRunesAI")
+        assert name is not None
+        assert shared_model_manager.manager.lora.is_model_available(name)
+
+        return name
 
     def test_text_to_image_lora_red(
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        lora_GlowingRunesAI: str,
     ):
         assert shared_model_manager.manager.lora
 
         # Red
-        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
-        assert isinstance(lora_name, str)
-        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "red")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "red")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -46,7 +52,7 @@ class TestHordeLora:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": f"a dark magical crystal, {trigger}, 8K resolution###blurry, out of focus",
-            "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0}],
+            "loras": [{"name": lora_GlowingRunesAI, "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
@@ -76,13 +82,12 @@ class TestHordeLora:
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        lora_GlowingRunesAI: str,
     ):
         assert shared_model_manager.manager.lora
 
         # Blue, fuzzy search on version
-        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
-        assert lora_name
-        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "blue")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -98,7 +103,7 @@ class TestHordeLora:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": f"a dark magical crystal, {trigger}, 8K resolution###blurry, out of focus",
-            "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0}],
+            "loras": [{"name": lora_GlowingRunesAI, "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
@@ -121,13 +126,12 @@ class TestHordeLora:
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        lora_GlowingRunesAI: str,
     ):
         assert shared_model_manager.manager.lora
 
         # Blue, fuzzy search on version
-        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
-        assert lora_name
-        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "blue")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 3.0,
@@ -143,7 +147,7 @@ class TestHordeLora:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": f"a dark magical crystal, {trigger}, 8K resolution###blurry, out of focus",
-            "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0}],
+            "loras": [{"name": lora_GlowingRunesAI, "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
@@ -166,13 +170,12 @@ class TestHordeLora:
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        lora_GlowingRunesAI: str,
     ):
         assert shared_model_manager.manager.lora
 
         # Blue, fuzzy search on version
-        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
-        assert lora_name
-        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "blue")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -188,7 +191,7 @@ class TestHordeLora:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": f"a dark magical crystal, ({trigger}:1.2), 8K resolution###blurry, out of focus",
-            "loras": [{"name": lora_name, "model": 1, "clip": 1.0}],
+            "loras": [{"name": lora_GlowingRunesAI, "model": 1, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
@@ -211,13 +214,12 @@ class TestHordeLora:
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        lora_GlowingRunesAI: str,
     ):
         assert shared_model_manager.manager.lora
 
         # Blue, fuzzy search on version
-        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
-        assert lora_name
-        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "blue")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -233,7 +235,7 @@ class TestHordeLora:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": f"a dark magical crystal, {trigger}, 8K resolution###blurry, out of focus",
-            "loras": [{"name": lora_name, "model": 0.1, "clip": 1.0}],
+            "loras": [{"name": lora_GlowingRunesAI, "model": 0.1, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
@@ -250,7 +252,7 @@ class TestHordeLora:
             pil_image,
         )
 
-        data["loras"] = [{"name": lora_name, "model": 1.0, "clip": 0.1}]
+        data["loras"] = [{"name": lora_GlowingRunesAI, "model": 1.0, "clip": 0.1}]
         pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
@@ -262,7 +264,7 @@ class TestHordeLora:
             pil_image,
         )
 
-        data["loras"] = [{"name": lora_name, "model": 0.1, "clip": 0.1}]
+        data["loras"] = [{"name": lora_GlowingRunesAI, "model": 0.1, "clip": 0.1}]
         pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
@@ -279,13 +281,12 @@ class TestHordeLora:
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        lora_GlowingRunesAI: str,
     ):
         assert shared_model_manager.manager.lora
 
         # Blue, fuzzy search on version
-        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
-        assert lora_name
-        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "blue")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -301,7 +302,7 @@ class TestHordeLora:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": f"a dark magical crystal, {trigger}, 8K resolution###blurry, out of focus",
-            "loras": [{"name": lora_name, "model": -1, "clip": 1.0}],
+            "loras": [{"name": lora_GlowingRunesAI, "model": -1, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
@@ -318,7 +319,7 @@ class TestHordeLora:
             pil_image,
         )
 
-        data["loras"] = [{"name": lora_name, "model": 1.0, "clip": -1.0}]
+        data["loras"] = [{"name": lora_GlowingRunesAI, "model": 1.0, "clip": -1.0}]
         pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
@@ -330,7 +331,7 @@ class TestHordeLora:
             pil_image,
         )
 
-        data["loras"] = [{"name": lora_name, "model": -1.0, "clip": -1.0}]
+        data["loras"] = [{"name": lora_GlowingRunesAI, "model": -1.0, "clip": -1.0}]
         pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
         assert isinstance(pil_image, Image.Image)
@@ -347,13 +348,12 @@ class TestHordeLora:
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        lora_GlowingRunesAI: str,
     ):
         assert shared_model_manager.manager.lora
 
         # Blue, fuzzy search on version
-        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
-        assert lora_name
-        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "blue")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -369,7 +369,7 @@ class TestHordeLora:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": f"a dark magical crystal, {trigger}, 8K resolution###blurry, out of focus",
-            "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0}],
+            "loras": [{"name": lora_GlowingRunesAI, "model": 1.0, "clip": 1.0}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
@@ -391,10 +391,10 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_model_name_for_testing: str,
     ):
         assert shared_model_manager.manager.lora
 
+        shared_model_manager.manager.lora.fetch_adhoc_lora("82098")
         lora_name_1 = shared_model_manager.manager.lora.get_lora_name("82098")
         shared_model_manager.manager.lora.fetch_adhoc_lora("56586")
         lora_name_2 = shared_model_manager.manager.lora.get_lora_name("56586")
@@ -456,15 +456,14 @@ class TestHordeLora:
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        lora_GlowingRunesAI: str,
     ):
         assert shared_model_manager.manager.lora
 
-        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
-        assert isinstance(lora_name, str)
-        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "red")
-        trigger2 = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
-        lora_name2 = shared_model_manager.manager.lora.get_lora_name("Dra9onScaleAI")
-        trigger3 = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "Dr490nSc4leAI")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "red")
+        trigger2 = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "blue")
+        lora_name2 = shared_model_manager.manager.lora.fetch_adhoc_lora("Dra9onScaleAI")
+        trigger3 = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "Dr490nSc4leAI")
 
         data = {
             "sampler_name": "k_euler",
@@ -485,7 +484,7 @@ class TestHordeLora:
                 "8K resolution###glow, blurry, out of focus"
             ),
             "loras": [
-                {"name": lora_name, "model": 1.0, "clip": 1.0},
+                {"name": lora_GlowingRunesAI, "model": 1.0, "clip": 1.0},
                 {"name": lora_name2, "model": 1.0, "clip": 1.0},
             ],
             "ddim_steps": 20,
@@ -506,7 +505,7 @@ class TestHordeLora:
 
         data["loras"] = [
             {"name": lora_name2, "model": 1.0, "clip": 1.0},
-            {"name": lora_name, "model": 1.0, "clip": 1.0},
+            {"name": lora_GlowingRunesAI, "model": 1.0, "clip": 1.0},
         ]
         pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
@@ -523,14 +522,13 @@ class TestHordeLora:
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        lora_GlowingRunesAI: str,
     ):
         assert shared_model_manager.manager.lora
 
-        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
-        assert isinstance(lora_name, str)
-        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "blue")
-        lora_name2 = shared_model_manager.manager.lora.get_lora_name("Dra9onScaleAI")
-        trigger2 = shared_model_manager.manager.lora.find_lora_trigger(lora_name, "Dr490nSc4leAI")
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "blue")
+        lora_name2 = shared_model_manager.manager.lora.fetch_adhoc_lora("Dra9onScaleAI")
+        trigger2 = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "Dr490nSc4leAI")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -547,7 +545,7 @@ class TestHordeLora:
             "return_control_map": False,
             "prompt": f"a dark magical crystal, {trigger}, {trigger2}, 8K resolution###blurry, out of focus",
             "loras": [
-                {"name": lora_name, "model": 1.0, "clip": 1.0},
+                {"name": lora_GlowingRunesAI, "model": 1.0, "clip": 1.0},
                 {"name": lora_name2, "model": 1.0, "clip": 1.0},
                 {"name": "__TotallyDoesNotExist__", "model": 1.0, "clip": 1.0},
             ],
@@ -567,11 +565,11 @@ class TestHordeLora:
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        lora_GlowingRunesAI: str,
     ):
         assert shared_model_manager.manager.lora
 
         # Red
-        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -587,7 +585,7 @@ class TestHordeLora:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "an obsidian magical monolith, dark background, 8K resolution###glow, blurry, out of focus",
-            "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "red"}],
+            "loras": [{"name": lora_GlowingRunesAI, "model": 1.0, "clip": 1.0, "inject_trigger": "red"}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
@@ -610,11 +608,11 @@ class TestHordeLora:
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        lora_GlowingRunesAI: str,
     ):
         assert shared_model_manager.manager.lora
 
         # Red
-        lora_name = shared_model_manager.manager.lora.get_lora_name("GlowingRunesAI")
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -630,7 +628,7 @@ class TestHordeLora:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "an obsidian magical monolith, dark background, 8K resolution###blurry, out of focus",
-            "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any"}],
+            "loras": [{"name": lora_GlowingRunesAI, "model": 1.0, "clip": 1.0, "inject_trigger": "any"}],
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
@@ -807,7 +805,6 @@ class TestHordeLora:
         ret = hordelib_instance.basic_inference_single_image(data)
         pil_image = ret.image
         assert pil_image is not None
-        # assert len(ret.faults) > 0 #FIXME I thought this would fail? Need to follow up
 
         img_filename = "lora_baseline_mismatch.png"
         pil_image.save(f"images/{img_filename}", quality=100)
@@ -820,10 +817,16 @@ class TestHordeLora:
     def test_stonepunk(
         self,
         hordelib_instance: HordeLib,
+        shared_model_manager: type[SharedModelManager],
         stable_diffusion_model_name_for_testing: str,
     ):
         # Blue, fuzzy search on version
-        lora_name = "51539"
+        assert shared_model_manager.manager.lora
+        lora_name: str | None = "51539"
+        lora_name = shared_model_manager.manager.lora.fetch_adhoc_lora(lora_name)
+        assert shared_model_manager.manager.lora.is_model_available(lora_name)
+        assert lora_name
+
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
@@ -860,9 +863,15 @@ class TestHordeLora:
     def test_negative_model_power(
         self,
         hordelib_instance: HordeLib,
+        shared_model_manager: type[SharedModelManager],
         stable_diffusion_model_name_for_testing: str,
     ):
-        lora_name = "58390"
+        assert shared_model_manager.manager.lora
+        lora_name: str | None = "58390"
+        lora_name = shared_model_manager.manager.lora.fetch_adhoc_lora(lora_name)
+        assert shared_model_manager.manager.lora.is_model_available(lora_name)
+        assert lora_name
+
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 8.0,
