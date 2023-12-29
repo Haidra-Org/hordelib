@@ -194,19 +194,21 @@ _last_pipeline_settings_hash = ""
 def recursive_output_delete_if_changed_hijack(prompt: dict, old_prompt, outputs, current_item):
     global _last_pipeline_settings_hash
     if current_item == "prompt":
-        pipeline_settings_hash = hashlib.md5(json.dumps(prompt).encode("utf-8")).hexdigest()
-        logger.debug(f"pipeline_settings_hash: {pipeline_settings_hash}")
+        try:
+            pipeline_settings_hash = hashlib.md5(json.dumps(prompt).encode("utf-8")).hexdigest()
+            logger.debug(f"pipeline_settings_hash: {pipeline_settings_hash}")
 
-        if pipeline_settings_hash != _last_pipeline_settings_hash:
-            _last_pipeline_settings_hash = pipeline_settings_hash
-            logger.debug("Pipeline settings changed")
+            if pipeline_settings_hash != _last_pipeline_settings_hash:
+                _last_pipeline_settings_hash = pipeline_settings_hash
+                logger.debug("Pipeline settings changed")
 
-        if old_prompt:
-            old_pipeline_settings_hash = hashlib.md5(json.dumps(old_prompt).encode("utf-8")).hexdigest()
-            logger.debug(f"old_pipeline_settings_hash: {old_pipeline_settings_hash}")
-            if pipeline_settings_hash != old_pipeline_settings_hash:
-                logger.debug("Pipeline settings changed from old_prompt")
-
+            if old_prompt:
+                old_pipeline_settings_hash = hashlib.md5(json.dumps(old_prompt).encode("utf-8")).hexdigest()
+                logger.debug(f"old_pipeline_settings_hash: {old_pipeline_settings_hash}")
+                if pipeline_settings_hash != old_pipeline_settings_hash:
+                    logger.debug("Pipeline settings changed from old_prompt")
+        except TypeError:
+            logger.debug("could not print hash due to source image in payload")
     if current_item == "prompt" or current_item == "negative_prompt":
         try:
             prompt_text = prompt[current_item]["inputs"]["text"]
@@ -292,7 +294,7 @@ class Comfy_Horde:
         "SaveImage": "HordeImageOutput",
         "LoadImage": "HordeImageLoader",
         # "DiffControlNetLoader": "HordeDiffControlNetLoader",
-        # "LoraLoader": "HordeLoraLoader",
+        "LoraLoader": "HordeLoraLoader",
     }
     """A mapping of ComfyUI node types to Horde node types."""
 
@@ -329,6 +331,8 @@ class Comfy_Horde:
         self._callers = 0
         self._gc_timer = time.time()
         self._counter_mutex = threading.Lock()
+
+        self.images = []
 
         # Set comfyui paths for checkpoints, loras, etc
         self._set_comfyui_paths()
@@ -678,10 +682,10 @@ class Comfy_Horde:
             # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
             self.client_id = str(uuid.uuid4())
             valid = _comfy_validate_prompt(pipeline)
-            inference.outputs = {}
-            inference.object_storage = {}
-            inference.outputs_ui = {}
-            inference.old_prompt = {}
+            import folder_paths
+
+            if "embeddings" in folder_paths.filename_list_cache:
+                del folder_paths.filename_list_cache["embeddings"]
             inference.execute(pipeline, self.client_id, {"client_id": self.client_id}, valid[2])
 
         stdio.replay()
