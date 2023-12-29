@@ -108,6 +108,7 @@ def real_image() -> PIL.Image.Image:
 def pytest_collection_modifyitems(items):
     """Modifies test items to ensure test modules run in a given order."""
     MODULES_TO_RUN_FIRST = [
+        "tests.test_horde_lora",
         "tests.meta.test_packaging_errors",
         "tests.test_initialisation",
         "tests.test_cuda",
@@ -123,7 +124,6 @@ def pytest_collection_modifyitems(items):
         "tests.test_inference",
         "tests.test_horde_inference",
         "tests.test_horde_inference_img2img",
-        "tests.test_horde_lora",
         "tests.test_horde_inference_controlnet",
         "tests.test_horde_inference_painting",
         "tests.test_horde_samplers",
