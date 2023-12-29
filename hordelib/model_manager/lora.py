@@ -1045,7 +1045,7 @@ class LoraModelManager(BaseModelManager):
             return None
         return datetime.strptime(lora["versions"][version]["last_used"], "%Y-%m-%d %H:%M:%S")
 
-    def fetch_adhoc_lora(self, lora_name, timeout=45, is_version: bool = False):
+    def fetch_adhoc_lora(self, lora_name, timeout=45, is_version: bool = False) -> str | None:
         """Checks if a LoRa is available
         If not, immediately downloads it
         Finally, returns the lora name"""
