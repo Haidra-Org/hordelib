@@ -1,5 +1,14 @@
 ## hordelib Changelog
 
+## [v2.3.3](https://github.com/Haidra-Org/hordelib/compare/v2.3.2...v2.3.3)
+
+29 December 2023
+
+- ci: run lora tests sooner; samplers test later [`#139`](https://github.com/Haidra-Org/hordelib/pull/139) (tazlin)
+- fix: downloading loras on fast systems no longer causes duplicate images [`#133`](https://github.com/Haidra-Org/hordelib/pull/133) (Divided by Zer0)
+- ci: don't hang on lora setup_and_teardown [`17d8274`](https://github.com/Haidra-Org/hordelib/commit/17d82742f5f3793793a7819e1c21928b2034d39f)  (tazlin)
+- fix: check for more invalid lora names [`0ddd4e9`](https://github.com/Haidra-Org/hordelib/commit/0ddd4e9d846c81dd5088a7ba40da09991ca4bb50)  (tazlin)
+
 ## [v2.3.2](https://github.com/Haidra-Org/hordelib/compare/v2.3.1...v2.3.2)
 
 28 December 2023
