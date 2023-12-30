@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.3.4](https://github.com/Haidra-Org/hordelib/compare/v2.3.3...v2.3.4)
+
+30 December 2023
+
+- ci: test comfyui pipeline failures [`85a065f`](https://github.com/Haidra-Org/hordelib/commit/85a065f0569b48ba84702057b4461847349c7194)  (tazlin)
+- ci: test `n_iter` [`802e6e7`](https://github.com/Haidra-Org/hordelib/commit/802e6e7fe07b0deb2ce8446ddec57d7642672be6)  (tazlin)
+- fix: be more stringent checking comfyui's output [`566592a`](https://github.com/Haidra-Org/hordelib/commit/566592a1863d41ec0aa3ba0cf53ffc7f10a63766)  (tazlin)
+
 ## [v2.3.3](https://github.com/Haidra-Org/hordelib/compare/v2.3.2...v2.3.3)
 
 29 December 2023
