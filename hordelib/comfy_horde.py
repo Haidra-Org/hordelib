@@ -5,6 +5,7 @@ import copy
 import gc
 import glob
 import hashlib
+import io
 import json
 import os
 import re
@@ -312,7 +313,7 @@ class Comfy_Horde:
     """The approximate number of seconds to force garbage collection."""
 
     pipelines: dict
-    images: list[dict[str, typing.Any]] | None
+    images: list[dict[str, io.BytesIO]] | None
 
     def __init__(
         self,
@@ -332,7 +333,7 @@ class Comfy_Horde:
         self._gc_timer = time.time()
         self._counter_mutex = threading.Lock()
 
-        self.images = None
+        self.images: list | None = None
 
         # Set comfyui paths for checkpoints, loras, etc
         self._set_comfyui_paths()
@@ -641,7 +642,20 @@ class Comfy_Horde:
     def send_sync(self, label: str, data: dict, _id: str) -> None:
         # Get receive image outputs via this async mechanism
         if "output" in data and "images" in data["output"]:
-            self.images = data["output"]["images"]
+            images_received = data["output"]["images"]
+            for image_info in images_received:
+                if not isinstance(image_info, dict):
+                    logger.error(f"Received non dict output from comfyui: {image_info}")
+                    continue
+                for key, value in image_info.items():
+                    if key == "imagedata" and isinstance(value, io.BytesIO):
+                        if self.images is None:
+                            self.images = []
+                        self.images.append(image_info)
+                    elif key == "type":
+                        logger.debug(f"Received image type {value}")
+                    else:
+                        logger.error(f"Received unexpected image output from comfyui: {key}:{value}")
             logger.debug("Received output image(s) from comfyui")
         else:
             if self._comfyui_callback is not None:
