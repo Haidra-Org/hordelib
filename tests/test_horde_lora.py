@@ -17,15 +17,6 @@ class TestHordeLora:
         assert shared_model_manager.manager.lora
         yield
 
-    @pytest.fixture(scope="class")
-    def lora_GlowingRunesAI(self, shared_model_manager: type[SharedModelManager]) -> str:
-        assert shared_model_manager.manager.lora
-        name = shared_model_manager.manager.lora.fetch_adhoc_lora("GlowingRunesAI")
-        assert name is not None
-        assert shared_model_manager.manager.lora.is_model_available(name)
-
-        return name
-
     def test_text_to_image_lora_red(
         self,
         shared_model_manager: type[SharedModelManager],
