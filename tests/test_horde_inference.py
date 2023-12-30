@@ -4,7 +4,7 @@ from PIL import Image
 
 from hordelib.horde import HordeLib
 
-from .testing_shared_functions import check_single_inference_image_similarity
+from .testing_shared_functions import check_list_inference_images_similarity, check_single_inference_image_similarity
 
 
 class TestHordeInference:
@@ -43,6 +43,54 @@ class TestHordeInference:
             f"images_expected/{img_filename}",
             pil_image,
         )
+
+    def test_text_to_image_n_iter(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_model_name_for_testing: str,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": 512.1,  # test param fix
+            "width": 512.1,  # test param fix
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "an ancient llamia monster",
+            "ddim_steps": 25,
+            "n_iter": 4,
+            "model": stable_diffusion_model_name_for_testing,
+        }
+        image_results = hordelib_instance.basic_inference(data)
+
+        assert len(image_results) == 4
+
+        img_pairs_to_check = []
+
+        img_filename_base = "text_to_image_n_iter_{0}.png"
+
+        for i, image_result in enumerate(image_results):
+            assert image_result.image is not None
+            assert isinstance(image_result.image, Image.Image)
+
+            img_filename = img_filename_base.format(i)
+
+            image_result.image.save(f"images/{img_filename}", quality=100)
+            img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))
+
+        assert check_single_inference_image_similarity(
+            "images_expected/text_to_image.png",
+            "images/text_to_image_n_iter_0.png",
+        )
+
+        assert check_list_inference_images_similarity(img_pairs_to_check)
 
     def test_sdxl_text_to_image(
         self,
