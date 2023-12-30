@@ -312,7 +312,7 @@ class Comfy_Horde:
     """The approximate number of seconds to force garbage collection."""
 
     pipelines: dict
-    images: list[dict[str, typing.Any]]
+    images: list[dict[str, typing.Any]] | None
 
     def __init__(
         self,
@@ -332,7 +332,7 @@ class Comfy_Horde:
         self._gc_timer = time.time()
         self._counter_mutex = threading.Lock()
 
-        self.images = []
+        self.images = None
 
         # Set comfyui paths for checkpoints, loras, etc
         self._set_comfyui_paths()
@@ -647,7 +647,11 @@ class Comfy_Horde:
             if self._comfyui_callback is not None:
                 self._comfyui_callback(label, data, _id)
 
-            if label != "executing":
+            if label == "execution_error":
+                logger.error(f"{label}, {data}, {_id}")
+                # Reset images on error so that we receive expected None input and can raise an exception
+                self.images = None
+            elif label != "executing":
                 logger.debug(f"{label}, {data}, {_id}")
             else:
                 node_name = data.get("node", "")
@@ -660,6 +664,8 @@ class Comfy_Horde:
     def _run_pipeline(self, pipeline: dict, params: dict) -> list[dict] | None:
         if _comfy_current_loaded_models is None:
             raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
+        # Wipe any previous images, if they exist.
+        self.images = None
 
         # Set the pipeline parameters
         self._set(pipeline, **params)
