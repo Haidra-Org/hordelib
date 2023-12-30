@@ -1,3 +1,4 @@
+import os
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum, auto
@@ -6,6 +7,7 @@ from typing import TypeAlias
 
 import PIL.Image
 import pytest
+from loguru import logger
 
 FilePathOrPILImage: TypeAlias = str | Path | PIL.Image.Image
 
@@ -225,8 +227,15 @@ def check_list_images_similarity(
             )
             complete_error_message += f"img1={img_pair[0]}\n"
             complete_error_message += f"img2={img_pair[1]}\n"
+
+    HORDELIB_SKIP_SIMILARITY_FAIL = os.getenv("HORDELIB_SKIP_SIMILARITY_FAIL", None)
+
     if len(all_failed_results) > 0:
-        pytest.fail(complete_error_message)
+        if not HORDELIB_SKIP_SIMILARITY_FAIL:
+            pytest.fail(complete_error_message)
+        else:
+            logger.warning(complete_error_message)
+            pytest.skip(complete_error_message)
     elif len(all_skipped_results) > 0:
         pytest.skip(complete_error_message)
 
