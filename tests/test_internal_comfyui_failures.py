@@ -1,6 +1,6 @@
 import pytest
 
-from hordelib.horde import HordeLib, ResultingImageReturn
+from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
 
