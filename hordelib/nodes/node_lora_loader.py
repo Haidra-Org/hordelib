@@ -27,6 +27,10 @@ class HordeLoraLoader:
     CATEGORY = "loaders"
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
+        _test_exception = os.getenv("FAILURE_TEST", False)
+        if _test_exception:
+            raise Exception("This tests exceptions being thrown from within the pipeline")
+
         if strength_model == 0 and strength_clip == 0:
             return (model, clip)
 
