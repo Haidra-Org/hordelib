@@ -1020,7 +1020,7 @@ class LoraModelManager(BaseModelManager):
         # logger.debug(f"Touched lora {lora_name}")
 
     def find_latest_version(self, lora) -> str | None:
-        all_versions = list(lora.get("versions", {}).keys())
+        all_versions = [int(v) for v in lora.get("versions", {}).keys()]
         if len(all_versions) > 0:
             all_versions.sort(reverse=True)
             return self.ensure_is_version(all_versions[0])
@@ -1050,10 +1050,6 @@ class LoraModelManager(BaseModelManager):
         """Checks if a LoRa is available
         If not, immediately downloads it
         Finally, returns the lora name"""
-        if isinstance(lora_name, str):
-            if lora_name in self.model_reference:
-                self._touch_lora(lora_name)
-                return lora_name
         if is_version and not isinstance(lora_name, int) and not lora_name.isdigit():
             logger.debug("Lora version requested, but lora name is not an integer")
             return None
@@ -1067,6 +1063,11 @@ class LoraModelManager(BaseModelManager):
         data = self._get_json(url)
         # CivitAI down
         if not data:
+            # If CivitAI is down, we just use whatever we know already
+            if isinstance(lora_name, str):
+                if lora_name in self.model_reference:
+                    self._touch_lora(lora_name)
+                    return lora_name
             return None
         if "items" in data:
             if len(data["items"]) == 0:
@@ -1087,7 +1088,10 @@ class LoraModelManager(BaseModelManager):
                 logger.debug(f"Found lora version with ID: {fuzzy_find}")
                 self._touch_lora(lora_name, True)
                 return fuzzy_find
-            if not is_version:
+            # We only return the known version, if it's also the latest version when no version was requested.
+            if not is_version and self.get_latest_version(
+                self.get_model_reference_info(fuzzy_find),
+            ) == self.get_latest_version(lora):
                 logger.debug(f"Found lora with ID: {fuzzy_find}")
                 self._touch_lora(lora_name, False)
                 return fuzzy_find
