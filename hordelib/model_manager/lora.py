@@ -20,6 +20,7 @@ from loguru import logger
 from strenum import StrEnum
 from typing_extensions import override
 
+import hordelib.exceptions as he
 from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.model_manager.base import BaseModelManager
 from hordelib.utils.sanitizer import Sanitizer
@@ -685,7 +686,7 @@ class LoraModelManager(BaseModelManager):
 
     def fuzzy_find_lora_key(self, lora_name: int | str):
         # sname = Sanitizer.remove_version(lora_name).lower()
-        logger.debug(f"Looking for lora {lora_name}")
+        # logger.debug(f"Looking for lora {lora_name}")
         if isinstance(lora_name, int) or lora_name.isdigit():
             if int(lora_name) in self._index_ids:
                 return self._index_ids[int(lora_name)]
@@ -947,8 +948,8 @@ class LoraModelManager(BaseModelManager):
             prevlora_key, prevversion = sorted_items.pop()
             if prevlora_key in self.model_reference:
                 continue
-            # If False, it will initiates a redownload and call _add_lora_to_reference() later
-            if self._check_for_refresh(prevlora_key):
+            # If True, it will initiates a redownload and call _add_lora_to_reference() later
+            if not self._check_for_refresh(prevlora_key):
                 if "last_used" not in prevversion:
                     prevversion["last_used"] = now
                 # We create a temp lora dict holding the just one version (the one we want to keep)
@@ -962,14 +963,31 @@ class LoraModelManager(BaseModelManager):
         self.save_cached_reference_to_disk()
         logger.debug("Finished lora reset")
 
+    def get_lora_metadata(self, url: str) -> dict:
+        """Returns parsed Lora details from civitAI
+        or returns None on errors or when it cannot be found"""
+        data = self._get_json(url)
+        # CivitAI down
+        if not data:
+            raise he.CivitAIDown("CivitAI Down?")
+        if "items" in data:
+            if len(data["items"]) == 0:
+                raise he.ModelEmpty("Lora appears empty")
+            lora = self._parse_civitai_lora_data(data["items"][0], adhoc=True)
+        else:
+            lora = self._parse_civitai_lora_data(data, adhoc=True)
+        # This can happen if the lora for example does not provide a sha256
+        if not lora:
+            raise he.ModelInvalid("Lora is invalid")
+        return lora
+
     def _check_for_refresh(self, lora_name: str):
-        """Returns True if a refresh is needed
-        and also initiates a refresh
+        """Returns True if a refresh has been initiated
         Else returns False
         """
         lora_details = self.get_model_reference_info(lora_name)
         if not lora_details:
-            return True
+            return False
         refresh = False
         if "last_checked" not in lora_details:
             refresh = True
@@ -981,9 +999,23 @@ class LoraModelManager(BaseModelManager):
                 refresh = True
         if refresh:
             logger.debug(f"Lora {lora_name} found needing refresh. Initiating metadata download...")
-            self._add_lora_ids_to_download_queue([lora_details["id"]], self.find_latest_version(lora_details))
-            return False
-        return True
+            url = f"https://civitai.com/api/v1/models/{lora_details['id']}"
+            try:
+                lora = self.get_lora_metadata(url)
+            except Exception:
+                return False
+            latest_version = self.find_latest_version(lora)
+            if latest_version != self.find_latest_version(lora_details):
+                self._add_lora_ids_to_download_queue([lora["id"]], latest_version)
+                return True
+            # We need to record to disk the last time this lora was checked
+            with self._mutex:
+                self.reload_reference_from_disk()
+            lora_details = self.get_model_reference_info(lora_name)
+            if lora_details is not None:
+                lora_details["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                self.save_cached_reference_to_disk()
+        return False
 
     # def check_for_valid
 
@@ -1060,24 +1092,20 @@ class LoraModelManager(BaseModelManager):
                 url = f"https://civitai.com/api/v1/models/{lora_name}"
         else:
             url = f"{self.LORA_API}&nsfw={str(self.nsfw).lower()}&query={lora_name}"
-        data = self._get_json(url)
-        # CivitAI down
-        if not data:
-            # If CivitAI is down, we just use whatever we know already
+        # We're not using self.get_lora_metadata(url)
+        # in order to be able to know if CivitAI is down
+        try:
+            lora = self.get_lora_metadata(url)
+        except he.CivitAIDown as err:
             if isinstance(lora_name, str):
                 if lora_name in self.model_reference:
                     self._touch_lora(lora_name)
+                    logger.warning(f"CivitAI Appears down. Using cached info: {err}")
                     return lora_name
+            logger.warning(f"Exception when getting lora metadata: {err}")
             return None
-        if "items" in data:
-            if len(data["items"]) == 0:
-                return None
-            lora = self._parse_civitai_lora_data(data["items"][0], adhoc=True)
-        else:
-            lora = self._parse_civitai_lora_data(data, adhoc=True)
-        # For example epi_noiseoffset doesn't have sha256 so we ignore it
-        # This avoid us faulting
-        if not lora:
+        except Exception as err:
+            logger.warning(f"Exception when getting lora metadata: {err}")
             return None
         # We double-check that somehow our search missed it but CivitAI searches differently and found it
         fuzzy_find = self.fuzzy_find_lora_key(lora["id"])
@@ -1122,15 +1150,16 @@ class LoraModelManager(BaseModelManager):
 
     @override
     def is_model_available(self, model_name):
-        if model_name in self.model_reference:
-            return True
         found_model_name = self.fuzzy_find_lora_key(model_name)
         if found_model_name is None:
             return False
         self._touch_lora(found_model_name)
         return True
 
-    def is_lora_available(self, lora_name: str, is_version: bool = False):
+    def is_lora_available(self, lora_name: str, timeout=45, is_version: bool = False):
         if is_version:
             return self.ensure_is_version(lora_name) in self._index_version_ids
+        found_model_name = self.fuzzy_find_lora_key(lora_name)
+        if found_model_name and self._check_for_refresh(lora_name):
+            self.wait_for_downloads(timeout)
         return self.is_model_available(lora_name)
