@@ -100,6 +100,7 @@ class TestModelManagerLora:
         assert lora_model_manager.is_model_available("22591")
         assert lora_model_manager.is_model_available("GAG - rpg potions  |  LoRa xl")
         assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  LoRa xl".lower()
+        assert lora_model_manager.get_lora_filename("22591") == "GAG-RPGPotionsLoRaXL_197256.safetensors"
         lora_model_manager.stop_all()
 
     def test_fetch_specific_lora_version(self):
