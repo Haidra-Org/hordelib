@@ -71,6 +71,8 @@ class LoraModelManager(BaseModelManager):
                 self.max_adhoc_disk = int(AIWORKER_LORA_CACHE_SIZE)
                 logger.debug(f"AIWORKER_LORA_CACHE_SIZE is {self.max_adhoc_disk}")
         except (ValueError, TypeError):
+            logger.error(f"AIWORKER_LORA_CACHE_SIZE is not a valid integer: {AIWORKER_LORA_CACHE_SIZE}")
+            logger.warning(f"Using default value of {AIWORKER_LORA_CACHE_SIZE_DEFAULT}")
             self.max_adhoc_disk = AIWORKER_LORA_CACHE_SIZE_DEFAULT
 
         self._max_top_disk = allowed_top_lora_storage
@@ -201,7 +203,10 @@ class LoraModelManager(BaseModelManager):
                     logger.error(f"Could not load {self.models_db_name} model reference from disk! Bad JSON?")
                     self.model_reference = {}
             else:
-                logger.error(f"Could not load {self.models_db_name} model reference from disk! File not found.")
+                logger.warning(
+                    f"Could not load {self.models_db_name} model reference from disk! File not found. "
+                    "This is normal if you're running the this for the first time.",
+                )
                 self.model_reference = {}
             self.save_cached_reference_to_disk()
             logger.info(
@@ -273,10 +278,13 @@ class LoraModelManager(BaseModelManager):
                 # Attempt to decode the response to JSON
                 return response.json()
 
-            except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError):
+            except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
                 # CivitAI Errors when the model ID is too long
                 if response.status_code in [404, 500]:
+                    logger.debug(f"url '{url}' download failed with status code {response.status_code}")
                     return None
+
+                logger.debug(f"url '{url}' download failed {type(e)} {e}")
                 retries += 1
                 self.total_retries_attempted += 1
                 if retries <= self.MAX_RETRIES:
@@ -371,6 +379,7 @@ class LoraModelManager(BaseModelManager):
                     lora["versions"][lora_version][
                         "size_mb"
                     ] = 144  # guess common case of 144MB, it's not critical here
+                    logger.debug(f"Could not get sizeKB for {lora['name']} version {lora_version}. Using 144MB")
                 lora["versions"][lora_version]["url"] = file.get("downloadUrl", "")
                 lora["versions"][lora_version]["triggers"] = triggers
                 lora["versions"][lora_version]["baseModel"] = version.get("baseModel", "SD 1.5")
@@ -441,7 +450,10 @@ class LoraModelManager(BaseModelManager):
                         with open(hashfile) as infile:
                             try:
                                 hashdata = infile.read().split()[0]
-                            except (IndexError, OSError, PermissionError):
+                            except (IndexError, OSError, PermissionError) as e:
+                                logger.error(
+                                    f"Error reading hash file {hashfile} for {filename} {type(e)} {e}",
+                                )
                                 hashdata = ""
                         if (
                             not lora["versions"][version].get("sha256")
@@ -1002,7 +1014,8 @@ class LoraModelManager(BaseModelManager):
             url = f"https://civitai.com/api/v1/models/{lora_details['id']}"
             try:
                 lora = self.get_lora_metadata(url)
-            except Exception:
+            except Exception as e:
+                logger.warning(f"Could not refresh lora {lora_name} metadata: ({type(e)}) {e}")
                 return False
             latest_version = self.find_latest_version(lora)
             if latest_version != self.find_latest_version(lora_details):
