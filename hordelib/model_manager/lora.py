@@ -329,12 +329,13 @@ class LoraModelManager(BaseModelManager):
             # If we've seen this lora before, we avoid redownloading its info
             if lora_id in self._index_ids:
                 lora_data = self.model_reference[self._index_ids[lora_id]]
+                lora_name = lora_data.get("orig_name", "")
             else:
                 lora_data = self._get_json(f"https://civitai.com/api/v1/models/{lora_id}")
                 if lora_data is None:
                     logger.debug(f"Rejecting LoRa version {lora_id} because we can't retrieve it's model data")
                     return None
-            lora_name = lora_data.get("name", "")
+                lora_name = lora_data.get("name", "")
             lora_nsfw = lora_data.get("nsfw", True)
         # If it's a full model, we only grab the first version in the list
         else:
