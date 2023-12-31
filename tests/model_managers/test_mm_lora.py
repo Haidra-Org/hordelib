@@ -114,11 +114,18 @@ class TestModelManagerLora:
 
         lora_model_manager.ensure_lora_deleted(22591)
         lora_key = lora_model_manager.fetch_adhoc_lora("26975", is_version=True)
+        lora_dict = lora_model_manager.get_model_reference_info("22591")
+        assert lora_model_manager.find_latest_version(lora_dict) == "26975"
         assert lora_key == "gag - rpg potions  |  lora xl"
         assert lora_model_manager.is_model_available("22591")
         assert isinstance(lora_model_manager.get_model_reference_info("26975", is_version=True), dict)
         assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  lora xl".lower()
-        lora_model_manager.fetch_adhoc_lora("22591")
+        assert lora_model_manager.get_lora_filename("22591") == "GAG-RPGPotionsLoRaXL_26975.safetensors"
+        # We test that grabbing the generic lora name afterwards will actually get the latest version
+        ln = lora_model_manager.fetch_adhoc_lora("22591")
+        lora_dict = lora_model_manager.get_model_reference_info(ln)
+        assert lora_model_manager.find_latest_version(lora_dict) == "197256"
+        assert lora_model_manager.get_lora_filename("22591") == "GAG-RPGPotionsLoRaXL_197256.safetensors"
         lora_model_manager.stop_all()
 
     def test_reject_adhoc_nsfw_lora(self):
