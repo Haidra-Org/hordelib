@@ -108,6 +108,8 @@ def real_image() -> PIL.Image.Image:
 @pytest.fixture(scope="session")
 def lora_GlowingRunesAI(shared_model_manager: type[SharedModelManager]) -> str:
     assert shared_model_manager.manager.lora
+    if shared_model_manager.manager.lora.is_model_available("GlowingRunesAI"):
+        return "GlowingRunesAI"
     name = shared_model_manager.manager.lora.fetch_adhoc_lora("GlowingRunesAI")
     assert name is not None
     assert shared_model_manager.manager.lora.is_model_available(name)
@@ -119,6 +121,7 @@ def pytest_collection_modifyitems(items):
     """Modifies test items to ensure test modules run in a given order."""
     MODULES_TO_RUN_FIRST = [
         "tests.meta.test_packaging_errors",
+        "tests.test_internal_comfyui_failures",
         "tests.test_initialisation",
         "tests.test_cuda",
         "tests.test_utils",
