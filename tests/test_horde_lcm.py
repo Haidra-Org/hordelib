@@ -15,7 +15,6 @@ class TestHordeLora:
         shared_model_manager.manager.lora.download_default_loras()
         shared_model_manager.manager.lora.wait_for_downloads()
         yield
-        shared_model_manager.manager.lora.stop_all()
 
     def test_use_lcm_turbomix_lora_euler_a(
         self,
