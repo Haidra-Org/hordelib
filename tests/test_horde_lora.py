@@ -15,6 +15,8 @@ class TestHordeLora:
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
         # TODO: Why did having the default loras downloaded here cause an indefinite hang?
         assert shared_model_manager.manager.lora
+        shared_model_manager.manager.lora.download_default_loras()
+        shared_model_manager.manager.lora.wait_for_downloads()
         yield
 
     def test_text_to_image_lora_red(
