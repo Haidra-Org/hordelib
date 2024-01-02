@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.3.5](https://github.com/Haidra-Org/hordelib/compare/v2.3.4...v2.3.5)
+
+2 January 2024
+
+- feat: ensure we check for lora refresh regularly [`9df10d7`](https://github.com/Haidra-Org/hordelib/commit/9df10d71a391245f3d6a9ef2ec983ae29a5f7c9e)  (db0)
+- fix: requesting generic lora not returning the latest version [`6bb4789`](https://github.com/Haidra-Org/hordelib/commit/6bb4789324b1117363c9ba14cb1cbbee1b4e6a4f)  (db0)
+- fix: more logging in lora exceptions [`4d03128`](https://github.com/Haidra-Org/hordelib/commit/4d031286d08e4a20d6cfa9660399ef7ca7277ceb)  (tazlin)
+
 ## [v2.3.4](https://github.com/Haidra-Org/hordelib/compare/v2.3.3...v2.3.4)
 
 30 December 2023
