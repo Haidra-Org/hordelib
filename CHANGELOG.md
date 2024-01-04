@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.3.6](https://github.com/Haidra-Org/hordelib/compare/v2.3.5...v2.3.6)
+
+4 January 2024
+
+- fix: orig name not searched in lowercase [`688de0f`](https://github.com/Haidra-Org/hordelib/commit/688de0f383f6d0f12a3a0356eca8799d13a79410)  (db0)
+
 ## [v2.3.5](https://github.com/Haidra-Org/hordelib/compare/v2.3.4...v2.3.5)
 
 2 January 2024
