@@ -705,8 +705,8 @@ class LoraModelManager(BaseModelManager):
             return None
         if lora_name in self.model_reference:
             return lora_name
-        if lora_name in self._index_orig_names:
-            return self._index_orig_names[lora_name]
+        if lora_name.lower() in self._index_orig_names:
+            return self._index_orig_names[lora_name.lower()]
         if Sanitizer.has_unicode(lora_name):
             for lora in self._index_orig_names:
                 if lora_name in lora:

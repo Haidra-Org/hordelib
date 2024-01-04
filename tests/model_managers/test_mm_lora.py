@@ -103,6 +103,25 @@ class TestModelManagerLora:
         assert lora_model_manager.get_lora_filename("22591") == "GAG-RPGPotionsLoRaXL_197256.safetensors"
         lora_model_manager.stop_all()
 
+    def test_fetch_adhoc_lora_conflicting_fuzz(self):
+        lora_model_manager = LoraModelManager(
+            download_wait=False,
+            allowed_adhoc_lora_storage=1024,
+        )
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        lora_model_manager.wait_for_adhoc_reset(15)
+
+        lora_model_manager.fetch_adhoc_lora("33970")
+        lora_model_manager.ensure_lora_deleted("Eula Genshin Impact | Character Lora 1644")
+        lora_model_manager.fetch_adhoc_lora("Eula Genshin Impact | Character Lora 1644")
+        assert lora_model_manager.get_lora_name("33970") == "Dehya Genshin Impact | Character Lora 809".lower()
+        assert (
+            lora_model_manager.get_lora_name("Eula Genshin Impact | Character Lora 1644")
+            == "Eula Genshin Impact | Character Lora 1644".lower()
+        )
+        lora_model_manager.stop_all()
+
     def test_fetch_specific_lora_version(self):
         lora_model_manager = LoraModelManager(
             download_wait=False,
