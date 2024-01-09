@@ -140,7 +140,7 @@ class SharedModelManager:
                 continue
 
             if parsed_reference not in _temp_reference_lookup:
-                logger.warning(f"Model reference doesn't require a legacy download: {reference}")
+                logger.debug(f"Model reference doesn't require a legacy download: {reference}")
                 continue
 
             references[parsed_reference] = get_model_reference_file_path(_temp_reference_lookup[parsed_reference])
