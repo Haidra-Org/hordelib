@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.3.7](https://github.com/Haidra-Org/hordelib/compare/v2.3.6...v2.3.7)
+
+9 January 2024
+
+- fix: try and fallback to on-disk model ref when can't download [`df98872`](https://github.com/Haidra-Org/hordelib/commit/df9887225e1b09b86b846e5fd530551d145117bb)  (tazlin)
+- docs: add docstring for `load_model_managers` [`5662e10`](https://github.com/Haidra-Org/hordelib/commit/5662e1092eb22d27fec3075232024be1b1a0a065)  (tazlin)
+- fix: demote log message level for no-download-required refs [`cedd974`](https://github.com/Haidra-Org/hordelib/commit/cedd9744127aeabf846721799d7d00764bc4b19c)  (tazlin)
+
 ## [v2.3.6](https://github.com/Haidra-Org/hordelib/compare/v2.3.5...v2.3.6)
 
 4 January 2024
