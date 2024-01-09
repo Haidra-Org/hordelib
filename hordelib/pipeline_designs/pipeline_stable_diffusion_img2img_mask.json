@@ -1,6 +1,6 @@
 {
-  "last_node_id": 19,
-  "last_link_id": 32,
+  "last_node_id": 20,
+  "last_link_id": 34,
   "nodes": [
     {
       "id": 7,
@@ -14,7 +14,7 @@
         "1": 90.3333740234375
       },
       "flags": {},
-      "order": 6,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -54,7 +54,7 @@
         "1": 83.00006103515625
       },
       "flags": {},
-      "order": 5,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
@@ -93,7 +93,7 @@
         "1": 58
       },
       "flags": {},
-      "order": 3,
+      "order": 4,
       "mode": 0,
       "inputs": [
         {
@@ -172,7 +172,7 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            28
+            33
           ],
           "slot_index": 0
         },
@@ -206,7 +206,7 @@
         "1": 46
       },
       "flags": {},
-      "order": 7,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -238,48 +238,6 @@
       }
     },
     {
-      "id": 17,
-      "type": "VAEEncode",
-      "pos": [
-        464,
-        893
-      ],
-      "size": {
-        "0": 210,
-        "1": 46
-      },
-      "flags": {},
-      "order": 4,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "pixels",
-          "type": "IMAGE",
-          "link": 28
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": 27
-        }
-      ],
-      "outputs": [
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            29
-          ],
-          "shape": 3,
-          "slot_index": 0
-        }
-      ],
-      "title": "vae_encode_for_mask",
-      "properties": {
-        "Node name for S&R": "VAEEncode"
-      }
-    },
-    {
       "id": 9,
       "type": "SaveImage",
       "pos": [
@@ -291,7 +249,7 @@
         "1": 400
       },
       "flags": {},
-      "order": 10,
+      "order": 11,
       "mode": 0,
       "inputs": [
         {
@@ -318,7 +276,7 @@
         "1": 262
       },
       "flags": {},
-      "order": 8,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -378,7 +336,7 @@
         "1": 46
       },
       "flags": {},
-      "order": 9,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -453,6 +411,88 @@
       },
       "widgets_values": [
         "Deliberate.ckpt"
+      ]
+    },
+    {
+      "id": 17,
+      "type": "VAEEncode",
+      "pos": [
+        464,
+        893
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pixels",
+          "type": "IMAGE",
+          "link": 34
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 27
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            29
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "vae_encode_for_mask",
+      "properties": {
+        "Node name for S&R": "VAEEncode"
+      }
+    },
+    {
+      "id": 20,
+      "type": "RepeatImageBatch",
+      "pos": [
+        411,
+        1006
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 33
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            34
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "repeat_image_batch",
+      "properties": {
+        "Node name for S&R": "RepeatImageBatch"
+      },
+      "widgets_values": [
+        1
       ]
     }
   ],
@@ -538,14 +578,6 @@
       "VAE"
     ],
     [
-      28,
-      11,
-      0,
-      17,
-      0,
-      "IMAGE"
-    ],
-    [
       29,
       17,
       0,
@@ -568,6 +600,22 @@
       16,
       1,
       "MASK"
+    ],
+    [
+      33,
+      11,
+      0,
+      20,
+      0,
+      "IMAGE"
+    ],
+    [
+      34,
+      20,
+      0,
+      17,
+      0,
+      "IMAGE"
     ]
   ],
   "groups": [],

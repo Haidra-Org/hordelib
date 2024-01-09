@@ -456,9 +456,87 @@ class TestHordeInferenceImg2Img:
             image_result.image.save(f"images/{img_filename}", quality=100)
             img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))
 
-        assert check_single_inference_image_similarity(
-            "images_expected/text_to_image.png",
-            "images/text_to_image_n_iter_0.png",
-        )
+        assert check_list_inference_images_similarity(img_pairs_to_check)
+
+    def test_img2img_masked_n_iter(
+        self,
+        stable_diffusion_model_name_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.75,
+            "seed": 1312,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "clip_skip": 1,
+            "prompt": "a mecha robot sitting on a bench",
+            "ddim_steps": 20,
+            "n_iter": 2,
+            "model": stable_diffusion_model_name_for_testing,
+            "source_image": Image.open("images/test_img2img_alpha.png"),
+            "source_processing": "img2img",
+        }
+        image_results = hordelib_instance.basic_inference(data)
+
+        assert len(image_results) == 2
+
+        img_pairs_to_check = []
+
+        img_filename_base = "img2img_masked_n_iter_{0}.png"
+
+        for i, image_result in enumerate(image_results):
+            assert image_result.image is not None
+            assert isinstance(image_result.image, Image.Image)
+
+            img_filename = img_filename_base.format(i)
+
+            image_result.image.save(f"images/{img_filename}", quality=100)
+            img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))
 
         assert check_list_inference_images_similarity(img_pairs_to_check)
+
+    def test_image_to_image_hires_fix_n_iter(
+        self,
+        stable_diffusion_model_name_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.5,
+            "seed": 1312,
+            "height": 768,
+            "width": 768,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": True,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "an ancient charybdis monster",
+            "ddim_steps": 25,
+            "n_iter": 2,
+            "model": stable_diffusion_model_name_for_testing,
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+        }
+        image_results = hordelib_instance.basic_inference(data)
+
+        assert len(image_results) == 2
+
+        img_pairs_to_check = []
+
+        img_filename_base = "img2img_hires_fix_n_iter_{0}.png"
+
+        for i, image_result in enumerate(image_results):
+            assert image_result.image is not None
+            assert isinstance(image_result.image, Image.Image)
+
+            img_filename = img_filename_base.format(i)
+
+            image_result.image.save(f"images/{img_filename}", quality=100)
+            img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))
