@@ -80,6 +80,21 @@ class SharedModelManager:
         download_legacy_references: bool = True,
         overwrite_existing_references: bool = True,
     ):
+        """Load the model managers specified.
+
+        Args:
+            managers_to_load (Iterable[str  |  MODEL_CATEGORY_NAMES  |  type[BaseModelManager]], optional): \
+                The model managers to load. \
+                Defaults to ALL_MODEL_MANAGER_TYPES.
+            multiprocessing_lock (multiprocessing_lock | None, optional): If you are using multiprocessing, \
+                you should pass a lock here. \
+                Defaults to None.
+            download_legacy_references (bool, optional): If True, this will download all legacy model references. \
+                Defaults to True.
+            overwrite_existing_references (bool, optional): If True, this will overwrite any existing legacy model \
+                references that might be already downloaded. \
+                Defaults to True.
+        """
         if cls.manager is None:
             cls.manager = ModelManager()
 
