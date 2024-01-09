@@ -177,6 +177,7 @@ class HordeLib:
         "negative_prompt.text": "negative_prompt",
         "sampler.steps": "ddim_steps",
         "empty_latent_image.batch_size": "n_iter",
+        "repeat_image_batch.amount": "n_iter",
         "model_loader.ckpt_name": "model",
         "model_loader.model_name": "model",
         "model_loader.horde_model_name": "model_name",
@@ -773,7 +774,7 @@ class HordeLib:
             logger.info(f"Using {len(tis_being_used)} TIs")
 
         # Call the inference pipeline
-        # logger.info(payload)
+        # logger.debug(payload)
         images = self.generator.run_image_pipeline(pipeline_data, payload)
 
         results = self._process_results(images)

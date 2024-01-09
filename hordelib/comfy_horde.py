@@ -691,7 +691,7 @@ class Comfy_Horde:
         # developing and debugging new pipelines. A badly structured pipeline
         # file just results in a cryptic error from comfy
         pretty_pipeline = pformat(pipeline)
-        if False:  # This isn't here Tazlin :)
+        if False:  # This isn't here, Tazlin :)
             logger.warning(pretty_pipeline)
 
         # The client_id parameter here is just so we receive comfy callbacks for debugging.

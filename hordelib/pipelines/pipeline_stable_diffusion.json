@@ -87,10 +87,21 @@
         },
         "class_type": "LoadImage"
     },
+    "15": {
+        "id": 15,
+        "inputs": {
+            "amount": 1,
+            "image": [
+                "11",
+                0
+            ]
+        },
+        "class_type": "RepeatImageBatch"
+    },
     "12": {
         "inputs": {
             "pixels": [
-                "11",
+                "15",
                 0
             ],
             "vae": [
