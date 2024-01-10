@@ -847,6 +847,10 @@ class HordeLib:
             raise RuntimeError(f"Expected a list of PIL.Image.Image but got {type(result)}")
 
         return_list = [x for x in result if isinstance(x.image, Image.Image)]
+        pptext = ""
+        if post_processing_requested is not None:
+            pptext = " Initiating post-processing..."
+        logger.debug(f"Inference complete. Received {len(return_list)} images.{pptext}")
 
         post_processed: list[ResultingImageReturn] | None = None
         if post_processing_requested is not None:
@@ -892,6 +896,7 @@ class HordeLib:
                     )
 
         if post_processed is not None:
+            logger.debug(f"Post-processing complete. Returning {len(post_processed)} images.")
             return post_processed
 
         if len(return_list) == len(result):
