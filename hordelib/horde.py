@@ -803,6 +803,7 @@ class HordeLib:
                 if post_processing_requested is None:
                     post_processing_requested = []
                 post_processing_requested.append(post_processor_requested)
+                logger.debug(f"Post-processing requested: {post_processor_requested}")
 
             sub_payload = payload.payload.model_dump()
             source_image = payload.source_image
@@ -928,6 +929,7 @@ class HordeLib:
         raise RuntimeError(f"Expected at least one io.BytesIO. Got {result}.")
 
     def image_upscale(self, payload) -> ResultingImageReturn:
+        logger.debug("image_upscale called")
         # AIHorde hacks to payload
         payload = self._apply_aihorde_compatibility_hacks(payload)
         # Remember if we were passed width and height, we wouldn't normally be passed width and height
@@ -964,6 +966,7 @@ class HordeLib:
         return ResultingImageReturn(image=image, rawpng=rawpng, faults=faults)
 
     def image_facefix(self, payload) -> ResultingImageReturn:
+        logger.debug("image_facefix called")
         # AIHorde hacks to payload
         payload = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format

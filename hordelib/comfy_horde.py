@@ -275,6 +275,7 @@ def garbage_collect():
     logger.debug("Comfy_Horde garbage_collect called")
     gc.collect()
     if not torch.cuda.is_available():
+        logger.debug("CUDA not available, skipping cuda empty cache")
         return
     if torch.version.cuda:
         torch.cuda.empty_cache()
@@ -706,7 +707,12 @@ class Comfy_Horde:
 
             if "embeddings" in folder_paths.filename_list_cache:
                 del folder_paths.filename_list_cache["embeddings"]
-            inference.execute(pipeline, self.client_id, {"client_id": self.client_id}, valid[2])
+
+            try:
+                with logger.catch(reraise=True):
+                    inference.execute(pipeline, self.client_id, {"client_id": self.client_id}, valid[2])
+            except Exception as e:
+                logger.exception(f"Exception during comfy execute: {e}")
 
         stdio.replay()
 
