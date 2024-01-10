@@ -13,7 +13,6 @@ from .testing_shared_functions import check_single_lora_image_similarity
 class TestHordeLora:
     @pytest.fixture(autouse=True, scope="class")
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
-        # TODO: Why did having the default loras downloaded here cause an indefinite hang?
         assert shared_model_manager.manager.lora
         shared_model_manager.manager.lora.download_default_loras()
         shared_model_manager.manager.lora.wait_for_downloads()
@@ -65,7 +64,7 @@ class TestHordeLora:
             pil_image,
         )
 
-        last_use = shared_model_manager.manager.lora.get_lora_last_use("GlowingRunesAI")
+        last_use = shared_model_manager.manager.lora.get_lora_last_use(lora_GlowingRunesAI)
         assert last_use
         if not (last_use > datetime.now() - timedelta(minutes=1)):
             raise Exception("Last use of lora was not updated")
@@ -813,7 +812,6 @@ class TestHordeLora:
         shared_model_manager: type[SharedModelManager],
         stable_diffusion_model_name_for_testing: str,
     ):
-        # Blue, fuzzy search on version
         assert shared_model_manager.manager.lora
         lora_name: str | None = "51539"
         lora_name = shared_model_manager.manager.lora.fetch_adhoc_lora(lora_name)

@@ -108,9 +108,9 @@ def real_image() -> PIL.Image.Image:
 @pytest.fixture(scope="session")
 def lora_GlowingRunesAI(shared_model_manager: type[SharedModelManager]) -> str:
     assert shared_model_manager.manager.lora
-    if shared_model_manager.manager.lora.is_model_available("GlowingRunesAI"):
-        return "GlowingRunesAI"
-    name = shared_model_manager.manager.lora.fetch_adhoc_lora("GlowingRunesAI")
+    if shared_model_manager.manager.lora.is_model_available("51686"):
+        return "51686"
+    name = shared_model_manager.manager.lora.fetch_adhoc_lora("51686")
     assert name is not None
     assert shared_model_manager.manager.lora.is_model_available(name)
 

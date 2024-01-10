@@ -188,7 +188,7 @@ THE_JOBS = [
         "image_is_control": False,
         "return_control_map": False,
         "prompt": "a dark magical crystal, GlowingRunesAI_paleblue",
-        "loras": [{"name": "glowingrunesai", "model": 1.0, "clip": 1.0}],
+        "loras": [{"name": "GlowingRunesAI - konyconi", "model": 1.0, "clip": 1.0}],
         "ddim_steps": 20,
         "n_iter": 1,
         "model": "Anything Diffusion",
@@ -211,7 +211,7 @@ THE_JOBS = [
         "return_control_map": False,
         "prompt": "a dark magical crystal, GlowingRunesAI_green, Dr490nSc4leAI",
         "loras": [
-            {"name": "glowingrunesai", "model": 1.0, "clip": 1.0},
+            {"name": "GlowingRunesAI - konyconi", "model": 1.0, "clip": 1.0},
             {"name": "dra9onscaleai", "model": 1.0, "clip": 1.0},
         ],
         "ddim_steps": 20,
