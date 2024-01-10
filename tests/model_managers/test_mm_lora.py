@@ -234,7 +234,7 @@ class TestModelManagerLora:
     #     lora_model_manager.download_default_loras()
     #     lora_model_manager.wait_for_downloads(600)
     #     lora_model_manager.wait_for_adhoc_reset(15)
-    #     assert lora_model_manager.find_lora_from_filename("GlowingRunesAI.safetensors") == "GlowingRunesAI - konyconi"
+    #     assert lora_model_manager.find_lora_from_filename("GlowingRunesAI.safetensors") ==
     #     lora_model_manager.stop_all()
     #     lora_model_manager = LoraModelManager(
     #         download_wait=False,
