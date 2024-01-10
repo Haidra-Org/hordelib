@@ -219,7 +219,7 @@ class TestHordeInference:
 
         img_pairs_to_check = []
 
-        img_filename_base = "inpaining_n_iter_{0}.png"
+        img_filename_base = "inpainting_n_iter_{0}.png"
 
         for i, image_result in enumerate(image_results):
             assert image_result.image is not None
