@@ -6,6 +6,7 @@ class CompVisModelManager(BaseModelManager):
     def __init__(
         self,
         download_reference=False,
+        civitai_api_token: str | None = None,
         **kwargs,
         # custom_path="models/custom",  # XXX Remove this and any others like it?
     ):

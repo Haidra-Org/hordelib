@@ -10,6 +10,7 @@ from abc import ABC
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from uuid import uuid4
+from urllib import parse
 
 import git
 import psutil
@@ -19,7 +20,7 @@ from loguru import logger
 from tqdm import tqdm
 
 from hordelib.config_path import get_hordelib_path
-from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES, REMOTE_MODEL_DB
+from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES, REMOTE_MODEL_DB, CIVITAI_API_PATH
 from hordelib.settings import UserSettings
 
 _temp_reference_lookup = {
@@ -54,6 +55,7 @@ class BaseModelManager(ABC):
         download_reference: bool = False,
         model_category_name: MODEL_CATEGORY_NAMES = MODEL_CATEGORY_NAMES.default_models,
         models_db_path: Path | None = None,
+        civitai_api_token: str | None = None,
         **kwargs,
     ):
         """Create a new instance of this model manager.
@@ -75,6 +77,7 @@ class BaseModelManager(ABC):
         self.tainted_models = []
         self.pkg = importlib_resources.files("hordelib")  # XXX Remove
         self.models_db_name = MODEL_DB_NAMES[model_category_name]
+        self._civitai_api_token = parse.quote_plus(civitai_api_token) if civitai_api_token else None
 
         if not models_db_path:
             models_db_path = get_hordelib_path() / "model_database" / f"{self.models_db_name}.json"
@@ -713,3 +716,6 @@ class BaseModelManager(ABC):
             return False
 
         return self.is_file_available(self.get_model_filename(model_name))
+
+    def is_model_url_from_civitai(self, url: str) -> bool:
+        return CIVITAI_API_PATH in url

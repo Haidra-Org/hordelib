@@ -1,5 +1,7 @@
 """Home for the controller class ModelManager, and related meta information."""
+import os
 import threading
+
 from collections.abc import Callable, Iterable
 from multiprocessing.synchronize import Lock as multiprocessing_lock
 
@@ -179,6 +181,9 @@ class ModelManager:
             self.active_model_managers.append(
                 resolve_manager_to_load_type(
                     multiprocessing_lock=multiprocessing_lock,
+                    civitai_api_token=os.environ["CIVIT_API_TOKEN"]
+                    if "CIVIT_API_TOKEN" in os.environ.keys()
+                    else None,
                 ),
             )
 

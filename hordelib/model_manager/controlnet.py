@@ -22,6 +22,7 @@ class ControlNetModelManager(BaseModelManager):
     def __init__(
         self,
         download_reference=False,
+        civitai_api_token: str | None = None,
         **kwargs,
     ):
         super().__init__(
