@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.4.0](https://github.com/Haidra-Org/hordelib/compare/v2.3.7...v2.4.0)
+
+11 January 2024
+
+- feat: Allow img2img to use n_iter [`#158`](https://github.com/Haidra-Org/hordelib/pull/158) (Divided by Zer0)
+- build(deps): bump the python-packages group with 7 updates [`12f2293`](https://github.com/Haidra-Org/hordelib/commit/12f22938f9ea6d25df8c9719f1607481ecf4fc74)  (dependabot[bot])
+- chore: use latest pre-commit hook versions [`2f2adfe`](https://github.com/Haidra-Org/hordelib/commit/2f2adfe33defc9756a7808ce090391b908bb8036)  (tazlin)
+
 ## [v2.3.7](https://github.com/Haidra-Org/hordelib/compare/v2.3.6...v2.3.7)
 
 9 January 2024
