@@ -1,6 +1,6 @@
 {
-  "last_node_id": 14,
-  "last_link_id": 21,
+  "last_node_id": 15,
+  "last_link_id": 23,
   "nodes": [
     {
       "id": 7,
@@ -133,7 +133,7 @@
         "1": 400
       },
       "flags": {},
-      "order": 9,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -152,21 +152,21 @@
       "id": 12,
       "type": "VAEEncode",
       "pos": [
-        465,
-        760
+        286,
+        776
       ],
       "size": {
         "0": 210,
         "1": 46
       },
       "flags": {},
-      "order": 4,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
           "name": "pixels",
           "type": "IMAGE",
-          "link": 15
+          "link": 23
         },
         {
           "name": "vae",
@@ -191,15 +191,15 @@
       "id": 5,
       "type": "EmptyLatentImage",
       "pos": [
-        467,
-        563
+        575,
+        565
       ],
       "size": {
         "0": 315,
         "1": 106
       },
       "flags": {},
-      "order": 0,
+      "order": 1,
       "mode": 0,
       "outputs": [
         {
@@ -225,22 +225,22 @@
       "id": 11,
       "type": "LoadImage",
       "pos": [
-        66,
-        755
+        -91,
+        768
       ],
-      "size": {
-        "0": 315,
-        "1": 102
-      },
+      "size": [
+        315,
+        314
+      ],
       "flags": {},
-      "order": 1,
+      "order": 2,
       "mode": 0,
       "outputs": [
         {
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            15
+            22
           ],
           "slot_index": 0
         },
@@ -260,6 +260,46 @@
       ]
     },
     {
+      "id": 15,
+      "type": "RepeatImageBatch",
+      "pos": [
+        257,
+        1026
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 22
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            23
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "repeat_image_batch",
+      "properties": {
+        "Node name for S&R": "RepeatImageBatch"
+      },
+      "widgets_values": [
+        1
+      ]
+    },
+    {
       "id": 4,
       "type": "CheckpointLoaderSimple",
       "pos": [
@@ -271,7 +311,7 @@
         "1": 98
       },
       "flags": {},
-      "order": 2,
+      "order": 0,
       "mode": 0,
       "outputs": [
         {
@@ -320,7 +360,7 @@
         "1": 262
       },
       "flags": {},
-      "order": 7,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -380,7 +420,7 @@
         "1": 46
       },
       "flags": {},
-      "order": 8,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -468,14 +508,6 @@
       "VAE"
     ],
     [
-      15,
-      11,
-      0,
-      12,
-      0,
-      "IMAGE"
-    ],
-    [
       18,
       5,
       0,
@@ -504,6 +536,22 @@
       14,
       0,
       9,
+      0,
+      "IMAGE"
+    ],
+    [
+      22,
+      11,
+      0,
+      15,
+      0,
+      "IMAGE"
+    ],
+    [
+      23,
+      15,
+      0,
+      12,
       0,
       "IMAGE"
     ]

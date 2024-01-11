@@ -229,3 +229,47 @@ class TestHordeInference:
                 img_filename,
                 pil_image,
             )
+
+    def test_controlnet_n_iter(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_model_name_for_testing: str,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "control_strength": 1.0,
+            "seed": 1312,
+            "height": 768,
+            "width": 768,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": True,
+            "clip_skip": 1,
+            "control_type": "canny",
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "an alien man walking on a space station",
+            "ddim_steps": 25,
+            "n_iter": 2,
+            "model": stable_diffusion_model_name_for_testing,
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+        }
+        image_results = hordelib_instance.basic_inference(data)
+
+        assert len(image_results) == 2
+
+        img_pairs_to_check = []
+
+        img_filename_base = "controlnet_n_iter{0}.png"
+
+        for i, image_result in enumerate(image_results):
+            assert image_result.image is not None
+            assert isinstance(image_result.image, Image.Image)
+
+            img_filename = img_filename_base.format(i)
+
+            image_result.image.save(f"images/{img_filename}", quality=100)
+            img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))

@@ -116,7 +116,7 @@
     "17": {
         "inputs": {
             "pixels": [
-                "11",
+                "20",
                 0
             ],
             "vae": [
@@ -125,5 +125,16 @@
             ]
         },
         "class_type": "VAEEncode"
+    },
+    "20": {
+        "id": 20,
+        "inputs": {
+            "amount": 1,
+            "image": [
+                "11",
+                0
+            ]
+        },
+        "class_type": "RepeatImageBatch"
     }
 }

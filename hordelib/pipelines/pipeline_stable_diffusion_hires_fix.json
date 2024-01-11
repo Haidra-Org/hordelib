@@ -130,7 +130,7 @@
     "19": {
         "inputs": {
             "pixels": [
-                "18",
+                "22",
                 0
             ],
             "vae": [
@@ -152,5 +152,16 @@
             ]
         },
         "class_type": "VAEDecode"
+    },
+    "22": {
+        "id": 22,
+        "inputs": {
+            "amount": 1,
+            "image": [
+                "18",
+                0
+            ]
+        },
+        "class_type": "RepeatImageBatch"
     }
 }

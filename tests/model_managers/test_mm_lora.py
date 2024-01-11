@@ -40,7 +40,7 @@ class TestModelManagerLora:
         )
         lora_model_manager.download_default_loras()
         lora_model_manager.wait_for_downloads(600)
-        assert lora_model_manager.fuzzy_find_lora_key("Glowing Runes") == "glowingrunesai"
+        assert lora_model_manager.fuzzy_find_lora_key("Glowing Runes - konyconi") == "glowingrunesai - konyconi"
         assert lora_model_manager.fuzzy_find_lora_key("Glowing Robots") is None
         assert lora_model_manager.fuzzy_find_lora_key("GlowingRobots") is None
         assert lora_model_manager.fuzzy_find_lora_key("GlowingRobotsAI") is None
@@ -57,20 +57,22 @@ class TestModelManagerLora:
         )
         lora_model_manager.download_default_loras()
         lora_model_manager.wait_for_downloads(600)
-        assert lora_model_manager.get_lora_name("GlowingRunesAI") == "glowingrunesai"
-        assert lora_model_manager.get_lora_name("GlowingRunes") == "glowingrunesai"
-        assert lora_model_manager.get_lora_name("Glowing Runes") == "glowingrunesai"
-        assert len(lora_model_manager.get_lora_triggers("GlowingRunesAI")) > 1
+        assert lora_model_manager.get_lora_name("GlowingRunesAI - konyconi") == "glowingrunesai - konyconi"
+        assert lora_model_manager.get_lora_name("GlowingRunes - konyconi") == "glowingrunesai - konyconi"
+        assert lora_model_manager.get_lora_name("Glowing Runes - konyconi") == "glowingrunesai - konyconi"
+        assert len(lora_model_manager.get_lora_triggers("GlowingRunesAI - konyconi")) > 1
         # We can't rely on triggers not changing
-        assert lora_model_manager.find_lora_trigger("GlowingRunesAI", "blue") is not None
-        assert "blue" in lora_model_manager.find_lora_trigger("GlowingRunesAI", "blue").lower()
-        assert "red" in lora_model_manager.find_lora_trigger("GlowingRunesAI", "red").lower()
-        assert lora_model_manager.find_lora_trigger("GlowingRunesAI", "pale blue") is None  # This is too much to fuzz
-        assert lora_model_manager.get_lora_name("Dra9onScaleAI") is not None
-        assert lora_model_manager.get_lora_name("DragonScale") is not None
-        assert lora_model_manager.get_lora_name("Dragon Scale AI") is not None
-        assert lora_model_manager.find_lora_trigger("Dra9onScaleAI", "Dr490nSc4leAI") is not None
-        assert lora_model_manager.find_lora_trigger("DragonScale", "DragonScaleAI") is not None
+        assert lora_model_manager.find_lora_trigger("GlowingRunesAI - konyconi", "blue") is not None
+        assert "blue" in lora_model_manager.find_lora_trigger("GlowingRunesAI - konyconi", "blue").lower()
+        assert "red" in lora_model_manager.find_lora_trigger("GlowingRunesAI - konyconi", "red").lower()
+        assert (
+            lora_model_manager.find_lora_trigger("GlowingRunesAI - konyconi", "pale blue") is None
+        )  # This is too much to fuzz
+        assert lora_model_manager.get_lora_name("Dra9onScaleAI - konyconi") is not None
+        assert lora_model_manager.get_lora_name("DragonScale - konyconi") is not None
+        assert lora_model_manager.get_lora_name("Dragon Scale AI - konyconi") is not None
+        assert lora_model_manager.find_lora_trigger("Dra9onScaleAI - konyconi", "Dr490nSc4leAI") is not None
+        assert lora_model_manager.find_lora_trigger("DragonScale - konyconi", "DragonScaleAI") is not None
         lora_model_manager.stop_all()
 
     def test_lora_reference(self):
@@ -115,10 +117,9 @@ class TestModelManagerLora:
         lora_model_manager.fetch_adhoc_lora("33970")
         lora_model_manager.ensure_lora_deleted("Eula Genshin Impact | Character Lora 1644")
         lora_model_manager.fetch_adhoc_lora("Eula Genshin Impact | Character Lora 1644")
-        assert lora_model_manager.get_lora_name("33970") == "Dehya Genshin Impact | Character Lora 809".lower()
-        assert (
-            lora_model_manager.get_lora_name("Eula Genshin Impact | Character Lora 1644")
-            == "Eula Genshin Impact | Character Lora 1644".lower()
+        assert lora_model_manager.get_lora_name("33970") == str("Dehya Genshin Impact | Character Lora 809".lower())
+        assert lora_model_manager.get_lora_name("Eula Genshin Impact | Character Lora 1644") == str(
+            "Eula Genshin Impact | Character Lora 1644".lower(),
         )
         lora_model_manager.stop_all()
 
@@ -233,7 +234,7 @@ class TestModelManagerLora:
     #     lora_model_manager.download_default_loras()
     #     lora_model_manager.wait_for_downloads(600)
     #     lora_model_manager.wait_for_adhoc_reset(15)
-    #     assert lora_model_manager.find_lora_from_filename("GlowingRunesAI.safetensors") == "glowingrunesai"
+    #     assert lora_model_manager.find_lora_from_filename("GlowingRunesAI.safetensors") ==
     #     lora_model_manager.stop_all()
     #     lora_model_manager = LoraModelManager(
     #         download_wait=False,
@@ -249,7 +250,7 @@ class TestModelManagerLora:
     #     assert lora_model_manager.calculate_adhoc_loras_cache() < 300
     #     unused_loras = lora_model_manager.find_unused_loras()
     #     assert len(unused_loras) > 0
-    #     assert "glowingrunesai" not in unused_loras
+    #     assert "GlowingRunesAI - konyconi" not in unused_loras
     #     assert "dra9onscaleai" not in unused_loras
     #     lora_model_manager.stop_all()
     #     lora_model_manager = LoraModelManager(

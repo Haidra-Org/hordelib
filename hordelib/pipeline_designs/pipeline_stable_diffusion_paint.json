@@ -1,6 +1,6 @@
 {
-  "last_node_id": 15,
-  "last_link_id": 25,
+  "last_node_id": 16,
+  "last_link_id": 27,
   "nodes": [
     {
       "id": 7,
@@ -133,7 +133,7 @@
         "1": 400
       },
       "flags": {},
-      "order": 9,
+      "order": 10,
       "mode": 0,
       "inputs": [
         {
@@ -241,7 +241,7 @@
         "1": 262
       },
       "flags": {},
-      "order": 7,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -301,7 +301,7 @@
         "1": 46
       },
       "flags": {},
-      "order": 8,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -330,6 +330,47 @@
       }
     },
     {
+      "id": 11,
+      "type": "LoadImage",
+      "pos": [
+        66,
+        755
+      ],
+      "size": {
+        "0": 315,
+        "1": 314
+      },
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            26
+          ],
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": [
+            19
+          ],
+          "slot_index": 1
+        }
+      ],
+      "title": "image_loader",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "test_inpaint_alpha.png",
+        "image"
+      ]
+    },
+    {
       "id": 14,
       "type": "VAEEncodeForInpaint",
       "pos": [
@@ -341,13 +382,13 @@
         "1": 98
       },
       "flags": {},
-      "order": 4,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
           "name": "pixels",
           "type": "IMAGE",
-          "link": 21
+          "link": 27
         },
         {
           "name": "vae",
@@ -379,44 +420,43 @@
       ]
     },
     {
-      "id": 11,
-      "type": "LoadImage",
+      "id": 16,
+      "type": "RepeatImageBatch",
       "pos": [
-        66,
-        755
+        405,
+        914
       ],
-      "size": [
-        315,
-        314
-      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
       "flags": {},
-      "order": 2,
+      "order": 4,
       "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 26
+        }
+      ],
       "outputs": [
         {
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            21
+            27
           ],
+          "shape": 3,
           "slot_index": 0
-        },
-        {
-          "name": "MASK",
-          "type": "MASK",
-          "links": [
-            19
-          ],
-          "slot_index": 1
         }
       ],
-      "title": "image_loader",
+      "title": "repeat_image_batch",
       "properties": {
-        "Node name for S&R": "LoadImage"
+        "Node name for S&R": "RepeatImageBatch"
       },
       "widgets_values": [
-        "test_inpaint_alpha.png",
-        "image"
+        1
       ]
     }
   ],
@@ -486,14 +526,6 @@
       "VAE"
     ],
     [
-      21,
-      11,
-      0,
-      14,
-      0,
-      "IMAGE"
-    ],
-    [
       22,
       4,
       2,
@@ -524,6 +556,22 @@
       3,
       3,
       "LATENT"
+    ],
+    [
+      26,
+      11,
+      0,
+      16,
+      0,
+      "IMAGE"
+    ],
+    [
+      27,
+      16,
+      0,
+      14,
+      0,
+      "IMAGE"
     ]
   ],
   "groups": [],

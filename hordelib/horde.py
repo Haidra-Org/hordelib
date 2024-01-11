@@ -177,6 +177,7 @@ class HordeLib:
         "negative_prompt.text": "negative_prompt",
         "sampler.steps": "ddim_steps",
         "empty_latent_image.batch_size": "n_iter",
+        "repeat_image_batch.amount": "n_iter",
         "model_loader.ckpt_name": "model",
         "model_loader.model_name": "model",
         "model_loader.horde_model_name": "model_name",
@@ -773,7 +774,7 @@ class HordeLib:
             logger.info(f"Using {len(tis_being_used)} TIs")
 
         # Call the inference pipeline
-        # logger.info(payload)
+        # logger.debug(payload)
         images = self.generator.run_image_pipeline(pipeline_data, payload)
 
         results = self._process_results(images)
@@ -802,6 +803,7 @@ class HordeLib:
                 if post_processing_requested is None:
                     post_processing_requested = []
                 post_processing_requested.append(post_processor_requested)
+                logger.debug(f"Post-processing requested: {post_processor_requested}")
 
             sub_payload = payload.payload.model_dump()
             source_image = payload.source_image
@@ -846,6 +848,10 @@ class HordeLib:
             raise RuntimeError(f"Expected a list of PIL.Image.Image but got {type(result)}")
 
         return_list = [x for x in result if isinstance(x.image, Image.Image)]
+        pptext = ""
+        if post_processing_requested is not None:
+            pptext = " Initiating post-processing..."
+        logger.debug(f"Inference complete. Received {len(return_list)} images.{pptext}")
 
         post_processed: list[ResultingImageReturn] | None = None
         if post_processing_requested is not None:
@@ -891,6 +897,7 @@ class HordeLib:
                     )
 
         if post_processed is not None:
+            logger.debug(f"Post-processing complete. Returning {len(post_processed)} images.")
             return post_processed
 
         if len(return_list) == len(result):
@@ -922,6 +929,7 @@ class HordeLib:
         raise RuntimeError(f"Expected at least one io.BytesIO. Got {result}.")
 
     def image_upscale(self, payload) -> ResultingImageReturn:
+        logger.debug("image_upscale called")
         # AIHorde hacks to payload
         payload = self._apply_aihorde_compatibility_hacks(payload)
         # Remember if we were passed width and height, we wouldn't normally be passed width and height
@@ -958,6 +966,7 @@ class HordeLib:
         return ResultingImageReturn(image=image, rawpng=rawpng, faults=faults)
 
     def image_facefix(self, payload) -> ResultingImageReturn:
+        logger.debug("image_facefix called")
         # AIHorde hacks to payload
         payload = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format

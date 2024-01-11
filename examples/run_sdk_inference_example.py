@@ -22,12 +22,14 @@ SharedModelManager.load_model_managers()
 
 def main():
     example_response = ImageGenerateJobPopResponse(
-        id=JobID(root=UUID("00000000-0000-0000-0000-000000000000")),
+        ids=[JobID(root=UUID("00000000-0000-0000-0000-000000000000"))],
         source_processing=KNOWN_SOURCE_PROCESSING.txt2img,
         skipped=ImageGenerateJobPopSkippedStatus(),
         model="Deliberate",
         payload=ImageGenerateJobPopPayload(
             prompt="a cat in a hat",
+            post_processing=["RealESRGAN_x2plus", "CodeFormers"],
+            n_iter=4,
         ),
     )
 
