@@ -6,7 +6,7 @@ from PIL import Image
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
-from .testing_shared_functions import check_single_inference_image_similarity
+from .testing_shared_functions import check_list_inference_images_similarity, check_single_inference_image_similarity
 
 
 class TestHordeInference:
@@ -185,3 +185,49 @@ class TestHordeInference:
             f"images_expected/{img_filename}",
             pil_image,
         )
+
+    def test_inpainting_n_iter(
+        self,
+        inpainting_model_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
+        data = {
+            "sampler_name": "euler",
+            "cfg_scale": 8,
+            "denoising_strength": 1,
+            "seed": 1312,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a dinosaur",
+            "ddim_steps": 20,
+            "n_iter": 2,
+            "model": inpainting_model_for_testing,
+            "source_image": Image.open("images/test_inpaint_original.png"),
+            "source_mask": Image.open("images/test_inpaint_mask.png"),
+            "source_processing": "inpainting",
+        }
+        image_results = hordelib_instance.basic_inference(data)
+
+        assert len(image_results) == 2
+
+        img_pairs_to_check = []
+
+        img_filename_base = "inpainting_n_iter_{0}.png"
+
+        for i, image_result in enumerate(image_results):
+            assert image_result.image is not None
+            assert isinstance(image_result.image, Image.Image)
+
+            img_filename = img_filename_base.format(i)
+
+            image_result.image.save(f"images/{img_filename}", quality=100)
+            img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))
+
+        assert check_list_inference_images_similarity(img_pairs_to_check)
