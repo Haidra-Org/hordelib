@@ -928,3 +928,10 @@ class TestHordeLora:
             f"images_expected/{img_filename}",
             pil_image,
         )
+
+    def test_civitai_token(
+        self,
+        shared_model_manager: type[SharedModelManager],
+    ):
+        assert shared_model_manager.manager.lora._civitai_api_token
+        assert shared_model_manager.manager.lora._civitai_api_token == "test_token"
