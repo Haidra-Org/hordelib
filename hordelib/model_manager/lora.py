@@ -745,9 +745,8 @@ class LoraModelManager(BaseModelManager):
                     logger.warning(
                         "LoRa key still in versions but missing from our reference. Attempting to refresh indexes...",
                     )
-                    with self._mutex:
-                        self.reload_reference_from_disk()
-                        self.save_cached_reference_to_disk()
+                    self.reload_reference_from_disk()
+                    self.save_cached_reference_to_disk()
                     lora_key = self.find_lora_key_by_version(model_name)
                     if lora_key not in self.model_reference:
                         logger.error(
