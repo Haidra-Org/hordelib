@@ -741,6 +741,25 @@ class LoraModelManager(BaseModelManager):
                 lora_key = self.find_lora_key_by_version(model_name)
                 if lora_key is None:
                     return None
+                if lora_key not in self.model_reference:
+                    logger.warning(
+                        "LoRa key still in versions but missing from our reference. Attempting to refresh indexes...",
+                    )
+                    with self._mutex:
+                        self.reload_reference_from_disk()
+                        self.save_cached_reference_to_disk()
+                    lora_key = self.find_lora_key_by_version(model_name)
+                    if lora_key not in self.model_reference:
+                        logger.error(
+                            "Missing lora still in the versions index. Something has gone wrong. "
+                            "Please contact the developers.",
+                        )
+                    else:
+                        logger.info(
+                            "Reloaded LoRa reference and now lora properly cleared. "
+                            "Will not attempt to download it again at this time.",
+                        )
+                    return None
                 return self.model_reference[self.find_lora_key_by_version(model_name)]
             lora_name = self.fuzzy_find_lora_key(model_name)
             if not lora_name:
