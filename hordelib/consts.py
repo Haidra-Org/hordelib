@@ -17,6 +17,9 @@ REMOTE_MODEL_DB = "https://raw.githubusercontent.com/db0/AI-Horde-image-model-re
 RELEASE_VERSION = (get_hordelib_path() / "_version.py").exists()
 """A flag for if this is a pypi release or a git dev mode"""
 
+CIVITAI_API_PATH = "civitai.com/api"
+"""A domain and path to CivitAI API"""
+
 
 class HordeSupportedBackends(Enum):
     ComfyUI = auto()
