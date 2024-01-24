@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v2.4.2](https://github.com/Haidra-Org/hordelib/compare/v2.4.1...v2.4.2)
+
+24 January 2024
+
+- fix: Attempt to stop loras going randomly missing [`18bea86`](https://github.com/Haidra-Org/hordelib/commit/18bea86652b2ff186400e6347b3d3940c7e04c34)  (db0)
+- fix: Avoid deadlock with mutex [`ac8fe8c`](https://github.com/Haidra-Org/hordelib/commit/ac8fe8c596093de0306ae57592730a171bda24bf)  (db0)
+
 ## [v2.4.1](https://github.com/Haidra-Org/hordelib/compare/v2.4.0...v2.4.1)
 
 24 January 2024
