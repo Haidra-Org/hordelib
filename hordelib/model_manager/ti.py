@@ -53,6 +53,7 @@ class TextualInversionModelManager(BaseModelManager):
         self,
         download_reference=False,
         multiprocessing_lock: multiprocessing_lock | None = None,
+        civitai_api_token: str | None = None,
         **kwargs,
     ):
         self._data = None
@@ -80,6 +81,7 @@ class TextualInversionModelManager(BaseModelManager):
             model_category_name=MODEL_CATEGORY_NAMES.ti,
             download_reference=download_reference,
             models_db_path=models_db_path,
+            civitai_api_token=civitai_api_token,
         )
 
     @override
@@ -336,8 +338,13 @@ class TextualInversionModelManager(BaseModelManager):
                                 break
 
                         logger.info(f"Starting download of Textual Inversion: {ti['filename']}")
+
+                        ti_url = hordeling_json["url"]
+                        if self._civitai_api_token and self.is_model_url_from_civitai(ti_url):
+                            ti_url += f"?token={self._civitai_api_token}"
+
                         response = requests.get(
-                            hordeling_json["url"],
+                            ti_url,
                             timeout=self.REQUEST_DOWNLOAD_TIMEOUT,
                         )
                         response.raise_for_status()

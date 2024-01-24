@@ -63,6 +63,7 @@ class LoraModelManager(BaseModelManager):
         allowed_adhoc_lora_storage=AIWORKER_LORA_CACHE_SIZE_DEFAULT,
         download_wait=False,
         multiprocessing_lock: multiprocessing_lock | None = None,
+        civitai_api_token: str | None = None,
     ):
         self.max_adhoc_disk = allowed_adhoc_lora_storage
         try:
@@ -110,6 +111,7 @@ class LoraModelManager(BaseModelManager):
             model_category_name=MODEL_CATEGORY_NAMES.lora,
             download_reference=download_reference,
             models_db_path=models_db_path,
+            civitai_api_token=civitai_api_token,
         )
         # FIXME (shift lora.json handling into horde_model_reference?)
 
@@ -478,7 +480,12 @@ class LoraModelManager(BaseModelManager):
                             break
 
                     logger.info(f"Starting download of LORA {lora['versions'][version]['filename']}")
-                    response = requests.get(lora["versions"][version]["url"], timeout=self.REQUEST_DOWNLOAD_TIMEOUT)
+
+                    lora_url = lora["versions"][version]["url"]
+                    if self._civitai_api_token and self.is_model_url_from_civitai(lora_url):
+                        lora_url += f"?token={self._civitai_api_token}"
+
+                    response = requests.get(lora_url, timeout=self.REQUEST_DOWNLOAD_TIMEOUT)
                     response.raise_for_status()
                     if "reason=download-auth" in response.url:
                         logger.error(
