@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.4.1](https://github.com/Haidra-Org/hordelib/compare/v2.4.0...v2.4.1)
+
+24 January 2024
+
+- tests: add download gated lora test [`2541494`](https://github.com/Haidra-Org/hordelib/commit/25414940740b228821258ecc36a6caf857ece345)  (tazlin)
+- feat: Add CivitAI token while downloading Loras and ti's [`5a7f221`](https://github.com/Haidra-Org/hordelib/commit/5a7f221aa9e8d21b52665b4934a04f9a2545d075)  (Gabriel Janczak)
+- fix: removing unnessesery constructor parameters and basic test [`3af9813`](https://github.com/Haidra-Org/hordelib/commit/3af9813dab125fca926f750c7c04bc3a66eac76e)  (Gabriel Janczak)
+
 ## [v2.4.0](https://github.com/Haidra-Org/hordelib/compare/v2.3.7...v2.4.0)
 
 11 January 2024
