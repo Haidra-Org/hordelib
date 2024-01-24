@@ -933,5 +933,60 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
     ):
-        assert shared_model_manager.manager.lora._civitai_api_token
-        assert shared_model_manager.manager.lora._civitai_api_token == "test_token"
+        assert shared_model_manager.manager.lora
+        assert shared_model_manager.manager.lora._civitai_api_token is not None
+
+    def test_login_gated_lora(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+    ):
+        assert shared_model_manager.manager.lora
+
+        download_gated_lora_version_id = "214296"
+
+        assert shared_model_manager.manager.lora.fetch_adhoc_lora(
+            download_gated_lora_version_id,
+            timeout=45,
+            is_version=True,
+        )
+
+        trigger = shared_model_manager.manager.lora.find_lora_trigger(
+            download_gated_lora_version_id,
+            "text logo",
+            is_version=True,
+        )
+        data = {
+            "sampler_name": "k_euler_a",
+            "cfg_scale": 6.0,
+            "denoising_strength": 1.0,
+            "seed": 1234567890,
+            "height": 1024,
+            "width": 1024,
+            "karras": True,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": f"a slick, modern, sign ('Success' {trigger}:2.0)",
+            "loras": [{"name": download_gated_lora_version_id, "model": 1.0, "clip": 1.0, "is_version": True}],
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": "SDXL 1.0",
+        }
+        ret = hordelib_instance.basic_inference_single_image(data)
+        assert isinstance(ret, ResultingImageReturn)
+        pil_image = ret.image
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+        assert len(ret.faults) == 0
+
+        img_filename = "lora_download_gated.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_lora_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
