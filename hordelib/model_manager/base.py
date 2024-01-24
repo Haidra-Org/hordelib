@@ -9,8 +9,8 @@ import zipfile
 from abc import ABC
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from uuid import uuid4
 from urllib import parse
+from uuid import uuid4
 
 import git
 import psutil
@@ -20,7 +20,7 @@ from loguru import logger
 from tqdm import tqdm
 
 from hordelib.config_path import get_hordelib_path
-from hordelib.consts import MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES, REMOTE_MODEL_DB, CIVITAI_API_PATH
+from hordelib.consts import CIVITAI_API_PATH, MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES, REMOTE_MODEL_DB
 from hordelib.settings import UserSettings
 
 _temp_reference_lookup = {

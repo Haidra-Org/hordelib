@@ -1,7 +1,6 @@
 """Home for the controller class ModelManager, and related meta information."""
 import os
 import threading
-
 from collections.abc import Callable, Iterable
 from multiprocessing.synchronize import Lock as multiprocessing_lock
 
