@@ -498,17 +498,20 @@ class BaseModelManager(ABC):
                     response.raise_for_status()
 
                 # Write the content to file in chunks
-                with open(partial_pathname, "ab") as f, tqdm(
-                    # all optional kwargs
-                    unit="B",
-                    initial=partial_size,
-                    unit_scale=True,
-                    unit_divisor=1024,
-                    miniters=1,
-                    desc=filename,
-                    total=remote_file_size + partial_size,
-                    # disable=UserSettings.download_progress_callback is not None,
-                ) as pbar:
+                with (
+                    open(partial_pathname, "ab") as f,
+                    tqdm(
+                        # all optional kwargs
+                        unit="B",
+                        initial=partial_size,
+                        unit_scale=True,
+                        unit_divisor=1024,
+                        miniters=1,
+                        desc=filename,
+                        total=remote_file_size + partial_size,
+                        # disable=UserSettings.download_progress_callback is not None,
+                    ) as pbar,
+                ):
                     downloaded = partial_size
                     for chunk in response.iter_content(chunk_size=1024 * 1024 * 16):
                         response.raise_for_status()
