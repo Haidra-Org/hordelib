@@ -1,8 +1,8 @@
 import sys
 import warnings
 
-from comfy_controlnet_preprocessors.uniformer.mmcv.cnn import MODELS as MMCV_MODELS
-from comfy_controlnet_preprocessors.uniformer.mmcv.utils import Registry
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.cnn import MODELS as MMCV_MODELS
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.utils import Registry
 
 MODELS = Registry("models", sys.modules[__name__], parent=MMCV_MODELS)
 

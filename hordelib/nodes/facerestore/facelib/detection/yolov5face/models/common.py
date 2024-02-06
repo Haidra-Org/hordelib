@@ -6,8 +6,8 @@ import numpy as np
 import torch
 from torch import nn
 
-from facerestore.facelib.detection.yolov5face.utils.datasets import letterbox
-from facerestore.facelib.detection.yolov5face.utils.general import (
+from hordelib.nodes.facerestore.facelib.detection.yolov5face.utils.datasets import letterbox
+from hordelib.nodes.facerestore.facelib.detection.yolov5face.utils.general import (
     make_divisible,
     non_max_suppression,
     scale_coords,
@@ -41,17 +41,11 @@ def DWConv(c1, c2, k=1, s=1, act=True):
 
 class Conv(nn.Module):
     # Standard convolution
-    def __init__(
-        self, c1, c2, k=1, s=1, p=None, g=1, act=True
-    ):  # ch_in, ch_out, kernel, stride, padding, groups
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
         super().__init__()
         self.conv = nn.Conv2d(c1, c2, k, s, autopad(k, p), groups=g, bias=False)
         self.bn = nn.BatchNorm2d(c2)
-        self.act = (
-            nn.SiLU()
-            if act is True
-            else (act if isinstance(act, nn.Module) else nn.Identity())
-        )
+        self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Module) else nn.Identity())
 
     def forward(self, x):
         return self.act(self.bn(self.conv(x)))
@@ -79,9 +73,7 @@ class StemBlock(nn.Module):
 
 class Bottleneck(nn.Module):
     # Standard bottleneck
-    def __init__(
-        self, c1, c2, shortcut=True, g=1, e=0.5
-    ):  # ch_in, ch_out, shortcut, groups, expansion
+    def __init__(self, c1, c2, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, shortcut, groups, expansion
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, 1, 1)
@@ -94,9 +86,7 @@ class Bottleneck(nn.Module):
 
 class BottleneckCSP(nn.Module):
     # CSP Bottleneck https://github.com/WongKinYiu/CrossStagePartialNetworks
-    def __init__(
-        self, c1, c2, n=1, shortcut=True, g=1, e=0.5
-    ):  # ch_in, ch_out, number, shortcut, groups, expansion
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, 1, 1)
@@ -105,9 +95,7 @@ class BottleneckCSP(nn.Module):
         self.cv4 = Conv(2 * c_, c2, 1, 1)
         self.bn = nn.BatchNorm2d(2 * c_)  # applied to cat(cv2, cv3)
         self.act = nn.LeakyReLU(0.1, inplace=True)
-        self.m = nn.Sequential(
-            *(Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n))
-        )
+        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
 
     def forward(self, x):
         y1 = self.cv3(self.m(self.cv1(x)))
@@ -117,17 +105,13 @@ class BottleneckCSP(nn.Module):
 
 class C3(nn.Module):
     # CSP Bottleneck with 3 convolutions
-    def __init__(
-        self, c1, c2, n=1, shortcut=True, g=1, e=0.5
-    ):  # ch_in, ch_out, number, shortcut, groups, expansion
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5):  # ch_in, ch_out, number, shortcut, groups, expansion
         super().__init__()
         c_ = int(c2 * e)  # hidden channels
         self.cv1 = Conv(c1, c_, 1, 1)
         self.cv2 = Conv(c1, c_, 1, 1)
         self.cv3 = Conv(2 * c_, c2, 1)  # act=FReLU(c2)
-        self.m = nn.Sequential(
-            *(Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n))
-        )
+        self.m = nn.Sequential(*(Bottleneck(c_, c_, shortcut, g, e=1.0) for _ in range(n)))
 
     def forward(self, x):
         return self.cv3(torch.cat((self.m(self.cv1(x)), self.cv2(x)), dim=1))
@@ -145,13 +129,9 @@ class ShuffleV2Block(nn.Module):
 
         if self.stride > 1:
             self.branch1 = nn.Sequential(
-                self.depthwise_conv(
-                    inp, inp, kernel_size=3, stride=self.stride, padding=1
-                ),
+                self.depthwise_conv(inp, inp, kernel_size=3, stride=self.stride, padding=1),
                 nn.BatchNorm2d(inp),
-                nn.Conv2d(
-                    inp, branch_features, kernel_size=1, stride=1, padding=0, bias=False
-                ),
+                nn.Conv2d(inp, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
                 nn.BatchNorm2d(branch_features),
                 nn.SiLU(),
             )
@@ -210,9 +190,7 @@ class SPP(nn.Module):
         c_ = c1 // 2  # hidden channels
         self.cv1 = Conv(c1, c_, 1, 1)
         self.cv2 = Conv(c_ * (len(k) + 1), c2, 1, 1)
-        self.m = nn.ModuleList(
-            [nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in k]
-        )
+        self.m = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in k])
 
     def forward(self, x):
         x = self.cv1(x)
@@ -221,9 +199,7 @@ class SPP(nn.Module):
 
 class Focus(nn.Module):
     # Focus wh information into c-space
-    def __init__(
-        self, c1, c2, k=1, s=1, p=None, g=1, act=True
-    ):  # ch_in, ch_out, kernel, stride, padding, groups
+    def __init__(self, c1, c2, k=1, s=1, p=None, g=1, act=True):  # ch_in, ch_out, kernel, stride, padding, groups
         super().__init__()
         self.conv = Conv(c1 * 4, c2, k, s, p, g, act)
 
@@ -258,9 +234,7 @@ class NMS(nn.Module):
     classes = None  # (optional list) filter by class
 
     def forward(self, x):
-        return non_max_suppression(
-            x[0], conf_thres=self.conf, iou_thres=self.iou, classes=self.classes
-        )
+        return non_max_suppression(x[0], conf_thres=self.conf, iou_thres=self.iou, classes=self.classes)
 
 
 class AutoShape(nn.Module):
@@ -275,9 +249,7 @@ class AutoShape(nn.Module):
         self.model = model.eval()
 
     def autoshape(self):
-        print(
-            "autoShape already enabled, skipping... "
-        )  # model already converted to model.autoshape()
+        print("autoShape already enabled, skipping... ")  # model already converted to model.autoshape()
         return self
 
     def forward(self, imgs, size=640, augment=False, profile=False):
@@ -290,31 +262,22 @@ class AutoShape(nn.Module):
 
         p = next(self.model.parameters())  # for device and type
         if isinstance(imgs, torch.Tensor):  # torch
-            return self.model(
-                imgs.to(p.device).type_as(p), augment, profile
-            )  # inference
+            return self.model(imgs.to(p.device).type_as(p), augment, profile)  # inference
 
         # Pre-process
-        n, imgs = (
-            (len(imgs), imgs) if isinstance(imgs, list) else (1, [imgs])
-        )  # number of images, list of images
+        n, imgs = (len(imgs), imgs) if isinstance(imgs, list) else (1, [imgs])  # number of images, list of images
         shape0, shape1 = [], []  # image and inference shapes
         for i, im in enumerate(imgs):
             im = np.array(im)  # to numpy
             if im.shape[0] < 5:  # image in CHW
                 im = im.transpose((1, 2, 0))  # reverse dataloader .transpose(2, 0, 1)
-            im = (
-                im[:, :, :3] if im.ndim == 3 else np.tile(im[:, :, None], 3)
-            )  # enforce 3ch input
+            im = im[:, :, :3] if im.ndim == 3 else np.tile(im[:, :, None], 3)  # enforce 3ch input
             s = im.shape[:2]  # HWC
             shape0.append(s)  # image shape
             g = size / max(s)  # gain
             shape1.append([y * g for y in s])
             imgs[i] = im  # update
-        shape1 = [
-            make_divisible(x, int(self.stride.max()))
-            for x in np.stack(shape1, 0).max(0)
-        ]  # inference shape
+        shape1 = [make_divisible(x, int(self.stride.max())) for x in np.stack(shape1, 0).max(0)]  # inference shape
         x = [letterbox(im, new_shape=shape1, auto=False)[0] for im in imgs]  # pad
         x = np.stack(x, 0) if n > 1 else x[0][None]  # stack
         x = np.ascontiguousarray(x.transpose((0, 3, 1, 2)))  # BHWC to BCHW
@@ -323,9 +286,7 @@ class AutoShape(nn.Module):
         # Inference
         with torch.no_grad():
             y = self.model(x, augment, profile)[0]  # forward
-        y = non_max_suppression(
-            y, conf_thres=self.conf, iou_thres=self.iou, classes=self.classes
-        )  # NMS
+        y = non_max_suppression(y, conf_thres=self.conf, iou_thres=self.iou, classes=self.classes)  # NMS
 
         # Post-process
         for i in range(n):
@@ -340,8 +301,7 @@ class Detections:
         super().__init__()
         d = pred[0].device  # device
         gn = [
-            torch.tensor([*(im.shape[i] for i in [1, 0, 1, 0]), 1.0, 1.0], device=d)
-            for im in imgs
+            torch.tensor([*(im.shape[i] for i in [1, 0, 1, 0]), 1.0, 1.0], device=d) for im in imgs
         ]  # normalizations
         self.imgs = imgs  # list of images as numpy arrays
         self.pred = pred  # list of tensors pred[0] = (xyxy, conf, cls)
@@ -357,10 +317,7 @@ class Detections:
 
     def tolist(self):
         # return a list of Detections objects, i.e. 'for result in results.tolist():'
-        x = [
-            Detections([self.imgs[i]], [self.pred[i]], self.names)
-            for i in range(self.n)
-        ]
+        x = [Detections([self.imgs[i]], [self.pred[i]], self.names) for i in range(self.n)]
         for d in x:
             for k in ["imgs", "pred", "xyxy", "xyxyn", "xywh", "xywhn"]:
                 setattr(d, k, getattr(d, k)[0])  # pop out of list

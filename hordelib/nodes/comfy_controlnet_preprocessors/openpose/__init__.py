@@ -20,7 +20,7 @@ class OpenposeDetector:
         hand_modelpath = os.path.join(builtins.annotator_ckpts_path, "hand_pose_model.pth")
 
         if not os.path.exists(hand_modelpath):
-            from comfy_controlnet_preprocessors.util import load_file_from_url
+            from hordelib.nodes.comfy_controlnet_preprocessors.util import load_file_from_url
 
             load_file_from_url(body_model_path, model_dir=builtins.annotator_ckpts_path)
             load_file_from_url(hand_model_path, model_dir=builtins.annotator_ckpts_path)

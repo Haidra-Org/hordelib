@@ -5,10 +5,13 @@ from functools import partial
 import sys
 
 import numpy as np
-from comfy_controlnet_preprocessors.uniformer.mmcv.parallel import collate
-from comfy_controlnet_preprocessors.uniformer.mmcv.runner import get_dist_info
-from comfy_controlnet_preprocessors.uniformer.mmcv.utils import Registry, build_from_cfg
-from comfy_controlnet_preprocessors.uniformer.mmcv.utils.parrots_wrapper import DataLoader, PoolDataLoader
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.parallel import collate
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.runner import get_dist_info
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.utils import Registry, build_from_cfg
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.utils.parrots_wrapper import (
+    DataLoader,
+    PoolDataLoader,
+)
 from torch.utils.data import DistributedSampler
 import torch
 

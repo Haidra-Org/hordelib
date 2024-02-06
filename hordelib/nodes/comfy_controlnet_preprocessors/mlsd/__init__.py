@@ -19,7 +19,7 @@ class MLSDdetector:
     def __init__(self):
         model_path = os.path.join(builtins.annotator_ckpts_path, "mlsd_large_512_fp32.pth")
         if not os.path.exists(model_path):
-            from comfy_controlnet_preprocessors.util import load_file_from_url
+            from hordelib.nodes.comfy_controlnet_preprocessors.util import load_file_from_url
 
             load_file_from_url(remote_model_path, model_dir=builtins.annotator_ckpts_path)
         model = MobileV2_MLSD_Large()

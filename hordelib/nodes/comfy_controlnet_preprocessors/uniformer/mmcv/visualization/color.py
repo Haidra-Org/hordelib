@@ -3,7 +3,7 @@ from enum import Enum
 
 import numpy as np
 
-from comfy_controlnet_preprocessors.uniformer.mmcv.utils import is_str
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.utils import is_str
 
 
 class Color(Enum):
@@ -11,6 +11,7 @@ class Color(Enum):
 
     Contains red, green, blue, cyan, yellow, magenta, white and black.
     """
+
     red = (0, 0, 255)
     green = (0, 255, 0)
     blue = (255, 0, 0)
@@ -48,4 +49,4 @@ def color_val(color):
         color = color.astype(np.uint8)
         return tuple(color)
     else:
-        raise TypeError(f'Invalid type for color: {type(color)}')
+        raise TypeError(f"Invalid type for color: {type(color)}")

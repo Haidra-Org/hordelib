@@ -92,7 +92,7 @@ def load_model(model_type):
 
     elif model_type == "dpt_hybrid":  # DPT-Hybrid
         if not os.path.exists(model_path):
-            from comfy_controlnet_preprocessors.util import load_file_from_url
+            from hordelib.nodes.comfy_controlnet_preprocessors.util import load_file_from_url
 
             load_file_from_url(remote_model_path, model_dir=builtins.annotator_ckpts_path)
 
