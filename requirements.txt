@@ -6,7 +6,7 @@ pydantic
 torch>=2.1.0
 # xformers>=0.0.19
 torchvision
-torchaudio
+# torchaudio
 torchdiffeq
 torchsde
 einops
