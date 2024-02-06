@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch import nn
 
-from facerestore.facelib.detection.yolov5face.models.common import Conv
+from hordelib.nodes.facerestore.facelib.detection.yolov5face.models.common import Conv
 
 
 class CrossConv(nn.Module):

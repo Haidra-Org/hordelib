@@ -1,7 +1,11 @@
 import os
 
-from comfy_controlnet_preprocessors.uniformer.mmseg.apis import init_segmentor, inference_segmentor, show_result_pyplot
-from comfy_controlnet_preprocessors.uniformer.mmseg.core.evaluation import get_palette
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmseg.apis import (
+    init_segmentor,
+    inference_segmentor,
+    show_result_pyplot,
+)
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmseg.core.evaluation import get_palette
 import builtins
 
 import model_management
@@ -14,7 +18,7 @@ class UniformerDetector:
     def __init__(self):
         modelpath = os.path.join(builtins.annotator_ckpts_path, "upernet_global_small.pth")
         if not os.path.exists(modelpath):
-            from comfy_controlnet_preprocessors.util import load_file_from_url
+            from hordelib.nodes.comfy_controlnet_preprocessors.util import load_file_from_url
 
             load_file_from_url(checkpoint_file, model_dir=builtins.annotator_ckpts_path)
         config_file = os.path.join(os.path.dirname(__file__), "exp", "upernet_global_small", "config.py")

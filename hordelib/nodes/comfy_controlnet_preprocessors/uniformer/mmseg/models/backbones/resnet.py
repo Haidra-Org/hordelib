@@ -1,11 +1,16 @@
 import torch.nn as nn
 import torch.utils.checkpoint as cp
-from comfy_controlnet_preprocessors.uniformer.mmcv.cnn import (build_conv_layer, build_norm_layer, build_plugin_layer,
-                      constant_init, kaiming_init)
-from comfy_controlnet_preprocessors.uniformer.mmcv.runner import load_checkpoint
-from comfy_controlnet_preprocessors.uniformer.mmcv.utils.parrots_wrapper import _BatchNorm
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.cnn import (
+    build_conv_layer,
+    build_norm_layer,
+    build_plugin_layer,
+    constant_init,
+    kaiming_init,
+)
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.runner import load_checkpoint
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.utils.parrots_wrapper import _BatchNorm
 
-from comfy_controlnet_preprocessors.uniformer.mmseg.utils import get_root_logger
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmseg.utils import get_root_logger
 from ..builder import BACKBONES
 from ..utils import ResLayer
 
@@ -15,37 +20,32 @@ class BasicBlock(nn.Module):
 
     expansion = 1
 
-    def __init__(self,
-                 inplanes,
-                 planes,
-                 stride=1,
-                 dilation=1,
-                 downsample=None,
-                 style='pytorch',
-                 with_cp=False,
-                 conv_cfg=None,
-                 norm_cfg=dict(type='BN'),
-                 dcn=None,
-                 plugins=None):
+    def __init__(
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        dilation=1,
+        downsample=None,
+        style="pytorch",
+        with_cp=False,
+        conv_cfg=None,
+        norm_cfg=dict(type="BN"),
+        dcn=None,
+        plugins=None,
+    ):
         super(BasicBlock, self).__init__()
-        assert dcn is None, 'Not implemented yet.'
-        assert plugins is None, 'Not implemented yet.'
+        assert dcn is None, "Not implemented yet."
+        assert plugins is None, "Not implemented yet."
 
         self.norm1_name, norm1 = build_norm_layer(norm_cfg, planes, postfix=1)
         self.norm2_name, norm2 = build_norm_layer(norm_cfg, planes, postfix=2)
 
         self.conv1 = build_conv_layer(
-            conv_cfg,
-            inplanes,
-            planes,
-            3,
-            stride=stride,
-            padding=dilation,
-            dilation=dilation,
-            bias=False)
+            conv_cfg, inplanes, planes, 3, stride=stride, padding=dilation, dilation=dilation, bias=False
+        )
         self.add_module(self.norm1_name, norm1)
-        self.conv2 = build_conv_layer(
-            conv_cfg, planes, planes, 3, padding=1, bias=False)
+        self.conv2 = build_conv_layer(conv_cfg, planes, planes, 3, padding=1, bias=False)
         self.add_module(self.norm2_name, norm2)
 
         self.relu = nn.ReLU(inplace=True)
@@ -103,25 +103,27 @@ class Bottleneck(nn.Module):
 
     expansion = 4
 
-    def __init__(self,
-                 inplanes,
-                 planes,
-                 stride=1,
-                 dilation=1,
-                 downsample=None,
-                 style='pytorch',
-                 with_cp=False,
-                 conv_cfg=None,
-                 norm_cfg=dict(type='BN'),
-                 dcn=None,
-                 plugins=None):
+    def __init__(
+        self,
+        inplanes,
+        planes,
+        stride=1,
+        dilation=1,
+        downsample=None,
+        style="pytorch",
+        with_cp=False,
+        conv_cfg=None,
+        norm_cfg=dict(type="BN"),
+        dcn=None,
+        plugins=None,
+    ):
         super(Bottleneck, self).__init__()
-        assert style in ['pytorch', 'caffe']
+        assert style in ["pytorch", "caffe"]
         assert dcn is None or isinstance(dcn, dict)
         assert plugins is None or isinstance(plugins, list)
         if plugins is not None:
-            allowed_position = ['after_conv1', 'after_conv2', 'after_conv3']
-            assert all(p['position'] in allowed_position for p in plugins)
+            allowed_position = ["after_conv1", "after_conv2", "after_conv3"]
+            assert all(p["position"] in allowed_position for p in plugins)
 
         self.inplanes = inplanes
         self.planes = planes
@@ -138,20 +140,11 @@ class Bottleneck(nn.Module):
 
         if self.with_plugins:
             # collect plugins for conv1/conv2/conv3
-            self.after_conv1_plugins = [
-                plugin['cfg'] for plugin in plugins
-                if plugin['position'] == 'after_conv1'
-            ]
-            self.after_conv2_plugins = [
-                plugin['cfg'] for plugin in plugins
-                if plugin['position'] == 'after_conv2'
-            ]
-            self.after_conv3_plugins = [
-                plugin['cfg'] for plugin in plugins
-                if plugin['position'] == 'after_conv3'
-            ]
+            self.after_conv1_plugins = [plugin["cfg"] for plugin in plugins if plugin["position"] == "after_conv1"]
+            self.after_conv2_plugins = [plugin["cfg"] for plugin in plugins if plugin["position"] == "after_conv2"]
+            self.after_conv3_plugins = [plugin["cfg"] for plugin in plugins if plugin["position"] == "after_conv3"]
 
-        if self.style == 'pytorch':
+        if self.style == "pytorch":
             self.conv1_stride = 1
             self.conv2_stride = stride
         else:
@@ -160,20 +153,13 @@ class Bottleneck(nn.Module):
 
         self.norm1_name, norm1 = build_norm_layer(norm_cfg, planes, postfix=1)
         self.norm2_name, norm2 = build_norm_layer(norm_cfg, planes, postfix=2)
-        self.norm3_name, norm3 = build_norm_layer(
-            norm_cfg, planes * self.expansion, postfix=3)
+        self.norm3_name, norm3 = build_norm_layer(norm_cfg, planes * self.expansion, postfix=3)
 
-        self.conv1 = build_conv_layer(
-            conv_cfg,
-            inplanes,
-            planes,
-            kernel_size=1,
-            stride=self.conv1_stride,
-            bias=False)
+        self.conv1 = build_conv_layer(conv_cfg, inplanes, planes, kernel_size=1, stride=self.conv1_stride, bias=False)
         self.add_module(self.norm1_name, norm1)
         fallback_on_stride = False
         if self.with_dcn:
-            fallback_on_stride = dcn.pop('fallback_on_stride', False)
+            fallback_on_stride = dcn.pop("fallback_on_stride", False)
         if not self.with_dcn or fallback_on_stride:
             self.conv2 = build_conv_layer(
                 conv_cfg,
@@ -183,9 +169,10 @@ class Bottleneck(nn.Module):
                 stride=self.conv2_stride,
                 padding=dilation,
                 dilation=dilation,
-                bias=False)
+                bias=False,
+            )
         else:
-            assert self.conv_cfg is None, 'conv_cfg must be None for DCN'
+            assert self.conv_cfg is None, "conv_cfg must be None for DCN"
             self.conv2 = build_conv_layer(
                 dcn,
                 planes,
@@ -194,27 +181,20 @@ class Bottleneck(nn.Module):
                 stride=self.conv2_stride,
                 padding=dilation,
                 dilation=dilation,
-                bias=False)
+                bias=False,
+            )
 
         self.add_module(self.norm2_name, norm2)
-        self.conv3 = build_conv_layer(
-            conv_cfg,
-            planes,
-            planes * self.expansion,
-            kernel_size=1,
-            bias=False)
+        self.conv3 = build_conv_layer(conv_cfg, planes, planes * self.expansion, kernel_size=1, bias=False)
         self.add_module(self.norm3_name, norm3)
 
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
 
         if self.with_plugins:
-            self.after_conv1_plugin_names = self.make_block_plugins(
-                planes, self.after_conv1_plugins)
-            self.after_conv2_plugin_names = self.make_block_plugins(
-                planes, self.after_conv2_plugins)
-            self.after_conv3_plugin_names = self.make_block_plugins(
-                planes * self.expansion, self.after_conv3_plugins)
+            self.after_conv1_plugin_names = self.make_block_plugins(planes, self.after_conv1_plugins)
+            self.after_conv2_plugin_names = self.make_block_plugins(planes, self.after_conv2_plugins)
+            self.after_conv3_plugin_names = self.make_block_plugins(planes * self.expansion, self.after_conv3_plugins)
 
     def make_block_plugins(self, in_channels, plugins):
         """make plugins for block.
@@ -230,11 +210,8 @@ class Bottleneck(nn.Module):
         plugin_names = []
         for plugin in plugins:
             plugin = plugin.copy()
-            name, layer = build_plugin_layer(
-                plugin,
-                in_channels=in_channels,
-                postfix=plugin.pop('postfix', ''))
-            assert not hasattr(self, name), f'duplicate plugin {name}'
+            name, layer = build_plugin_layer(plugin, in_channels=in_channels, postfix=plugin.pop("postfix", ""))
+            assert not hasattr(self, name), f"duplicate plugin {name}"
             self.add_module(name, layer)
             plugin_names.append(name)
         return plugin_names
@@ -348,7 +325,7 @@ class ResNet(nn.Module):
             in resblocks to let them behave as identity.
 
     Example:
-        >>> from comfy_controlnet_preprocessors.uniformer.mmseg.models import ResNet
+        >>> from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmseg.models import ResNet
         >>> import torch
         >>> self = ResNet(depth=18)
         >>> self.eval()
@@ -367,35 +344,37 @@ class ResNet(nn.Module):
         34: (BasicBlock, (3, 4, 6, 3)),
         50: (Bottleneck, (3, 4, 6, 3)),
         101: (Bottleneck, (3, 4, 23, 3)),
-        152: (Bottleneck, (3, 8, 36, 3))
+        152: (Bottleneck, (3, 8, 36, 3)),
     }
 
-    def __init__(self,
-                 depth,
-                 in_channels=3,
-                 stem_channels=64,
-                 base_channels=64,
-                 num_stages=4,
-                 strides=(1, 2, 2, 2),
-                 dilations=(1, 1, 1, 1),
-                 out_indices=(0, 1, 2, 3),
-                 style='pytorch',
-                 deep_stem=False,
-                 avg_down=False,
-                 frozen_stages=-1,
-                 conv_cfg=None,
-                 norm_cfg=dict(type='BN', requires_grad=True),
-                 norm_eval=False,
-                 dcn=None,
-                 stage_with_dcn=(False, False, False, False),
-                 plugins=None,
-                 multi_grid=None,
-                 contract_dilation=False,
-                 with_cp=False,
-                 zero_init_residual=True):
+    def __init__(
+        self,
+        depth,
+        in_channels=3,
+        stem_channels=64,
+        base_channels=64,
+        num_stages=4,
+        strides=(1, 2, 2, 2),
+        dilations=(1, 1, 1, 1),
+        out_indices=(0, 1, 2, 3),
+        style="pytorch",
+        deep_stem=False,
+        avg_down=False,
+        frozen_stages=-1,
+        conv_cfg=None,
+        norm_cfg=dict(type="BN", requires_grad=True),
+        norm_eval=False,
+        dcn=None,
+        stage_with_dcn=(False, False, False, False),
+        plugins=None,
+        multi_grid=None,
+        contract_dilation=False,
+        with_cp=False,
+        zero_init_residual=True,
+    ):
         super(ResNet, self).__init__()
         if depth not in self.arch_settings:
-            raise KeyError(f'invalid depth {depth} for resnet')
+            raise KeyError(f"invalid depth {depth} for resnet")
         self.depth = depth
         self.stem_channels = stem_channels
         self.base_channels = base_channels
@@ -438,8 +417,7 @@ class ResNet(nn.Module):
             else:
                 stage_plugins = None
             # multi grid is applied to last layer only
-            stage_multi_grid = multi_grid if i == len(
-                self.stage_blocks) - 1 else None
+            stage_multi_grid = multi_grid if i == len(self.stage_blocks) - 1 else None
             planes = base_channels * 2**i
             res_layer = self.make_res_layer(
                 block=self.block,
@@ -456,16 +434,16 @@ class ResNet(nn.Module):
                 dcn=dcn,
                 plugins=stage_plugins,
                 multi_grid=stage_multi_grid,
-                contract_dilation=contract_dilation)
+                contract_dilation=contract_dilation,
+            )
             self.inplanes = planes * self.block.expansion
-            layer_name = f'layer{i+1}'
+            layer_name = f"layer{i+1}"
             self.add_module(layer_name, res_layer)
             self.res_layers.append(layer_name)
 
         self._freeze_stages()
 
-        self.feat_dim = self.block.expansion * base_channels * 2**(
-            len(self.stage_blocks) - 1)
+        self.feat_dim = self.block.expansion * base_channels * 2 ** (len(self.stage_blocks) - 1)
 
     def make_stage_plugins(self, plugins, stage_idx):
         """make plugins for ResNet 'stage_idx'th stage .
@@ -512,7 +490,7 @@ class ResNet(nn.Module):
         stage_plugins = []
         for plugin in plugins:
             plugin = plugin.copy()
-            stages = plugin.pop('stages', None)
+            stages = plugin.pop("stages", None)
             assert stages is None or len(stages) == self.num_stages
             # whether to insert plugin into current stage
             if stages is None or stages[stage_idx]:
@@ -534,13 +512,8 @@ class ResNet(nn.Module):
         if self.deep_stem:
             self.stem = nn.Sequential(
                 build_conv_layer(
-                    self.conv_cfg,
-                    in_channels,
-                    stem_channels // 2,
-                    kernel_size=3,
-                    stride=2,
-                    padding=1,
-                    bias=False),
+                    self.conv_cfg, in_channels, stem_channels // 2, kernel_size=3, stride=2, padding=1, bias=False
+                ),
                 build_norm_layer(self.norm_cfg, stem_channels // 2)[1],
                 nn.ReLU(inplace=True),
                 build_conv_layer(
@@ -550,30 +523,21 @@ class ResNet(nn.Module):
                     kernel_size=3,
                     stride=1,
                     padding=1,
-                    bias=False),
+                    bias=False,
+                ),
                 build_norm_layer(self.norm_cfg, stem_channels // 2)[1],
                 nn.ReLU(inplace=True),
                 build_conv_layer(
-                    self.conv_cfg,
-                    stem_channels // 2,
-                    stem_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1,
-                    bias=False),
+                    self.conv_cfg, stem_channels // 2, stem_channels, kernel_size=3, stride=1, padding=1, bias=False
+                ),
                 build_norm_layer(self.norm_cfg, stem_channels)[1],
-                nn.ReLU(inplace=True))
+                nn.ReLU(inplace=True),
+            )
         else:
             self.conv1 = build_conv_layer(
-                self.conv_cfg,
-                in_channels,
-                stem_channels,
-                kernel_size=7,
-                stride=2,
-                padding=3,
-                bias=False)
-            self.norm1_name, norm1 = build_norm_layer(
-                self.norm_cfg, stem_channels, postfix=1)
+                self.conv_cfg, in_channels, stem_channels, kernel_size=7, stride=2, padding=3, bias=False
+            )
+            self.norm1_name, norm1 = build_norm_layer(self.norm_cfg, stem_channels, postfix=1)
             self.add_module(self.norm1_name, norm1)
             self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
@@ -592,7 +556,7 @@ class ResNet(nn.Module):
                         param.requires_grad = False
 
         for i in range(1, self.frozen_stages + 1):
-            m = getattr(self, f'layer{i}')
+            m = getattr(self, f"layer{i}")
             m.eval()
             for param in m.parameters():
                 param.requires_grad = False
@@ -616,8 +580,7 @@ class ResNet(nn.Module):
 
             if self.dcn is not None:
                 for m in self.modules():
-                    if isinstance(m, Bottleneck) and hasattr(
-                            m, 'conv2_offset'):
+                    if isinstance(m, Bottleneck) and hasattr(m, "conv2_offset"):
                         constant_init(m.conv2_offset, 0)
 
             if self.zero_init_residual:
@@ -627,7 +590,7 @@ class ResNet(nn.Module):
                     elif isinstance(m, BasicBlock):
                         constant_init(m.norm2, 0)
         else:
-            raise TypeError('pretrained must be a str or None')
+            raise TypeError("pretrained must be a str or None")
 
     def forward(self, x):
         """Forward function."""
@@ -670,8 +633,7 @@ class ResNetV1c(ResNet):
     """
 
     def __init__(self, **kwargs):
-        super(ResNetV1c, self).__init__(
-            deep_stem=True, avg_down=False, **kwargs)
+        super(ResNetV1c, self).__init__(deep_stem=True, avg_down=False, **kwargs)
 
 
 @BACKBONES.register_module()
@@ -684,5 +646,4 @@ class ResNetV1d(ResNet):
     """
 
     def __init__(self, **kwargs):
-        super(ResNetV1d, self).__init__(
-            deep_stem=True, avg_down=True, **kwargs)
+        super(ResNetV1d, self).__init__(deep_stem=True, avg_down=True, **kwargs)

@@ -1,6 +1,6 @@
 import torch
 
-import comfy_controlnet_preprocessors.uniformer.mmcv as mmcv
+import hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv as mmcv
 
 
 class _BatchNormXd(torch.nn.modules.batchnorm._BatchNorm):
@@ -34,12 +34,12 @@ def revert_sync_batchnorm(module):
     """
     module_output = module
     module_checklist = [torch.nn.modules.batchnorm.SyncBatchNorm]
-    if hasattr(mmcv, 'ops'):
+    if hasattr(mmcv, "ops"):
         module_checklist.append(mmcv.ops.SyncBatchNorm)
     if isinstance(module, tuple(module_checklist)):
-        module_output = _BatchNormXd(module.num_features, module.eps,
-                                     module.momentum, module.affine,
-                                     module.track_running_stats)
+        module_output = _BatchNormXd(
+            module.num_features, module.eps, module.momentum, module.affine, module.track_running_stats
+        )
         if module.affine:
             # no_grad() may not be needed here but
             # just to be consistent with `convert_sync_batchnorm()`
@@ -51,7 +51,7 @@ def revert_sync_batchnorm(module):
         module_output.num_batches_tracked = module.num_batches_tracked
         module_output.training = module.training
         # qconfig exists in quantized models
-        if hasattr(module, 'qconfig'):
+        if hasattr(module, "qconfig"):
             module_output.qconfig = module.qconfig
     for name, child in module.named_children():
         module_output.add_module(name, revert_sync_batchnorm(child))

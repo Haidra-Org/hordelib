@@ -3,7 +3,6 @@ from time import time
 
 
 class TimerError(Exception):
-
     def __init__(self, message):
         self.message = message
         super(TimerError, self).__init__(message)
@@ -15,7 +14,7 @@ class Timer:
     :Example:
 
     >>> import time
-    >>> import comfy_controlnet_preprocessors.uniformer.mmcv as mmcv
+    >>> import hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv as mmcv
     >>> with mmcv.Timer():
     >>>     # simulate a code block that will run for 1s
     >>>     time.sleep(1)
@@ -37,7 +36,7 @@ class Timer:
 
     def __init__(self, start=True, print_tmpl=None):
         self._is_running = False
-        self.print_tmpl = print_tmpl if print_tmpl else '{:.3f}'
+        self.print_tmpl = print_tmpl if print_tmpl else "{:.3f}"
         if start:
             self.start()
 
@@ -67,7 +66,7 @@ class Timer:
         Returns (float): Time in seconds.
         """
         if not self._is_running:
-            raise TimerError('timer is not running')
+            raise TimerError("timer is not running")
         self._t_last = time()
         return self._t_last - self._t_start
 
@@ -80,7 +79,7 @@ class Timer:
         Returns (float): Time in seconds.
         """
         if not self._is_running:
-            raise TimerError('timer is not running')
+            raise TimerError("timer is not running")
         dur = time() - self._t_last
         self._t_last = time()
         return dur
@@ -98,7 +97,7 @@ def check_time(timer_id):
     :Example:
 
     >>> import time
-    >>> import comfy_controlnet_preprocessors.uniformer.mmcv as mmcv
+    >>> import hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv as mmcv
     >>> for i in range(1, 6):
     >>>     # simulate a code block
     >>>     time.sleep(i)

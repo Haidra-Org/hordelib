@@ -3,7 +3,7 @@ import torch
 import numpy as np
 from einops import rearrange
 from .model import pidinet
-from comfy_controlnet_preprocessors.util import load_state_dict, load_file_from_url
+from hordelib.nodes.comfy_controlnet_preprocessors.util import load_state_dict, load_file_from_url
 import builtins
 import model_management
 

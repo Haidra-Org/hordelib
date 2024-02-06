@@ -1,6 +1,6 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import sys
-from comfy_controlnet_preprocessors.uniformer.mmcv.utils import Registry
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.utils import Registry
 
 CONV_LAYERS = Registry("conv layer", sys.modules[__name__])
 NORM_LAYERS = Registry("norm layer", sys.modules[__name__])

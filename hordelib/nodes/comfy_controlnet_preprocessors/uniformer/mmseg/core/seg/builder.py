@@ -1,5 +1,5 @@
 import sys
-from comfy_controlnet_preprocessors.uniformer.mmcv.utils import Registry, build_from_cfg
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.utils import Registry, build_from_cfg
 
 PIXEL_SAMPLERS = Registry("pixel sampler", sys.modules[__name__])
 
