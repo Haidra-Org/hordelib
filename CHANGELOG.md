@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.5.0](https://github.com/Haidra-Org/hordelib/compare/v2.4.2...v2.5.0)
+
+6 February 2024
+
+- feat: initial pyinstaller support [`05c6548`](https://github.com/Haidra-Org/hordelib/commit/05c65487897c49f2b86f1b393f215b962944c94e)  (tazlin)
+- chore: update pre-commit hook versions [`1fd63a5`](https://github.com/Haidra-Org/hordelib/commit/1fd63a55fcdfd366d21920e3fdd4e5b434e2fe64)  (tazlin)
+- build(deps-dev): bump the python-packages group with 4 updates [`c161575`](https://github.com/Haidra-Org/hordelib/commit/c161575d8be5a2517414db7b6da1238fb3509e47)  (dependabot[bot])
+
 ## [v2.4.2](https://github.com/Haidra-Org/hordelib/compare/v2.4.1...v2.4.2)
 
 24 January 2024
