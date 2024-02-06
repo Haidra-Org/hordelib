@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.5.1](https://github.com/Haidra-Org/hordelib/compare/v2.5.0...v2.5.1)
+
+6 February 2024
+
+- fix: remove `torchaudio` from req. deps [`86c239e`](https://github.com/Haidra-Org/hordelib/commit/86c239e6a3a4d5b280537e51167c0befa9619d3e)  (tazlin)
+
 ## [v2.5.0](https://github.com/Haidra-Org/hordelib/compare/v2.4.2...v2.5.0)
 
 6 February 2024
