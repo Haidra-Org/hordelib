@@ -5,6 +5,9 @@ from pathlib import Path
 import PIL.Image
 import pytest
 
+os.environ["TESTS_ONGOING"] = "1"
+
+
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.horde import HordeLib
 from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES

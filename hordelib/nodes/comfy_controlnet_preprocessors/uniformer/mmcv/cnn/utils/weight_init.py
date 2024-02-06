@@ -9,7 +9,12 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from comfy_controlnet_preprocessors.uniformer.mmcv.utils import Registry, build_from_cfg, get_logger, print_log
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.utils import (
+    Registry,
+    build_from_cfg,
+    get_logger,
+    print_log,
+)
 
 INITIALIZERS = Registry("initializer", sys.modules[__name__])
 
@@ -443,7 +448,7 @@ class PretrainedInit(object):
         self.map_location = map_location
 
     def __call__(self, module):
-        from comfy_controlnet_preprocessors.uniformer.mmcv.runner import (
+        from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.runner import (
             _load_checkpoint_with_prefix,
             load_checkpoint,
             load_state_dict,

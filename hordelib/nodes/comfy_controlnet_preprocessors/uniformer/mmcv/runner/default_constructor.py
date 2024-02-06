@@ -9,7 +9,7 @@ class DefaultRunnerConstructor:
     For example, We can inject some new properties and functions for `Runner`.
 
     Example:
-        >>> from comfy_controlnet_preprocessors.uniformer.mmcv.runner import RUNNER_BUILDERS, build_runner
+        >>> from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.runner import RUNNER_BUILDERS, build_runner
         >>> # Define a new RunnerReconstructor
         >>> @RUNNER_BUILDERS.register_module()
         >>> class MyRunnerConstructor:
@@ -35,8 +35,7 @@ class DefaultRunnerConstructor:
 
     def __init__(self, runner_cfg, default_args=None):
         if not isinstance(runner_cfg, dict):
-            raise TypeError('runner_cfg should be a dict',
-                            f'but got {type(runner_cfg)}')
+            raise TypeError("runner_cfg should be a dict", f"but got {type(runner_cfg)}")
         self.runner_cfg = runner_cfg
         self.default_args = default_args
 

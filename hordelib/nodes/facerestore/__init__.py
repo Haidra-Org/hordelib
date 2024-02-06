@@ -5,8 +5,8 @@ import comfy.utils
 import numpy as np
 import cv2
 import math
-from facerestore.facelib.utils.face_restoration_helper import FaceRestoreHelper
-from facerestore.facelib.detection.retinaface import retinaface
+from hordelib.nodes.facerestore.facelib.utils.face_restoration_helper import FaceRestoreHelper
+from hordelib.nodes.facerestore.facelib.detection.retinaface import retinaface
 from torchvision.transforms.functional import normalize
 import threading
 from loguru import logger

@@ -231,11 +231,11 @@ def cv2_image_similarity(
         raise ValueError("Images must be of same size.")
 
     # Convert the images to grayscale
-    img1 = cv2.cvtColor(np.array(img1), cv2.COLOR_BGR2GRAY)
-    img2 = cv2.cvtColor(np.array(img2), cv2.COLOR_BGR2GRAY)
+    img1 = cv2.cvtColor(np.array(img1), cv2.COLOR_BGR2GRAY)  # type: ignore # FIXME
+    img2 = cv2.cvtColor(np.array(img2), cv2.COLOR_BGR2GRAY)  # type: ignore # FIXME
 
     # Calculate the similarity between the two images
-    similarity = cv2.matchTemplate(img1, img2, cv2.TM_CCOEFF_NORMED)[0][0]
+    similarity = cv2.matchTemplate(img1, img2, cv2.TM_CCOEFF_NORMED)[0][0]  # type: ignore # FIXME
 
     # Get the primitive (float) value of the similarity
     similarity = similarity.item()

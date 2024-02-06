@@ -1,5 +1,5 @@
 import torch
-from comfy_controlnet_preprocessors.uniformer.mmcv.cnn import ContextBlock
+from hordelib.nodes.comfy_controlnet_preprocessors.uniformer.mmcv.cnn import ContextBlock
 
 from ..builder import HEADS
 from .fcn_head import FCNHead
@@ -20,20 +20,14 @@ class GCHead(FCNHead):
             Options are 'channel_add', 'channel_mul'. Default: ('channel_add',)
     """
 
-    def __init__(self,
-                 ratio=1 / 4.,
-                 pooling_type='att',
-                 fusion_types=('channel_add', ),
-                 **kwargs):
+    def __init__(self, ratio=1 / 4.0, pooling_type="att", fusion_types=("channel_add",), **kwargs):
         super(GCHead, self).__init__(num_convs=2, **kwargs)
         self.ratio = ratio
         self.pooling_type = pooling_type
         self.fusion_types = fusion_types
         self.gc_block = ContextBlock(
-            in_channels=self.channels,
-            ratio=self.ratio,
-            pooling_type=self.pooling_type,
-            fusion_types=self.fusion_types)
+            in_channels=self.channels, ratio=self.ratio, pooling_type=self.pooling_type, fusion_types=self.fusion_types
+        )
 
     def forward(self, inputs):
         """Forward function."""

@@ -115,7 +115,7 @@ class HEDdetector:
         )
         modelpath = os.path.join(builtins.annotator_ckpts_path, "network-bsds500.pth")
         if not os.path.exists(modelpath):
-            from comfy_controlnet_preprocessors.util import load_file_from_url
+            from hordelib.nodes.comfy_controlnet_preprocessors.util import load_file_from_url
 
             load_file_from_url(remote_model_path, model_dir=builtins.annotator_ckpts_path)
         self.netNetwork = Network(modelpath).to(model_management.get_torch_device()).eval()

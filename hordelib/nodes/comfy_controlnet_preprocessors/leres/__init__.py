@@ -45,7 +45,7 @@ def download_model_if_not_existed():
     # if os.path.exists(old_model_path):
     #    model_path = old_model_path
     if not os.path.exists(model_path):
-        from comfy_controlnet_preprocessors.util import load_file_from_url
+        from hordelib.nodes.comfy_controlnet_preprocessors.util import load_file_from_url
 
         load_file_from_url(remote_model_path_leres, model_dir=builtins.annotator_ckpts_path)
         os.rename(os.path.join(builtins.annotator_ckpts_path, "res101.pth"), model_path)
@@ -66,7 +66,7 @@ def apply_leres(input_image, thr_a, thr_b):
     """ if boost and pix2pixmodel is None:
         pix2pixmodel_path = os.path.join(builtins.annotator_ckpts_path, "latest_net_G.pth")
         if not os.path.exists(pix2pixmodel_path):
-            from comfy_controlnet_preprocessors.util import load_file_from_url
+            from hordelib.nodes.comfy_controlnet_preprocessors.util import load_file_from_url
             load_file_from_url(remote_model_path_pix2pix, model_dir=builtins.annotator_ckpts_path)
 
         opt = TestOptions().parse()
@@ -84,7 +84,6 @@ def apply_leres(input_image, thr_a, thr_b):
     height, width, dim = input_image.shape
 
     with torch.no_grad():
-
         if boost:
             depth = estimateboost(input_image, model, 0, pix2pixmodel, max(width, height))
         else:

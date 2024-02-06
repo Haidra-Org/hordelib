@@ -245,8 +245,8 @@ def paste_face_back(img, face, inverse_affine):
 if __name__ == "__main__":
     import os
 
-    from facerestore.facelib.detection import init_detection_model
-    from facerestore.facelib.utils.face_restoration_helper import get_largest_face
+    from hordelib.nodes.facerestore.facelib.detection import init_detection_model
+    from hordelib.nodes.facerestore.facelib.utils.face_restoration_helper import get_largest_face
 
     img_path = "/home/wxt/datasets/ffhq/ffhq_wild/00009.png"
     img_name = os.path.splitext(os.path.basename(img_path))[0]

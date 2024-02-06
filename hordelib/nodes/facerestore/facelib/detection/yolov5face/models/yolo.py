@@ -6,7 +6,7 @@ import torch
 import yaml  # for torch hub
 from torch import nn
 
-from facerestore.facelib.detection.yolov5face.models.common import (
+from hordelib.nodes.facerestore.facelib.detection.yolov5face.models.common import (
     C3,
     NMS,
     SPP,
@@ -20,13 +20,13 @@ from facerestore.facelib.detection.yolov5face.models.common import (
     ShuffleV2Block,
     StemBlock,
 )
-from facerestore.facelib.detection.yolov5face.models.experimental import (
+from hordelib.nodes.facerestore.facelib.detection.yolov5face.models.experimental import (
     CrossConv,
     MixConv2d,
 )
-from facerestore.facelib.detection.yolov5face.utils.autoanchor import check_anchor_order
-from facerestore.facelib.detection.yolov5face.utils.general import make_divisible
-from facerestore.facelib.detection.yolov5face.utils.torch_utils import (
+from hordelib.nodes.facerestore.facelib.detection.yolov5face.utils.autoanchor import check_anchor_order
+from hordelib.nodes.facerestore.facelib.detection.yolov5face.utils.general import make_divisible
+from hordelib.nodes.facerestore.facelib.detection.yolov5face.utils.torch_utils import (
     copy_attr,
     fuse_conv_and_bn,
 )

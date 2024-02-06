@@ -1,6 +1,6 @@
 import torch
 
-from facerestore.facelib.utils import load_file_from_url
+from hordelib.nodes.facerestore.facelib.utils import load_file_from_url
 from .bisenet import BiSeNet
 from .parsenet import ParseNet
 

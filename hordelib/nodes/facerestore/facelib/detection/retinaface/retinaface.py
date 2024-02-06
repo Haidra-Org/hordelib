@@ -6,11 +6,11 @@ import torch.nn.functional as F
 from PIL import Image
 from torchvision.models._utils import IntermediateLayerGetter as IntermediateLayerGetter
 
-from facerestore.facelib.detection.align_trans import (
+from hordelib.nodes.facerestore.facelib.detection.align_trans import (
     get_reference_facial_points,
     warp_and_crop_face,
 )
-from facerestore.facelib.detection.retinaface.retinaface_net import (
+from hordelib.nodes.facerestore.facelib.detection.retinaface.retinaface_net import (
     FPN,
     SSH,
     MobileNetV1,
@@ -18,7 +18,7 @@ from facerestore.facelib.detection.retinaface.retinaface_net import (
     make_class_head,
     make_landmark_head,
 )
-from facerestore.facelib.detection.retinaface.retinaface_utils import (
+from hordelib.nodes.facerestore.facelib.detection.retinaface.retinaface_utils import (
     PriorBox,
     batched_decode,
     batched_decode_landm,
