@@ -122,10 +122,15 @@ class TestHordeSamplers:
 
         for img_filename, pil_image in images_to_compare:
             logger.debug(f"Checking image {img_filename}")
-            assert check_single_inference_image_similarity(
-                img_filename,
-                pil_image,
-            )
+            if "sde" not in img_filename:
+                assert check_single_inference_image_similarity(
+                    img_filename,
+                    pil_image,
+                )
+            else:
+                logger.warning(
+                    f"Skipping image similarity check for {img_filename} due to SDE samplers being non-deterministic.",
+                )
 
     def test_slow_samplers(
         self,
