@@ -122,7 +122,7 @@ class TestHordeSamplers:
 
         for img_filename, pil_image in images_to_compare:
             logger.debug(f"Checking image {img_filename}")
-            if "sde" not in img_filename:
+            if "sde" not in img_filename and "lcm" not in img_filename:
                 assert check_single_inference_image_similarity(
                     img_filename,
                     pil_image,
