@@ -68,6 +68,8 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager.manager.validate_model("SDXL 1.0")
     assert SharedModelManager.manager.download_model("AlbedoBase XL (SDXL)")
     assert SharedModelManager.manager.validate_model("AlbedoBase XL (SDXL)")
+    assert SharedModelManager.manager.download_model("Rev Animated")
+    assert SharedModelManager.manager.validate_model("Rev Animated")
 
     assert SharedModelManager.manager.controlnet is not None
     assert SharedModelManager.manager.controlnet.download_all_models()
