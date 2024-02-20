@@ -394,7 +394,7 @@ class HordeLib:
         #             del payload["denoising_strength"]
         #         else:
         #             del payload["denoising_strength"]
-        logger.debug(payload)
+        logger.error(payload)
         return payload
 
     def _final_pipeline_adjustments(self, payload, pipeline_data):
@@ -641,7 +641,7 @@ class HordeLib:
                 pipeline_params[newkey] = payload.get(key)
             else:
                 logger.error(f"Parameter {key} not found")
-
+        logger.debug(payload)
         # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
         # We don't want to hardcode this into the pipeline.json as we export this directly from ComfyUI
         # and don't want to have to rememebr to re-add those keys
@@ -718,6 +718,10 @@ class HordeLib:
         #     image_upscale
 
         # controlnet, controlnet_hires_fix controlnet_annotator
+        if params.get("model_name"):
+            model_details = SharedModelManager.manager.compvis.get_model_reference_info(params["model_name"])
+            if model_details.get("baseline") == "stable_cascade":
+                return "stable_cascade"
         if params.get("control_type"):
             if params.get("return_control_map", False):
                 return "controlnet_annotator"
