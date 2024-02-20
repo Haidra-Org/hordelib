@@ -114,11 +114,18 @@ class BaseModelManager(ABC):
         if self.download_reference or not is_model_db_present:
             raise NotImplementedError("Downloading model databases is no longer supported within hordelib.")
 
-        try:
-            self.model_reference = json.loads((self.models_db_path).read_text())
-        except json.decoder.JSONDecodeError as e:
-            logger.error(f"Model database {self.models_db_path} is not valid JSON: {e}")
-            raise
+        for attempt in range(3):
+            try:
+                self.model_reference = json.loads((self.models_db_path).read_text())
+            except json.decoder.JSONDecodeError as e:
+                if attempt <= 2:
+                    logger.warning(
+                        f"Model database {self.models_db_path} is not valid JSON: {e}. Will retry: {attempt+1}/3",
+                    )
+                    time.sleep(1)
+                    continue
+                logger.error(f"Model database {self.models_db_path} is not valid JSON: {e}")
+                raise
 
         models_available = []
         for model in self.model_reference:

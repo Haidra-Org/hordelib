@@ -160,7 +160,7 @@ class GPUInfoResult(BaseModel):
     product: str
     pci_gen: str
     pci_width: str
-    fan_speed: tuple[int, Unit]
+    fan_speed: tuple[str, Unit]
     vram_total: tuple[int, Unit]
     vram_used: tuple[int, Unit]
     vram_free: tuple[int, Unit]
@@ -186,7 +186,7 @@ class GPUInfoResult(BaseModel):
             product="unknown (stats with AMD not supported)",
             pci_gen="?",
             pci_width="?",
-            fan_speed=(0, Unit.percent),
+            fan_speed=("0", Unit.percent),
             vram_total=(0, Unit.megabytes),
             vram_used=(0, Unit.megabytes),
             vram_free=(0, Unit.megabytes),

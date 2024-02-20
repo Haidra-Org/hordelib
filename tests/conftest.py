@@ -66,6 +66,10 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager.manager.validate_model("Deliberate")
     assert SharedModelManager.manager.download_model("SDXL 1.0")
     assert SharedModelManager.manager.validate_model("SDXL 1.0")
+    assert SharedModelManager.manager.download_model("AlbedoBase XL (SDXL)")
+    assert SharedModelManager.manager.validate_model("AlbedoBase XL (SDXL)")
+    assert SharedModelManager.manager.download_model("Rev Animated")
+    assert SharedModelManager.manager.validate_model("Rev Animated")
 
     assert SharedModelManager.manager.controlnet is not None
     assert SharedModelManager.manager.controlnet.download_all_models()
@@ -134,15 +138,17 @@ def pytest_collection_modifyitems(items):
         "tests.model_managers.test_shared_model_manager",
         "tests.test_mm_lora",
         "tests.test_mm_ti",
+        "tests.test_inference",
     ]
     MODULES_TO_RUN_LAST = [
-        "tests.test_inference",
         "tests.test_horde_inference",
         "tests.test_horde_inference_img2img",
+        "tests.test_horde_samplers",
+        "tests.test_horde_ti",
+        "tests.test_horde_lcm",
         "tests.test_horde_lora",
         "tests.test_horde_inference_controlnet",
         "tests.test_horde_inference_painting",
-        "tests.test_horde_samplers",
     ]
     module_mapping = {item: item.module.__name__ for item in items}
 
