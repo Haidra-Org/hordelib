@@ -4,6 +4,8 @@ import comfy.utils
 import folder_paths
 from loguru import logger
 
+from hordelib.shared_model_manager import SharedModelManager
+
 
 class HordeLoraLoader:
     def __init__(self):
@@ -62,12 +64,18 @@ class HordeLoraLoader:
                 self.loaded_lora = None
                 del temp
 
-        if lora is None:
-            lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
-            self.loaded_lora = (lora_path, lora)
+        try:
+            with logger.catch(reraise=True):
+                if lora is None:
+                    lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+                    self.loaded_lora = (lora_path, lora)
 
-        model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
-        return (model_lora, clip_lora)
+                model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+                return (model_lora, clip_lora)
+        except Exception as e:
+            logger.error(f"Failed to load lora {lora_name}: {e}")
+            SharedModelManager.manager.add_lora_failure(lora_name)
+            return (model, clip)
 
 
 NODE_CLASS_MAPPINGS = {"HordeLoraLoader": HordeLoraLoader}

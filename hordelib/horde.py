@@ -511,6 +511,7 @@ class HordeLib:
                         ),
                     )
                     continue
+
                 logger.debug(f"Found valid lora{verstext} {lora_name}")
                 if SharedModelManager.manager.compvis is None:
                     raise RuntimeError("Cannot use LORAs without a compvis loaded!")
@@ -783,7 +784,20 @@ class HordeLib:
 
         # Call the inference pipeline
         # logger.debug(payload)
-        images = self.generator.run_image_pipeline(pipeline_data, payload)
+        try:
+            images = self.generator.run_image_pipeline(pipeline_data, payload)
+        finally:
+            # This ensures that the lora failure list is flushed after each inference (even if it fails)
+            loras_failed = SharedModelManager.manager.get_lora_failures()
+
+        for lora in loras_failed:
+            faults.append(
+                GenMetadataEntry(
+                    type=METADATA_TYPE.lora,
+                    value=METADATA_VALUE.parse_failed,
+                    ref=lora,
+                ),
+            )
 
         results = self._process_results(images)
         ret_results = [

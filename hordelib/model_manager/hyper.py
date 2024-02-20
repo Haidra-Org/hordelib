@@ -104,6 +104,26 @@ class ModelManager:
     of the model object and whether it was loaded with Loras.
     """
 
+    _lora_failures: list[str] = []
+
+    def add_lora_failure(self, lora_name: str) -> None:
+        """Adds a Lora failure to the list of failures.
+
+        Args:
+            lora_name (str): The Lora name to add.
+        """
+        self._lora_failures.append(lora_name)
+
+    def get_lora_failures(self) -> list[str]:
+        """Returns the list of Lora failures.
+
+        Returns:
+            list[str]: The list of Lora failures.
+        """
+        returned_failures = self._lora_failures.copy()
+        self._lora_failures = []
+        return returned_failures
+
     def get_available_models(
         self,
         mm_include: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,

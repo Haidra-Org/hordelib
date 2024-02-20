@@ -48,6 +48,14 @@ def test_lora_failure(
 
         with pytest.raises(RuntimeError, match="Pipeline failed to run"):
             hordelib_instance.basic_inference_single_image(data)
+
+        shared_model_manager.manager.add_lora_failure(lora_GlowingRunesAI)
+
+        with pytest.raises(RuntimeError, match="Pipeline failed to run"):
+            hordelib_instance.basic_inference_single_image(data)
+
+        assert len(shared_model_manager.manager._lora_failures) == 0
+
     finally:
         del os.environ["FAILURE_TEST"]
         assert os.getenv("FAILURE_TEST", False) is False
