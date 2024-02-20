@@ -103,6 +103,11 @@ def sdxl_1_0_base_model_name(shared_model_manager: type[SharedModelManager]) -> 
 
 
 @pytest.fixture(scope="session")
+def stable_cascade_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    return "Stable Cascade 1.0"
+
+
+@pytest.fixture(scope="session")
 def db0_test_image() -> PIL.Image.Image:
     return PIL.Image.open("images/test_db0.jpg")
 

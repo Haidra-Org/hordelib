@@ -36,6 +36,7 @@ class HordeCheckpointLoader:
         output_vae=True,
         output_clip=True,
         preloading=False,
+        file_type: str | None = None,
     ):
         logger.debug(f"Loading model {horde_model_name}")
         logger.debug(f"Will load Loras: {will_load_loras}, seamless tiling: {seamless_tiling_enabled}")
@@ -67,7 +68,19 @@ class HordeCheckpointLoader:
             if not SharedModelManager.manager.compvis.is_model_available(horde_model_name):
                 raise ValueError(f"Model {horde_model_name} is not available.")
 
-            ckpt_name = SharedModelManager.manager.compvis.get_model_filename(horde_model_name).name
+            file_entries = SharedModelManager.manager.compvis.get_model_filenames(horde_model_name)
+            for file_entry in file_entries:
+                if file_type is not None:
+                    # if a file_type has been passed, we look at the available files for this model
+                    # To find the appropriate type.
+                    if file_entry.get("file_type") == file_type:
+                        ckpt_name = file_entry["file_path"].name
+                        break
+                else:
+                    # If there's no file_type passed, we follow the previous approach and pick the first file
+                    # (There should be only one)
+                    ckpt_name = file_entry["file_path"].name
+                    break
 
         # Clear references so comfy can free memory as needed
         SharedModelManager.manager._models_in_ram = {}

@@ -192,6 +192,21 @@ class HordeLib:
         "upscale_sampler.sampler_name": "sampler_name",
         "controlnet_apply.strength": "control_strength",
         "controlnet_model_loader.control_net_name": "control_type",
+        # Stable Cascade
+        "stable_cascade_empty_latent_image.width": "width",
+        "stable_cascade_empty_latent_image.height": "height",
+        "stable_cascade_empty_latent_image.batch_size": "n_iter",
+        "sampler_stage_b.sampler_name": "sampler_name",
+        "sampler_stage_b.cfg": "cfg_scale",
+        "sampler_stage_b.denoise": "denoising_strength",
+        "sampler_stage_b.seed": "seed",
+        "sampler_stage_c.seed": "seed",
+        "model_loader_stage_c.ckpt_name": "stable_cascade_stage_c",
+        "model_loader_stage_c.model_name": "stable_cascade_stage_c",
+        "model_loader_stage_c.horde_model_name": "model_name",
+        "model_loader_stage_b.ckpt_name": "stable_cascade_stage_b",
+        "model_loader_stage_b.model_name": "stable_cascade_stage_b",
+        "model_loader_stage_b.horde_model_name": "model_name",
     }
 
     _comfyui_callback: Callable[[str, dict, str], None] | None = None
@@ -310,8 +325,19 @@ class HordeLib:
 
         if payload.get("model"):
             payload["model_name"] = payload["model"]
+            # Comfy expects the "model" key to be the filename
+            # But we are also sending the "generic" model name along in key "model_name" in order to be able
+            # To look it up in the model manager.
             if SharedModelManager.manager.compvis.is_model_available(payload["model"]):
-                payload["model"] = SharedModelManager.manager.compvis.get_model_filename(payload["model"])
+                model_files = SharedModelManager.manager.compvis.get_model_filenames(payload["model"])
+                payload["model"] = model_files[0]["file_path"]
+                for file_entry in model_files:
+                    # If we have a file_type, we also add to the payload
+                    # each file_path with the key being the file_type
+                    # This is then defined in PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING
+                    # to be injected in the right part of the pipeline
+                    if "file_type" in file_entry:
+                        payload[file_entry["file_type"]] = file_entry["file_path"]
             else:
                 post_processor_model_managers = SharedModelManager.manager.get_model_manager_instances(
                     [MODEL_CATEGORY_NAMES.codeformer, MODEL_CATEGORY_NAMES.esrgan, MODEL_CATEGORY_NAMES.gfpgan],
@@ -321,7 +347,7 @@ class HordeLib:
 
                 for post_processor_model_manager in post_processor_model_managers:
                     if post_processor_model_manager.is_model_available(payload["model"]):
-                        payload["model"] = post_processor_model_manager.get_model_filename(payload["model"])
+                        payload["model"] = post_processor_model_manager.get_model_filenames(payload["model"])
                         found_model = True
 
                 if not found_model:
@@ -368,7 +394,7 @@ class HordeLib:
         #             del payload["denoising_strength"]
         #         else:
         #             del payload["denoising_strength"]
-
+        logger.debug(payload)
         return payload
 
     def _final_pipeline_adjustments(self, payload, pipeline_data):
@@ -616,6 +642,13 @@ class HordeLib:
             else:
                 logger.error(f"Parameter {key} not found")
 
+        # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
+        # We don't want to hardcode this into the pipeline.json as we export this directly from ComfyUI
+        # and don't want to have to rememebr to re-add those keys
+        if "model_loader_stage_c.ckpt_name" in pipeline_params:
+            pipeline_params["model_loader_stage_c.file_type"] = "stable_cascade_stage_c"
+        if "model_loader_stage_b.ckpt_name" in pipeline_params:
+            pipeline_params["model_loader_stage_b.file_type"] = "stable_cascade_stage_c"
         # Inject our model manager
         # pipeline_params["model_loader.model_manager"] = SharedModelManager
         pipeline_params["model_loader.will_load_loras"] = bool(payload.get("loras"))
