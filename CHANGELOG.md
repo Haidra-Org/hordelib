@@ -1,5 +1,17 @@
 ## hordelib Changelog
 
+## [v2.5.3](https://github.com/Haidra-Org/hordelib/compare/v2.5.2...v2.5.3)
+
+19 February 2024
+
+## [v2.5.2](https://github.com/Haidra-Org/hordelib/compare/v2.5.1...v2.5.2)
+
+19 February 2024
+
+- fix: attempt to reload the json on fail [`bef5013`](https://github.com/Haidra-Org/hordelib/commit/bef5013b27c0f57ed9d1cd5f819e4c91b63026bc)  (db0)
+- tests: skip sde check during CI [`85ccde3`](https://github.com/Haidra-Org/hordelib/commit/85ccde35d46b86805431afed0b662591b93c7cc2)  (tazlin)
+- tests: reorder test execution order [`6f201ee`](https://github.com/Haidra-Org/hordelib/commit/6f201eea155e114d33d5d382c80c29839cb9c2f9)  (tazlin)
+
 ## [v2.5.1](https://github.com/Haidra-Org/hordelib/compare/v2.5.0...v2.5.1)
 
 6 February 2024
