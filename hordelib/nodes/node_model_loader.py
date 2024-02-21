@@ -19,6 +19,7 @@ class HordeCheckpointLoader:
                 "seamless_tiling_enabled": ("<bool>",),
                 "horde_model_name": ("<horde model name>",),
                 "ckpt_name": ("<ckpt name>",),
+                "file_type": ("<file type>",),
             },
         }
 
@@ -33,12 +34,15 @@ class HordeCheckpointLoader:
         seamless_tiling_enabled: bool,
         horde_model_name: str,
         ckpt_name: str | None = None,
+        file_type: str | None = None,
         output_vae=True,
         output_clip=True,
         preloading=False,
-        file_type: str | None = None,
     ):
-        logger.debug(f"Loading model {horde_model_name}")
+        if file_type is not None:
+            logger.debug(f"Loading model {horde_model_name}:{file_type}")
+        else:
+            logger.debug(f"Loading model {horde_model_name}")
         logger.debug(f"Will load Loras: {will_load_loras}, seamless tiling: {seamless_tiling_enabled}")
         if ckpt_name:
             logger.debug(f"Checkpoint name: {ckpt_name}")
@@ -49,7 +53,11 @@ class HordeCheckpointLoader:
         if SharedModelManager.manager.compvis is None:
             raise ValueError("CompVisModelManager is not initialised.")
 
-        same_loaded_model = SharedModelManager.manager._models_in_ram.get(horde_model_name)
+        horde_in_memory_name = horde_model_name
+        if file_type is not None:
+            horde_in_memory_name = f"{horde_model_name}:{file_type}"
+        same_loaded_model = SharedModelManager.manager._models_in_ram.get(horde_in_memory_name)
+        logger.debug([horde_in_memory_name,file_type,same_loaded_model])
 
         # Check if the model was previously loaded and if so, not loaded with Loras
         if same_loaded_model and not same_loaded_model[1]:
@@ -93,7 +101,7 @@ class HordeCheckpointLoader:
             embedding_directory=folder_paths.get_folder_paths("embeddings"),
         )
 
-        SharedModelManager.manager._models_in_ram[horde_model_name] = result, will_load_loras
+        SharedModelManager.manager._models_in_ram[horde_in_memory_name] = result, will_load_loras
 
         if seamless_tiling_enabled:
             result[0].model.apply(make_circular)

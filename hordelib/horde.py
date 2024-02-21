@@ -147,6 +147,8 @@ class HordeLib:
         "scheduler": {"datatype": str, "values": SCHEDULERS, "default": "normal"},
         "tiling": {"datatype": bool, "default": False},
         "model_name": {"datatype": str, "default": "stable_diffusion"},  # Used internally by hordelib
+        "stable_cascade_stage_b": {"datatype": str, "default": None},  # Stable Cascade
+        "stable_cascade_stage_c": {"datatype": str, "default": None},  # Stable Cascade
     }
 
     LORA_SCHEMA = {
@@ -196,9 +198,10 @@ class HordeLib:
         "stable_cascade_empty_latent_image.width": "width",
         "stable_cascade_empty_latent_image.height": "height",
         "stable_cascade_empty_latent_image.batch_size": "n_iter",
+        "sampler_stage_c.sampler_name": "sampler_name",
         "sampler_stage_b.sampler_name": "sampler_name",
-        "sampler_stage_b.cfg": "cfg_scale",
-        "sampler_stage_b.denoise": "denoising_strength",
+        "sampler_stage_c.cfg": "cfg_scale",
+        "sampler_stage_c.denoise": "denoising_strength",
         "sampler_stage_b.seed": "seed",
         "sampler_stage_c.seed": "seed",
         "model_loader_stage_c.ckpt_name": "stable_cascade_stage_c",
@@ -352,7 +355,6 @@ class HordeLib:
 
                 if not found_model:
                     raise RuntimeError(f"Model {payload['model']} not found! Is it in a Model Reference?")
-
         # Rather than specify a scheduler, only karras or not karras is specified
         if payload.get("karras", False):
             payload["scheduler"] = "karras"
@@ -394,7 +396,6 @@ class HordeLib:
         #             del payload["denoising_strength"]
         #         else:
         #             del payload["denoising_strength"]
-        logger.error(payload)
         return payload
 
     def _final_pipeline_adjustments(self, payload, pipeline_data):
@@ -641,17 +642,22 @@ class HordeLib:
                 pipeline_params[newkey] = payload.get(key)
             else:
                 logger.error(f"Parameter {key} not found")
-        logger.debug(payload)
         # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
         # We don't want to hardcode this into the pipeline.json as we export this directly from ComfyUI
         # and don't want to have to rememebr to re-add those keys
         if "model_loader_stage_c.ckpt_name" in pipeline_params:
             pipeline_params["model_loader_stage_c.file_type"] = "stable_cascade_stage_c"
         if "model_loader_stage_b.ckpt_name" in pipeline_params:
-            pipeline_params["model_loader_stage_b.file_type"] = "stable_cascade_stage_c"
+            pipeline_params["model_loader_stage_b.file_type"] = "stable_cascade_stage_b"
         # Inject our model manager
         # pipeline_params["model_loader.model_manager"] = SharedModelManager
         pipeline_params["model_loader.will_load_loras"] = bool(payload.get("loras"))
+        pipeline_params["model_loader_stage_c.will_load_loras"] = False  # FIXME: Once we support loras
+        # Does this have to be required var in the modelloader?
+        pipeline_params["model_loader_stage_c.seamless_tiling_enabled"] = False
+        pipeline_params["model_loader_stage_b.will_load_loras"] = False  # FIXME: Once we support loras
+        # Does this have to be required var in the modelloader?
+        pipeline_params["model_loader_stage_b.seamless_tiling_enabled"] = False
 
         # For hires fix, change the image sizes as we create an intermediate image first
         if payload.get("hires_fix", False):

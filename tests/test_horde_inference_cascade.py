@@ -15,7 +15,7 @@ class TestHordeInference:
             "sampler_name": "k_euler",
             "cfg_scale": 4,
             "denoising_strength": 1.0,
-            "seed": 1312,
+            "seed": 1313,
             "height": 1024,
             "width": 1024,
             "karras": False,
@@ -26,9 +26,8 @@ class TestHordeInference:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": (
-                "Full body shot of the stalwart male Hindu (Vijayanagaran Period) hero Mara, the Tiefling Paladin. "
-                "They are alone, in windy seaside. They wield a Flail and wear yellow and black clothes, horned, "
-                "in the style of Dungeons and Dragons. Splash art, Digital Painting."
+                "A magic glowing long sword lying flat on a medieval shop rack, in the style of Dungeons and Dragons. "
+                "Splash art, Digital Painting, ornate handle with gems"
             ),
             "ddim_steps": 20,
             "n_iter": 1,
