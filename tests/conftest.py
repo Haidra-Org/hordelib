@@ -72,6 +72,9 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager.manager.download_model("Rev Animated")
     assert SharedModelManager.manager.validate_model("Rev Animated")
 
+    assert SharedModelManager.manager.download_model("Stable Cascade 1.0")
+    assert SharedModelManager.manager.validate_model("Stable Cascade 1.0")
+
     assert SharedModelManager.manager.controlnet is not None
     assert SharedModelManager.manager.controlnet.download_all_models()
     assert SharedModelManager.preload_annotators()
