@@ -19,7 +19,7 @@ class HordeCheckpointLoader:
                 "seamless_tiling_enabled": ("<bool>",),
                 "horde_model_name": ("<horde model name>",),
                 "ckpt_name": ("<ckpt name>",),
-                "file_type": ("<file type>",),
+                "file_type": ("<file type>",),  # TODO: Make this optional
             },
         }
 
@@ -57,7 +57,7 @@ class HordeCheckpointLoader:
         if file_type is not None:
             horde_in_memory_name = f"{horde_model_name}:{file_type}"
         same_loaded_model = SharedModelManager.manager._models_in_ram.get(horde_in_memory_name)
-        logger.debug([horde_in_memory_name,file_type,same_loaded_model])
+        logger.debug([horde_in_memory_name, file_type, same_loaded_model])
 
         # Check if the model was previously loaded and if so, not loaded with Loras
         if same_loaded_model and not same_loaded_model[1]:

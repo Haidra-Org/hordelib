@@ -350,7 +350,8 @@ class HordeLib:
 
                 for post_processor_model_manager in post_processor_model_managers:
                     if post_processor_model_manager.is_model_available(payload["model"]):
-                        payload["model"] = post_processor_model_manager.get_model_filenames(payload["model"])
+                        model_files = post_processor_model_manager.get_model_filenames(payload["model"])
+                        payload["model"] = model_files[0]["file_path"]
                         found_model = True
 
                 if not found_model:
@@ -649,6 +650,8 @@ class HordeLib:
             pipeline_params["model_loader_stage_c.file_type"] = "stable_cascade_stage_c"
         if "model_loader_stage_b.ckpt_name" in pipeline_params:
             pipeline_params["model_loader_stage_b.file_type"] = "stable_cascade_stage_b"
+        pipeline_params["model_loader.file_type"] = None  # To allow normal SD pipelines to keep working
+
         # Inject our model manager
         # pipeline_params["model_loader.model_manager"] = SharedModelManager
         pipeline_params["model_loader.will_load_loras"] = bool(payload.get("loras"))
@@ -706,6 +709,7 @@ class HordeLib:
         # the source image instead of the latent noise generator
         if pipeline_params.get("image_loader.image"):
             self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
+        logger.error(pipeline_params)
         return pipeline_params, faults
 
     def _get_appropriate_pipeline(self, params):
