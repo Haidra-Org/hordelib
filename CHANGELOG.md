@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.6.0](https://github.com/Haidra-Org/hordelib/compare/v2.5.3...v2.6.0)
+
+22 February 2024
+
+- Feat: Adds support for Stable Cascade [`#195`](https://github.com/Haidra-Org/hordelib/pull/195) (Divided by Zer0)
+
 ## [v2.5.3](https://github.com/Haidra-Org/hordelib/compare/v2.5.2...v2.5.3)
 
 19 February 2024
