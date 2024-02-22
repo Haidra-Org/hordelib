@@ -709,7 +709,6 @@ class HordeLib:
         # the source image instead of the latent noise generator
         if pipeline_params.get("image_loader.image"):
             self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
-        logger.error(pipeline_params)
         return pipeline_params, faults
 
     def _get_appropriate_pipeline(self, params):
