@@ -6,7 +6,7 @@ from PIL import Image
 from hordelib.horde import HordeLib
 
 
-class TestHordeInference:
+class TestHordeInferenceMetadata:
     def test_text_to_image(
         self,
         hordelib_instance: HordeLib,

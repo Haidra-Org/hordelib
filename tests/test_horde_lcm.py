@@ -8,7 +8,7 @@ from hordelib.shared_model_manager import SharedModelManager
 from .testing_shared_functions import check_single_lora_image_similarity
 
 
-class TestHordeLora:
+class TestHordeLCM:
     @pytest.fixture(autouse=True, scope="class")
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
         assert shared_model_manager.manager.lora

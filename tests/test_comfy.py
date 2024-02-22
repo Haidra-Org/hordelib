@@ -4,7 +4,7 @@ import glob
 from hordelib.horde import HordeLib
 
 
-class TestSetup:
+class TestComfyInterfaceCompatibility:
     def test_load_pipelines(self, hordelib_instance: HordeLib):
         loaded = hordelib_instance.generator._load_pipelines()
         assert loaded == len(glob.glob("hordelib/pipelines/*.json"))
