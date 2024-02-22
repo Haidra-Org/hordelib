@@ -9,7 +9,7 @@ from hordelib.shared_model_manager import SharedModelManager
 from .testing_shared_functions import check_single_inference_image_similarity
 
 
-class TestHordeInference:
+class TestHordeInferenceControlnet:
     @pytest.fixture(autouse=True)
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
         assert shared_model_manager.manager.controlnet is not None

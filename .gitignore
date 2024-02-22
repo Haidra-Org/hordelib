@@ -166,3 +166,4 @@ tmp/
 *.ckpt
 *.pth
 .gitignore
+pipeline_debug.json

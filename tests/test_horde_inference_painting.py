@@ -9,7 +9,7 @@ from hordelib.shared_model_manager import SharedModelManager
 from .testing_shared_functions import check_list_inference_images_similarity, check_single_inference_image_similarity
 
 
-class TestHordeInference:
+class TestHordeInferencePainting:
     @pytest.fixture(scope="class")
     def inpainting_model_for_testing(
         self,

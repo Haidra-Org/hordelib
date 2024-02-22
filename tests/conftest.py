@@ -26,6 +26,7 @@ def init_horde():
     see a characteristic RuntimeError exception if you forget to call this fixture, but you may also see an
     import error from within comfy if your code does not instantiate the `Comfy_Horde` class."""
     assert os.getenv("TESTS_ONGOING")
+    assert os.getenv("CIVIT_API_TOKEN")
 
     examples_path = Path(__file__).parent.parent / "images_expected"
     assert (
@@ -71,6 +72,9 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
     assert SharedModelManager.manager.download_model("Rev Animated")
     assert SharedModelManager.manager.validate_model("Rev Animated")
 
+    assert SharedModelManager.manager.download_model("Stable Cascade 1.0")
+    assert SharedModelManager.manager.validate_model("Stable Cascade 1.0")
+
     assert SharedModelManager.manager.controlnet is not None
     assert SharedModelManager.manager.controlnet.download_all_models()
     assert SharedModelManager.preload_annotators()
@@ -100,6 +104,11 @@ def stable_diffusion_model_name_for_testing(shared_model_manager: type[SharedMod
 @pytest.fixture(scope="session")
 def sdxl_1_0_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
     return "SDXL 1.0"
+
+
+@pytest.fixture(scope="session")
+def stable_cascade_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    return "Stable Cascade 1.0"
 
 
 @pytest.fixture(scope="session")

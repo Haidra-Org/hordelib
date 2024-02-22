@@ -1,0 +1,175 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 1417,
+      "steps": 20,
+      "cfg": 4,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "41",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "34",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "sampler_stage_c"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "A war hammer lying on a medieval shop rack, in the style of Dungeons and Dragons. Splash art, Digital Painting, Trending on Artstation",
+      "clip": [
+        "41",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "prompt"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "duo, multiple",
+      "clip": [
+        "41",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "negative_prompt"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "33",
+        0
+      ],
+      "vae": [
+        "42",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "33": {
+    "inputs": {
+      "seed": 969764120050513,
+      "steps": 10,
+      "cfg": 1.1,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "42",
+        0
+      ],
+      "positive": [
+        "36",
+        0
+      ],
+      "negative": [
+        "40",
+        0
+      ],
+      "latent_image": [
+        "34",
+        1
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "sampler_stage_b"
+    }
+  },
+  "34": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "compression": 42,
+      "batch_size": 5
+    },
+    "class_type": "StableCascade_EmptyLatentImage",
+    "_meta": {
+      "title": "stable_cascade_empty_latent_image"
+    }
+  },
+  "36": {
+    "inputs": {
+      "conditioning": [
+        "40",
+        0
+      ],
+      "stage_c": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "StableCascade_StageB_Conditioning",
+    "_meta": {
+      "title": "StableCascade_StageB_Conditioning"
+    }
+  },
+  "40": {
+    "inputs": {
+      "conditioning": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "41": {
+    "inputs": {
+      "ckpt_name": "stable_cascade_stage_c.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "model_loader_stage_c"
+    }
+  },
+  "42": {
+    "inputs": {
+      "ckpt_name": "stable_cascade_stage_b.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "model_loader_stage_b"
+    }
+  }
+}

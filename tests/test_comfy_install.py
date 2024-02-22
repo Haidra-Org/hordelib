@@ -4,7 +4,7 @@ from hordelib.consts import COMFYUI_VERSION
 from hordelib.install_comfy import Installer
 
 
-class TestSetup:
+class TestComfyInstall:
     def test_run_without_subdir(self):
         result = Installer._run("echo 1")
         assert result

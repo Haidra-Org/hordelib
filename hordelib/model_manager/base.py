@@ -165,14 +165,15 @@ class BaseModelManager(ABC):
     def get_model_reference_info(self, model_name: str) -> dict | None:
         return self.model_reference.get(model_name, None)
 
-    def get_model_filename(self, model_name: str) -> Path:
-        """Return the filename of the model for a given model name.
+    def get_model_filenames(self, model_name: str) -> list[dict]:  # TODO: Convert dict into class
+        """Return the filenames of the model for a given model name.
 
         Args:
             model_name (str): The name of the model to get the filename for.
 
         Returns:
-            Path: The filename of the model.
+            list[dict]: Each has at least one value "file_path" with the Path to the filename
+            Optionally it also has a key "file_type" with the type of file this is for the model
         Raises:
             ValueError: If the model name is not in the model reference.
         """
@@ -180,14 +181,19 @@ class BaseModelManager(ABC):
             raise ValueError(f"Model {model_name} not found in model reference")
 
         model_file_entries = self.model_reference.get(model_name, {}).get("config", {}).get("files", [])
-
+        model_files = []
         for model_file_entry in model_file_entries:
             path_config_item = model_file_entry.get("path")
+            path_config_type = model_file_entry.get("file_type")
             if path_config_item:
                 if path_config_item.endswith((".ckpt", ".safetensors", ".pt", ".pth", ".bin")):
-                    return Path(path_config_item)
-
-        raise ValueError(f"Model {model_name} does not have a valid file entry")
+                    path_entry = {"file_path": Path(path_config_item)}
+                    if path_config_type:
+                        path_entry["file_type"] = path_config_type
+                    model_files.append(path_entry)
+        if len(model_files) == 0:
+            raise ValueError(f"Model {model_name} does not have a valid file entry")
+        return model_files
 
     def get_model_config_files(self, model_name: str) -> list[dict]:
         """Return the config files for a given model name.
@@ -267,11 +273,11 @@ class BaseModelManager(ABC):
         Returns:
             bool | None: `True` if the model is valid, `False` if not, `None` if the model is not on disk.
         """
-        model_file = self.get_model_filename(model_name)
-        logger.debug(f"Validating {model_name}. File: {model_file}")
-
-        if not self.is_file_available(model_file):
-            return None
+        model_files = self.get_model_filenames(model_name)
+        logger.debug(f"Validating {model_name}. Files: {model_files}")
+        for file_entry in model_files:
+            if not self.is_file_available(file_entry["file_path"]):
+                return None
 
         file_details = self.get_model_config_files(model_name)
 
@@ -725,7 +731,11 @@ class BaseModelManager(ABC):
         if model_name in self.tainted_models:
             return False
 
-        return self.is_file_available(self.get_model_filename(model_name))
+        model_files = self.get_model_filenames(model_name)
+        for file_entry in model_files:
+            if not self.is_file_available(file_entry["file_path"]):
+                return False
+        return True
 
     def is_model_url_from_civitai(self, url: str) -> bool:
         return CIVITAI_API_PATH in url

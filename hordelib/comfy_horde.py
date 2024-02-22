@@ -691,9 +691,11 @@ class Comfy_Horde:
         # This is useful for dumping the entire pipeline to the terminal when
         # developing and debugging new pipelines. A badly structured pipeline
         # file just results in a cryptic error from comfy
-        pretty_pipeline = pformat(pipeline)
         if False:  # This isn't here, Tazlin :)
+            pretty_pipeline = pformat(pipeline)
             logger.warning(pretty_pipeline)
+            with open("pipeline_debug.json", "w") as outfile:
+                outfile.write(json.dumps(pipeline, indent=4))
 
         # The client_id parameter here is just so we receive comfy callbacks for debugging.
         # We pretend we are a web client and want async callbacks.

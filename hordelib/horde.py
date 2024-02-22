@@ -147,6 +147,8 @@ class HordeLib:
         "scheduler": {"datatype": str, "values": SCHEDULERS, "default": "normal"},
         "tiling": {"datatype": bool, "default": False},
         "model_name": {"datatype": str, "default": "stable_diffusion"},  # Used internally by hordelib
+        "stable_cascade_stage_b": {"datatype": str, "default": None},  # Stable Cascade
+        "stable_cascade_stage_c": {"datatype": str, "default": None},  # Stable Cascade
     }
 
     LORA_SCHEMA = {
@@ -192,6 +194,22 @@ class HordeLib:
         "upscale_sampler.sampler_name": "sampler_name",
         "controlnet_apply.strength": "control_strength",
         "controlnet_model_loader.control_net_name": "control_type",
+        # Stable Cascade
+        "stable_cascade_empty_latent_image.width": "width",
+        "stable_cascade_empty_latent_image.height": "height",
+        "stable_cascade_empty_latent_image.batch_size": "n_iter",
+        "sampler_stage_c.sampler_name": "sampler_name",
+        "sampler_stage_b.sampler_name": "sampler_name",
+        "sampler_stage_c.cfg": "cfg_scale",
+        "sampler_stage_c.denoise": "denoising_strength",
+        "sampler_stage_b.seed": "seed",
+        "sampler_stage_c.seed": "seed",
+        "model_loader_stage_c.ckpt_name": "stable_cascade_stage_c",
+        "model_loader_stage_c.model_name": "stable_cascade_stage_c",
+        "model_loader_stage_c.horde_model_name": "model_name",
+        "model_loader_stage_b.ckpt_name": "stable_cascade_stage_b",
+        "model_loader_stage_b.model_name": "stable_cascade_stage_b",
+        "model_loader_stage_b.horde_model_name": "model_name",
     }
 
     _comfyui_callback: Callable[[str, dict, str], None] | None = None
@@ -310,8 +328,19 @@ class HordeLib:
 
         if payload.get("model"):
             payload["model_name"] = payload["model"]
+            # Comfy expects the "model" key to be the filename
+            # But we are also sending the "generic" model name along in key "model_name" in order to be able
+            # To look it up in the model manager.
             if SharedModelManager.manager.compvis.is_model_available(payload["model"]):
-                payload["model"] = SharedModelManager.manager.compvis.get_model_filename(payload["model"])
+                model_files = SharedModelManager.manager.compvis.get_model_filenames(payload["model"])
+                payload["model"] = model_files[0]["file_path"]
+                for file_entry in model_files:
+                    # If we have a file_type, we also add to the payload
+                    # each file_path with the key being the file_type
+                    # This is then defined in PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING
+                    # to be injected in the right part of the pipeline
+                    if "file_type" in file_entry:
+                        payload[file_entry["file_type"]] = file_entry["file_path"]
             else:
                 post_processor_model_managers = SharedModelManager.manager.get_model_manager_instances(
                     [MODEL_CATEGORY_NAMES.codeformer, MODEL_CATEGORY_NAMES.esrgan, MODEL_CATEGORY_NAMES.gfpgan],
@@ -321,12 +350,12 @@ class HordeLib:
 
                 for post_processor_model_manager in post_processor_model_managers:
                     if post_processor_model_manager.is_model_available(payload["model"]):
-                        payload["model"] = post_processor_model_manager.get_model_filename(payload["model"])
+                        model_files = post_processor_model_manager.get_model_filenames(payload["model"])
+                        payload["model"] = model_files[0]["file_path"]
                         found_model = True
 
                 if not found_model:
                     raise RuntimeError(f"Model {payload['model']} not found! Is it in a Model Reference?")
-
         # Rather than specify a scheduler, only karras or not karras is specified
         if payload.get("karras", False):
             payload["scheduler"] = "karras"
@@ -368,7 +397,6 @@ class HordeLib:
         #             del payload["denoising_strength"]
         #         else:
         #             del payload["denoising_strength"]
-
         return payload
 
     def _final_pipeline_adjustments(self, payload, pipeline_data):
@@ -615,10 +643,24 @@ class HordeLib:
                 pipeline_params[newkey] = payload.get(key)
             else:
                 logger.error(f"Parameter {key} not found")
+        # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
+        # We don't want to hardcode this into the pipeline.json as we export this directly from ComfyUI
+        # and don't want to have to rememebr to re-add those keys
+        if "model_loader_stage_c.ckpt_name" in pipeline_params:
+            pipeline_params["model_loader_stage_c.file_type"] = "stable_cascade_stage_c"
+        if "model_loader_stage_b.ckpt_name" in pipeline_params:
+            pipeline_params["model_loader_stage_b.file_type"] = "stable_cascade_stage_b"
+        pipeline_params["model_loader.file_type"] = None  # To allow normal SD pipelines to keep working
 
         # Inject our model manager
         # pipeline_params["model_loader.model_manager"] = SharedModelManager
         pipeline_params["model_loader.will_load_loras"] = bool(payload.get("loras"))
+        pipeline_params["model_loader_stage_c.will_load_loras"] = False  # FIXME: Once we support loras
+        # Does this have to be required var in the modelloader?
+        pipeline_params["model_loader_stage_c.seamless_tiling_enabled"] = False
+        pipeline_params["model_loader_stage_b.will_load_loras"] = False  # FIXME: Once we support loras
+        # Does this have to be required var in the modelloader?
+        pipeline_params["model_loader_stage_b.seamless_tiling_enabled"] = False
 
         # For hires fix, change the image sizes as we create an intermediate image first
         if payload.get("hires_fix", False):
@@ -685,6 +727,10 @@ class HordeLib:
         #     image_upscale
 
         # controlnet, controlnet_hires_fix controlnet_annotator
+        if params.get("model_name"):
+            model_details = SharedModelManager.manager.compvis.get_model_reference_info(params["model_name"])
+            if model_details.get("baseline") == "stable_cascade":
+                return "stable_cascade"
         if params.get("control_type"):
             if params.get("return_control_map", False):
                 return "controlnet_annotator"
