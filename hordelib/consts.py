@@ -6,7 +6,7 @@ from strenum import StrEnum
 
 from hordelib.config_path import get_hordelib_path
 
-COMFYUI_VERSION = "c5a369a33ddb622827552716d9b0119035a2e666"
+COMFYUI_VERSION = "18c151b3e3f6838fab4028e7a8ba526e30e610d3"
 """The exact version of ComfyUI version to load."""
 
 REMOTE_PROXY = ""

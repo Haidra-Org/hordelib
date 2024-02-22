@@ -133,7 +133,7 @@ class GPUInfo:
             product=self.get(data, "product_name", "unknown"),
             pci_gen=self.get(data, "pci.pci_gpu_link_info.pcie_gen.current_link_gen", "?"),
             pci_width=self.get(data, "pci.pci_gpu_link_info.link_widths.current_link_width", "?"),
-            fan_speed=(self.get(data, "fan_speed"), Unit.percent),
+            fan_speed=(str(self.get(data, "fan_speed")), Unit.percent),
             vram_total=(vram_total, Unit.megabytes),
             vram_used=(vram_used, Unit.megabytes),
             vram_free=(vram_free, Unit.megabytes),

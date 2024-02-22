@@ -38,6 +38,7 @@ class TestInference:
             "model_loader.ckpt_name": "Deliberate.ckpt",
             "model_loader.will_load_loras": False,
             "model_loader.seamless_tiling_enabled": False,
+            "model_loader.file_type": None,
             "clip_skip.stop_at_clip_layer": -1,
         }
         images = isolated_comfy_horde_instance.run_image_pipeline("stable_diffusion", params)
@@ -71,6 +72,7 @@ class TestInference:
             "model_loader.ckpt_name": "Deliberate.ckpt",
             "model_loader.will_load_loras": False,
             "model_loader.seamless_tiling_enabled": False,
+            "model_loader.file_type": None,
             "clip_skip.stop_at_clip_layer": -2,
         }
         images = isolated_comfy_horde_instance.run_image_pipeline("stable_diffusion", params)
@@ -108,6 +110,7 @@ class TestInference:
             "model_loader.ckpt_name": "Deliberate.ckpt",
             "model_loader.will_load_loras": False,
             "model_loader.seamless_tiling_enabled": False,
+            "model_loader.file_type": None,
             "empty_latent_image.width": 512,
             "empty_latent_image.height": 512,
             "latent_upscale.width": 768,
