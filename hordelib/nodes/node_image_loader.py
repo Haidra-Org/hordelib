@@ -1,7 +1,9 @@
 # horde_image_loader.py
 # Load images into the pipeline from PIL, not disk
 import numpy as np
+import PIL.Image
 import torch
+from loguru import logger
 
 
 class HordeImageLoader:
@@ -17,6 +19,14 @@ class HordeImageLoader:
     FUNCTION = "load_image"
 
     def load_image(self, image):
+        if image is None:
+            logger.error("Input image is None in HordeImageLoader - this is a bug, please report it!")
+            raise ValueError("Input image is None in HordeImageLoader")
+
+        if not isinstance(image, PIL.Image.Image):
+            logger.error(f"Input image is not a PIL Image, it is a {type(image)}")
+            raise ValueError(f"Input image is not a PIL Image, it is a {type(image)}")
+
         new_image = image.convert("RGB")
         new_image = np.array(new_image).astype(np.float32) / 255.0
         new_image = torch.from_numpy(new_image)[None,]
