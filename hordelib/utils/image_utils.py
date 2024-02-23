@@ -1,3 +1,6 @@
+import base64
+
+import numpy as np
 import rembg  # type: ignore
 from loguru import logger
 from PIL import Image, ImageOps, PngImagePlugin, UnidentifiedImageError
@@ -64,9 +67,9 @@ class ImageUtils:
                 )
         except (UnidentifiedImageError, AttributeError):
             logger.warning(
-                "Source mask could not be parsed. Falling back to img2img without mask",
+                "Source mask could not be parsed. Falling back to img2img with an all alpha mask.",
             )
-            del payload["source_mask"]
+            payload["source_mask"] = ImageUtils.create_alpha_image(payload["width"], payload["height"])
 
         if payload.get("source_mask"):
             payload["source_image"] = cls.add_image_alpha_channel(payload["source_image"], payload["source_mask"])
@@ -123,3 +126,35 @@ class ImageUtils:
         )
         del session
         return image
+
+    @classmethod
+    def create_alpha_image(cls, width: int = 512, height: int = 512):
+        return Image.new("L", (width, height), 255)
+
+    @classmethod
+    def create_white_image(cls, width: int = 512, height: int = 512):
+        return Image.new("RGB", (width, height), (255, 255, 255))
+
+    @classmethod
+    def create_black_image(cls, width: int = 512, height: int = 512):
+        return Image.new("RGB", (width, height), (0, 0, 0))
+
+    @classmethod
+    def create_alpha_image_base64(cls, width: int = 512, height: int = 512):
+        alpha_image = cls.create_alpha_image(width, height)
+        alpha_image = alpha_image.tobytes()
+        return base64.b64encode(alpha_image).decode("utf-8")
+
+    @classmethod
+    def has_alpha_channel(cls, image: Image.Image):
+        return image.mode == "RGBA"
+
+    @classmethod
+    def create_noise_image(cls, width: int | None = 512, height: int | None = 512):
+        if width is None:
+            width = 512
+
+        if height is None:
+            height = 512
+
+        return Image.fromarray((np.random.rand(height, width, 3) * 255).astype(np.uint8))
