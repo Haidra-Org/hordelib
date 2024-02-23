@@ -222,8 +222,8 @@ def recursive_output_delete_if_changed_hijack(prompt: dict, old_prompt, outputs,
     return _comfy_recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item)
 
 
-def cleanup():
-    _comfy_soft_empty_cache()
+# def cleanup():
+# _comfy_soft_empty_cache()
 
 
 def unload_all_models_vram():
@@ -269,17 +269,6 @@ def get_torch_total_vram_mb():
 
 def get_torch_free_vram_mb():
     return round(_comfy_get_free_memory() / (1024 * 1024))
-
-
-def garbage_collect():
-    logger.debug("Comfy_Horde garbage_collect called")
-    gc.collect()
-    if not torch.cuda.is_available():
-        logger.debug("CUDA not available, skipping cuda empty cache")
-        return
-    if torch.version.cuda:
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
 
 
 class Comfy_Horde:
@@ -718,11 +707,11 @@ class Comfy_Horde:
 
         stdio.replay()
 
-        # Check if there are any resource to clean up
-        cleanup()
-        if time.time() - self._gc_timer > Comfy_Horde.GC_TIME:
-            self._gc_timer = time.time()
-            garbage_collect()
+        # # Check if there are any resource to clean up
+        # cleanup()
+        # if time.time() - self._gc_timer > Comfy_Horde.GC_TIME:
+        #     self._gc_timer = time.time()
+        #     garbage_collect()
 
         return self.images
 
