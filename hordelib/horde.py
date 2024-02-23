@@ -319,11 +319,12 @@ class HordeLib:
 
         return data
 
-    def _apply_aihorde_compatibility_hacks(self, payload: dict):
+    def _apply_aihorde_compatibility_hacks(self, payload: dict) -> tuple[dict, list[GenMetadataEntry]]:
         """For use by the AI Horde worker we require various counterintuitive hacks to the payload data.
 
         We encapsulate all of this implicit witchcraft in one function, here.
         """
+        faults: list[GenMetadataEntry] = []
 
         if SharedModelManager.manager.compvis is None:
             raise RuntimeError("Cannot use AI Horde compatibility hacks without compvis loaded!")
@@ -348,6 +349,53 @@ class HordeLib:
         if SharedModelManager.manager.compvis.is_model_available(model):
             model_files = SharedModelManager.manager.compvis.get_model_filenames(model)
             found_model_on_disk = True
+
+            if SharedModelManager.manager.compvis.model_reference[model].get("inpainting") is True:
+                if payload.get("source_processing") not in ["inpainting", "outpainting"]:
+                    logger.warning(
+                        "Inpainting model detected, but source processing not set to inpainting or outpainting.",
+                    )
+
+                    payload["source_processing"] = "inpainting"
+
+                source_image = payload.get("source_image")
+                source_mask = payload.get("source_mask")
+
+                if source_image is None or not isinstance(source_image, Image.Image):
+                    logger.warning(
+                        "Inpainting model detected, but source image is not a valid image. Using a noise image.",
+                    )
+                    faults.append(
+                        GenMetadataEntry(
+                            type=METADATA_TYPE.source_image,
+                            value=METADATA_VALUE.parse_failed,
+                        ),
+                    )
+                    payload["source_image"] = ImageUtils.create_noise_image(
+                        payload["width"],
+                        payload["height"],
+                    )
+
+                source_image = payload.get("source_image")
+
+                if source_mask is None and (
+                    source_image is None
+                    or (isinstance(source_image, Image.Image) and not ImageUtils.has_alpha_channel(source_image))
+                ):
+                    logger.warning(
+                        "Inpainting model detected, but no source mask provided. Using an all white mask.",
+                    )
+                    faults.append(
+                        GenMetadataEntry(
+                            type=METADATA_TYPE.source_mask,
+                            value=METADATA_VALUE.parse_failed,
+                        ),
+                    )
+                    payload["source_mask"] = ImageUtils.create_white_image(
+                        source_image.width if source_image else payload["width"],
+                        source_image.height if source_image else payload["height"],
+                    )
+
         else:
             # The node may be a post processor, so we check the other model managers
             post_processor_model_managers = SharedModelManager.manager.get_model_manager_instances(
@@ -421,9 +469,9 @@ class HordeLib:
         #             del payload["denoising_strength"]
         #         else:
         #             del payload["denoising_strength"]
-        return payload
+        return payload, faults
 
-    def _final_pipeline_adjustments(self, payload, pipeline_data):
+    def _final_pipeline_adjustments(self, payload, pipeline_data) -> tuple[dict, list[GenMetadataEntry]]:
         payload = deepcopy(payload)
         faults: list[GenMetadataEntry] = []
 
@@ -804,7 +852,7 @@ class HordeLib:
 
     def _get_validated_payload_and_pipeline_data(self, payload: dict) -> tuple[dict, dict, list[GenMetadataEntry]]:
         # AIHorde hacks to payload
-        payload = self._apply_aihorde_compatibility_hacks(payload)
+        payload, compatibility_faults = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format
         payload = self._validate_data_structure(payload)
         # Resize the source image and mask to actual final width/height requested
@@ -813,8 +861,8 @@ class HordeLib:
         pipeline = self._get_appropriate_pipeline(payload)
         # Final adjustments to the pipeline
         pipeline_data = self.generator.get_pipeline_data(pipeline)
-        payload, faults = self._final_pipeline_adjustments(payload, pipeline_data)
-        return payload, pipeline_data, faults
+        payload, finale_adjustment_faults = self._final_pipeline_adjustments(payload, pipeline_data)
+        return payload, pipeline_data, compatibility_faults + finale_adjustment_faults
 
     def _inference(
         self,
@@ -1009,7 +1057,7 @@ class HordeLib:
     def image_upscale(self, payload) -> ResultingImageReturn:
         logger.debug("image_upscale called")
         # AIHorde hacks to payload
-        payload = self._apply_aihorde_compatibility_hacks(payload)
+        payload, compatibility_faults = self._apply_aihorde_compatibility_hacks(payload)
         # Remember if we were passed width and height, we wouldn't normally be passed width and height
         # because the upscale models upscale to a fixed multiple of image size. However, if we *are*
         # passed a width and height we rescale the upscale output image to this size.
@@ -1020,7 +1068,7 @@ class HordeLib:
         # Final adjustments to the pipeline
         pipeline_name = "image_upscale"
         pipeline_data = self.generator.get_pipeline_data(pipeline_name)
-        payload, faults = self._final_pipeline_adjustments(payload, pipeline_data)
+        payload, final_adjustment_faults = self._final_pipeline_adjustments(payload, pipeline_data)
 
         # Run the pipeline
 
@@ -1031,7 +1079,7 @@ class HordeLib:
             return ResultingImageReturn(
                 ImageUtils.shrink_image(Image.open(images[0]["imagedata"]), width, height),
                 rawpng=None,
-                faults=faults,
+                faults=final_adjustment_faults,
             )
         result = self._process_results(images)
         if len(result) != 1:
@@ -1041,18 +1089,18 @@ class HordeLib:
         if not isinstance(image, Image.Image):
             raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
 
-        return ResultingImageReturn(image=image, rawpng=rawpng, faults=faults)
+        return ResultingImageReturn(image=image, rawpng=rawpng, faults=compatibility_faults + final_adjustment_faults)
 
     def image_facefix(self, payload) -> ResultingImageReturn:
         logger.debug("image_facefix called")
         # AIHorde hacks to payload
-        payload = self._apply_aihorde_compatibility_hacks(payload)
+        payload, compatibility_faults = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format
         payload = self._validate_data_structure(payload)
         # Final adjustments to the pipeline
         pipeline_name = "image_facefix"
         pipeline_data = self.generator.get_pipeline_data(pipeline_name)
-        payload, faults = self._final_pipeline_adjustments(payload, pipeline_data)
+        payload, final_adjustment_faults = self._final_pipeline_adjustments(payload, pipeline_data)
 
         # Run the pipeline
 
@@ -1066,4 +1114,4 @@ class HordeLib:
         if not isinstance(image, Image.Image):
             raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
 
-        return ResultingImageReturn(image=image, rawpng=rawpng, faults=faults)
+        return ResultingImageReturn(image=image, rawpng=rawpng, faults=compatibility_faults + final_adjustment_faults)
