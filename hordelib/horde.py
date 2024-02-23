@@ -319,55 +319,79 @@ class HordeLib:
 
         return data
 
-    def _apply_aihorde_compatibility_hacks(self, payload):
+    def _apply_aihorde_compatibility_hacks(self, payload: dict):
         """For use by the AI Horde worker we require various counterintuitive hacks to the payload data.
 
         We encapsulate all of this implicit witchcraft in one function, here.
         """
+
+        if SharedModelManager.manager.compvis is None:
+            raise RuntimeError("Cannot use AI Horde compatibility hacks without compvis loaded!")
+
         payload = deepcopy(payload)
 
-        if payload.get("model"):
-            payload["model_name"] = payload["model"]
-            # Comfy expects the "model" key to be the filename
-            # But we are also sending the "generic" model name along in key "model_name" in order to be able
-            # To look it up in the model manager.
-            if SharedModelManager.manager.compvis.is_model_available(payload["model"]):
-                model_files = SharedModelManager.manager.compvis.get_model_filenames(payload["model"])
-                payload["model"] = model_files[0]["file_path"]
-                for file_entry in model_files:
-                    # If we have a file_type, we also add to the payload
-                    # each file_path with the key being the file_type
-                    # This is then defined in PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING
-                    # to be injected in the right part of the pipeline
-                    if "file_type" in file_entry:
-                        payload[file_entry["file_type"]] = file_entry["file_path"]
-            else:
-                post_processor_model_managers = SharedModelManager.manager.get_model_manager_instances(
-                    [MODEL_CATEGORY_NAMES.codeformer, MODEL_CATEGORY_NAMES.esrgan, MODEL_CATEGORY_NAMES.gfpgan],
-                )
+        model = payload.get("model")
 
-                found_model = False
+        if model is None:
+            raise RuntimeError("No model specified in payload")
 
-                for post_processor_model_manager in post_processor_model_managers:
-                    if post_processor_model_manager.is_model_available(payload["model"]):
-                        model_files = post_processor_model_manager.get_model_filenames(payload["model"])
-                        payload["model"] = model_files[0]["file_path"]
-                        found_model = True
+        # This is translated to "horde_model_name" later for compvis models and used as is for post processors
+        payload["model_name"] = model
 
-                if not found_model:
-                    raise RuntimeError(f"Model {payload['model']} not found! Is it in a Model Reference?")
+        found_model_in_ref = False
+        found_model_on_disk = False
+        model_files: list[dict] = [{}]
+
+        if model in SharedModelManager.manager.compvis.model_reference:
+            found_model_in_ref = True
+
+        if SharedModelManager.manager.compvis.is_model_available(model):
+            model_files = SharedModelManager.manager.compvis.get_model_filenames(model)
+            found_model_on_disk = True
+        else:
+            # The node may be a post processor, so we check the other model managers
+            post_processor_model_managers = SharedModelManager.manager.get_model_manager_instances(
+                [MODEL_CATEGORY_NAMES.codeformer, MODEL_CATEGORY_NAMES.esrgan, MODEL_CATEGORY_NAMES.gfpgan],
+            )
+
+            for post_processor_model_manager in post_processor_model_managers:
+                if model in post_processor_model_manager.model_reference:
+                    found_model_in_ref = True
+                if post_processor_model_manager.is_model_available(model):
+                    model_files = post_processor_model_manager.get_model_filenames(model)
+                    found_model_on_disk = True
+                    break
+
+        if not found_model_in_ref:
+            raise RuntimeError(f"Model {model} not found in model reference!")
+
+        if not found_model_on_disk:
+            raise RuntimeError(f"Model {model} not found on disk!")
+
+        if len(model_files) == 0 or (not isinstance(model_files[0], dict)) or "file_path" not in model_files[0]:
+            raise RuntimeError(f"Model {model} has no files in its reference entry!")
+
+        payload["model"] = model_files[0]["file_path"]
+        for file_entry in model_files:
+            if "file_type" in file_entry:
+                payload[file_entry["file_type"]] = file_entry["file_path"]
+
         # Rather than specify a scheduler, only karras or not karras is specified
         if payload.get("karras", False):
             payload["scheduler"] = "karras"
         else:
             payload["scheduler"] = "normal"
 
+        prompt = payload.get("prompt")
+
         # Negative and positive prompts are merged together
-        if payload.get("prompt"):
-            if "###" in payload.get("prompt"):
-                split_prompts = payload.get("prompt").split("###")
+        if prompt is not None:
+            if "###" in prompt:
+                split_prompts = prompt.split("###")
                 payload["prompt"] = split_prompts[0]
                 payload["negative_prompt"] = split_prompts[1]
+        elif prompt == "":
+            logger.warning("Empty prompt detected, this is likely to produce poor results")
 
         # Turn off hires fix if we're not generating a hires image, or if the params are just confused
         try:
