@@ -97,7 +97,11 @@ _uniformer: types.ModuleType
 
 
 # isort: off
-def do_comfy_import(force_normal_vram_mode: bool = False, extra_comfyui_args: list[str] | None = None) -> None:
+def do_comfy_import(
+    force_normal_vram_mode: bool = False,
+    extra_comfyui_args: list[str] | None = None,
+    disable_smart_memory: bool = False,
+) -> None:
     global _comfy_current_loaded_models
     global _comfy_load_models_gpu
     global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt
@@ -109,9 +113,9 @@ def do_comfy_import(force_normal_vram_mode: bool = False, extra_comfyui_args: li
     global _comfy_free_memory, _comfy_cleanup_models, _comfy_soft_empty_cache
     global _canny, _hed, _leres, _midas, _mlsd, _openpose, _pidinet, _uniformer
 
-    logger.info("Disabling smart memory")
-
-    sys.argv.append("--disable-smart-memory")
+    if disable_smart_memory:
+        logger.info("Disabling smart memory")
+        sys.argv.append("--disable-smart-memory")
 
     if force_normal_vram_mode:
         logger.info("Forcing normal vram mode")
