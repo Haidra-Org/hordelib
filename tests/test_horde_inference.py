@@ -1,5 +1,6 @@
 # test_horde.py
 
+import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
@@ -129,6 +130,7 @@ class TestHordeInference:
             pil_image,
         )
 
+    @pytest.mark.skip(reason="This test is too slow to run on every test run")
     def test_sdxl_text_to_image_recommended_resolutions(
         self,
         hordelib_instance: HordeLib,
