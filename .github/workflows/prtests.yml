@@ -15,11 +15,17 @@ on:
       - '.github/workflows/prtests.yml'
       - '.github/workflows/release.yml'
 jobs:
-  build:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Run pre-commit
+        uses: pre-commit/action@v3.0.0
 
+  build:
     runs-on: self-hosted
     env:
-      HORDELIB_TESTING: "no-cuda"
+      HORDELIB_CI_ONGOING: "1"
       TESTS_ONGOING: "1"
       CIVIT_API_TOKEN: ${{ secrets.CIVIT_API_TOKEN }}
     strategy:
@@ -38,8 +44,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install --upgrade -r requirements.dev.txt
-      - name: Run lint/format/mypy check
-        run: tox -e pre-commit
       - name: Check build_helper.py hordelib imports have no breaking dependency changes
         run: tox -e test-build-helper
       - name: Build unit test environment, confirm CUDA is available on host
