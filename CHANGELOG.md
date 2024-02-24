@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.6.1](https://github.com/Haidra-Org/hordelib/compare/v2.6.0...v2.6.1)
+
+24 February 2024
+
+- fix: handle missing inpainting source images/masks better [`7a690db`](https://github.com/Haidra-Org/hordelib/commit/7a690db4377d5a27fa35556f24854a5acb3962ba)  (tazlin)
+- refactor: clarify (in code and in logs) payload "model" parsing [`a9a34d6`](https://github.com/Haidra-Org/hordelib/commit/a9a34d6d97079007be4948bdddfa3d4daea916ec)  (tazlin)
+- feat: free resources less often [`1bb9279`](https://github.com/Haidra-Org/hordelib/commit/1bb92792f4b4981e7a328922bc73768c1028c5e0)  (tazlin)
+
 ## [v2.6.0](https://github.com/Haidra-Org/hordelib/compare/v2.5.3...v2.6.0)
 
 22 February 2024
