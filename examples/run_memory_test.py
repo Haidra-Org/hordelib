@@ -14,7 +14,6 @@ from hordelib.consts import MODEL_CATEGORY_NAMES
 
 hordelib.initialise(setup_logging=False)
 
-from hordelib.comfy_horde import cleanup
 from hordelib.horde import HordeLib
 from hordelib.settings import UserSettings
 from hordelib.shared_model_manager import SharedModelManager
@@ -155,7 +154,7 @@ def main():
         model_index += 1
         how_far -= 1
     # That would have pushed something to disk, force a memory cleanup
-    cleanup()
+    # cleanup()
     report_ram()
 
     logger.warning("Loaded all models")

@@ -97,7 +97,11 @@ _uniformer: types.ModuleType
 
 
 # isort: off
-def do_comfy_import(force_normal_vram_mode: bool = False, extra_comfyui_args: list[str] | None = None) -> None:
+def do_comfy_import(
+    force_normal_vram_mode: bool = False,
+    extra_comfyui_args: list[str] | None = None,
+    disable_smart_memory: bool = False,
+) -> None:
     global _comfy_current_loaded_models
     global _comfy_load_models_gpu
     global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt
@@ -109,9 +113,9 @@ def do_comfy_import(force_normal_vram_mode: bool = False, extra_comfyui_args: li
     global _comfy_free_memory, _comfy_cleanup_models, _comfy_soft_empty_cache
     global _canny, _hed, _leres, _midas, _mlsd, _openpose, _pidinet, _uniformer
 
-    logger.info("Disabling smart memory")
-
-    sys.argv.append("--disable-smart-memory")
+    if disable_smart_memory:
+        logger.info("Disabling smart memory")
+        sys.argv.append("--disable-smart-memory")
 
     if force_normal_vram_mode:
         logger.info("Forcing normal vram mode")
@@ -222,8 +226,8 @@ def recursive_output_delete_if_changed_hijack(prompt: dict, old_prompt, outputs,
     return _comfy_recursive_output_delete_if_changed(prompt, old_prompt, outputs, current_item)
 
 
-def cleanup():
-    _comfy_soft_empty_cache()
+# def cleanup():
+# _comfy_soft_empty_cache()
 
 
 def unload_all_models_vram():
@@ -269,17 +273,6 @@ def get_torch_total_vram_mb():
 
 def get_torch_free_vram_mb():
     return round(_comfy_get_free_memory() / (1024 * 1024))
-
-
-def garbage_collect():
-    logger.debug("Comfy_Horde garbage_collect called")
-    gc.collect()
-    if not torch.cuda.is_available():
-        logger.debug("CUDA not available, skipping cuda empty cache")
-        return
-    if torch.version.cuda:
-        torch.cuda.empty_cache()
-        torch.cuda.ipc_collect()
 
 
 class Comfy_Horde:
@@ -718,11 +711,11 @@ class Comfy_Horde:
 
         stdio.replay()
 
-        # Check if there are any resource to clean up
-        cleanup()
-        if time.time() - self._gc_timer > Comfy_Horde.GC_TIME:
-            self._gc_timer = time.time()
-            garbage_collect()
+        # # Check if there are any resource to clean up
+        # cleanup()
+        # if time.time() - self._gc_timer > Comfy_Horde.GC_TIME:
+        #     self._gc_timer = time.time()
+        #     garbage_collect()
 
         return self.images
 
