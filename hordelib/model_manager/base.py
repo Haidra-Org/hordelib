@@ -600,7 +600,10 @@ class BaseModelManager(ABC):
             if "file_url" in download[i]:
                 download_url = download[i]["file_url"]
                 if self._civitai_api_token and self.is_model_url_from_civitai(download_url):
-                    download_url += f"?token={self._civitai_api_token}"
+                    if "?" not in download_url:
+                        download_url += f"?token={self._civitai_api_token}"
+                    else:
+                        download_url += f"&token={self._civitai_api_token}"
             if "file_name" in download[i]:
                 download_name = download[i]["file_name"]
             if "file_path" in download[i]:
