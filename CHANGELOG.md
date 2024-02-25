@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.6.2](https://github.com/Haidra-Org/hordelib/compare/v2.6.1...v2.6.2)
+
+24 February 2024
+
+- feat: Passes CivitAI token on checkpoint download as well [`#202`](https://github.com/Haidra-Org/hordelib/pull/202) (Divided by Zer0)
+
 ## [v2.6.1](https://github.com/Haidra-Org/hordelib/compare/v2.6.0...v2.6.1)
 
 24 February 2024
