@@ -45,9 +45,9 @@ class LoraModelManager(BaseModelManager):
     LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated&primaryFileOnly=true"
     MAX_RETRIES = 10 if not TESTS_ONGOING else 3
     MAX_DOWNLOAD_THREADS = 3
-    RETRY_DELAY = 5 if not TESTS_ONGOING else 0.2
+    RETRY_DELAY = 3 if not TESTS_ONGOING else 0.2
     """The time to wait between retries in seconds"""
-    REQUEST_METADATA_TIMEOUT = 30
+    REQUEST_METADATA_TIMEOUT = 20
     """The time to wait for a response from the server in seconds"""
     REQUEST_DOWNLOAD_TIMEOUT = 300
     """The time to wait for a response from the server in seconds"""
@@ -528,14 +528,22 @@ class LoraModelManager(BaseModelManager):
                 except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
                     # We will retry
                     logger.debug(
-                        f"Error downloading {lora['versions'][version]['filename']} {e}. "
+                        f"Error downloading {lora['versions'][version]['filename']} {e} ({type(e)}). "
                         f"Retry {retries}/{self.MAX_RETRIES}",
                     )
+
+                    # If this is a 401, we're not going to get anywhere, just just give up
+                    if isinstance(e, requests.HTTPError) and e.response.status_code == 401:
+                        logger.error(
+                            f"Error downloading {lora['versions'][version]['filename']}. "
+                            "CivitAI appears to be redirecting us to a login page. Aborting",
+                        )
+                        break
 
                 except Exception as e:
                     # Failed badly, ignore and retry
                     logger.debug(
-                        f"Fatal error downloading {lora['versions'][version]['filename']} {e}. "
+                        f"Fatal error downloading {lora['versions'][version]['filename']} {e} ({type(e)}). "
                         f"Retry {retries}/{self.MAX_RETRIES}",
                     )
 
