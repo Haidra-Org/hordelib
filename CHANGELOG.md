@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.6.3](https://github.com/Haidra-Org/hordelib/compare/v2.6.2...v2.6.3)
+
+5 March 2024
+
+- fix: handle 401s for lora dls as terminal; spend less time retrying [`59cb36c`](https://github.com/Haidra-Org/hordelib/commit/59cb36c384f6a4ffc9a4e94db9ebc04f642001a8)  (tazlin)
+
 ## [v2.6.2](https://github.com/Haidra-Org/hordelib/compare/v2.6.1...v2.6.2)
 
 24 February 2024
