@@ -151,6 +151,7 @@ class TextualInversionModelManager(BaseModelManager):
     def _get_json(self, url):
         retries = 0
         while retries <= self.MAX_RETRIES:
+            response = None
             try:
                 response = requests.get(url, timeout=self.REQUEST_METADATA_TIMEOUT)
                 response.raise_for_status()
@@ -159,8 +160,12 @@ class TextualInversionModelManager(BaseModelManager):
 
             except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError):
                 # CivitAI Errors when the model ID is too long
-                if response.status_code in [404, 500]:
+                if response is not None and response.status_code in [404, 500]:
                     return None
+
+                if response is None:
+                    retries += 5
+
                 retries += 1
                 self.total_retries_attempted += 1
                 if retries <= self.MAX_RETRIES:
