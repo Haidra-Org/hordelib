@@ -294,11 +294,14 @@ class LoraModelManager(BaseModelManager):
 
                 # If this is a 401, 404, or 500, we're not going to get anywhere, just give up
                 # The following are the CivitAI errors encountered so far
-                # (and all of them will not fix themselves with retries as of writing)
                 # [401: requires a token, 404: model ID too long, 500: internal server error]
-                if response is not None and response.status_code in [401, 404, 500]:
-                    logger.debug(f"url '{url}' download failed with status code {response.status_code}")
-                    return None
+                if response is not None:
+                    if response.status_code in [401, 404]:
+                        logger.debug(f"url '{url}' download failed with status code {response.status_code}")
+                        return None
+                    if response.status_code == 500:
+                        logger.debug(f"url '{url}' download failed with status code {response.status_code}")
+                        retries += 3
 
                 # The json being invalid is a CivitAI issue, possibly it showing an HTML page and
                 # this isn't likely to change in the next 30 seconds, so we'll try twice more
