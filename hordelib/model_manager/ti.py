@@ -160,8 +160,15 @@ class TextualInversionModelManager(BaseModelManager):
 
             except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError):
                 # CivitAI Errors when the model ID is too long
-                if response is not None and response.status_code in [404, 500]:
-                    return None
+                if response is not None:
+                    if response.status_code in [401, 404]:
+                        return None
+                    if response.status_code == 500:
+                        retries += 3
+                        logger.debug(
+                            "CivitAI reported an internal error when downloading metadata. "
+                            "Fewer retries will be attempted.",
+                        )
 
                 if response is None:
                     retries += 5
