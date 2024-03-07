@@ -281,7 +281,10 @@ class LoraModelManager(BaseModelManager):
         while retries <= self.MAX_RETRIES:
             response = None
             try:
-                response = requests.get(url, timeout=self.REQUEST_METADATA_TIMEOUT)
+                response = requests.get(
+                    url,
+                    timeout=self.REQUEST_METADATA_TIMEOUT if len(url) < 200 else self.REQUEST_METADATA_TIMEOUT * 1.5,
+                )
                 response.raise_for_status()
                 # Attempt to decode the response to JSON
                 return response.json()
