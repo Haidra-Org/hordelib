@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.6.4](https://github.com/Haidra-Org/hordelib/compare/v2.6.3...v2.6.4)
+
+7 March 2024
+
+- fix: increase timeout rate of lora metadata/model downloads [`9a1b630`](https://github.com/Haidra-Org/hordelib/commit/9a1b6308027d37c77ece303157e94a980bd57e8f)  (tazlin)
+- fix: retry 500s a few times on lora/ti metadata dl timeout [`c07d315`](https://github.com/Haidra-Org/hordelib/commit/c07d315619b14fa4c997f08c808322da79398554)  (tazlin)
+- fix: retry less often with TI model manager also [`31deb1e`](https://github.com/Haidra-Org/hordelib/commit/31deb1ec22b5bf15be2bf95d5808913951640780)  (tazlin)
+
 ## [v2.6.3](https://github.com/Haidra-Org/hordelib/compare/v2.6.2...v2.6.3)
 
 5 March 2024
