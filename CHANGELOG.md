@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.6.5](https://github.com/Haidra-Org/hordelib/compare/v2.6.4...v2.6.5)
+
+9 March 2024
+
+- fix: check KNOWN_UPSCALER membership by value too [`4488ac2`](https://github.com/Haidra-Org/hordelib/commit/4488ac2e6a5285c8ac690633fca792cd9d105fbb)  (tazlin)
+
 ## [v2.6.4](https://github.com/Haidra-Org/hordelib/compare/v2.6.3...v2.6.4)
 
 7 March 2024
