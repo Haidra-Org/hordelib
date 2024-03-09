@@ -28,12 +28,13 @@ def main():
         model="Deliberate",
         payload=ImageGenerateJobPopPayload(
             prompt="a cat in a hat",
-            post_processing=["RealESRGAN_x2plus", "CodeFormers"],
-            n_iter=4,
+            post_processing=["4x_AnimeSharp", "CodeFormers"],
+            n_iter=1,
         ),
     )
 
-    horde.basic_inference(example_response)
+    result = horde.basic_inference(example_response)
+    print(result)
 
 
 if __name__ == "__main__":

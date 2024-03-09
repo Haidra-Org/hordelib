@@ -987,7 +987,10 @@ class HordeLib:
                 final_image = ret.image
                 final_rawpng = ret.rawpng
                 for post_processing in post_processing_requested:
-                    if post_processing in KNOWN_UPSCALERS.__members__:
+                    if (
+                        post_processing in KNOWN_UPSCALERS.__members__
+                        or post_processing in KNOWN_UPSCALERS._value2member_map_
+                    ):
                         image_ret = self.image_upscale(
                             {
                                 "model": post_processing,
