@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.7.0](https://github.com/Haidra-Org/hordelib/compare/v2.6.5...v2.7.0)
+
+12 March 2024
+
+- feat: support callbacks for inference/post-proc. [`d13e782`](https://github.com/Haidra-Org/hordelib/commit/d13e78254a7b8a32a76340a8bcfd54658800e23b)  (tazlin)
+- fix: try disabling grad on chkpoint load [`f3d5cc0`](https://github.com/Haidra-Org/hordelib/commit/f3d5cc001f9835ffb6d93f9f2547731783d708e8)  (tazlin)
+- feat: comfyui to `2a813c3b` [`ec32ca1`](https://github.com/Haidra-Org/hordelib/commit/ec32ca13cdb999abce6ab011c791eaef30bfb9be)  (tazlin)
+
 ## [v2.6.5](https://github.com/Haidra-Org/hordelib/compare/v2.6.4...v2.6.5)
 
 9 March 2024
