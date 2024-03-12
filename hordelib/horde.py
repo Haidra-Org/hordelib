@@ -10,6 +10,7 @@ import sys
 import typing
 from collections.abc import Callable
 from copy import deepcopy
+from enum import Enum, auto
 
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from horde_sdk.ai_horde_api.apimodels.base import (
@@ -18,12 +19,32 @@ from horde_sdk.ai_horde_api.apimodels.base import (
 from horde_sdk.ai_horde_api.consts import KNOWN_FACEFIXERS, KNOWN_UPSCALERS, METADATA_TYPE, METADATA_VALUE
 from loguru import logger
 from PIL import Image
+from pydantic import BaseModel
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
 from hordelib.utils.image_utils import ImageUtils
+from hordelib.utils.ioredirect import ComfyUIProgress
+
+
+class ProgressState(Enum):
+    """The state of the progress report"""
+
+    started = auto()
+    progress = auto()
+    post_processing = auto()
+    finished = auto()
+
+
+class ProgressReport(BaseModel):
+    """A progress message sent to a callback"""
+
+    hordelib_progress_state: ProgressState
+    comfyui_progress: ComfyUIProgress | None = None
+    progress: float | None = None
+    hordelib_message: str | None = None
 
 
 class ResultingImageReturn:
@@ -869,6 +890,7 @@ class HordeLib:
         payload: dict,
         *,
         single_image_expected: bool = True,
+        comfyui_progress_callback: Callable[[ComfyUIProgress, str], None] | None = None,
     ) -> list[ResultingImageReturn] | ResultingImageReturn:
         payload, pipeline_data, faults = self._get_validated_payload_and_pipeline_data(payload)
 
@@ -901,7 +923,7 @@ class HordeLib:
 
         # Call the inference pipeline
         # logger.debug(payload)
-        images = self.generator.run_image_pipeline(pipeline_data, payload)
+        images = self.generator.run_image_pipeline(pipeline_data, payload, comfyui_progress_callback)
 
         results = self._process_results(images)
         ret_results = [
@@ -920,8 +942,15 @@ class HordeLib:
 
         return ret_results
 
-    def basic_inference(self, payload: dict | ImageGenerateJobPopResponse) -> list[ResultingImageReturn]:
+    def basic_inference(
+        self,
+        payload: dict | ImageGenerateJobPopResponse,
+        *,
+        progress_callback: Callable[[ProgressReport], None] | None = None,
+    ) -> list[ResultingImageReturn]:
         post_processing_requested: list[str] | None = None
+        if isinstance(payload, dict):
+            post_processing_requested = payload.get("post_processing")
 
         faults = []
         if isinstance(payload, ImageGenerateJobPopResponse):  # TODO move this to _inference()
@@ -968,7 +997,37 @@ class HordeLib:
             sub_payload["model"] = payload.model
             payload = sub_payload
 
-        result = self._inference(payload, single_image_expected=False)
+        if progress_callback is not None:
+            try:
+                progress_callback(
+                    ProgressReport(
+                        hordelib_progress_state=ProgressState.started,
+                        hordelib_message="Initiating inference...",
+                        progress=0,
+                    ),
+                )
+            except Exception as e:
+                logger.error(f"Progress callback failed ({type(e)}): {e}")
+
+        def _default_progress_callback(comfyui_progress: ComfyUIProgress, message: str) -> None:
+            nonlocal progress_callback
+            if progress_callback is not None:
+                try:
+                    progress_callback(
+                        ProgressReport(
+                            hordelib_progress_state=ProgressState.progress,
+                            hordelib_message=message,
+                            comfyui_progress=comfyui_progress,
+                        ),
+                    )
+                except Exception as e:
+                    logger.error(f"Progress callback failed ({type(e)}): {e}")
+
+        result = self._inference(
+            payload,
+            single_image_expected=False,
+            comfyui_progress_callback=_default_progress_callback,
+        )
 
         if not isinstance(result, list):
             raise RuntimeError(f"Expected a list of PIL.Image.Image but got {type(result)}")
@@ -981,11 +1040,29 @@ class HordeLib:
 
         post_processed: list[ResultingImageReturn] | None = None
         if post_processing_requested is not None:
+            if progress_callback is not None:
+                try:
+                    progress_callback(
+                        ProgressReport(
+                            hordelib_progress_state=ProgressState.post_processing,
+                            hordelib_message="Post Processing.",
+                        ),
+                    )
+                except Exception as e:
+                    logger.error(f"Progress callback failed ({type(e)}): {e}")
+
             post_processed = []
             for ret in return_list:
                 single_image_faults = []
                 final_image = ret.image
                 final_rawpng = ret.rawpng
+
+                # Ensure facefixers always happen first
+                post_processing_requested = sorted(
+                    post_processing_requested,
+                    key=lambda x: 1 if x in KNOWN_FACEFIXERS.__members__ else 0,
+                )
+
                 for post_processing in post_processing_requested:
                     if (
                         post_processing in KNOWN_UPSCALERS.__members__
@@ -1024,6 +1101,18 @@ class HordeLib:
                     post_processed.append(
                         ResultingImageReturn(image=final_image, rawpng=final_rawpng, faults=single_image_faults),
                     )
+
+        if progress_callback is not None:
+            try:
+                progress_callback(
+                    ProgressReport(
+                        hordelib_progress_state=ProgressState.finished,
+                        hordelib_message="Inference complete.",
+                        progress=100,
+                    ),
+                )
+            except Exception as e:
+                logger.error(f"Progress callback failed ({type(e)}): {e}")
 
         if post_processed is not None:
             logger.debug(f"Post-processing complete. Returning {len(post_processed)} images.")
