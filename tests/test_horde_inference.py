@@ -385,3 +385,75 @@ class TestHordeInference:
             img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))
 
         assert check_list_inference_images_similarity(img_pairs_to_check)
+
+    def test_callback_with_post_processors(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_model_name_for_testing: str,
+    ):
+
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 1312,
+            "height": 512,
+            "width": 512,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": True,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a portrait of an intense woman looking at the camera",
+            "ddim_steps": 25,
+            "n_iter": 2,
+            "post_processing": ["4x_AnimeSharp", "CodeFormers"],
+            "model": stable_diffusion_model_name_for_testing,
+        }
+
+        from hordelib.horde import ProgressReport, ProgressState
+
+        starting_messages = 0
+        post_processing_messages = 0
+        finished_messages = 0
+
+        def callback_function(progress_report: ProgressReport):
+            assert progress_report is not None
+            if progress_report.hordelib_progress_state == ProgressState.started:
+                nonlocal starting_messages
+                starting_messages += 1
+            elif progress_report.hordelib_progress_state == ProgressState.post_processing:
+                nonlocal post_processing_messages
+                post_processing_messages += 1
+            elif progress_report.hordelib_progress_state == ProgressState.finished:
+                nonlocal finished_messages
+                finished_messages += 1
+
+            if progress_report.comfyui_progress is not None:
+                assert progress_report.comfyui_progress.rate == -1 or progress_report.comfyui_progress.rate > 0
+                assert progress_report.hordelib_progress_state == ProgressState.progress
+                assert progress_report.comfyui_progress.current_step >= 0
+                assert progress_report.comfyui_progress.total_steps > 0
+
+        image_results = hordelib_instance.basic_inference(data, progress_callback=callback_function)
+
+        assert len(image_results) == 2
+        assert starting_messages == 1
+        assert post_processing_messages == 1
+        assert finished_messages == 1
+
+        image_filename_base = "text_to_image_callback_{0}.png"
+
+        for i, image_result in enumerate(image_results):
+            assert image_result.image is not None
+            assert isinstance(image_result.image, Image.Image)
+
+            image_filename = image_filename_base.format(i)
+            image_result.image.save(f"images/{image_filename}", quality=100)
+
+            assert check_single_inference_image_similarity(
+                f"images_expected/{image_filename}",
+                image_result.image,
+            )

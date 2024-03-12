@@ -1,9 +1,39 @@
 import io
 from collections import deque
+from collections.abc import Callable
+from enum import Enum
 from time import perf_counter
 
 import regex
 from loguru import logger
+from pydantic import BaseModel
+
+
+class ComfyUIProgressUnit(Enum):
+    """An enum to represent the different types of progress bars that ComfyUI can output.
+
+    This is used to determine how to parse the progress bar and log it.
+    """
+
+    ITERATIONS_PER_SECOND = 1
+    SECONDS_PER_ITERATION = 2
+    UNKNOWN = 3
+
+
+class ComfyUIProgress(BaseModel):
+    """A dataclass to represent the progress of a ComfyUI job.
+
+    This is used to determine how to parse the progress bar and log it.
+    """
+
+    percent: int
+    current_step: int
+    total_steps: int
+    rate: float
+    rate_unit: ComfyUIProgressUnit
+
+    def __str__(self):
+        return f"{self.percent}%: {self.current_step}/{self.total_steps} ({self.rate} {self.rate_unit})"
 
 
 class OutputCollector(io.TextIOWrapper):
@@ -16,9 +46,17 @@ class OutputCollector(io.TextIOWrapper):
     start_time: float
     slow_message_count: int = 0
 
-    def __init__(self):
+    capture_deque: deque
+
+    comfyui_progress_callback: Callable[[ComfyUIProgress, str], None] | None = None
+    """A callback function that is called when a progress bar is detected in the output. The callback function should \
+    accept two arguments: a ComfyUIProgress object and a string. The ComfyUIProgress object contains the parsed \
+    progress bar information, and the string contains the original message that was captured."""
+
+    def __init__(self, *, comfyui_progress_callback: Callable[[ComfyUIProgress, str], None] | None = None):
         logger.disable("tqdm")  # just.. no
-        self.deque = deque()
+        self.capture_deque = deque()
+        self.comfyui_progress_callback = comfyui_progress_callback
         self.start_time = perf_counter()
 
     def write(self, message: str):
@@ -44,7 +82,7 @@ class OutputCollector(io.TextIOWrapper):
 
                 if not matches:
                     logger.debug(f"Unknown progress bar format?: {message}")
-                    self.deque.append(message)
+                    self.capture_deque.append(message)
                     return
 
                 # Remove everything in between '|' and '|'
@@ -84,11 +122,27 @@ class OutputCollector(io.TextIOWrapper):
                 ):
                     logger.info(message)
 
-            self.deque.append(message)
+                if self.comfyui_progress_callback:
+                    self.comfyui_progress_callback(
+                        ComfyUIProgress(
+                            percent=int(matches.group(1)),
+                            current_step=found_current_step,
+                            total_steps=found_total_steps,
+                            rate=float(iteration_rate) if iteration_rate != "?" else -1.0,
+                            rate_unit=(
+                                ComfyUIProgressUnit.ITERATIONS_PER_SECOND
+                                if is_iterations_per_second
+                                else ComfyUIProgressUnit.SECONDS_PER_ITERATION
+                            ),
+                        ),
+                        message,
+                    )
+
+            self.capture_deque.append(message)
 
     def set_size(self, size):
-        while len(self.deque) > size:
-            self.deque.popleft()
+        while len(self.capture_deque) > size:
+            self.capture_deque.popleft()
 
     def flush(self):
         pass
@@ -102,5 +156,5 @@ class OutputCollector(io.TextIOWrapper):
 
     def replay(self):
         logger.debug("Replaying output. Seconds in parentheses is the elapsed time spent in ComfyUI. ")
-        while len(self.deque):
-            logger.debug(self.deque.popleft())
+        while len(self.capture_deque):
+            logger.debug(self.capture_deque.popleft())

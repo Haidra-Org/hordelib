@@ -26,6 +26,7 @@ def initialise(
     process_id: int | None = None,
     force_normal_vram_mode: bool = True,
     extra_comfyui_args: list[str] | None = None,
+    disable_smart_memory: bool = False,
 ):
     """Initialise hordelib. This is required before using any other hordelib functions.
 
@@ -75,6 +76,7 @@ def initialise(
     hordelib.comfy_horde.do_comfy_import(
         force_normal_vram_mode=force_normal_vram_mode,
         extra_comfyui_args=extra_comfyui_args,
+        disable_smart_memory=disable_smart_memory,
     )
 
     vram_on_start_free = hordelib.comfy_horde.get_torch_free_vram_mb()
