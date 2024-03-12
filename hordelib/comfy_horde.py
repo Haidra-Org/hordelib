@@ -24,7 +24,7 @@ import torch
 from loguru import logger
 
 from hordelib.settings import UserSettings
-from hordelib.utils.ioredirect import OutputCollector
+from hordelib.utils.ioredirect import ComfyUIProgress, OutputCollector
 from hordelib.config_path import get_hordelib_path
 
 # Note It may not be abundantly clear with no context what is going on below, and I will attempt to clarify:
@@ -669,7 +669,12 @@ class Comfy_Horde:
 
     # Execute the named pipeline and pass the pipeline the parameter provided.
     # For the horde we assume the pipeline returns an array of images.
-    def _run_pipeline(self, pipeline: dict, params: dict) -> list[dict] | None:
+    def _run_pipeline(
+        self,
+        pipeline: dict,
+        params: dict,
+        comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
+    ) -> list[dict] | None:
         if _comfy_current_loaded_models is None:
             raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
         # Wipe any previous images, if they exist.
@@ -692,7 +697,7 @@ class Comfy_Horde:
 
         # The client_id parameter here is just so we receive comfy callbacks for debugging.
         # We pretend we are a web client and want async callbacks.
-        stdio = OutputCollector()
+        stdio = OutputCollector(comfyui_progress_callback=comfyui_progress_callback)
         with contextlib.redirect_stdout(stdio), contextlib.redirect_stderr(stdio):
             # validate_prompt from comfy returns [bool, str, list]
             # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
@@ -720,7 +725,12 @@ class Comfy_Horde:
         return self.images
 
     # Run a pipeline that returns an image in pixel space
-    def run_image_pipeline(self, pipeline, params: dict) -> list[dict[str, typing.Any]]:
+    def run_image_pipeline(
+        self,
+        pipeline,
+        params: dict,
+        comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
+    ) -> list[dict[str, typing.Any]]:
         # From the horde point of view, let us assume the output we are interested in
         # is always in a HordeImageOutput node named "output_image". This is an array of
         # dicts of the form:
@@ -748,7 +758,7 @@ class Comfy_Horde:
             if idle_time > 1 and UserSettings.enable_idle_time_warning.active:
                 logger.warning(f"No job ran for {round(idle_time, 3)} seconds")
 
-        result = self._run_pipeline(pipeline_data, params)
+        result = self._run_pipeline(pipeline_data, params, comfyui_progress_callback)
 
         if result:
             return result

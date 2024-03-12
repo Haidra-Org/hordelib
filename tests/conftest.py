@@ -35,7 +35,7 @@ def init_horde():
 
     import hordelib
 
-    hordelib.initialise(setup_logging=True, logging_verbosity=5)
+    hordelib.initialise(setup_logging=True, logging_verbosity=5, disable_smart_memory=True)
     from hordelib.settings import UserSettings
 
     UserSettings.set_ram_to_leave_free_mb("100%")
