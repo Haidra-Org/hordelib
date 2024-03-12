@@ -94,12 +94,13 @@ class HordeCheckpointLoader:
         SharedModelManager.manager._models_in_ram = {}
 
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
-        result = comfy.sd.load_checkpoint_guess_config(
-            ckpt_path,
-            output_vae=True,
-            output_clip=True,
-            embedding_directory=folder_paths.get_folder_paths("embeddings"),
-        )
+        with torch.no_grad():
+            result = comfy.sd.load_checkpoint_guess_config(
+                ckpt_path,
+                output_vae=True,
+                output_clip=True,
+                embedding_directory=folder_paths.get_folder_paths("embeddings"),
+            )
 
         SharedModelManager.manager._models_in_ram[horde_in_memory_name] = result, will_load_loras
 
