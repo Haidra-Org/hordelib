@@ -88,6 +88,7 @@ class KudosModel:
         "inpainting",
         "outpainting",
         "txt2img",
+        "remix",
     ]
 
     def __init__(self, model_filename=None):

@@ -391,7 +391,6 @@ class TestHordeInference:
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
     ):
-
         data = {
             "sampler_name": "k_euler",
             "cfg_scale": 7.5,

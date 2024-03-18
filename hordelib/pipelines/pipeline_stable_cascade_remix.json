@@ -1,18 +1,18 @@
 {
   "3": {
     "inputs": {
-      "seed": 1417,
+      "seed": 528868033851571,
       "steps": 20,
       "cfg": 4,
       "sampler_name": "euler_ancestral",
       "scheduler": "simple",
       "denoise": 1,
       "model": [
-        "41",
+        "49",
         0
       ],
       "positive": [
-        "6",
+        "51",
         0
       ],
       "negative": [
@@ -31,9 +31,9 @@
   },
   "6": {
     "inputs": {
-      "text": "A war hammer lying on a medieval shop rack, in the style of Dungeons and Dragons. Splash art, Digital Painting, Trending on Artstation",
+      "text": "A stampede of wild goats",
       "clip": [
-        "41",
+        "49",
         1
       ]
     },
@@ -44,9 +44,9 @@
   },
   "7": {
     "inputs": {
-      "text": "duo, multiple",
+      "text": "text, watermark",
       "clip": [
-        "41",
+        "49",
         1
       ]
     },
@@ -81,12 +81,12 @@
     },
     "class_type": "SaveImage",
     "_meta": {
-      "title": "save_image"
+      "title": "Save Image"
     }
   },
   "33": {
     "inputs": {
-      "seed": 969764120050513,
+      "seed": 1010381433308348,
       "steps": 10,
       "cfg": 1,
       "sampler_name": "euler_ancestral",
@@ -101,7 +101,7 @@
         0
       ],
       "negative": [
-        "40",
+        "7",
         0
       ],
       "latent_image": [
@@ -119,7 +119,7 @@
       "width": 1024,
       "height": 1024,
       "compression": 42,
-      "batch_size": 5
+      "batch_size": 1
     },
     "class_type": "StableCascade_EmptyLatentImage",
     "_meta": {
@@ -129,7 +129,7 @@
   "36": {
     "inputs": {
       "conditioning": [
-        "40",
+        "6",
         0
       ],
       "stage_c": [
@@ -142,27 +142,6 @@
       "title": "StableCascade_StageB_Conditioning"
     }
   },
-  "40": {
-    "inputs": {
-      "conditioning": [
-        "6",
-        0
-      ]
-    },
-    "class_type": "ConditioningZeroOut",
-    "_meta": {
-      "title": "ConditioningZeroOut"
-    }
-  },
-  "41": {
-    "inputs": {
-      "ckpt_name": "stable_cascade_stage_c.safetensors"
-    },
-    "class_type": "CheckpointLoaderSimple",
-    "_meta": {
-      "title": "model_loader_stage_c"
-    }
-  },
   "42": {
     "inputs": {
       "ckpt_name": "stable_cascade_stage_b.safetensors"
@@ -172,44 +151,57 @@
       "title": "model_loader_stage_b"
     }
   },
-  "47": {
-    "inputs": {
-      "compression": 42,
-      "image": [
-        "50",
-        0
-      ],
-      "vae": [
-        "41",
-        2
-      ]
-    },
-    "class_type": "StableCascade_StageC_VAEEncode",
-    "_meta": {
-      "title": "stablecascade_stagec_vaeencode"
-    }
-  },
   "48": {
     "inputs": {
-      "image": "example.png",
+      "image": "mountains.png",
       "upload": "image"
     },
     "class_type": "LoadImage",
     "_meta": {
-      "title": "sc_image_loader"
+      "title": "sc_image_loader_0"
+    }
+  },
+  "49": {
+    "inputs": {
+      "ckpt_name": "stable_cascade_stage_c.safetensors"
+    },
+    "class_type": "unCLIPCheckpointLoader",
+    "_meta": {
+      "title": "model_loader_stage_c"
     }
   },
   "50": {
     "inputs": {
-      "amount": 1,
+      "clip_vision": [
+        "49",
+        3
+      ],
       "image": [
         "48",
         0
       ]
     },
-    "class_type": "RepeatImageBatch",
+    "class_type": "CLIPVisionEncode",
     "_meta": {
-      "title": "repeat_image_batch"
+      "title": "clip_vision_encode_0"
+    }
+  },
+  "51": {
+    "inputs": {
+      "strength": 1,
+      "noise_augmentation": 0,
+      "conditioning": [
+        "6",
+        0
+      ],
+      "clip_vision_output": [
+        "50",
+        0
+      ]
+    },
+    "class_type": "unCLIPConditioning",
+    "_meta": {
+      "title": "unclip_conditioning_0"
     }
   }
 }
