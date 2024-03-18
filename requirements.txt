@@ -1,6 +1,6 @@
 # Add this in for tox, comment out for build
 --extra-index-url https://download.pytorch.org/whl/cu121
-horde_sdk>=0.7.25
+horde_sdk>=0.8.3
 horde_model_reference>=0.5.2
 pydantic
 torch>=2.1.0
@@ -45,3 +45,4 @@ mediapipe>=0.9.1.0
 unidecode
 fuzzywuzzy
 strenum
+kornia
