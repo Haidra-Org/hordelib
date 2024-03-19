@@ -147,12 +147,7 @@ class TestHordeInferenceCascade:
             image_result.image.save(f"images/{img_filename}", quality=100)
             img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))
 
-        # assert check_single_inference_image_similarity(
-        #     "images_expected/stable_cascade_image_to_image.png",
-        #     "images/stable_cascade_text_to_image_n_iter_0.png",
-        # )
-
-        # assert check_list_inference_images_similarity(img_pairs_to_check)
+        assert check_list_inference_images_similarity(img_pairs_to_check)
 
     def test_cascade_image_remix_single(
         self,
@@ -187,10 +182,10 @@ class TestHordeInferenceCascade:
         img_filename = "stable_cascade_image_remix_single.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_cascade_image_remix_double(
         self,
@@ -230,10 +225,10 @@ class TestHordeInferenceCascade:
         img_filename = "stable_cascade_image_remix_double.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_cascade_image_remix_double_weak(
         self,
@@ -274,10 +269,10 @@ class TestHordeInferenceCascade:
         img_filename = "stable_cascade_image_remix_double_weak.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_cascade_image_remix_triple(
         self,
@@ -320,7 +315,7 @@ class TestHordeInferenceCascade:
         img_filename = "stable_cascade_image_remix_triple.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
