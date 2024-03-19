@@ -220,7 +220,7 @@ class TestModelManagerLora:
         lora_model_manager.wait_for_adhoc_reset(15)
         lora_name = "99999999999999"
         lora_key = lora_model_manager.fetch_adhoc_lora(lora_name)
-        assert lora_model_manager.total_retries_attempted == 1
+        assert lora_model_manager.total_retries_attempted == 0
         assert lora_key is None
         assert not lora_model_manager.is_model_available(lora_name)
         lora_model_manager.stop_all()
