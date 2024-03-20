@@ -135,7 +135,7 @@ class HordeLib:
         "hough": "control_mlsd_fp16.safetensors",
     }
 
-    SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting"]
+    SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting", "remix"]
 
     SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform", "sgm_uniform", "exponential"]
 
@@ -170,6 +170,12 @@ class HordeLib:
         "model_name": {"datatype": str, "default": "stable_diffusion"},  # Used internally by hordelib
         "stable_cascade_stage_b": {"datatype": str, "default": None},  # Stable Cascade
         "stable_cascade_stage_c": {"datatype": str, "default": None},  # Stable Cascade
+        "extra_source_images": {"datatype": list, "default": []},  # Stable Cascade Remix
+    }
+
+    EXTRA_IMAGES_SCHEMA = {
+        "image": {"datatype": Image.Image, "default": None},
+        "strength": {"datatype": float, "min": 0.0, "max": 5.0, "default": 1.0},
     }
 
     LORA_SCHEMA = {
@@ -219,6 +225,8 @@ class HordeLib:
         "stable_cascade_empty_latent_image.width": "width",
         "stable_cascade_empty_latent_image.height": "height",
         "stable_cascade_empty_latent_image.batch_size": "n_iter",
+        "sc_image_loader.image": "source_image",
+        "sc_image_loader_0.image": "source_image",
         "sampler_stage_c.sampler_name": "sampler_name",
         "sampler_stage_b.sampler_name": "sampler_name",
         "sampler_stage_c.cfg": "cfg_scale",
@@ -337,6 +345,12 @@ class HordeLib:
                 data["tis"][i] = self._validate_data_structure(ti, HordeLib.TIS_SCHEMA)
             # Remove invalid tis
             data["tis"] = [x for x in data["tis"] if x.get("name")]
+
+        # Do the same for extra images, if we have them in this data structure
+        if data.get("extra_source_images"):
+            for i, img in enumerate(data.get("extra_source_images")):
+                data["extra_source_images"][i] = self._validate_data_structure(img, HordeLib.EXTRA_IMAGES_SCHEMA)
+            data["extra_source_images"] = [x for x in data["extra_source_images"] if x.get("image")]
 
         return data
 
@@ -802,6 +816,58 @@ class HordeLib:
         # the source image instead of the latent noise generator
         if pipeline_params.get("image_loader.image"):
             self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
+        if pipeline_params.get("sc_image_loader.image"):
+            self.generator.reconnect_input(
+                pipeline_data,
+                "sampler_stage_c.latent_image",
+                "stablecascade_stagec_vaeencode",
+            )
+            self.generator.reconnect_input(
+                pipeline_data,
+                "sampler_stage_b.latent_image",
+                "stablecascade_stagec_vaeencode",
+            )
+
+        # If we have a remix request, we check for extra images to add to the pipeline
+        if payload.get("source_processing") == "remix":
+            logger.debug([payload.get("source_image"), payload.get("extra_source_images")])
+            for image_index in range(len(payload.get("extra_source_images", []))):
+                # The first image is always taken from the source_image param
+                # That will sit on the 0 spot.
+                # Therefore we want the extra images to start iterating from 1
+                extra_image = payload["extra_source_images"][image_index]["image"]
+                extra_image_strength = payload["extra_source_images"][image_index].get("strength", 1)
+                node_index = image_index + 1
+                pipeline_data[f"sc_image_loader_{node_index}"] = {
+                    "inputs": {"image": extra_image, "upload": "image"},
+                    "class_type": "HordeImageLoader",
+                }
+                pipeline_data[f"clip_vision_encode_{node_index}"] = {
+                    "inputs": {
+                        "clip_vision": ["model_loader_stage_c", 3],
+                        "image": [f"sc_image_loader_{node_index}", 0],
+                    },
+                    "class_type": "CLIPVisionEncode",
+                }
+                pipeline_data[f"unclip_conditioning_{node_index}"] = {
+                    "inputs": {
+                        "strength": extra_image_strength,
+                        "noise_augmentation": 0,
+                        # Each conditioning ingests the conditioning before it like a chain
+                        "conditioning": [f"unclip_conditioning_{node_index-1}", 0],
+                        "clip_vision_output": [f"clip_vision_encode_{node_index}", 0],
+                    },
+                    "class_type": "unCLIPConditioning",
+                }
+
+                # The last extra image always connects to the stage_c sampler positive prompt
+                if image_index == len(payload.get("extra_source_images")) - 1:
+                    self.generator.reconnect_input(
+                        pipeline_data,
+                        "sampler_stage_c.positive",
+                        f"unclip_conditioning_{node_index}",
+                    )
+
         return pipeline_params, faults
 
     def _get_appropriate_pipeline(self, params):
@@ -818,11 +884,15 @@ class HordeLib:
         #       controlnet_annotator
         #     image_facefix
         #     image_upscale
+        #     stable_cascade
+        #       stable_cascade_remix
 
         # controlnet, controlnet_hires_fix controlnet_annotator
         if params.get("model_name"):
             model_details = SharedModelManager.manager.compvis.get_model_reference_info(params["model_name"])
             if model_details.get("baseline") == "stable_cascade":
+                if params.get("source_processing") == "remix":
+                    return "stable_cascade_remix"
                 return "stable_cascade"
         if params.get("control_type"):
             if params.get("return_control_map", False):
