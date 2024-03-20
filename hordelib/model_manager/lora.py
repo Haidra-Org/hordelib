@@ -1153,10 +1153,12 @@ class LoraModelManager(BaseModelManager):
             return None
         return datetime.strptime(lora["versions"][version]["last_used"], "%Y-%m-%d %H:%M:%S")
 
-    def fetch_adhoc_lora(self, lora_name, timeout=45, is_version: bool = False) -> str | None:
-        """Checks if a LoRa is available
-        If not, immediately downloads it
-        Finally, returns the lora name"""
+    def fetch_adhoc_lora(self, lora_name, timeout: int | None = 45, is_version: bool = False) -> str | None:
+        """Checks if a LoRa is available. If not, waits for it to be downloaded to complete *if timeout is set*.
+
+        - If timeout is set, it will wait for the download to complete and return the lora name.
+        - If timeout is *not* set, it will begin a download thread and return `None` immediately.
+        """
         if is_version and not isinstance(lora_name, int) and not lora_name.isdigit():
             logger.debug("Lora version requested, but lora name is not an integer")
             return None
@@ -1199,16 +1201,18 @@ class LoraModelManager(BaseModelManager):
                 self._touch_lora(lora_name, False)
                 return fuzzy_find
         self._download_lora(lora)
-        # We need to wait a bit to make sure the threads pick up the download
-        time.sleep(self.THREAD_WAIT_TIME)
-        self.wait_for_downloads(timeout)
-        version = self.find_latest_version(lora)
-        if is_version:
-            version = lora_name
-        if version is None:
-            return None
-        self._touch_lora(version, True)
-        return lora["name"]
+        if timeout is not None:
+            # We need to wait a bit to make sure the threads pick up the download
+            time.sleep(self.THREAD_WAIT_TIME)
+            self.wait_for_downloads(timeout)
+            version = self.find_latest_version(lora)
+            if is_version:
+                version = lora_name
+            if version is None:
+                return None
+            self._touch_lora(version, True)
+            return lora["name"]
+        return None
 
     def do_baselines_match(self, lora_name, model_details, is_version: bool = False):
         self._check_for_refresh(lora_name)
