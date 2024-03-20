@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.7.1](https://github.com/Haidra-Org/hordelib/compare/v2.7.0...v2.7.1)
+
+20 March 2024
+
+- feat: Support Stable Cascade Img2Img [`1e1406d`](https://github.com/Haidra-Org/hordelib/commit/1e1406d5e8be94f83983422787531c4e2b00345a)  (db0)
+- tests: adds remix test image checks + comparison images [`80a3489`](https://github.com/Haidra-Org/hordelib/commit/80a348930b885579bb71dfdaf8c49470f37acbcd)  (tazlin)
+- feat: allow adhoc lora downloads to run concurrently [`1c5a54f`](https://github.com/Haidra-Org/hordelib/commit/1c5a54f3d9fa32b42ca4ec4dedcda7614718f0bb)  (tazlin)
+
 ## [v2.7.0](https://github.com/Haidra-Org/hordelib/compare/v2.6.5...v2.7.0)
 
 12 March 2024
