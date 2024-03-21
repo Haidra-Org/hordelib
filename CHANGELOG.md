@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.7.5](https://github.com/Haidra-Org/hordelib/compare/v2.7.4...v2.7.5)
+
+21 March 2024
+
+- fix: don't crash on missing source image [`706e7d8`](https://github.com/Haidra-Org/hordelib/commit/706e7d85d495d627978541bea03c7d5dd4bad705)  (tazlin)
+
 ## [v2.7.4](https://github.com/Haidra-Org/hordelib/compare/v2.7.3...v2.7.4)
 
 21 March 2024
