@@ -1127,6 +1127,17 @@ class HordeLib:
                 final_image = ret.image
                 final_rawpng = ret.rawpng
 
+                if progress_callback is not None:
+                    try:
+                        progress_callback(
+                            ProgressReport(
+                                hordelib_progress_state=ProgressState.progress,
+                                hordelib_message="Post Processing new image.",
+                            ),
+                        )
+                    except Exception as e:
+                        logger.error(f"Progress callback failed ({type(e)}): {e}")
+
                 # Ensure facefixers always happen first
                 post_processing_requested = sorted(
                     post_processing_requested,
