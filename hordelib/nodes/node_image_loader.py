@@ -21,7 +21,8 @@ class HordeImageLoader:
     def load_image(self, image):
         if image is None:
             logger.error("Input image is None in HordeImageLoader - this is a bug, please report it!")
-            raise ValueError("Input image is None in HordeImageLoader")
+            # Use a default image
+            image = PIL.Image.new("RGB", (64, 64), (255, 255, 255))
 
         if not isinstance(image, PIL.Image.Image):
             logger.error(f"Input image is not a PIL Image, it is a {type(image)}")
