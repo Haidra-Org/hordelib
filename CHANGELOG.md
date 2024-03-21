@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.7.2](https://github.com/Haidra-Org/hordelib/compare/v2.7.1...v2.7.2)
+
+20 March 2024
+
+- fix: use known working version of comfyui [`fde1a6d`](https://github.com/Haidra-Org/hordelib/commit/fde1a6d74e68bd39cf581687751941d894195e6c)  (tazlin)
+
 ## [v2.7.1](https://github.com/Haidra-Org/hordelib/compare/v2.7.0...v2.7.1)
 
 20 March 2024
