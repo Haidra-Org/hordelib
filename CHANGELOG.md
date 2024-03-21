@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.7.4](https://github.com/Haidra-Org/hordelib/compare/v2.7.3...v2.7.4)
+
+21 March 2024
+
+- fix: callback during each step of post-proc. [`f0e2fc1`](https://github.com/Haidra-Org/hordelib/commit/f0e2fc131dd919e52fba06b865253b966b399005)  (tazlin)
+
 ## [v2.7.3](https://github.com/Haidra-Org/hordelib/compare/v2.7.2...v2.7.3)
 
 20 March 2024
