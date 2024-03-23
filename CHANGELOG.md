@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.7.6](https://github.com/Haidra-Org/hordelib/compare/v2.7.5...v2.7.6)
+
+23 March 2024
+
+- fix: give up on ti hash mismatches [`2da5b9b`](https://github.com/Haidra-Org/hordelib/commit/2da5b9b4415d7c343aba2e588c1e8406ec9af26e)  (tazlin)
+- fix: remove safety_checker from default [`ed9d1c7`](https://github.com/Haidra-Org/hordelib/commit/ed9d1c74cdb08281554f6a3049a824af3183deb2)  (tazlin)
+- feat: support comfyui `a28a9dc` [`2060e0e`](https://github.com/Haidra-Org/hordelib/commit/2060e0e6b685de56b666773a63f8441c1e4f1d0b)  (tazlin)
+
 ## [v2.7.5](https://github.com/Haidra-Org/hordelib/compare/v2.7.4...v2.7.5)
 
 21 March 2024
