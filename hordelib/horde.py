@@ -1033,6 +1033,7 @@ class HordeLib:
             sub_payload = payload.payload.model_dump()
             source_image = payload.source_image
             mask_image = payload.source_mask
+            extra_source_images = payload.extra_source_images
 
             # If its a base64 encoded image, decode it
             if isinstance(source_image, str):
@@ -1040,28 +1041,51 @@ class HordeLib:
                     source_image_bytes = base64.b64decode(source_image)
                     source_image_pil = Image.open(io.BytesIO(source_image_bytes))
                     sub_payload["source_image"] = source_image_pil
-                except Exception:
+                except Exception as err:
                     faults.append(
                         GenMetadataEntry(
                             type=METADATA_TYPE.source_image,
                             value=METADATA_VALUE.parse_failed,
                         ),
                     )
-                    logger.warning("Failed to parse source image. Falling back to text2img.")
+                    logger.warning(f"Failed to parse source image ({err}). Falling back to text2img.")
 
             if isinstance(mask_image, str):
                 try:
                     mask_image_bytes = base64.b64decode(mask_image)
                     mask_image_pil = Image.open(io.BytesIO(mask_image_bytes))
                     sub_payload["source_mask"] = mask_image_pil
-                except Exception:
+                except Exception as err:
                     faults.append(
                         GenMetadataEntry(
                             type=METADATA_TYPE.source_mask,
                             value=METADATA_VALUE.parse_failed,
                         ),
                     )
-                    logger.warning("Failed to parse source mask. Ignoring it.")
+                    logger.warning(f"Failed to parse source mask ({err}). Ignoring it.")
+
+            if isinstance(extra_source_images, list):
+                extra_source_images_sub = []
+                for esi_index, esi in enumerate(extra_source_images):
+                    try:
+                        esi_bytes = base64.b64decode(esi.image)
+                        esi_pil = Image.open(io.BytesIO(esi_bytes))
+                        extra_source_images_sub.append(
+                            {
+                                "image": esi_pil,
+                                "strength": esi.strength,
+                            },
+                        )
+                    except Exception as err:
+                        faults.append(
+                            GenMetadataEntry(
+                                type=METADATA_TYPE.extra_source_images,
+                                value=METADATA_VALUE.parse_failed,
+                                ref=str(esi_index),
+                            ),
+                        )
+                        logger.warning(f"Failed to parse extra source image {esi_index} ({err}). Ignoring it.")
+                sub_payload["extra_source_images"] = extra_source_images_sub
 
             sub_payload["source_processing"] = payload.source_processing
             sub_payload["model"] = payload.model
