@@ -310,13 +310,20 @@ class TextualInversionModelManager(BaseModelManager):
                                 "Fewer retries will be attempted.",
                             )
 
+                        hordeling_json = hordeling_response.json()
                         # We will retry
                         logger.debug(
                             "AI Hordeling reported error when downloading metadata "
                             f"for Textual Inversion: {ti['filename']}: "
-                            f"{hordeling_response.json()}"
+                            f"{hordeling_json}"
                             f"Retry {retries}/{self.MAX_RETRIES}",
                         )
+
+                        message = hordeling_json.get("message", "")
+                        if message is not None and isinstance(message, str) and "hash" in message.lower():
+                            logger.debug(f"Textual Inversion: {ti['filename']} hash mismatch reported.")
+                            break
+
                     else:
                         hordeling_json = hordeling_response.json()
                         if hordeling_json.get("sha256"):
