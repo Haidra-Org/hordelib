@@ -52,7 +52,7 @@ DEFAULT_MODEL_MANAGERS = {
     # MODEL_CATEGORY_NAMES.diffusers: True,
     MODEL_CATEGORY_NAMES.esrgan: True,
     MODEL_CATEGORY_NAMES.gfpgan: True,
-    MODEL_CATEGORY_NAMES.safety_checker: True,
+    # MODEL_CATEGORY_NAMES.safety_checker: True,
     MODEL_CATEGORY_NAMES.lora: True,
     MODEL_CATEGORY_NAMES.ti: True,
 }
