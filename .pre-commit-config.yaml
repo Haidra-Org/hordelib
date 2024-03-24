@@ -19,4 +19,4 @@ repos:
     hooks:
     -   id: mypy
         exclude: ^examples/.*$ # FIXME
-        additional_dependencies: [pydantic, strenum, types-colorama, types-docutils, types-Pillow, types-psutil, types-Pygments, types-pywin32, types-PyYAML, types-regex, types-requests, types-setuptools, types-tabulate, types-tqdm, types-urllib3, horde_sdk]
+        additional_dependencies: [pydantic, strenum, types-colorama, types-docutils, types-Pillow, types-psutil, types-Pygments, types-pywin32, types-PyYAML, types-regex, types-requests, types-setuptools, types-tabulate, types-tqdm, types-urllib3, horde_sdk==0.9.1]
