@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v2.8.0](https://github.com/Haidra-Org/hordelib/compare/v2.7.6...v2.8.0)
+
+24 March 2024
+
+- feat: use sdk's new source image/mask/extra image handling [`6637f76`](https://github.com/Haidra-Org/hordelib/commit/6637f763f1a34b87b4475f0445914fa16c82335f)  (tazlin)
+- feat: convert extra source images to pil [`579a071`](https://github.com/Haidra-Org/hordelib/commit/579a07139f3ebf5a84adad8fa06376d30dbee447)  (db0)
+
 ## [v2.7.6](https://github.com/Haidra-Org/hordelib/compare/v2.7.5...v2.7.6)
 
 23 March 2024
