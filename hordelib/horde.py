@@ -1031,10 +1031,60 @@ class HordeLib:
                 logger.debug(f"Post-processing requested: {post_processor_requested}")
 
             sub_payload = payload.payload.model_dump()
-            source_image = payload.source_image
-            mask_image = payload.source_mask
+
+            def handle_images(
+                payload: ImageGenerateJobPopResponse,
+                image_type: str,
+                get_downloaded_image_func: Callable,
+            ):
+                image = getattr(payload, image_type)
+
+                if image is not None and "http" in image:
+                    image = get_downloaded_image_func()
+
+                    if image is None:
+                        logger.error(
+                            f"{image_type.capitalize()} is a URL but wasn't downloaded, "
+                            "this is not supported in this context. Run the `async_download_*` methods first.",
+                        )
+
+                        return None
+
+                return image
+
+            source_image = handle_images(
+                payload,
+                "source_image",
+                payload.get_downloaded_source_image,
+            )
+            if source_image is None:
+                logger.info("No source image found in payload.")
+
+            mask_image = handle_images(
+                payload,
+                "source_mask",
+                payload.get_downloaded_source_mask,
+            )
+            if mask_image is None:
+                logger.info("No mask image found in payload.")
+
             extra_source_images = payload.extra_source_images
 
+            if extra_source_images is not None:
+                extra_source_images = payload.get_downloaded_extra_source_images()
+                if extra_source_images is not None:
+                    logger.info(f"Using {len(extra_source_images)} downloaded extra source images.")
+                else:
+                    logger.info("No extra source images found in payload.")
+
+            esi_to_remove = []
+            if extra_source_images is not None:
+                for esi in extra_source_images:
+                    if "http" in esi.image:
+                        logger.warning("Extra source image is a URL, this is not supported in this context.")
+                        esi_to_remove.append(esi)
+
+                extra_source_images = [esi for esi in extra_source_images if esi not in esi_to_remove]
             # If its a base64 encoded image, decode it
             if isinstance(source_image, str):
                 try:
