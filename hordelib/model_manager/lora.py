@@ -393,7 +393,7 @@ class LoraModelManager(BaseModelManager):
         for file in version.get("files", {}):
             if file.get("primary", False) and file.get("name", "").endswith(".safetensors"):
                 sanitized_name = Sanitizer.sanitise_model_name(lora_name)
-                lora_filename = f'{Sanitizer.sanitise_filename(lora_name)}_{version.get("id", 0)}'
+                lora_filename = f'{Sanitizer.sanitise_filename(lora_name)[0:128]}_{version.get("id", 0)}'
                 lora_key = sanitized_name.lower().strip()
                 lora["name"] = lora_key
                 lora["orig_name"] = lora_name
