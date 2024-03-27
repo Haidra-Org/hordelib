@@ -148,6 +148,22 @@ class TestModelManagerLora:
         assert lora_model_manager.get_lora_filename("22591") == "GAG-RPGPotionsLoRaXL_197256.safetensors"
         lora_model_manager.stop_all()
 
+    def test_lora_long_filename(self):
+        lora_model_manager = LoraModelManager(
+            download_wait=False,
+            allowed_adhoc_lora_storage=1024,
+            civitai_api_token=os.getenv("CIVIT_API_TOKEN", None),
+        )
+        lora_model_manager.download_default_loras()
+        lora_model_manager.wait_for_downloads(600)
+        lora_model_manager.wait_for_adhoc_reset(15)
+
+        lora_model_manager.ensure_lora_deleted(189973)
+        lora_model_manager.fetch_adhoc_lora("372094", is_version=True)
+        lora_dict = lora_model_manager.get_model_reference_info("189973")
+        assert lora_model_manager.find_latest_version(lora_dict) == "372094"
+        lora_model_manager.stop_all()
+
     def test_reject_adhoc_nsfw_lora(self):
         lora_model_manager = LoraModelManager(
             download_wait=False,

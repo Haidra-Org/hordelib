@@ -181,9 +181,7 @@ class ModelManager:
             self.active_model_managers.append(
                 resolve_manager_to_load_type(
                     multiprocessing_lock=multiprocessing_lock,
-                    civitai_api_token=(
-                        os.environ["CIVIT_API_TOKEN"] if "CIVIT_API_TOKEN" in os.environ.keys() else None
-                    ),
+                    civitai_api_token=os.getenv("CIVIT_API_TOKEN", None),
                 ),
             )
 
