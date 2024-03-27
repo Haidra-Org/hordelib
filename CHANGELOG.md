@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.8.1](https://github.com/Haidra-Org/hordelib/compare/v2.8.0...v2.8.1)
+
+27 March 2024
+
+- fix: avoid crash on long lora names [`ab57d9c`](https://github.com/Haidra-Org/hordelib/commit/ab57d9ceee1e1de7a8be104605bce02e71a7bcff)  (db0)
+
 ## [v2.8.0](https://github.com/Haidra-Org/hordelib/compare/v2.7.6...v2.8.0)
 
 24 March 2024
