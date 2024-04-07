@@ -122,12 +122,12 @@ class BaseModelManager(ABC):
                     extra_models_path = Path(extra_models_path_str)
                     if extra_models_path.exists():
                         extra_models = json.loads((extra_models_path).read_text())
-                    for mname in extra_models:
-                        # Avoid cloberring
-                        if mname in self.model_reference:
-                            continue
-                        # Merge all custom models into our new model reference
-                        self.model_reference[mname] = extra_models[mname]
+                        for mname in extra_models:
+                            # Avoid cloberring
+                            if mname in self.model_reference:
+                                continue
+                            # Merge all custom models into our new model reference
+                            self.model_reference[mname] = extra_models[mname]
             except json.decoder.JSONDecodeError as e:
                 if attempt <= 2:
                     logger.warning(

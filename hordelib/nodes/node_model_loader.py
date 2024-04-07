@@ -89,7 +89,10 @@ class HordeCheckpointLoader:
                 else:
                     # If there's no file_type passed, we follow the previous approach and pick the first file
                     # (There should be only one)
-                    ckpt_name = file_entry["file_path"].name
+                    if file_entry["file_path"].is_absolute():
+                        ckpt_name = str(file_entry["file_path"])
+                    else:
+                        ckpt_name = file_entry["file_path"].name
                     break
 
         # Clear references so comfy can free memory as needed
