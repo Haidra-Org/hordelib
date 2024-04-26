@@ -1,6 +1,8 @@
 # node_model_loader.py
 # Simple proof of concept custom node to load models.
 
+from pathlib import Path
+
 import comfy.model_management
 import comfy.sd
 import folder_paths  # type: ignore
@@ -87,13 +89,20 @@ class HordeCheckpointLoader:
                 else:
                     # If there's no file_type passed, we follow the previous approach and pick the first file
                     # (There should be only one)
-                    ckpt_name = file_entry["file_path"].name
+                    if file_entry["file_path"].is_absolute():
+                        ckpt_name = str(file_entry["file_path"])
+                    else:
+                        ckpt_name = file_entry["file_path"].name
                     break
 
         # Clear references so comfy can free memory as needed
         SharedModelManager.manager._models_in_ram = {}
 
         ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        if ckpt_name:
+            check_path = Path(ckpt_name)
+            if check_path.is_absolute():
+                ckpt_path = ckpt_name
         with torch.no_grad():
             result = comfy.sd.load_checkpoint_guess_config(
                 ckpt_path,

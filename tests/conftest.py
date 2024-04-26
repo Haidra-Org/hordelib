@@ -112,6 +112,12 @@ def stable_cascade_base_model_name(shared_model_manager: type[SharedModelManager
 
 
 @pytest.fixture(scope="session")
+def custom_model_name_for_testing(shared_model_manager: type[SharedModelManager]) -> str:
+    # https://civitai.com/models/338712/pvc-style-modelmovable-figure-model-xl?modelVersionId=413807
+    return "Movable figure model XL"
+
+
+@pytest.fixture(scope="session")
 def db0_test_image() -> PIL.Image.Image:
     return PIL.Image.open("images/test_db0.jpg")
 
