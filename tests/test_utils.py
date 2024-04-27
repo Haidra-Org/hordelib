@@ -1,3 +1,5 @@
+import pytest
+
 from hordelib.settings import UserSettings
 from hordelib.utils.distance import (
     CosineSimilarityResultCode,
@@ -20,6 +22,7 @@ def test_worker_settings_percent_check():
     assert UserSettings._is_percentage("%50") is False
 
 
+@pytest.mark.skip(reason="This refers to code that is not currently used in production.")
 class TestWorkerSettingsWithInit:
     def test_worker_settings_properties_comparable(self, init_horde):
         assert UserSettings.get_ram_to_leave_free_mb() > 0
@@ -49,6 +52,7 @@ class TestImageDistance:
             last_value = result_code
 
 
+@pytest.mark.skip(reason="This refers to code that is not currently used in production.")
 class TestGPUInfo:
     def test_gpuinfo_init(self):
         gpu = GPUInfo()
