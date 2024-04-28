@@ -4,13 +4,16 @@ from PIL import Image
 
 from hordelib.horde import HordeLib
 
+from .testing_shared_functions import check_single_inference_image_similarity
+
 
 class TestHordeInference:
     def test_custom_model_text_to_image(
         self,
         hordelib_instance: HordeLib,
-        custom_model_name_for_testing: str,
+        custom_model_info_for_testing: tuple[str, str, str, str],
     ):
+        model_name, _, _, _ = custom_model_info_for_testing
         data = {
             "sampler_name": "k_euler_a",
             "cfg_scale": 7.5,
@@ -36,7 +39,7 @@ class TestHordeInference:
             ),
             "ddim_steps": 30,
             "n_iter": 1,
-            "model": custom_model_name_for_testing,
+            "model": model_name,
         }
         pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
@@ -45,7 +48,7 @@ class TestHordeInference:
         img_filename = "custom_model_text_to_image.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )

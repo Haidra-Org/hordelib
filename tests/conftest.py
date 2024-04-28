@@ -1,3 +1,4 @@
+import json
 import os
 from collections.abc import Generator
 from pathlib import Path
@@ -20,7 +21,11 @@ def line_break():
 
 
 @pytest.fixture(scope="session")
-def init_horde():
+def init_horde(
+    custom_model_info_for_testing: tuple[str, str, str, str],
+    default_custom_model_json_path: str,
+    default_custom_model_json: dict[str, dict],
+):
     """This fixture initialises HordeLib and sets the VRAM to leave free to 90%.
     You must call this fixture if your test uses a module which imports `hordelib.comfy_horde`. You will usually
     see a characteristic RuntimeError exception if you forget to call this fixture, but you may also see an
@@ -32,6 +37,48 @@ def init_horde():
     assert (
         examples_path.exists() and examples_path.is_dir()
     ), "The `images_expected` directory must exist. You can find in in the github repo."
+
+    HORDELIB_CUSTOM_MODELS = os.getenv("HORDELIB_CUSTOM_MODELS", None)
+
+    if HORDELIB_CUSTOM_MODELS is not None:
+        assert os.path.exists(
+            HORDELIB_CUSTOM_MODELS,
+        ), f"Custom models directory {HORDELIB_CUSTOM_MODELS} does not exist."
+    else:
+        if not os.path.exists(default_custom_model_json_path):
+            os.makedirs(os.path.dirname(default_custom_model_json_path), exist_ok=True)
+            with open(default_custom_model_json_path, "w") as f:
+
+                json.dump(default_custom_model_json, f, indent=4)
+
+        os.environ["HORDELIB_CUSTOM_MODELS"] = default_custom_model_json_path
+
+    # Load the custom models json and confirm the model is on disk
+    custom_models = None
+    with open(default_custom_model_json_path) as f:
+        custom_models = json.load(f)
+
+    assert custom_models is not None
+
+    custom_model_name, _, custom_model_filename, custom_model_url = custom_model_info_for_testing
+
+    assert custom_model_name in custom_models
+    assert "config" in custom_models[custom_model_name]
+    assert "files" in custom_models[custom_model_name]["config"]
+    assert "path" in custom_models[custom_model_name]["config"]["files"][0]
+    assert custom_model_filename in custom_models[custom_model_name]["config"]["files"][0]["path"]
+
+    custom_model_in_json_path = custom_models[custom_model_name]["config"]["files"][0]["path"]
+
+    # If the custom model is not on disk, download it
+    if not os.path.exists(custom_model_in_json_path):
+        import requests
+
+        response = requests.get(custom_model_url)
+        response.raise_for_status()
+
+        with open(custom_model_in_json_path, "wb") as f:
+            f.write(response.content)
 
     import hordelib
 
@@ -53,7 +100,10 @@ def isolated_comfy_horde_instance(init_horde) -> Comfy_Horde:
 
 
 @pytest.fixture(scope="session")
-def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedModelManager], None, None]:
+def shared_model_manager(
+    custom_model_info_for_testing: tuple[str, str, str, str],
+    hordelib_instance: HordeLib,
+) -> Generator[type[SharedModelManager], None, None]:
     SharedModelManager()
     SharedModelManager.load_model_managers(ALL_MODEL_MANAGER_TYPES)
 
@@ -74,6 +124,9 @@ def shared_model_manager(hordelib_instance: HordeLib) -> Generator[type[SharedMo
 
     assert SharedModelManager.manager.download_model("Stable Cascade 1.0")
     assert SharedModelManager.manager.validate_model("Stable Cascade 1.0")
+
+    custom_model_name, _, _, _ = custom_model_info_for_testing
+    assert custom_model_name in SharedModelManager.manager.compvis.available_models
 
     assert SharedModelManager.manager.controlnet is not None
     assert SharedModelManager.manager.controlnet.download_all_models()
@@ -112,9 +165,45 @@ def stable_cascade_base_model_name(shared_model_manager: type[SharedModelManager
 
 
 @pytest.fixture(scope="session")
-def custom_model_name_for_testing(shared_model_manager: type[SharedModelManager]) -> str:
+def custom_model_info_for_testing() -> tuple[str, str, str, str]:
+    """Returns a tuple of the custom model name, its baseline, the on-disk file name and the download url."""
     # https://civitai.com/models/338712/pvc-style-modelmovable-figure-model-xl?modelVersionId=413807
-    return "Movable figure model XL"
+    return (
+        "Movable figure model XL",
+        "stable_diffusion_xl",
+        "PVCStyleModelMovable_beta25Realistic.safetensors",
+        "https://huggingface.co/mirroring/horde_models/resolve/main/PVCStyleModelMovable_beta25Realistic.safetensors?download=true",
+    )
+
+
+@pytest.fixture(scope="session")
+def default_custom_model_directory_name() -> str:
+    return "custom"
+
+
+@pytest.fixture(scope="session")
+def default_custom_model_json_path(default_custom_model_directory_name) -> str:
+    AIWORKER_CACHE_HOME = os.getenv("AIWORKER_CACHE_HOME", "models")
+    return os.path.join(AIWORKER_CACHE_HOME, default_custom_model_directory_name, "custom_models.json")
+
+
+@pytest.fixture(scope="session")
+def default_custom_model_json(
+    custom_model_info_for_testing: tuple[str, str, str, str],
+    default_custom_model_directory_name,
+) -> dict[str, dict]:
+    model_name, baseline, filename, _ = custom_model_info_for_testing
+    AIWORKER_CACHE_HOME = os.getenv("AIWORKER_CACHE_HOME", "models")
+    return {
+        model_name: {
+            "name": model_name,
+            "baseline": baseline,
+            "type": "ckpt",
+            "config": {
+                "files": [{"path": os.path.join(AIWORKER_CACHE_HOME, default_custom_model_directory_name, filename)}],
+            },
+        },
+    }
 
 
 @pytest.fixture(scope="session")
