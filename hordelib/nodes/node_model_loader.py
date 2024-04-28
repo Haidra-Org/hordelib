@@ -48,6 +48,9 @@ class HordeCheckpointLoader:
         logger.debug(f"Will load Loras: {will_load_loras}, seamless tiling: {seamless_tiling_enabled}")
         if ckpt_name:
             logger.debug(f"Checkpoint name: {ckpt_name}")
+            # Check if the checkpoint name is a path
+            if Path(ckpt_name).is_absolute():
+                logger.debug("Checkpoint name is an absolute path.")
 
         if preloading:
             logger.debug("Preloading model.")
@@ -98,11 +101,11 @@ class HordeCheckpointLoader:
         # Clear references so comfy can free memory as needed
         SharedModelManager.manager._models_in_ram = {}
 
-        ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
-        if ckpt_name:
-            check_path = Path(ckpt_name)
-            if check_path.is_absolute():
-                ckpt_path = ckpt_name
+        if ckpt_name is not None and Path(ckpt_name).is_absolute():
+            ckpt_path = ckpt_name
+        else:
+            ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+
         with torch.no_grad():
             result = comfy.sd.load_checkpoint_guess_config(
                 ckpt_path,
