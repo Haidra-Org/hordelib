@@ -39,6 +39,7 @@ def init_horde(
     ), "The `images_expected` directory must exist. You can find in in the github repo."
 
     HORDELIB_CUSTOM_MODELS = os.getenv("HORDELIB_CUSTOM_MODELS", None)
+    print(f"HORDELIB_CUSTOM_MODELS: {HORDELIB_CUSTOM_MODELS}")
 
     if HORDELIB_CUSTOM_MODELS is not None:
         assert os.path.exists(
@@ -53,9 +54,13 @@ def init_horde(
 
         os.environ["HORDELIB_CUSTOM_MODELS"] = default_custom_model_json_path
 
+    HORDELIB_CUSTOM_MODELS = os.getenv("HORDELIB_CUSTOM_MODELS", None)
+
+    assert HORDELIB_CUSTOM_MODELS is not None
+
     # Load the custom models json and confirm the model is on disk
     custom_models = None
-    with open(default_custom_model_json_path) as f:
+    with open(HORDELIB_CUSTOM_MODELS) as f:
         custom_models = json.load(f)
 
     assert custom_models is not None
@@ -70,6 +75,7 @@ def init_horde(
 
     custom_model_in_json_path = custom_models[custom_model_name]["config"]["files"][0]["path"]
 
+    print(f"Custom model path: {custom_model_in_json_path}")
     # If the custom model is not on disk, download it
     if not os.path.exists(custom_model_in_json_path):
         import requests
