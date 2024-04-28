@@ -69,7 +69,11 @@ class TestSharedModelManager:
                         continue
                     if not (".pt" in path or ".ckpt" in path or ".safetensors" in path):
                         continue
-                    model_manager.get_file_sha256_hash(f"{model_manager.model_folder_path}/{path}")
+                    # Check if `path` is already a full path
+                    if os.path.isabs(path):
+                        model_manager.get_file_sha256_hash(path)
+                    else:
+                        model_manager.get_file_sha256_hash(f"{model_manager.model_folder_path}/{path}")
 
     def test_check_validate_all_available_models(
         self,
