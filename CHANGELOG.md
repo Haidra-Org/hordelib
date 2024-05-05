@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.9.3](https://github.com/Haidra-Org/hordelib/compare/v2.9.2...v2.9.3)
+
+5 May 2024
+
+- ci/chore: direct link to changelog on webhook [`8ae6a26`](https://github.com/Haidra-Org/hordelib/commit/8ae6a26037d00c47d327472c4d4d36481f0fefc1)  (tazlin)
+
 ## [v2.9.2](https://github.com/Haidra-Org/hordelib/compare/v2.9.1...v2.9.2)
 
 5 May 2024
