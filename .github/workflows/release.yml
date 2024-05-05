@@ -111,4 +111,4 @@ jobs:
       uses: tsickert/discord-webhook@v5.3.0
       with:
         webhook-url: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        content: "New version of horde-engine has been published to pypi: ${{ steps.release.outputs.version }}. Changelog: https://t.ly/z2vQ"
+        content: "New version of horde-engine has been published to pypi: ${{ steps.release.outputs.version }}. Changelog: https://github.com/Haidra-Org/hordelib/blob/releases/CHANGELOG.md"
