@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.9.1](https://github.com/Haidra-Org/hordelib/compare/v2.9.0...v2.9.1)
+
+5 May 2024
+
+- ci/fix: don't use pypi api token [`a6b4a29`](https://github.com/Haidra-Org/hordelib/commit/a6b4a294601bef4ffab72f77348ef8d4214cf1fa)  (tazlin)
+
 ## [v2.9.0](https://github.com/Haidra-Org/hordelib/compare/v2.8.2...v2.9.0)
 
 5 May 2024
