@@ -420,15 +420,24 @@ class BaseModelManager(ABC):
         Returns True if the file exists, False otherwise
         """
         parsed_full_path = Path(f"{self.model_folder_path}/{file_path}")
+        is_custom_model = False
+        if isinstance(file_path, str):
+            check_path = Path(file_path)
+            if check_path.is_absolute():
+                parsed_full_path = Path(file_path)
+                is_custom_model = True
+        if isinstance(file_path, Path) and file_path.is_absolute():
+            parsed_full_path = Path(file_path)
+            is_custom_model = True
         if parsed_full_path.suffix == ".part":
             logger.debug(f"File {file_path} is a partial download, skipping")
             return False
         sha_file_path = Path(f"{self.model_folder_path}/{parsed_full_path.stem}.sha256")
 
-        if parsed_full_path.exists() and not sha_file_path.exists():
+        if parsed_full_path.exists() and not sha_file_path.exists() and not is_custom_model:
             self.get_file_sha256_hash(parsed_full_path)
 
-        return parsed_full_path.exists() and sha_file_path.exists()
+        return parsed_full_path.exists() and (sha_file_path.exists() or is_custom_model)
 
     def download_file(
         self,
@@ -739,6 +748,7 @@ class BaseModelManager(ABC):
         model_files = self.get_model_filenames(model_name)
         for file_entry in model_files:
             if not self.is_file_available(file_entry["file_path"]):
+                logger.debug([file_entry["file_path"], self.is_file_available(file_entry["file_path"])])
                 return False
         return True
 
