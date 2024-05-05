@@ -3,7 +3,7 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "hordelib"
+name = "horde-engine"
 description = "A thin wrapper around ComfyUI to allow use by AI Horde."
 authors = [
     {name = "Jug", email = "jugdev@proton.me"},

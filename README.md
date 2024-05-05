@@ -1,4 +1,4 @@
-# hordelib
+# horde-engine
 
 [![PyPI Version][pypi-image]][pypi-url]
 [![Downloads][downloads-image]][downloads-url]
@@ -10,11 +10,13 @@
 [![All Models][all-model-images]][all-model-url]
 [![Release Changelog][changelog-image]][changelog-url]
 
-`hordelib` is a wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed visually in the ComfyUI GUI.
+> Note: This project was formerly known as `hordelib`. The project namespace will be changed in the near future to reflect this change.
 
-The developers of `hordelib` can be found in the AI Horde Discord server: [https://discord.gg/3DxrhksKzn](https://discord.gg/3DxrhksKzn)
+`horde-engine` is a wrapper around [ComfyUI](https://github.com/comfyanonymous/ComfyUI) primarily to enable the [AI Horde](https://aihorde.net/) to run inference pipelines designed visually in the ComfyUI GUI.
 
-`hordelib` has been the default inference backend library of the [AI Horde](https://aihorde.net/) since `hordelib` v1.0.0.
+The developers of `horde-engine` can be found in the AI Horde Discord server: [https://discord.gg/3DxrhksKzn](https://discord.gg/3DxrhksKzn)
+
+Note that `horde-engine` (previously known as `hordelib`) has been the default inference backend library of the [AI Horde](https://aihorde.net/) since `hordelib` v1.0.0.
 
 ## Purpose
 
