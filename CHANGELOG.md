@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.9.0](https://github.com/Haidra-Org/hordelib/compare/v2.8.2...v2.9.0)
+
+5 May 2024
+
+- tests: custom models; check+dl custom testing model [`d093012`](https://github.com/Haidra-Org/hordelib/commit/d093012ccfdffde188fb27763e6b7a1ae73a64e1)  (tazlin)
+- feat: allow custom models via env var [`34b348c`](https://github.com/Haidra-Org/hordelib/commit/34b348ccac06e64dd553ad2c20384ab44b1cdb36)  (tazlin)
+- docs: update readme.md [`4e1f2bb`](https://github.com/Haidra-Org/hordelib/commit/4e1f2bbaa6fe5f82fb47325cb13f6e6ab641680b)  (tazlin)
+
 ## [v2.8.2](https://github.com/Haidra-Org/hordelib/compare/v2.8.1...v2.8.2)
 
 6 April 2024
