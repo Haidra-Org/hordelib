@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.9.2](https://github.com/Haidra-Org/hordelib/compare/v2.9.1...v2.9.2)
+
+5 May 2024
+
+- ci/fix: `id-token: write` perm on publish workflow [`506516a`](https://github.com/Haidra-Org/hordelib/commit/506516ac0a7e18350d16bc48b0667318aada432e)  (tazlin)
+
 ## [v2.9.1](https://github.com/Haidra-Org/hordelib/compare/v2.9.0...v2.9.1)
 
 5 May 2024
