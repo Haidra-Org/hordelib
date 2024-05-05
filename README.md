@@ -45,19 +45,25 @@ If you only have 16GB of RAM you will also need swap space. So if you typically 
 Horde payloads can be processed simply with (for example):
 
 ```python
-import os
+# import os
+# Wherever your models are
+# os.environ["AIWORKER_CACHE_HOME"] = "f:/ai/models" # Defaults to `models/` in the current working directory
+
 import hordelib
-hordelib.initialise()
+
+hordelib.initialise()  # This must be called before any other hordelib functions
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
-# Wherever your models are
-os.environ["AIWORKER_CACHE_HOME"] = "f:/ai/models"
-
 generate = HordeLib()
-SharedModelManager.loadModelManagers(compvis=True)
-SharedModelManager.manager.load("Deliberate")
+
+if SharedModelManager.manager.compvis is None:
+    raise Exception("Failed to load compvis model manager")
+
+SharedModelManager.manager.compvis.download_model("Deliberate")
+SharedModelManager.manager.compvis.validate_model("Deliberate")
+
 
 data = {
     "sampler_name": "k_dpmpp_2m",
@@ -79,7 +85,12 @@ data = {
     "model": "Deliberate",
 }
 pil_image = generate.basic_inference_single_image(data).image
+
+if pil_image is None:
+    raise Exception("Failed to generate image")
+
 pil_image.save("test.png")
+
 ```
 
 Note that `hordelib.initialise()` will erase all command line arguments from argv. So make sure you parse them before you call that.
@@ -88,7 +99,7 @@ See `tests/run_*.py` for more standalone examples.
 
 ### Logging
 
-If you don't want `hordelib` to setup and control the logging configuration initialise with:
+If you don't want `hordelib` to setup and control the logging configuration (we use [loguru](https://loguru.readthedocs.io/en/stable/)) initialise with:
 
 ```python
 import hordelib
@@ -110,14 +121,6 @@ Custom nodes for ComfyUI providing Controlnet preprocessing capability. Licened 
 ### [ComfyUI Face Restore Node](https://civitai.com/models/24690/comfyui-facerestore-node)
 
 Custom nodes for ComfyUI providing face restoration.
-
-## DMCA Abuse
-
-On 26th May 2023 an [individual](https://github.com/hlky) issued a [DMCA takedown notice](https://github.com/github/dmca/blob/master/2023/05/2023-05-26-nataili.md) to Github against `hordelib` which claimed their name had been removed from the copyright header in the AGPL license in the 7 files listed in the takedown notice. This claim was true, and this attribution had been removed by a `hordelib` contributor prior to being committed into the `hordelib` repository.
-
-Unfortunately, it appears the individual making the DMCA claim was acting in bad faith, and even when their name was restored to the copyright attribution in the files, they persisted to press the DMCA takedown claim, which, due to the nature of the Github process, resulted in hordelib being subject to a DMCA takedown on Github.
-
-This version of `hordelib` has the 7 files mentioned in the DMCA takedown removed and replaced with alternatives and the functionality required to run the AI Horde Worker was restored on 7th June 2023.
 
 ## Development
 
@@ -177,9 +180,9 @@ In this example we install the dependencies in the OS default environment. When 
 
 `pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu118 --upgrade`
 
-Ensure ComfyUI is installed and patched, one way is running the tests:
+Ensure ComfyUI is installed, one way is running the tests:
 
-`tox`
+`tox -- -k test_comfy_install`
 
 From then on to run ComfyUI:
 
@@ -245,32 +248,10 @@ The `images/` directory should have our test images.
 
 ### Updating the embedded version of ComfyUI
 
-We use a ComfyUI version pinned to a specific commit, see `hordelib/consts.py:COMFYUI_VERSION`
+- Change the value in `consts.py` to the desired ComfyUI version.
+- Run the test suite via `tox`
 
-To test if the latest version works and upgrade to it, from the project root simply:
 
-1. `cd ComfyUI` _Change CWD to the embedded comfy_
-1. `git checkout master` _Switch to master branch_
-1. `git pull` _Get the latest comfyui code_
-1. `git rev-parse HEAD` _Update the hash in `hordelib.consts:COMFYUI_VERSION`_
-1. `cd ..` _Get back to the hordelib project root_
-1. `tox` _See if everything still works_
-
-Now ComfyUI is pinned to a new version.
-
-### ComfyUI Patching
-
-We patch the ComfyUI source code to:
-
-1. Modify the model manager to allow us to dynamically move models between VRAM, RAM and disk cache.
-2. Allow make ComfyUI output some handy JSON we need for development purposes.
-
-To create a patch file:
-- Make the required changes to a clean install of ComfyUI and then run `git diff > yourfile.patch` then move the patch file to wherever you want to save it.
-
-Note that the patch file _really_ needs to be in UTF-8 format and some common terminals, e.g. Powershell, won't do this by default. In Powershell to create a patch file use: `git diff | Set-Content -Encoding utf8 -Path yourfile.patch`
-
-Patches can be applied with the `hordelib.install_comfyui.Installer` classes `apply_patch()` method.
 
 <!-- Badges: -->
 
