@@ -1,110 +1,144 @@
 {
-    "9": {
-        "inputs": {
-            "filename_prefix": "ComfyUI",
-            "images": [
-                "45",
-                0
-            ]
-        },
-        "class_type": "SaveImage"
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "45",
+        0
+      ]
     },
-    "20": {
-        "inputs": {
-            "image": "horde_image_facefix_codeformers.webp",
-            "choose file to upload": "image"
-        },
-        "class_type": "LoadImage"
-    },
-    "34": {
-        "inputs": {
-            "low_threshold": 100,
-            "high_threshold": 200,
-            "l2gradient": "disable",
-            "image": [
-                "20",
-                0
-            ]
-        },
-        "class_type": "CannyEdgePreprocessor"
-    },
-    "37": {
-        "inputs": {
-            "rm_nearest": 0,
-            "rm_background": 0,
-            "image": [
-                "20",
-                0
-            ]
-        },
-        "class_type": "LeReS-DepthMapPreprocessor"
-    },
-    "39": {
-        "inputs": {
-            "image": [
-                "20",
-                0
-            ]
-        },
-        "class_type": "HEDPreprocessor"
-    },
-    "40": {
-        "inputs": {
-            "a": 6.283185307179586,
-            "bg_threshold": 0.05,
-            "image": [
-                "20",
-                0
-            ]
-        },
-        "class_type": "MiDaS-NormalMapPreprocessor"
-    },
-    "42": {
-        "inputs": {
-            "detect_hand": "disable",
-            "image": [
-                "20",
-                0
-            ]
-        },
-        "class_type": "OpenposePreprocessor"
-    },
-    "43": {
-        "inputs": {
-            "image": [
-                "20",
-                0
-            ]
-        },
-        "class_type": "SemSegPreprocessor"
-    },
-    "44": {
-        "inputs": {
-            "image": [
-                "20",
-                0
-            ]
-        },
-        "class_type": "ScribblePreprocessor"
-    },
-    "45": {
-        "inputs": {
-            "image": [
-                "20",
-                0
-            ]
-        },
-        "class_type": "FakeScribblePreprocessor"
-    },
-    "46": {
-        "inputs": {
-            "score_threshold": 0.150,
-            "dist_threshold": 1.0,
-            "image": [
-                "20",
-                0
-            ]
-        },
-        "class_type": "M-LSDPreprocessor"
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "output_image"
     }
+  },
+  "20": {
+    "inputs": {
+      "image": "horde_image_facefix_codeformers.webp",
+      "upload": "image"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "image_loader"
+    }
+  },
+  "34": {
+    "inputs": {
+      "low_threshold": 100,
+      "high_threshold": 200,
+      "l2gradient": "disable",
+      "image": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "CannyEdgePreprocessor",
+    "_meta": {
+      "title": "canny"
+    }
+  },
+  "37": {
+    "inputs": {
+      "rm_nearest": 0,
+      "rm_background": 0,
+      "image": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "LeReS-DepthMapPreprocessor",
+    "_meta": {
+      "title": "depth"
+    }
+  },
+  "39": {
+    "inputs": {
+      "image": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "HEDPreprocessor",
+    "_meta": {
+      "title": "hed"
+    }
+  },
+  "40": {
+    "inputs": {
+      "a": 6.283185307179586,
+      "bg_threshold": 0.05,
+      "image": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "MiDaS-NormalMapPreprocessor",
+    "_meta": {
+      "title": "normal"
+    }
+  },
+  "42": {
+    "inputs": {
+      "detect_hand": "disable",
+      "image": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "OpenposePreprocessor",
+    "_meta": {
+      "title": "openpose"
+    }
+  },
+  "43": {
+    "inputs": {
+      "image": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "SemSegPreprocessor",
+    "_meta": {
+      "title": "seg"
+    }
+  },
+  "44": {
+    "inputs": {
+      "image": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "ScribblePreprocessor",
+    "_meta": {
+      "title": "scribble"
+    }
+  },
+  "45": {
+    "inputs": {
+      "safe": "enable",
+      "image": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "FakeScribblePreprocessor",
+    "_meta": {
+      "title": "fakescribble"
+    }
+  },
+  "46": {
+    "inputs": {
+      "score_threshold": 0.15,
+      "dist_threshold": 1,
+      "image": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "M-LSDPreprocessor",
+    "_meta": {
+      "title": "mlsd"
+    }
+  }
 }
