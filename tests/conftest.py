@@ -49,7 +49,6 @@ def init_horde(
         if not os.path.exists(default_custom_model_json_path):
             os.makedirs(os.path.dirname(default_custom_model_json_path), exist_ok=True)
             with open(default_custom_model_json_path, "w") as f:
-
                 json.dump(default_custom_model_json, f, indent=4)
 
         os.environ["HORDELIB_CUSTOM_MODELS"] = default_custom_model_json_path

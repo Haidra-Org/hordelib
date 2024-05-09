@@ -83,6 +83,7 @@ class TestComfyInterfaceCompatibility:
                     "input4": 33,
                     "input5": None,
                 },
+                "_meta": {"title": "Node1"},
             },
             "2": {
                 "inputs": {
@@ -92,6 +93,7 @@ class TestComfyInterfaceCompatibility:
                     "input4": 33,
                     "input5": None,
                 },
+                "_meta": {"title": "Node2"},
             },
             "3": {
                 "inputs": {
@@ -103,14 +105,7 @@ class TestComfyInterfaceCompatibility:
                 },
             },
         }
-        design = {
-            "nodes": [
-                {"id": 1, "title": "Node1"},
-                {"id": 2, "title": "Node2"},
-                {"id": 3, "no_title": "Node3"},
-            ],
-        }
-        data = hordelib_instance.generator._fix_node_names(data, design)
+        data = hordelib_instance.generator._fix_node_names(data)
 
         assert data
         assert isinstance(data, dict)
