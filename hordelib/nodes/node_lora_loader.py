@@ -1,7 +1,7 @@
 import os
 
 import comfy.utils
-import folder_paths
+import folder_paths  # type: ignore
 from loguru import logger
 
 

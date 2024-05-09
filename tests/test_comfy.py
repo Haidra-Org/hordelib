@@ -74,7 +74,7 @@ class TestComfyInterfaceCompatibility:
 
     def test_fix_node_names(self, hordelib_instance: HordeLib):
         # basically we are expecting a search and replace of "1" with the "title" of id 1, etc.
-        data = {
+        data: dict = {
             "1": {
                 "inputs": {
                     "input1": ["2", 0],
