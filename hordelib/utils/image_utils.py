@@ -8,14 +8,21 @@ from PIL import Image, ImageOps, PngImagePlugin, UnidentifiedImageError
 
 class ImageUtils:
     @classmethod
-    def calculate_source_image_size(cls, width, height):
-        if width > 512 and height > 512:
-            final_width = width
-            final_height = height
-            first_pass_ratio = min(final_height / 512, final_width / 512)
-            width = (int(final_width / first_pass_ratio) // 64) * 64
-            height = (int(final_height / first_pass_ratio) // 64) * 64
-            return (width, height)
+    def calculate_source_image_size(cls, width, height, optimal_size=512):
+        final_width = width
+        final_height = height
+        # For SD 1.5 we don't want the image to be generated lower than 512
+        # So we only upscale, if the image had both parts higher than 512
+        if optimal_size == 512:
+            first_pass_ratio = min(final_height / optimal_size, final_width / optimal_size)
+        # For Stable Cascade, it can handle generating one part below 1024 well enough
+        # So to save generation time, we instead downgrade the initial image so that it's always
+        # a max of 1024 in any dimention
+        # then upscale it with the second pass
+        else:
+            first_pass_ratio = max(final_height / optimal_size, final_width / optimal_size)
+        width = (int(final_width / first_pass_ratio) // 64) * 64
+        height = (int(final_height / first_pass_ratio) // 64) * 64
         return (width, height)
 
     @classmethod

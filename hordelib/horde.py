@@ -239,6 +239,10 @@ class HordeLib:
         "model_loader_stage_b.ckpt_name": "stable_cascade_stage_b",
         "model_loader_stage_b.model_name": "stable_cascade_stage_b",
         "model_loader_stage_b.horde_model_name": "model_name",
+        # Stable Cascade 2pass
+        "2pass_sampler_stage_c.sampler_name": "sampler_name",
+        "2pass_sampler_stage_c.denoise": "hires_fix_denoising_strength",
+        "2pass_sampler_stage_b.sampler_name": "sampler_name",
     }
 
     _comfyui_callback: Callable[[str, dict, str], None] | None = None
@@ -771,10 +775,21 @@ class HordeLib:
 
         # For hires fix, change the image sizes as we create an intermediate image first
         if payload.get("hires_fix", False):
+            optimal_size = 512
+            model_details = None
+            if SharedModelManager.manager.compvis:
+                model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
+            if model_details and model_details.get("baseline") == "stable_cascade":
+                optimal_size = 1024
             width = pipeline_params.get("empty_latent_image.width", 0)
             height = pipeline_params.get("empty_latent_image.height", 0)
-            if width > 512 and height > 512:
-                newwidth, newheight = ImageUtils.calculate_source_image_size(width, height)
+            recalculate_size = False
+            if width > optimal_size and height > optimal_size:
+                recalculate_size = True
+            elif optimal_size == 1024 and (width > optimal_size or height > optimal_size):
+                recalculate_size = True
+            if recalculate_size:
+                newwidth, newheight = ImageUtils.calculate_source_image_size(width, height, optimal_size)
                 pipeline_params["latent_upscale.width"] = width
                 pipeline_params["latent_upscale.height"] = height
                 pipeline_params["empty_latent_image.width"] = newwidth
@@ -886,6 +901,7 @@ class HordeLib:
         #     image_upscale
         #     stable_cascade
         #       stable_cascade_remix
+        #       stable_cascade_2pass
 
         # controlnet, controlnet_hires_fix controlnet_annotator
         if params.get("model_name"):
@@ -893,6 +909,8 @@ class HordeLib:
             if model_details.get("baseline") == "stable_cascade":
                 if params.get("source_processing") == "remix":
                     return "stable_cascade_remix"
+                if params.get("hires_fix", False):
+                    return "stable_cascade_2pass"
                 return "stable_cascade"
         if params.get("control_type"):
             if params.get("return_control_map", False):

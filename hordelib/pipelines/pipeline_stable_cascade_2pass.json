@@ -1,0 +1,312 @@
+{
+  "19": {
+    "inputs": {
+      "seed": 256522606127804,
+      "steps": 20,
+      "cfg": 4,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "26",
+        0
+      ],
+      "positive": [
+        "20",
+        0
+      ],
+      "negative": [
+        "21",
+        0
+      ],
+      "latent_image": [
+        "36",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "sampler_stage_c"
+    }
+  },
+  "20": {
+    "inputs": {
+      "text": "In the dimly lit depths of the cave, a seasoned miner, equipped with his trusty oil lamp, carefully navigates through the shadows. His steady footsteps echo softly against the rocky walls as he ventures deeper into the unknown. colonizer geologist dress code, gold nuggets, deep cold shadows, With each flicker of the lamp's flame, the miner's keen eyes scan the rugged terrain, searching for any glimmer of hope amidst the darkness. Suddenly, a spark of light catches his attention, and his heart quickens with anticipation. Drawing nearer, the miner's breath catches in his throat as he discovers a vein of gold, glistening like a beacon of possibility against the rough stone. With steady hands, he extracts the precious ore, his movements deliberate and sure. Stretching out his hand to see in the dark, lit part of the face, with obvious expression of surprise As the light from his lamp dances across the newfound treasure, a sense of accomplishment washes over the miner. With each passing moment, the once-hidden riches become a tangible symbol of his resilience and determination in the face of adversity. In the quiet solitude of the cave, surrounded by the warmth of his oil lamp and the promise of newfound wealth, the miner stands as a testament to the power of perseverance and the rewards of unwavering dedication.",
+      "clip": [
+        "26",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "prompt"
+    }
+  },
+  "21": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "26",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "negative_prompt"
+    }
+  },
+  "22": {
+    "inputs": {
+      "samples": [
+        "23",
+        0
+      ],
+      "vae": [
+        "27",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "23": {
+    "inputs": {
+      "seed": 256522606127804,
+      "steps": 10,
+      "cfg": 1.1,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "27",
+        0
+      ],
+      "positive": [
+        "24",
+        0
+      ],
+      "negative": [
+        "25",
+        0
+      ],
+      "latent_image": [
+        "36",
+        1
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "sampler_stage_b"
+    }
+  },
+  "24": {
+    "inputs": {
+      "conditioning": [
+        "25",
+        0
+      ],
+      "stage_c": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "StableCascade_StageB_Conditioning",
+    "_meta": {
+      "title": "StableCascade_StageB_Conditioning"
+    }
+  },
+  "25": {
+    "inputs": {
+      "conditioning": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "26": {
+    "inputs": {
+      "ckpt_name": "stable_cascade_stage_c.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "model_loader_stage_c"
+    }
+  },
+  "27": {
+    "inputs": {
+      "ckpt_name": "stable_cascade_stage_b.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "model_loader_stage_b"
+    }
+  },
+  "36": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "compression": 32,
+      "batch_size": 1
+    },
+    "class_type": "StableCascade_EmptyLatentImage",
+    "_meta": {
+      "title": "empty_latent_image"
+    }
+  },
+  "78": {
+    "inputs": {
+      "seed": 256522606127804,
+      "steps": 20,
+      "cfg": 4,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "simple",
+      "denoise": 0.5,
+      "model": [
+        "26",
+        0
+      ],
+      "positive": [
+        "20",
+        0
+      ],
+      "negative": [
+        "21",
+        0
+      ],
+      "latent_image": [
+        "85",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "2pass_sampler_stage_c"
+    }
+  },
+  "79": {
+    "inputs": {
+      "samples": [
+        "80",
+        0
+      ],
+      "vae": [
+        "27",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "2pass_vae_decode"
+    }
+  },
+  "80": {
+    "inputs": {
+      "seed": 256522606127804,
+      "steps": 10,
+      "cfg": 1.1,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "27",
+        0
+      ],
+      "positive": [
+        "81",
+        0
+      ],
+      "negative": [
+        "82",
+        0
+      ],
+      "latent_image": [
+        "85",
+        1
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "2pass_sampler_stage_b"
+    }
+  },
+  "81": {
+    "inputs": {
+      "conditioning": [
+        "82",
+        0
+      ],
+      "stage_c": [
+        "78",
+        0
+      ]
+    },
+    "class_type": "StableCascade_StageB_Conditioning",
+    "_meta": {
+      "title": "2pass_StableCascade_StageB_Conditioning"
+    }
+  },
+  "82": {
+    "inputs": {
+      "conditioning": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "2pass_ConditioningZeroOut"
+    }
+  },
+  "85": {
+    "inputs": {
+      "compression": 32,
+      "image": [
+        "92",
+        0
+      ],
+      "vae": [
+        "26",
+        2
+      ]
+    },
+    "class_type": "StableCascade_StageC_VAEEncode",
+    "_meta": {
+      "title": "2pass_StableCascade_StageC_VAEEncode"
+    }
+  },
+  "91": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "79",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "output_image"
+    }
+  },
+  "92": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "width": 1024,
+      "height": 1024,
+      "crop": "disabled",
+      "image": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "latent_upscale"
+    }
+  }
+}
