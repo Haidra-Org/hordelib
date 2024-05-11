@@ -1,39 +1,51 @@
 {
-    "1": {
-        "inputs": {
-            "image": "test_facefix.png",
-            "choose file to upload": "image"
-        },
-        "class_type": "LoadImage"
+  "1": {
+    "inputs": {
+      "image": "test_facefix.png",
+      "upload": "image"
     },
-    "4": {
-        "inputs": {
-            "model_name": "CodeFormers.pth"
-        },
-        "class_type": "UpscaleModelLoader"
-    },
-    "6": {
-        "inputs": {
-            "filename_prefix": "ComfyUI",
-            "images": [
-                "8",
-                0
-            ]
-        },
-        "class_type": "SaveImage"
-    },
-    "8": {
-        "inputs": {
-            "facedetection": "retinaface_resnet50",
-            "upscale_model": [
-                "4",
-                0
-            ],
-            "image": [
-                "1",
-                0
-            ]
-        },
-        "class_type": "FaceRestoreWithModel"
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "image_loader"
     }
+  },
+  "4": {
+    "inputs": {
+      "model_name": "CodeFormers.pth"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "model_loader"
+    }
+  },
+  "6": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "output_image"
+    }
+  },
+  "8": {
+    "inputs": {
+      "facedetection": "retinaface_resnet50",
+      "upscale_model": [
+        "4",
+        0
+      ],
+      "image": [
+        "1",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "face_restore_with_model"
+    },
+    "class_type": "FaceRestoreWithModel"
+  }
 }

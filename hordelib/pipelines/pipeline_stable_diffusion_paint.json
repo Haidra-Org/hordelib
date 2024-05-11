@@ -1,132 +1,164 @@
 {
-    "3": {
-        "inputs": {
-            "seed": 77570063643350,
-            "steps": 20,
-            "cfg": 8.0,
-            "sampler_name": "euler",
-            "scheduler": "normal",
-            "denoise": 1.0,
-            "model": [
-                "4",
-                0
-            ],
-            "positive": [
-                "6",
-                0
-            ],
-            "negative": [
-                "7",
-                0
-            ],
-            "latent_image": [
-                "14",
-                0
-            ]
-        },
-        "class_type": "KSampler"
+  "3": {
+    "inputs": {
+      "seed": 845153640392169,
+      "steps": 20,
+      "cfg": 8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": [
+        "4",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "14",
+        0
+      ]
     },
-    "4": {
-        "inputs": {
-            "ckpt_name": "Deliberate.ckpt"
-        },
-        "class_type": "CheckpointLoaderSimple"
-    },
-    "5": {
-        "inputs": {
-            "width": 512,
-            "height": 512,
-            "batch_size": 1
-        },
-        "class_type": "EmptyLatentImage"
-    },
-    "6": {
-        "inputs": {
-            "text": "dinosaur ",
-            "clip": [
-                "10",
-                0
-            ]
-        },
-        "class_type": "CLIPTextEncode"
-    },
-    "7": {
-        "inputs": {
-            "text": "painting, drawing, artwork",
-            "clip": [
-                "10",
-                0
-            ]
-        },
-        "class_type": "CLIPTextEncode"
-    },
-    "9": {
-        "inputs": {
-            "filename_prefix": "ComfyUI",
-            "images": [
-                "15",
-                0
-            ]
-        },
-        "class_type": "SaveImage"
-    },
-    "10": {
-        "inputs": {
-            "stop_at_clip_layer": -1,
-            "clip": [
-                "4",
-                1
-            ]
-        },
-        "class_type": "CLIPSetLastLayer"
-    },
-    "11": {
-        "inputs": {
-            "image": "test_inpaint_alpha.png",
-            "choose file to upload": "image"
-        },
-        "class_type": "LoadImage"
-    },
-    "14": {
-        "inputs": {
-            "grow_mask_by": 6,
-            "pixels": [
-                "16",
-                0
-            ],
-            "vae": [
-                "4",
-                2
-            ],
-            "mask": [
-                "11",
-                1
-            ]
-        },
-        "class_type": "VAEEncodeForInpaint"
-    },
-    "15": {
-        "inputs": {
-            "samples": [
-                "3",
-                0
-            ],
-            "vae": [
-                "4",
-                2
-            ]
-        },
-        "class_type": "VAEDecode"
-    },
-    "16": {
-        "id": 16,
-        "inputs": {
-            "amount": 1,
-            "image": [
-                "11",
-                0
-            ]
-        },
-        "class_type": "RepeatImageBatch"
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "sampler"
     }
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "Deliberate.ckpt"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "model_loader"
+    }
+  },
+  "5": {
+    "inputs": {
+      "width": 512,
+      "height": 512,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "empty_latent_image"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "dinosaur ",
+      "clip": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "prompt"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "painting, drawing, artwork",
+      "clip": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "negative_prompt"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "15",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "output_image"
+    }
+  },
+  "10": {
+    "inputs": {
+      "stop_at_clip_layer": -1,
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPSetLastLayer",
+    "_meta": {
+      "title": "clip_skip"
+    }
+  },
+  "11": {
+    "inputs": {
+      "image": "test_inpaint_alpha.png",
+      "upload": "image"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "image_loader"
+    }
+  },
+  "14": {
+    "inputs": {
+      "grow_mask_by": 6,
+      "pixels": [
+        "16",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ],
+      "mask": [
+        "11",
+        1
+      ]
+    },
+    "class_type": "VAEEncodeForInpaint",
+    "_meta": {
+      "title": "vae_encode"
+    }
+  },
+  "15": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "16": {
+    "inputs": {
+      "amount": 1,
+      "image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "RepeatImageBatch",
+    "_meta": {
+      "title": "repeat_image_batch"
+    }
+  }
 }

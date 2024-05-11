@@ -1,167 +1,205 @@
 {
-    "3": {
-        "inputs": {
-            "seed": 1096039238624618,
-            "steps": 12,
-            "cfg": 8.0,
-            "sampler_name": "dpmpp_sde",
-            "scheduler": "normal",
-            "denoise": 1.0,
-            "model": [
-                "16",
-                0
-            ],
-            "positive": [
-                "6",
-                0
-            ],
-            "negative": [
-                "7",
-                0
-            ],
-            "latent_image": [
-                "5",
-                0
-            ]
-        },
-        "class_type": "KSampler"
+  "3": {
+    "inputs": {
+      "seed": 458841867575267,
+      "steps": 12,
+      "cfg": 8,
+      "sampler_name": "dpmpp_sde",
+      "scheduler": "normal",
+      "denoise": 1,
+      "model": [
+        "16",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "5",
+        0
+      ]
     },
-    "5": {
-        "inputs": {
-            "width": 256,
-            "height": 256,
-            "batch_size": 1
-        },
-        "class_type": "EmptyLatentImage"
-    },
-    "6": {
-        "inputs": {
-            "text": "(masterpiece) HDR victorian portrait painting of (girl), blonde hair, mountain nature, blue sky\n",
-            "clip": [
-                "17",
-                0
-            ]
-        },
-        "class_type": "CLIPTextEncode"
-    },
-    "7": {
-        "inputs": {
-            "text": "bad hands, text, watermark\n",
-            "clip": [
-                "17",
-                0
-            ]
-        },
-        "class_type": "CLIPTextEncode"
-    },
-    "10": {
-        "inputs": {
-            "upscale_method": "nearest-exact",
-            "width": 512,
-            "height": 512,
-            "crop": "disabled",
-            "samples": [
-                "3",
-                0
-            ]
-        },
-        "class_type": "LatentUpscale"
-    },
-    "11": {
-        "inputs": {
-            "seed": 347776641452924,
-            "steps": 14,
-            "cfg": 8.0,
-            "sampler_name": "dpmpp_2m",
-            "scheduler": "simple",
-            "denoise": 0.5,
-            "model": [
-                "16",
-                0
-            ],
-            "positive": [
-                "6",
-                0
-            ],
-            "negative": [
-                "7",
-                0
-            ],
-            "latent_image": [
-                "10",
-                0
-            ]
-        },
-        "class_type": "KSampler"
-    },
-    "12": {
-        "inputs": {
-            "filename_prefix": "ComfyUI",
-            "images": [
-                "21",
-                0
-            ]
-        },
-        "class_type": "SaveImage"
-    },
-    "16": {
-        "inputs": {
-            "ckpt_name": "Deliberate.ckpt"
-        },
-        "class_type": "CheckpointLoaderSimple"
-    },
-    "17": {
-        "inputs": {
-            "stop_at_clip_layer": -1,
-            "clip": [
-                "16",
-                1
-            ]
-        },
-        "class_type": "CLIPSetLastLayer"
-    },
-    "18": {
-        "inputs": {
-            "image": "example.png",
-            "choose file to upload": "image"
-        },
-        "class_type": "LoadImage"
-    },
-    "19": {
-        "inputs": {
-            "pixels": [
-                "22",
-                0
-            ],
-            "vae": [
-                "16",
-                2
-            ]
-        },
-        "class_type": "VAEEncode"
-    },
-    "21": {
-        "inputs": {
-            "samples": [
-                "11",
-                0
-            ],
-            "vae": [
-                "16",
-                2
-            ]
-        },
-        "class_type": "VAEDecode"
-    },
-    "22": {
-        "id": 22,
-        "inputs": {
-            "amount": 1,
-            "image": [
-                "18",
-                0
-            ]
-        },
-        "class_type": "RepeatImageBatch"
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "sampler"
     }
+  },
+  "5": {
+    "inputs": {
+      "width": 256,
+      "height": 256,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "empty_latent_image"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "(masterpiece) HDR victorian portrait painting of (girl), blonde hair, mountain nature, blue sky\n",
+      "clip": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "prompt"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "bad hands, text, watermark\n",
+      "clip": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "negative_prompt"
+    }
+  },
+  "10": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "width": 512,
+      "height": 512,
+      "crop": "disabled",
+      "samples": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "LatentUpscale",
+    "_meta": {
+      "title": "latent_upscale"
+    }
+  },
+  "11": {
+    "inputs": {
+      "seed": 65484213431324,
+      "steps": 14,
+      "cfg": 8,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "simple",
+      "denoise": 0.5,
+      "model": [
+        "16",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "upscale_sampler"
+    }
+  },
+  "12": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "output_image"
+    }
+  },
+  "16": {
+    "inputs": {
+      "ckpt_name": "Deliberate.ckpt"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "model_loader"
+    }
+  },
+  "17": {
+    "inputs": {
+      "stop_at_clip_layer": -1,
+      "clip": [
+        "16",
+        1
+      ]
+    },
+    "class_type": "CLIPSetLastLayer",
+    "_meta": {
+      "title": "clip_skip"
+    }
+  },
+  "18": {
+    "inputs": {
+      "image": "example.png",
+      "upload": "image"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "image_loader"
+    }
+  },
+  "19": {
+    "inputs": {
+      "pixels": [
+        "22",
+        0
+      ],
+      "vae": [
+        "16",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "vae_encode"
+    }
+  },
+  "21": {
+    "inputs": {
+      "samples": [
+        "11",
+        0
+      ],
+      "vae": [
+        "16",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "vae_decode"
+    }
+  },
+  "22": {
+    "inputs": {
+      "amount": 1,
+      "image": [
+        "18",
+        0
+      ]
+    },
+    "class_type": "RepeatImageBatch",
+    "_meta": {
+      "title": "repeat_image_batch"
+    }
+  }
 }
