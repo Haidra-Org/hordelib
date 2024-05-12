@@ -678,10 +678,10 @@ class Comfy_Horde:
         # This is useful for dumping the entire pipeline to the terminal when
         # developing and debugging new pipelines. A badly structured pipeline
         # file just results in a cryptic error from comfy
-        # if False:  # This isn't here, Tazlin :)
-        # with open("pipeline_debug.json", "w") as outfile:
-        #     default = lambda o: f"<<non-serializable: {type(o).__qualname__}>>"
-        #     outfile.write(json.dumps(pipeline, indent=4, default=default))
+        # if True:  # This isn't here, Tazlin :)
+        #     with open("pipeline_debug.json", "w") as outfile:
+        #         default = lambda o: f"<<non-serializable: {type(o).__qualname__}>>"
+        #         outfile.write(json.dumps(pipeline, indent=4, default=default))
         # pretty_pipeline = pformat(pipeline)
         # logger.warning(pretty_pipeline)
 

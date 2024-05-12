@@ -1,0 +1,1349 @@
+{
+  "last_node_id": 92,
+  "last_link_id": 197,
+  "nodes": [
+    {
+      "id": 24,
+      "type": "StableCascade_StageB_Conditioning",
+      "pos": [
+        1000,
+        190
+      ],
+      "size": {
+        "0": 277.20001220703125,
+        "1": 46
+      },
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 39
+        },
+        {
+          "name": "stage_c",
+          "type": "LATENT",
+          "link": 40
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            36
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "StableCascade_StageB_Conditioning"
+      }
+    },
+    {
+      "id": 25,
+      "type": "ConditioningZeroOut",
+      "pos": [
+        1000,
+        280
+      ],
+      "size": {
+        "0": 211.60000610351562,
+        "1": 26
+      },
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 41
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            37,
+            39
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "ConditioningZeroOut"
+      }
+    },
+    {
+      "id": 22,
+      "type": "VAEDecode",
+      "pos": [
+        1100,
+        620
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 33
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 34,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            197
+          ],
+          "slot_index": 0
+        }
+      ],
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 33,
+      "type": "PrimitiveNode",
+      "pos": [
+        0,
+        650
+      ],
+      "size": {
+        "0": 390,
+        "1": 150
+      },
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            48
+          ],
+          "widget": {
+            "name": "text"
+          },
+          "slot_index": 0
+        }
+      ],
+      "title": "negative_prompt_primitive",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        ""
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 82,
+      "type": "ConditioningZeroOut",
+      "pos": [
+        1020.2292389637469,
+        1013.9929825913365
+      ],
+      "size": {
+        "0": 211.60000610351562,
+        "1": 26
+      },
+      "flags": {},
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 176
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            171,
+            174
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "2pass_ConditioningZeroOut",
+      "properties": {
+        "Node name for S&R": "ConditioningZeroOut"
+      }
+    },
+    {
+      "id": 27,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        1000,
+        50
+      ],
+      "size": {
+        "0": 349.90911865234375,
+        "1": 98
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            35,
+            169
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": null,
+          "shape": 3
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            34,
+            168
+          ],
+          "shape": 3,
+          "slot_index": 2
+        }
+      ],
+      "title": "model_loader_stage_b",
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "stable_cascade_stage_b.safetensors"
+      ]
+    },
+    {
+      "id": 20,
+      "type": "CLIPTextEncode",
+      "pos": [
+        500,
+        190
+      ],
+      "size": {
+        "0": 300,
+        "1": 54
+      },
+      "flags": {},
+      "order": 7,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 31
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 46,
+          "widget": {
+            "name": "text"
+          },
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            28,
+            41,
+            176,
+            188
+          ],
+          "slot_index": 0
+        }
+      ],
+      "title": "prompt",
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "In the dimly lit depths of the cave, a seasoned miner, equipped with his trusty oil lamp, carefully navigates through the shadows. His steady footsteps echo softly against the rocky walls as he ventures deeper into the unknown. colonizer geologist dress code, gold nuggets, deep cold shadows, With each flicker of the lamp's flame, the miner's keen eyes scan the rugged terrain, searching for any glimmer of hope amidst the darkness. Suddenly, a spark of light catches his attention, and his heart quickens with anticipation. Drawing nearer, the miner's breath catches in his throat as he discovers a vein of gold, glistening like a beacon of possibility against the rough stone. With steady hands, he extracts the precious ore, his movements deliberate and sure. Stretching out his hand to see in the dark, lit part of the face, with obvious expression of surprise As the light from his lamp dances across the newfound treasure, a sense of accomplishment washes over the miner. With each passing moment, the once-hidden riches become a tangible symbol of his resilience and determination in the face of adversity. In the quiet solitude of the cave, surrounded by the warmth of his oil lamp and the promise of newfound wealth, the miner stands as a testament to the power of perseverance and the rewards of unwavering dedication."
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    },
+    {
+      "id": 21,
+      "type": "CLIPTextEncode",
+      "pos": [
+        500,
+        280
+      ],
+      "size": {
+        "0": 300,
+        "1": 54
+      },
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 32
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "link": 48,
+          "widget": {
+            "name": "text"
+          },
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            29,
+            189
+          ],
+          "slot_index": 0
+        }
+      ],
+      "title": "negative_prompt",
+      "properties": {
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ],
+      "color": "#322",
+      "bgcolor": "#533"
+    },
+    {
+      "id": 79,
+      "type": "VAEDecode",
+      "pos": [
+        1120.2292389637473,
+        1353.9929825913357
+      ],
+      "size": {
+        "0": 210,
+        "1": 46
+      },
+      "flags": {},
+      "order": 19,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 167
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 168,
+          "slot_index": 1
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            195
+          ],
+          "slot_index": 0
+        }
+      ],
+      "title": "2pass_vae_decode",
+      "properties": {
+        "Node name for S&R": "VAEDecode"
+      }
+    },
+    {
+      "id": 81,
+      "type": "StableCascade_StageB_Conditioning",
+      "pos": [
+        1020,
+        924
+      ],
+      "size": {
+        "0": 277.20001220703125,
+        "1": 46
+      },
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "conditioning",
+          "type": "CONDITIONING",
+          "link": 174
+        },
+        {
+          "name": "stage_c",
+          "type": "LATENT",
+          "link": 175
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            170
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "2pass_StableCascade_StageB_Conditioning",
+      "properties": {
+        "Node name for S&R": "StableCascade_StageB_Conditioning"
+      }
+    },
+    {
+      "id": 80,
+      "type": "KSampler",
+      "pos": [
+        1020,
+        1085
+      ],
+      "size": {
+        "0": 310,
+        "1": 234
+      },
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 169,
+          "slot_index": 0
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 170
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 171
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 180
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 173,
+          "widget": {
+            "name": "seed"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            167
+          ],
+          "slot_index": 0
+        }
+      ],
+      "title": "2pass_sampler_stage_b",
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        256522606127804,
+        "fixed",
+        10,
+        1.1,
+        "euler_ancestral",
+        "simple",
+        1
+      ]
+    },
+    {
+      "id": 50,
+      "type": "PrimitiveNode",
+      "pos": [
+        42,
+        290
+      ],
+      "size": {
+        "0": 210,
+        "1": 82
+      },
+      "flags": {
+        "collapsed": false
+      },
+      "order": 2,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "links": [
+            91,
+            92,
+            166,
+            173
+          ],
+          "slot_index": 0,
+          "widget": {
+            "name": "seed"
+          }
+        }
+      ],
+      "title": "seed_primitive",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        256522606127804,
+        "randomize"
+      ],
+      "color": "#233",
+      "bgcolor": "#355"
+    },
+    {
+      "id": 19,
+      "type": "KSampler",
+      "pos": [
+        500,
+        370
+      ],
+      "size": {
+        "0": 300,
+        "1": 234
+      },
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 27,
+          "slot_index": 0
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 28
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 29
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 60
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 91,
+          "widget": {
+            "name": "seed"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            40
+          ],
+          "slot_index": 0
+        }
+      ],
+      "title": "sampler_stage_c",
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        256522606127804,
+        "fixed",
+        20,
+        4,
+        "euler_ancestral",
+        "simple",
+        1
+      ]
+    },
+    {
+      "id": 26,
+      "type": "CheckpointLoaderSimple",
+      "pos": [
+        498,
+        49
+      ],
+      "size": {
+        "0": 336,
+        "1": 98
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            27,
+            162
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            31,
+            32
+          ],
+          "shape": 3,
+          "slot_index": 1
+        },
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            182
+          ],
+          "shape": 3,
+          "slot_index": 2
+        }
+      ],
+      "title": "model_loader_stage_c",
+      "properties": {
+        "Node name for S&R": "CheckpointLoaderSimple"
+      },
+      "widgets_values": [
+        "stable_cascade_stage_c.safetensors"
+      ]
+    },
+    {
+      "id": 23,
+      "type": "KSampler",
+      "pos": [
+        1000,
+        350
+      ],
+      "size": {
+        "0": 310,
+        "1": 234
+      },
+      "flags": {},
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 35,
+          "slot_index": 0
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 36
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 37
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 61
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 92,
+          "widget": {
+            "name": "seed"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            33
+          ],
+          "slot_index": 0
+        }
+      ],
+      "title": "sampler_stage_b",
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        256522606127804,
+        "fixed",
+        10,
+        1.1,
+        "euler_ancestral",
+        "simple",
+        1
+      ]
+    },
+    {
+      "id": 78,
+      "type": "KSampler",
+      "pos": [
+        524,
+        1204
+      ],
+      "size": {
+        "0": 300,
+        "1": 234
+      },
+      "flags": {},
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 162,
+          "slot_index": 0
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 188
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 189
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 181
+        },
+        {
+          "name": "seed",
+          "type": "INT",
+          "link": 166,
+          "widget": {
+            "name": "seed"
+          }
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            175
+          ],
+          "slot_index": 0
+        }
+      ],
+      "title": "2pass_sampler_stage_c",
+      "properties": {
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        256522606127804,
+        "fixed",
+        20,
+        4,
+        "euler_ancestral",
+        "simple",
+        0.5
+      ]
+    },
+    {
+      "id": 85,
+      "type": "StableCascade_StageC_VAEEncode",
+      "pos": [
+        522,
+        1094
+      ],
+      "size": {
+        "0": 315,
+        "1": 78
+      },
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 196
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 182
+        }
+      ],
+      "outputs": [
+        {
+          "name": "stage_c",
+          "type": "LATENT",
+          "links": [
+            181
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "stage_b",
+          "type": "LATENT",
+          "links": [
+            180
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "title": "2pass_StableCascade_StageC_VAEEncode",
+      "properties": {
+        "Node name for S&R": "StableCascade_StageC_VAEEncode"
+      },
+      "widgets_values": [
+        32
+      ]
+    },
+    {
+      "id": 92,
+      "type": "ImageScale",
+      "pos": [
+        532,
+        917
+      ],
+      "size": {
+        "0": 315,
+        "1": 130
+      },
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 197
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            196
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "latent_upscale",
+      "properties": {
+        "Node name for S&R": "ImageScale"
+      },
+      "widgets_values": [
+        "nearest-exact",
+        1024,
+        1024,
+        "disabled"
+      ]
+    },
+    {
+      "id": 36,
+      "type": "StableCascade_EmptyLatentImage",
+      "pos": [
+        500,
+        650
+      ],
+      "size": {
+        "0": 315,
+        "1": 150
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "stage_c",
+          "type": "LATENT",
+          "links": [
+            60
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "stage_b",
+          "type": "LATENT",
+          "links": [
+            61
+          ],
+          "shape": 3,
+          "slot_index": 1
+        }
+      ],
+      "title": "empty_latent_image",
+      "properties": {
+        "Node name for S&R": "StableCascade_EmptyLatentImage"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        32,
+        1
+      ]
+    },
+    {
+      "id": 91,
+      "type": "SaveImage",
+      "pos": [
+        1397,
+        946
+      ],
+      "size": {
+        "0": 315,
+        "1": 270
+      },
+      "flags": {},
+      "order": 20,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 195
+        }
+      ],
+      "title": "output_image",
+      "properties": {},
+      "widgets_values": [
+        "ComfyUI"
+      ]
+    },
+    {
+      "id": 32,
+      "type": "PrimitiveNode",
+      "pos": [
+        0,
+        420
+      ],
+      "size": {
+        "0": 387.80291748046875,
+        "1": 186.3981170654297
+      },
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            46
+          ],
+          "widget": {
+            "name": "text"
+          },
+          "slot_index": 0
+        }
+      ],
+      "title": "prompt_primitive",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        "In the dimly lit depths of the cave, a seasoned miner, equipped with his trusty oil lamp, carefully navigates through the shadows. His steady footsteps echo softly against the rocky walls as he ventures deeper into the unknown. colonizer geologist dress code, gold nuggets, deep cold shadows, With each flicker of the lamp's flame, the miner's keen eyes scan the rugged terrain, searching for any glimmer of hope amidst the darkness. Suddenly, a spark of light catches his attention, and his heart quickens with anticipation. Drawing nearer, the miner's breath catches in his throat as he discovers a vein of gold, glistening like a beacon of possibility against the rough stone. With steady hands, he extracts the precious ore, his movements deliberate and sure. Stretching out his hand to see in the dark, lit part of the face, with obvious expression of surprise As the light from his lamp dances across the newfound treasure, a sense of accomplishment washes over the miner. With each passing moment, the once-hidden riches become a tangible symbol of his resilience and determination in the face of adversity. In the quiet solitude of the cave, surrounded by the warmth of his oil lamp and the promise of newfound wealth, the miner stands as a testament to the power of perseverance and the rewards of unwavering dedication."
+      ],
+      "color": "#232",
+      "bgcolor": "#353"
+    }
+  ],
+  "links": [
+    [
+      27,
+      26,
+      0,
+      19,
+      0,
+      "MODEL"
+    ],
+    [
+      28,
+      20,
+      0,
+      19,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      29,
+      21,
+      0,
+      19,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      31,
+      26,
+      1,
+      20,
+      0,
+      "CLIP"
+    ],
+    [
+      32,
+      26,
+      1,
+      21,
+      0,
+      "CLIP"
+    ],
+    [
+      33,
+      23,
+      0,
+      22,
+      0,
+      "LATENT"
+    ],
+    [
+      34,
+      27,
+      2,
+      22,
+      1,
+      "VAE"
+    ],
+    [
+      35,
+      27,
+      0,
+      23,
+      0,
+      "MODEL"
+    ],
+    [
+      36,
+      24,
+      0,
+      23,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      37,
+      25,
+      0,
+      23,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      39,
+      25,
+      0,
+      24,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      40,
+      19,
+      0,
+      24,
+      1,
+      "LATENT"
+    ],
+    [
+      41,
+      20,
+      0,
+      25,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      46,
+      32,
+      0,
+      20,
+      1,
+      "STRING"
+    ],
+    [
+      48,
+      33,
+      0,
+      21,
+      1,
+      "STRING"
+    ],
+    [
+      60,
+      36,
+      0,
+      19,
+      3,
+      "LATENT"
+    ],
+    [
+      61,
+      36,
+      1,
+      23,
+      3,
+      "LATENT"
+    ],
+    [
+      91,
+      50,
+      0,
+      19,
+      4,
+      "INT"
+    ],
+    [
+      92,
+      50,
+      0,
+      23,
+      4,
+      "INT"
+    ],
+    [
+      162,
+      26,
+      0,
+      78,
+      0,
+      "MODEL"
+    ],
+    [
+      166,
+      50,
+      0,
+      78,
+      4,
+      "INT"
+    ],
+    [
+      167,
+      80,
+      0,
+      79,
+      0,
+      "LATENT"
+    ],
+    [
+      168,
+      27,
+      2,
+      79,
+      1,
+      "VAE"
+    ],
+    [
+      169,
+      27,
+      0,
+      80,
+      0,
+      "MODEL"
+    ],
+    [
+      170,
+      81,
+      0,
+      80,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      171,
+      82,
+      0,
+      80,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      173,
+      50,
+      0,
+      80,
+      4,
+      "INT"
+    ],
+    [
+      174,
+      82,
+      0,
+      81,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      175,
+      78,
+      0,
+      81,
+      1,
+      "LATENT"
+    ],
+    [
+      176,
+      20,
+      0,
+      82,
+      0,
+      "CONDITIONING"
+    ],
+    [
+      180,
+      85,
+      1,
+      80,
+      3,
+      "LATENT"
+    ],
+    [
+      181,
+      85,
+      0,
+      78,
+      3,
+      "LATENT"
+    ],
+    [
+      182,
+      26,
+      2,
+      85,
+      1,
+      "VAE"
+    ],
+    [
+      188,
+      20,
+      0,
+      78,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      189,
+      21,
+      0,
+      78,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      195,
+      79,
+      0,
+      91,
+      0,
+      "IMAGE"
+    ],
+    [
+      196,
+      92,
+      0,
+      85,
+      0,
+      "IMAGE"
+    ],
+    [
+      197,
+      22,
+      0,
+      92,
+      0,
+      "IMAGE"
+    ]
+  ],
+  "groups": [
+    {
+      "title": "Stable Cascade",
+      "bounding": [
+        490,
+        -20,
+        1257,
+        820
+      ],
+      "color": "#3f789e",
+      "font_size": 24
+    },
+    {
+      "title": "Stable Cascade (HiRes Pass)",
+      "bounding": [
+        494,
+        830,
+        1269,
+        600
+      ],
+      "color": "#3f789e",
+      "font_size": 24
+    }
+  ],
+  "config": {},
+  "extra": {},
+  "version": 0.4
+}

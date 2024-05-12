@@ -5,18 +5,111 @@ import rembg  # type: ignore
 from loguru import logger
 from PIL import Image, ImageOps, PngImagePlugin, UnidentifiedImageError
 
+IMAGE_CHUNK_SIZE = 64
+
+DEFAULT_IMAGE_MIN_RESOLUTION = 512
+DEFAULT_HIGHER_RES_MAX_RESOLUTION = 1024
+
 
 class ImageUtils:
+
     @classmethod
-    def calculate_source_image_size(cls, width, height):
-        if width > 512 and height > 512:
-            final_width = width
-            final_height = height
-            first_pass_ratio = min(final_height / 512, final_width / 512)
-            width = (int(final_width / first_pass_ratio) // 64) * 64
-            height = (int(final_height / first_pass_ratio) // 64) * 64
-            return (width, height)
-        return (width, height)
+    def resize_image_dimensions(
+        cls,
+        width: int,
+        height: int,
+        desired_dimension: int,
+        use_min: bool,
+    ) -> tuple[int, int]:
+        """Resize the image dimensions to have one side equal to the desired resolution, keeping the aspect ratio.
+
+        - If use_min is True, the side with the minimum length will be resized to the desired resolution.
+          - For example, if the image is 1024x2048 and the desired resolution is 512, the image will be
+            resized to 512x1024. (As desired for 512x trained models)
+        - If use_min is False, the side with the maximum length will be resized to the desired resolution.
+          - For example, if the image is 1024x2048 and the desired resolution is 1024, the image will be
+            resized to 512x1024. (As desired for 1024x trained models)
+        - If the image is smaller than the desired resolution, the image will not be resized.
+
+        Args:
+            width (int): The width of the image.
+            height (int): The height of the image.
+            desired_dimension (int): The desired single side resolution.
+            use_min (bool): Whether to use the minimum or maximum side.
+
+        Returns:
+            tuple[int, int]: The target first pass width and height of the image.
+        """
+        if desired_dimension is None or desired_dimension <= 0:
+            raise ValueError("desired_resolution must be a positive integer.")
+
+        if width <= 0 or height <= 0:
+            raise ValueError("width and height must be positive integers.")
+
+        if width < desired_dimension and height < desired_dimension:
+            return width, height
+
+        if use_min:
+            ratio = min(
+                height / desired_dimension,
+                width / desired_dimension,
+            )
+        else:
+            ratio = max(
+                height / desired_dimension,
+                width / desired_dimension,
+            )
+
+        new_width = int(width // (ratio * IMAGE_CHUNK_SIZE)) * IMAGE_CHUNK_SIZE
+        new_height = int(height // (ratio * IMAGE_CHUNK_SIZE)) * IMAGE_CHUNK_SIZE
+
+        return new_width, new_height
+
+    @classmethod
+    def get_first_pass_image_resolution_min(
+        cls,
+        width: int,
+        height: int,
+        min_dimension: int = DEFAULT_IMAGE_MIN_RESOLUTION,
+    ):
+        """Resize the image dimensions to have one side equal to the desired resolution, keeping the aspect ratio.
+
+        - If the image is larger than the desired resolution, the side with the minimum length will be resized to the
+          desired resolution.
+        - If the image is smaller than the desired resolution, the image will not be resized.
+
+        """
+        if width > min_dimension and height > min_dimension:
+            return cls.resize_image_dimensions(
+                width,
+                height,
+                desired_dimension=min_dimension,
+                use_min=True,
+            )
+        return width, height
+
+    @classmethod
+    def get_first_pass_image_resolution_max(
+        cls,
+        width: int,
+        height: int,
+        max_dimension: int = DEFAULT_HIGHER_RES_MAX_RESOLUTION,
+    ):
+        """Resize the image dimensions to have one side equal to the desired resolution, keeping the aspect ratio.
+
+        - If the image is larger than the desired resolution, the side with the maximum length will be resized to the
+          desired resolution.
+        - If the image is smaller than the desired resolution, the image will not be resized.
+        """
+
+        if max(width, height) > max_dimension:
+            return cls.resize_image_dimensions(
+                width,
+                height,
+                desired_dimension=max_dimension,
+                use_min=False,
+            )
+        return width, height
 
     @classmethod
     def add_image_alpha_channel(cls, source_image, alpha_image):
@@ -45,7 +138,7 @@ class ImageUtils:
             newwidth = payload["width"]
             newheight = payload["height"]
             if payload.get("hires_fix") or payload.get("control_type"):
-                newwidth, newheight = cls.calculate_source_image_size(payload["width"], payload["height"])
+                newwidth, newheight = cls.get_first_pass_image_resolution_min(payload["width"], payload["height"])
             if source_image.size != (newwidth, newheight):
                 payload["source_image"] = source_image.resize(
                     (newwidth, newheight),

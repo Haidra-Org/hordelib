@@ -1,5 +1,6 @@
 # test_horde.py
 
+import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
@@ -318,4 +319,66 @@ class TestHordeInferenceCascade:
         assert check_single_inference_image_similarity(
             f"images_expected/{img_filename}",
             pil_image,
+        )
+
+    def test_cascade_text_to_image_hires_2pass(
+        self,
+        hordelib_instance: HordeLib,
+        stable_cascade_base_model_name: str,
+    ):
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 4,
+            "denoising_strength": 1.0,
+            "hires_fix_denoising_strength": 0.5,
+            "seed": 1312,
+            "height": 1536,
+            "width": 1024,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": True,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": (
+                "Lucid Creations, Deep Forest, Moss, ethereal, dreamlike, surreal, "
+                "beautiful, illustration, incredible detail, 8k, abstract"
+            ),
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": stable_cascade_base_model_name,
+        }
+
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+
+        img_filename = "stable_cascade_text_to_image_2pass.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        # Check that denoising strength works
+        data["hires_fix_denoising_strength"] = 0
+        pil_image2 = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image2 is not None
+        assert isinstance(pil_image2, Image.Image)
+
+        img_filename_denoise_0 = "stable_cascade_text_to_image_2pass_denoise_0.png"
+        pil_image2.save(f"images/{img_filename_denoise_0}", quality=100)
+
+        assert pil_image2 is not None
+        assert isinstance(pil_image2, Image.Image)
+        with pytest.raises(AssertionError):
+            check_single_inference_image_similarity(
+                pil_image2,
+                pil_image,
+                exception_on_fail=True,
+            )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename_denoise_0}",
+            pil_image2,
         )

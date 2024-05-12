@@ -239,6 +239,10 @@ class HordeLib:
         "model_loader_stage_b.ckpt_name": "stable_cascade_stage_b",
         "model_loader_stage_b.model_name": "stable_cascade_stage_b",
         "model_loader_stage_b.horde_model_name": "model_name",
+        # Stable Cascade 2pass
+        "2pass_sampler_stage_c.sampler_name": "sampler_name",
+        "2pass_sampler_stage_c.denoise": "hires_fix_denoising_strength",
+        "2pass_sampler_stage_b.sampler_name": "sampler_name",
     }
 
     _comfyui_callback: Callable[[str, dict, str], None] | None = None
@@ -771,14 +775,44 @@ class HordeLib:
 
         # For hires fix, change the image sizes as we create an intermediate image first
         if payload.get("hires_fix", False):
-            width = pipeline_params.get("empty_latent_image.width", 0)
-            height = pipeline_params.get("empty_latent_image.height", 0)
-            if width > 512 and height > 512:
-                newwidth, newheight = ImageUtils.calculate_source_image_size(width, height)
-                pipeline_params["latent_upscale.width"] = width
-                pipeline_params["latent_upscale.height"] = height
-                pipeline_params["empty_latent_image.width"] = newwidth
-                pipeline_params["empty_latent_image.height"] = newheight
+            model_details = (
+                SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
+                if SharedModelManager.manager.compvis
+                else None
+            )
+
+            original_width = pipeline_params.get("empty_latent_image.width")
+            original_height = pipeline_params.get("empty_latent_image.height")
+
+            if original_width is None or original_height is None:
+                logger.error("empty_latent_image.width or empty_latent_image.height not found. Using 512x512.")
+                original_width, original_height = (512, 512)
+
+            new_width, new_height = (None, None)
+
+            if model_details and model_details.get("baseline") == "stable_cascade":
+                new_width, new_height = ImageUtils.get_first_pass_image_resolution_max(
+                    original_width,
+                    original_height,
+                )
+            else:
+                new_width, new_height = ImageUtils.get_first_pass_image_resolution_min(
+                    original_width,
+                    original_height,
+                )
+
+            # This is the *target* resolution
+            pipeline_params["latent_upscale.width"] = original_width
+            pipeline_params["latent_upscale.height"] = original_height
+
+            if new_width and new_height:
+                # This is the *first pass* resolution
+                pipeline_params["empty_latent_image.width"] = new_width
+                pipeline_params["empty_latent_image.height"] = new_height
+            else:
+                logger.error("Could not determine new image size for hires fix. Using 1024x1024.")
+                pipeline_params["empty_latent_image.width"] = 1024
+                pipeline_params["empty_latent_image.height"] = 1024
 
         if payload.get("control_type"):
             # Inject control net model manager
@@ -886,6 +920,7 @@ class HordeLib:
         #     image_upscale
         #     stable_cascade
         #       stable_cascade_remix
+        #       stable_cascade_2pass
 
         # controlnet, controlnet_hires_fix controlnet_annotator
         if params.get("model_name"):
@@ -893,6 +928,8 @@ class HordeLib:
             if model_details.get("baseline") == "stable_cascade":
                 if params.get("source_processing") == "remix":
                     return "stable_cascade_remix"
+                if params.get("hires_fix", False):
+                    return "stable_cascade_2pass"
                 return "stable_cascade"
         if params.get("control_type"):
             if params.get("return_control_map", False):
