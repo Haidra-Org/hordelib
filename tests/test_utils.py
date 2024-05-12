@@ -6,6 +6,7 @@ from hordelib.utils.distance import (
     HistogramDistanceResultCode,
 )
 from hordelib.utils.gpuinfo import GPUInfo
+from hordelib.utils.image_utils import ImageUtils
 
 
 def test_worker_settings_singleton():
@@ -64,3 +65,85 @@ class TestGPUInfo:
         assert info.vram_total[0] > 0
         assert info.vram_free[0] > 0
         assert info.vram_used[0] > 0
+
+
+class TestImageUtils:
+    def test_get_first_pass_image_resolution_min(self):
+        expected = (512, 512)
+        calculated = ImageUtils.get_first_pass_image_resolution_min(512, 512)
+
+        assert calculated == expected
+
+    def test_under_sized_both_dimensions_min(self):
+        expected = (256, 256)
+        calculated = ImageUtils.get_first_pass_image_resolution_min(256, 256)
+
+        assert calculated == expected
+
+    def test_under_sized_one_dimension_min(self):
+        expected = (512, 256)
+        calculated = ImageUtils.get_first_pass_image_resolution_min(512, 256)
+
+        assert calculated == expected
+
+    def test_oversized_one_dimension_min(self):
+        expected = (1024, 512)
+        calculated = ImageUtils.get_first_pass_image_resolution_min(1024, 512)
+
+        assert calculated == expected
+
+    def test_oversized_other_dimension_min(self):
+        expected = (512, 1024)
+        calculated = ImageUtils.get_first_pass_image_resolution_min(512, 1024)
+
+        assert calculated == expected
+
+    def test_both_dimensions_oversized_evenly_min(self):
+        expected = (512, 512)
+        calculated = ImageUtils.get_first_pass_image_resolution_min(1024, 1024)
+
+        assert calculated == expected
+
+    def test_both_dimensions_oversized_unevenly_min(self):
+        expected = (512, 768)
+        calculated = ImageUtils.get_first_pass_image_resolution_min(1024, 1536)
+
+        assert calculated == expected
+
+    def test_get_first_pass_image_resolution_max(self):
+        expected = (1024, 1024)
+        calculated = ImageUtils.get_first_pass_image_resolution_max(1024, 1024)
+
+        assert calculated == expected
+
+    def test_under_sized_both_dimensions_max(self):
+        expected = (512, 512)
+        calculated = ImageUtils.get_first_pass_image_resolution_max(512, 512)
+
+        assert calculated == expected
+
+    def test_oversized_one_dimension_max(self):
+        expected = (1024, 512)
+        calculated = ImageUtils.get_first_pass_image_resolution_max(2048, 1024)
+
+        assert calculated == expected
+
+    def test_oversized_other_dimension_max(self):
+        expected = (512, 1024)
+        calculated = ImageUtils.get_first_pass_image_resolution_max(1024, 2048)
+
+        assert calculated == expected
+
+    def test_both_dimensions_oversized_evenly_max(self):
+        expected = (1024, 1024)
+        calculated = ImageUtils.get_first_pass_image_resolution_max(2048, 2048)
+
+        assert calculated == expected
+
+    def test_both_dimensions_oversized_unevenly_max(self):
+        expected = (640, 1024)
+        calculated_cascade = ImageUtils.get_first_pass_image_resolution_max(2048, 3072)
+        calculated_default = ImageUtils.get_first_pass_image_resolution_min(2048, 3072)
+
+        assert calculated_cascade != calculated_default
+        assert calculated_cascade == expected

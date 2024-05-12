@@ -775,25 +775,44 @@ class HordeLib:
 
         # For hires fix, change the image sizes as we create an intermediate image first
         if payload.get("hires_fix", False):
-            optimal_size = 512
-            model_details = None
-            if SharedModelManager.manager.compvis:
-                model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
+            model_details = (
+                SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
+                if SharedModelManager.manager.compvis
+                else None
+            )
+
+            original_width = pipeline_params.get("empty_latent_image.width")
+            original_height = pipeline_params.get("empty_latent_image.height")
+
+            if original_width is None or original_height is None:
+                logger.error("empty_latent_image.width or empty_latent_image.height not found. Using 512x512.")
+                original_width, original_height = (512, 512)
+
+            new_width, new_height = (None, None)
+
             if model_details and model_details.get("baseline") == "stable_cascade":
-                optimal_size = 1024
-            width = pipeline_params.get("empty_latent_image.width", 0)
-            height = pipeline_params.get("empty_latent_image.height", 0)
-            recalculate_size = False
-            if width > optimal_size and height > optimal_size:
-                recalculate_size = True
-            elif optimal_size == 1024 and (width > optimal_size or height > optimal_size):
-                recalculate_size = True
-            if recalculate_size:
-                newwidth, newheight = ImageUtils.calculate_source_image_size(width, height, optimal_size)
-                pipeline_params["latent_upscale.width"] = width
-                pipeline_params["latent_upscale.height"] = height
-                pipeline_params["empty_latent_image.width"] = newwidth
-                pipeline_params["empty_latent_image.height"] = newheight
+                new_width, new_height = ImageUtils.get_first_pass_image_resolution_max(
+                    original_width,
+                    original_height,
+                )
+            else:
+                new_width, new_height = ImageUtils.get_first_pass_image_resolution_min(
+                    original_width,
+                    original_height,
+                )
+
+            # This is the *target* resolution
+            pipeline_params["latent_upscale.width"] = original_width
+            pipeline_params["latent_upscale.height"] = original_height
+
+            if new_width and new_height:
+                # This is the *first pass* resolution
+                pipeline_params["empty_latent_image.width"] = new_width
+                pipeline_params["empty_latent_image.height"] = new_height
+            else:
+                logger.error("Could not determine new image size for hires fix. Using 1024x1024.")
+                pipeline_params["empty_latent_image.width"] = 1024
+                pipeline_params["empty_latent_image.height"] = 1024
 
         if payload.get("control_type"):
             # Inject control net model manager

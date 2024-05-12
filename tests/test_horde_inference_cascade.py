@@ -1,5 +1,6 @@
 # test_horde.py
 
+import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
@@ -320,7 +321,7 @@ class TestHordeInferenceCascade:
             pil_image,
         )
 
-    def test_cascade_text_to_image_2pass(
+    def test_cascade_text_to_image_hires_2pass(
         self,
         hordelib_instance: HordeLib,
         stable_cascade_base_model_name: str,
@@ -361,11 +362,23 @@ class TestHordeInferenceCascade:
         pil_image2 = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image2 is not None
         assert isinstance(pil_image2, Image.Image)
-        assert not check_single_inference_image_similarity(
-            pil_image2,
+
+        img_filename_denoise_0 = "stable_cascade_text_to_image_2pass_denoise_0.png"
+        pil_image2.save(f"images/{img_filename_denoise_0}", quality=100)
+
+        assert pil_image2 is not None
+        assert isinstance(pil_image2, Image.Image)
+        with pytest.raises(AssertionError):
+            check_single_inference_image_similarity(
+                pil_image2,
+                pil_image,
+                exception_on_fail=True,
+            )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
             pil_image,
         )
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename_denoise_0}",
+            pil_image2,
+        )
