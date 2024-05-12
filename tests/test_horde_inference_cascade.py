@@ -329,8 +329,9 @@ class TestHordeInferenceCascade:
             "sampler_name": "k_euler",
             "cfg_scale": 4,
             "denoising_strength": 1.0,
+            "hires_fix_denoising_strength": 0.5,
             "seed": 1312,
-            "height": 1024,
+            "height": 1536,
             "width": 1024,
             "karras": False,
             "tiling": False,
@@ -339,7 +340,10 @@ class TestHordeInferenceCascade:
             "control_type": None,
             "image_is_control": False,
             "return_control_map": False,
-            "prompt": "A path through a mystical jungle, next to a raging river",
+            "prompt": (
+                "Lucid Creations, Deep Forest, Moss, ethereal, dreamlike, surreal, "
+                "beautiful, illustration, incredible detail, 8k, abstract"
+            ),
             "ddim_steps": 20,
             "n_iter": 1,
             "model": stable_cascade_base_model_name,
@@ -352,6 +356,15 @@ class TestHordeInferenceCascade:
         img_filename = "stable_cascade_text_to_image_2pass.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
+        # Check that denoising strength works
+        data["hires_fix_denoising_strength"] = 0
+        pil_image2 = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image2 is not None
+        assert isinstance(pil_image2, Image.Image)
+        assert not check_single_inference_image_similarity(
+            pil_image2,
+            pil_image,
+        )
         # assert check_single_inference_image_similarity(
         #     f"images_expected/{img_filename}",
         #     pil_image,
