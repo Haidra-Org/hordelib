@@ -153,36 +153,48 @@ def do_pytest_action(result: ImageSimilarityResult) -> bool:
 def check_single_inference_image_similarity(
     img1: FilePathOrPILImage,
     img2: FilePathOrPILImage,
+    *,
+    exception_on_fail: bool = False,
 ) -> bool:
     return check_list_inference_images_similarity(
         [(img1, img2)],
+        exception_on_fail=exception_on_fail,
     )
 
 
 def check_single_lora_image_similarity(
     img1: FilePathOrPILImage,
     img2: FilePathOrPILImage,
+    *,
+    exception_on_fail: bool = False,
 ) -> bool:
     return check_list_lora_images_similarity(
         [(img1, img2)],
+        exception_on_fail=exception_on_fail,
     )
 
 
 def check_list_lora_images_similarity(
     list_of_image_pairs: Iterable[tuple[FilePathOrPILImage, FilePathOrPILImage]],
+    *,
+    exception_on_fail: bool = False,
 ) -> bool:
     return check_list_images_similarity(
         list_of_image_pairs,
         similarity_constraints=LORA_SIMILARITY_DEFAULTS,
+        exception_on_fail=exception_on_fail,
     )
 
 
 def check_list_inference_images_similarity(
     list_of_image_pairs: Iterable[tuple[FilePathOrPILImage, FilePathOrPILImage]],
+    *,
+    exception_on_fail: bool = False,
 ) -> bool:
     return check_list_images_similarity(
         list_of_image_pairs,
         similarity_constraints=INFERENCE_SIMILARITY_DEFAULTS,
+        exception_on_fail=exception_on_fail,
     )
 
 
@@ -190,6 +202,7 @@ def check_list_images_similarity(
     list_of_image_pairs: Iterable[tuple[FilePathOrPILImage, FilePathOrPILImage]],
     *,
     similarity_constraints: ImageSimilarityConstraints,
+    exception_on_fail: bool = False,
 ) -> bool:
     all_results: list[tuple[tuple[FilePathOrPILImage, FilePathOrPILImage], ImageSimilarityResult]] = []
     for img1, img2 in list_of_image_pairs:
@@ -231,6 +244,8 @@ def check_list_images_similarity(
     HORDELIB_SKIP_SIMILARITY_FAIL = os.getenv("HORDELIB_SKIP_SIMILARITY_FAIL", None)
 
     if len(all_failed_results) > 0:
+        if exception_on_fail:
+            raise AssertionError(complete_error_message)
         if not HORDELIB_SKIP_SIMILARITY_FAIL:
             pytest.fail(complete_error_message)
         else:
