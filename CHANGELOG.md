@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v2.10.0](https://github.com/Haidra-Org/hordelib/compare/v2.9.3...v2.10.0)
+
+13 May 2024
+
+- feat: adds stable_cascade_2pass [`#253`](https://github.com/Haidra-Org/hordelib/pull/253) (Divided by Zer0)
+- feat: Removes the requirement for a design pipeline [`#251`](https://github.com/Haidra-Org/hordelib/pull/251) (Divided by Zer0)
+
 ## [v2.9.3](https://github.com/Haidra-Org/hordelib/compare/v2.9.2...v2.9.3)
 
 5 May 2024
