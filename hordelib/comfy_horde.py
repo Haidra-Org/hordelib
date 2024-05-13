@@ -458,7 +458,7 @@ class Comfy_Horde:
 
         return data
 
-    def _fix_node_names(self, data: dict, design: dict) -> dict:
+    def _fix_node_names(self, data: dict) -> dict:
         """Rename nodes to the "title" set in the design file.
 
         Args:
@@ -472,15 +472,12 @@ class Comfy_Horde:
         # in the design file. These must be unique names.
         newnodes = {}
         renames = {}
-        nodes = design["nodes"]
-        for nodename, oldnode in data.items():
+        for nodename, nodedata in data.items():
             newname = nodename
-            for node in nodes:
-                if str(node["id"]) == str(nodename) and "title" in node:
-                    newname = node["title"]
-                    break
+            if nodedata.get("_meta", {}).get("title"):
+                newname = nodedata["_meta"]["title"]
             renames[nodename] = newname
-            newnodes[newname] = oldnode
+            newnodes[newname] = nodedata
 
         # Now we've renamed the node names, change any references to them also
         for node in newnodes.values():
@@ -504,13 +501,13 @@ class Comfy_Horde:
     #
     # Note also that the format of the design files from web app is expected to change at a fast
     # pace. This is why the only thing that partially relies on that format, is in fact, optional.
-    def _patch_pipeline(self, data: dict, design: dict) -> dict:
+    def _patch_pipeline(self, data: dict) -> dict:
         """Patch the pipeline data with the design data."""
         # FIXME: This can now be done through the _meta.title key included with each API export.
         # First replace comfyui standard types with hordelib node types
         data = self._fix_pipeline_types(data)
         # Now try to find better parameter names
-        return self._fix_node_names(data, design)
+        return self._fix_node_names(data)
 
     def _load_pipeline(self, filename: str) -> bool | None:
         """
@@ -540,17 +537,8 @@ class Comfy_Horde:
                 # Load the pipeline data from the file
                 pipeline_data = json.loads(jsonfile.read())
                 # Check if there is a design file for this pipeline
-                pipeline_design = os.path.join(
-                    os.path.dirname(os.path.dirname(filename)),
-                    "pipeline_designs",
-                    os.path.basename(filename),
-                )
-                # If there is a design file, patch the pipeline data with it
-                if os.path.exists(pipeline_design):
-                    logger.debug(f"Patching pipeline {pipeline_name}")
-                    with open(pipeline_design) as design_file:
-                        design_data = json.loads(design_file.read())
-                    pipeline_data = self._patch_pipeline(pipeline_data, design_data)
+                logger.debug(f"Patching pipeline {pipeline_name}")
+                pipeline_data = self._patch_pipeline(pipeline_data)
                 # Add the pipeline data to the pipelines dictionary
                 self.pipelines[pipeline_name] = pipeline_data
                 logger.debug(f"Loaded inference pipeline: {pipeline_name}")
@@ -690,10 +678,10 @@ class Comfy_Horde:
         # This is useful for dumping the entire pipeline to the terminal when
         # developing and debugging new pipelines. A badly structured pipeline
         # file just results in a cryptic error from comfy
-        # if False:  # This isn't here, Tazlin :)
-        # with open("pipeline_debug.json", "w") as outfile:
-        #     default = lambda o: f"<<non-serializable: {type(o).__qualname__}>>"
-        #     outfile.write(json.dumps(pipeline, indent=4, default=default))
+        # if True:  # This isn't here, Tazlin :)
+        #     with open("pipeline_debug.json", "w") as outfile:
+        #         default = lambda o: f"<<non-serializable: {type(o).__qualname__}>>"
+        #         outfile.write(json.dumps(pipeline, indent=4, default=default))
         # pretty_pipeline = pformat(pipeline)
         # logger.warning(pretty_pipeline)
 

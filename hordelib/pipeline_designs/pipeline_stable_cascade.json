@@ -96,7 +96,7 @@
         "1": 26
       },
       "flags": {},
-      "order": 7,
+      "order": 8,
       "mode": 0,
       "inputs": [
         {
@@ -231,51 +231,6 @@
       ]
     },
     {
-      "id": 34,
-      "type": "StableCascade_EmptyLatentImage",
-      "pos": [
-        210,
-        725
-      ],
-      "size": {
-        "0": 315,
-        "1": 150
-      },
-      "flags": {},
-      "order": 1,
-      "mode": 0,
-      "outputs": [
-        {
-          "name": "stage_c",
-          "type": "LATENT",
-          "links": [
-            82
-          ],
-          "shape": 3,
-          "slot_index": 0
-        },
-        {
-          "name": "stage_b",
-          "type": "LATENT",
-          "links": [
-            83
-          ],
-          "shape": 3,
-          "slot_index": 1
-        }
-      ],
-      "title": "stable_cascade_empty_latent_image",
-      "properties": {
-        "Node name for S&R": "StableCascade_EmptyLatentImage"
-      },
-      "widgets_values": [
-        1024,
-        1024,
-        42,
-        5
-      ]
-    },
-    {
       "id": 3,
       "type": "KSampler",
       "pos": [
@@ -287,7 +242,7 @@
         "1": 262
       },
       "flags": {},
-      "order": 8,
+      "order": 9,
       "mode": 0,
       "inputs": [
         {
@@ -348,7 +303,7 @@
         "1": 192
       },
       "flags": {},
-      "order": 4,
+      "order": 5,
       "mode": 0,
       "inputs": [
         {
@@ -390,7 +345,7 @@
         "1": 96
       },
       "flags": {},
-      "order": 5,
+      "order": 6,
       "mode": 0,
       "inputs": [
         {
@@ -447,11 +402,51 @@
       ]
     },
     {
+      "id": 48,
+      "type": "LoadImage",
+      "pos": [
+        -263,
+        724
+      ],
+      "size": {
+        "0": 315,
+        "1": 314
+      },
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            117
+          ],
+          "shape": 3,
+          "slot_index": 0
+        },
+        {
+          "name": "MASK",
+          "type": "MASK",
+          "links": null,
+          "shape": 3
+        }
+      ],
+      "title": "sc_image_loader",
+      "properties": {
+        "Node name for S&R": "LoadImage"
+      },
+      "widgets_values": [
+        "example.png",
+        "image"
+      ]
+    },
+    {
       "id": 41,
       "type": "CheckpointLoaderSimple",
       "pos": [
-        -271.29601025390616,
-        353.6759821777344
+        -271,
+        354
       ],
       "size": {
         "0": 336,
@@ -499,6 +494,46 @@
       ]
     },
     {
+      "id": 50,
+      "type": "RepeatImageBatch",
+      "pos": [
+        99,
+        936
+      ],
+      "size": {
+        "0": 315,
+        "1": 58
+      },
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 117
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            118
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "repeat_image_batch",
+      "properties": {
+        "Node name for S&R": "RepeatImageBatch"
+      },
+      "widgets_values": [
+        1
+      ]
+    },
+    {
       "id": 47,
       "type": "StableCascade_StageC_VAEEncode",
       "pos": [
@@ -510,7 +545,7 @@
         "1": 78
       },
       "flags": {},
-      "order": 9,
+      "order": 7,
       "mode": 0,
       "inputs": [
         {
@@ -547,83 +582,48 @@
       ]
     },
     {
-      "id": 48,
-      "type": "LoadImage",
+      "id": 34,
+      "type": "StableCascade_EmptyLatentImage",
       "pos": [
-        -263,
-        724
+        210,
+        725
       ],
-      "size": [
-        315,
-        314
-      ],
+      "size": {
+        "0": 315,
+        "1": 150
+      },
       "flags": {},
       "order": 3,
       "mode": 0,
       "outputs": [
         {
-          "name": "IMAGE",
-          "type": "IMAGE",
+          "name": "stage_c",
+          "type": "LATENT",
           "links": [
-            117
+            82
           ],
           "shape": 3,
           "slot_index": 0
         },
         {
-          "name": "MASK",
-          "type": "MASK",
-          "links": null,
-          "shape": 3
-        }
-      ],
-      "title": "sc_image_loader",
-      "properties": {
-        "Node name for S&R": "LoadImage"
-      },
-      "widgets_values": [
-        "example.png",
-        "image"
-      ]
-    },
-    {
-      "id": 50,
-      "type": "RepeatImageBatch",
-      "pos": [
-        99,
-        936
-      ],
-      "size": {
-        "0": 315,
-        "1": 58
-      },
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "image",
-          "type": "IMAGE",
-          "link": 117
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
+          "name": "stage_b",
+          "type": "LATENT",
           "links": [
-            118
+            83
           ],
           "shape": 3,
-          "slot_index": 0
+          "slot_index": 1
         }
       ],
-      "title": "repeat_image_batch",
+      "title": "empty_latent_image",
       "properties": {
-        "Node name for S&R": "RepeatImageBatch"
+        "Node name for S&R": "StableCascade_EmptyLatentImage"
       },
       "widgets_values": [
-        1
+        1024,
+        1024,
+        42,
+        5
       ]
     }
   ],
