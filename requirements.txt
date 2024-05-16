@@ -35,7 +35,7 @@ opencv-python
 # controlnet custom nodes
 opencv-contrib-python
 opencv-python
-timm==0.9.16
+timm==1.0.3
 torchvision
 scipy
 addict
