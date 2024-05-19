@@ -69,6 +69,7 @@ exclude = '''
     ComfyUI
   | \.tox
   | comfy_controlnet_preprocessors
+  | comfy_qr
   | facerestore
   | build
 )/
@@ -76,7 +77,7 @@ exclude = '''
 
 [tool.ruff] # XXX this isn't part of CI yet
 line-length=119
-exclude=["ComfyUI", "comfy_controlnet_preprocessors", "facerestore", "build"]
+exclude=["ComfyUI", "comfy_controlnet_preprocessors", "facerestore", "comfy_qr", "build"]
 ignore=[
     # "F401", # imported but unused
     "E402", # Module level import not at top of file

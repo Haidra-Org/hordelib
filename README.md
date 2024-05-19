@@ -124,6 +124,10 @@ Custom nodes for ComfyUI providing Controlnet preprocessing capability. Licened 
 
 Custom nodes for ComfyUI providing face restoration.
 
+### [ComfyQR](https://gitlab.com/sofuego-comfy-nodes/ComfyQR)
+
+Nodes for generating QR codes
+
 ## Development
 
 Requirements:
