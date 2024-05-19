@@ -165,6 +165,11 @@ def sdxl_1_0_base_model_name(shared_model_manager: type[SharedModelManager]) -> 
 
 
 @pytest.fixture(scope="session")
+def sdxl_refined_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    return "AlbedoBase XL (SDXL)"
+
+
+@pytest.fixture(scope="session")
 def stable_cascade_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
     return "Stable Cascade 1.0"
 

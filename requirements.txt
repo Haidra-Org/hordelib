@@ -46,3 +46,4 @@ unidecode
 fuzzywuzzy
 strenum
 kornia
+qrcode
