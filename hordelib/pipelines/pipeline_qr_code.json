@@ -1,0 +1,550 @@
+{
+  "6": {
+    "inputs": {
+      "ckpt_name": "albedo_base_xl.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "model_loader"
+    }
+  },
+  "8": {
+    "inputs": {
+      "text": "worst quality, bad lighting, deformed, ugly, low contrast",
+      "clip": [
+        "6",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "negative_prompt"
+    }
+  },
+  "12": {
+    "inputs": {
+      "filename_prefix": "qr",
+      "images": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "13": {
+    "inputs": {
+      "samples": [
+        "30",
+        0
+      ],
+      "vae": [
+        "6",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "17": {
+    "inputs": {
+      "strength": 1,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "90",
+        0
+      ],
+      "negative": [
+        "8",
+        0
+      ],
+      "control_net": [
+        "18",
+        0
+      ],
+      "image": [
+        "43",
+        0
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "controlnet_bg"
+    }
+  },
+  "18": {
+    "inputs": {
+      "control_net_name": "control_v1p_sdxl_qrcode_monster.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "controlnet_qr_model_loader"
+    }
+  },
+  "23": {
+    "inputs": {
+      "strength": 6,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "57",
+        0
+      ],
+      "negative": [
+        "8",
+        0
+      ],
+      "control_net": [
+        "18",
+        0
+      ],
+      "image": [
+        "44",
+        0
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "controlnet_fg"
+    }
+  },
+  "24": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 246981983966927,
+      "steps": 25,
+      "cfg": 8,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "start_at_step": 0,
+      "end_at_step": 11,
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "6",
+        0
+      ],
+      "positive": [
+        "17",
+        0
+      ],
+      "negative": [
+        "17",
+        1
+      ],
+      "latent_image": [
+        "63",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "sampler_bg"
+    }
+  },
+  "27": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 816363190951797,
+      "steps": 25,
+      "cfg": 8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "start_at_step": 1,
+      "end_at_step": 11,
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "6",
+        0
+      ],
+      "positive": [
+        "23",
+        0
+      ],
+      "negative": [
+        "23",
+        1
+      ],
+      "latent_image": [
+        "36",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "sampler_fg"
+    }
+  },
+  "29": {
+    "inputs": {
+      "x": 0,
+      "y": 0,
+      "resize_source": false,
+      "destination": [
+        "24",
+        0
+      ],
+      "source": [
+        "27",
+        0
+      ],
+      "mask": [
+        "88",
+        0
+      ]
+    },
+    "class_type": "LatentCompositeMasked",
+    "_meta": {
+      "title": "LatentCompositeMasked"
+    }
+  },
+  "30": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 219905100267874,
+      "steps": 25,
+      "cfg": 8,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "normal",
+      "start_at_step": 11,
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "6",
+        0
+      ],
+      "positive": [
+        "38",
+        0
+      ],
+      "negative": [
+        "38",
+        1
+      ],
+      "latent_image": [
+        "29",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "sampler"
+    }
+  },
+  "36": {
+    "inputs": {
+      "pixels": [
+        "44",
+        0
+      ],
+      "vae": [
+        "6",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode (FG)"
+    }
+  },
+  "38": {
+    "inputs": {
+      "strength": 1.5,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "90",
+        0
+      ],
+      "negative": [
+        "8",
+        0
+      ],
+      "control_net": [
+        "18",
+        0
+      ],
+      "image": [
+        "42",
+        0
+      ]
+    },
+    "class_type": "ControlNetApplyAdvanced",
+    "_meta": {
+      "title": "controlnet_combined"
+    }
+  },
+  "39": {
+    "inputs": {
+      "protocol": "Https",
+      "text": "aihorde.net",
+      "module_size": 16,
+      "max_image_size": 1024,
+      "fill_hexcolor": "#000000",
+      "back_hexcolor": "#FFFFFF",
+      "error_correction": "High",
+      "border": 1,
+      "module_drawer": "Square"
+    },
+    "class_type": "comfy-qr-by-module-split",
+    "_meta": {
+      "title": "qr_code_split"
+    }
+  },
+  "40": {
+    "inputs": {
+      "value": 0.5,
+      "width": 1024,
+      "height": 1024
+    },
+    "class_type": "SolidMask",
+    "_meta": {
+      "title": "solidmask_grey"
+    }
+  },
+  "41": {
+    "inputs": {
+      "mask": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "MaskToImage",
+    "_meta": {
+      "title": "Solid (Grey)"
+    }
+  },
+  "42": {
+    "inputs": {
+      "x": 256,
+      "y": 256,
+      "resize_source": false,
+      "destination": [
+        "41",
+        0
+      ],
+      "source": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "ImageCompositeMasked",
+    "_meta": {
+      "title": "qr_flattened_composite"
+    }
+  },
+  "43": {
+    "inputs": {
+      "x": 256,
+      "y": 256,
+      "resize_source": false,
+      "destination": [
+        "41",
+        0
+      ],
+      "source": [
+        "39",
+        1
+      ]
+    },
+    "class_type": "ImageCompositeMasked",
+    "_meta": {
+      "title": "module_layer_composite"
+    }
+  },
+  "44": {
+    "inputs": {
+      "x": 256,
+      "y": 256,
+      "resize_source": false,
+      "destination": [
+        "65",
+        0
+      ],
+      "source": [
+        "39",
+        2
+      ]
+    },
+    "class_type": "ImageCompositeMasked",
+    "_meta": {
+      "title": "function_layer_composite"
+    }
+  },
+  "47": {
+    "inputs": {
+      "mask": [
+        "39",
+        3
+      ]
+    },
+    "class_type": "MaskToImage",
+    "_meta": {
+      "title": "Convert Mask to Image"
+    }
+  },
+  "49": {
+    "inputs": {
+      "x": 256,
+      "y": 256,
+      "operation": "add",
+      "destination": [
+        "50",
+        0
+      ],
+      "source": [
+        "39",
+        3
+      ]
+    },
+    "class_type": "MaskComposite",
+    "_meta": {
+      "title": "mask_composite"
+    }
+  },
+  "50": {
+    "inputs": {
+      "value": 0,
+      "width": 1024,
+      "height": 1024
+    },
+    "class_type": "SolidMask",
+    "_meta": {
+      "title": "solidmask_black"
+    }
+  },
+  "57": {
+    "inputs": {
+      "text": "Lucid Creations,a brain cells  ethereal, dreamlike, surreal, beautiful, illustration, incredible detail, 8k, abstract",
+      "clip": [
+        "6",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "function_layer_prompt"
+    }
+  },
+  "63": {
+    "inputs": {
+      "pixels": [
+        "43",
+        0
+      ],
+      "vae": [
+        "6",
+        2
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode (BG)"
+    }
+  },
+  "64": {
+    "inputs": {
+      "value": 1,
+      "width": 1024,
+      "height": 1024
+    },
+    "class_type": "SolidMask",
+    "_meta": {
+      "title": "solidmask_white"
+    }
+  },
+  "65": {
+    "inputs": {
+      "mask": [
+        "64",
+        0
+      ]
+    },
+    "class_type": "MaskToImage",
+    "_meta": {
+      "title": "Solid (White)"
+    }
+  },
+  "67": {
+    "inputs": {
+      "mask": [
+        "50",
+        0
+      ]
+    },
+    "class_type": "MaskToImage",
+    "_meta": {
+      "title": "Solid (Black)"
+    }
+  },
+  "83": {
+    "inputs": {
+      "expand": 8,
+      "tapered_corners": false,
+      "mask": [
+        "49",
+        0
+      ]
+    },
+    "class_type": "GrowMask",
+    "_meta": {
+      "title": "GrowMask"
+    }
+  },
+  "86": {
+    "inputs": {
+      "mask": [
+        "83",
+        0
+      ]
+    },
+    "class_type": "MaskToImage",
+    "_meta": {
+      "title": "Convert Mask to Image"
+    }
+  },
+  "87": {
+    "inputs": {
+      "blur_radius": 16,
+      "sigma": 3.0000000000000018,
+      "image": [
+        "86",
+        0
+      ]
+    },
+    "class_type": "ImageBlur",
+    "_meta": {
+      "title": "image_blur"
+    }
+  },
+  "88": {
+    "inputs": {
+      "channel": "red",
+      "image": [
+        "87",
+        0
+      ]
+    },
+    "class_type": "ImageToMask",
+    "_meta": {
+      "title": "Convert Image to Mask"
+    }
+  },
+  "90": {
+    "inputs": {
+      "text": "Lucid Creations, a human brain, ethereal, dreamlike, surreal, beautiful, illustration, incredible detail, 8k, abstract",
+      "clip": [
+        "6",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "prompt"
+    }
+  }
+}

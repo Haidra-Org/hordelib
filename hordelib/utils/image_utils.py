@@ -12,7 +12,6 @@ DEFAULT_HIGHER_RES_MAX_RESOLUTION = 1024
 
 
 class ImageUtils:
-
     @classmethod
     def resize_image_dimensions(
         cls,

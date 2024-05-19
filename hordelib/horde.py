@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.consts import MODEL_CATEGORY_NAMES
+from hordelib.nodes.comfy_qr.qr_nodes import QRByModuleSizeSplitFunctionPatterns
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
 from hordelib.utils.image_utils import ImageUtils
@@ -145,7 +146,7 @@ class HordeLib:
         "sampler_name": {"datatype": str, "values": list(SAMPLERS_MAP.keys()), "default": "k_euler"},
         "cfg_scale": {"datatype": float, "min": 1, "max": 100, "default": 8.0},
         "denoising_strength": {"datatype": float, "min": 0.01, "max": 1.0, "default": 1.0},
-        "control_strength": {"datatype": float, "min": 0.01, "max": 1.0, "default": 1.0},
+        "control_strength": {"datatype": float, "min": 0.01, "max": 3.0, "default": 1.0},
         "seed": {"datatype": int, "default": random.randint(0, sys.maxsize)},
         "width": {"datatype": int, "min": 64, "max": 8192, "default": 512, "divisible": 64},
         "height": {"datatype": int, "min": 64, "max": 8192, "default": 512, "divisible": 64},
@@ -171,11 +172,18 @@ class HordeLib:
         "stable_cascade_stage_b": {"datatype": str, "default": None},  # Stable Cascade
         "stable_cascade_stage_c": {"datatype": str, "default": None},  # Stable Cascade
         "extra_source_images": {"datatype": list, "default": []},  # Stable Cascade Remix
+        "extra_texts": {"datatype": list, "default": []},  # QR Codes (for now)
+        "workflow": {"datatype": str, "default": "auto_detect"},
     }
 
     EXTRA_IMAGES_SCHEMA = {
         "image": {"datatype": Image.Image, "default": None},
         "strength": {"datatype": float, "min": 0.0, "max": 5.0, "default": 1.0},
+    }
+
+    EXTRA_TEXTS_SCHEMA = {
+        "text": {"datatype": str, "default": ""},
+        "reference": {"datatype": str, "default": None},
     }
 
     LORA_SCHEMA = {
@@ -198,6 +206,7 @@ class HordeLib:
         "sampler.cfg": "cfg_scale",
         "sampler.denoise": "denoising_strength",
         "sampler.seed": "seed",
+        "sampler.noise_seed": "seed",
         "empty_latent_image.height": "height",
         "empty_latent_image.width": "width",
         "sampler.scheduler": "scheduler",
@@ -243,6 +252,25 @@ class HordeLib:
         "2pass_sampler_stage_c.sampler_name": "sampler_name",
         "2pass_sampler_stage_c.denoise": "hires_fix_denoising_strength",
         "2pass_sampler_stage_b.sampler_name": "sampler_name",
+        # QR Codes
+        "sampler_bg.sampler_name": "sampler_name",
+        "sampler_bg.cfg": "cfg_scale",
+        "sampler_bg.denoise": "denoising_strength",
+        "sampler_bg.seed": "seed",
+        "sampler_bg.noise_seed": "seed",
+        "sampler_fg.sampler_name": "sampler_name",
+        "sampler_fg.cfg": "cfg_scale",
+        "sampler_fg.denoise": "denoising_strength",
+        "sampler_fg.seed": "seed",
+        "sampler_fg.noise_seed": "seed",
+        "controlnet_bg.strength": "control_strength",
+        "solidmask_grey.width": "width",
+        "solidmask_grey.height": "height",
+        "solidmask_white.width": "width",
+        "solidmask_white.height": "height",
+        "solidmask_black.width": "width",
+        "solidmask_black.height": "height",
+        "qr_code_split.max_image_size": "width",
     }
 
     _comfyui_callback: Callable[[str, dict, str], None] | None = None
@@ -355,6 +383,12 @@ class HordeLib:
             for i, img in enumerate(data.get("extra_source_images")):
                 data["extra_source_images"][i] = self._validate_data_structure(img, HordeLib.EXTRA_IMAGES_SCHEMA)
             data["extra_source_images"] = [x for x in data["extra_source_images"] if x.get("image")]
+
+        # Do the same for extra texts, if we have them in this data structure
+        if data.get("extra_texts"):
+            for i, img in enumerate(data.get("extra_texts")):
+                data["extra_texts"][i] = self._validate_data_structure(img, HordeLib.EXTRA_TEXTS_SCHEMA)
+            data["extra_texts"] = [x for x in data["extra_texts"] if x.get("text")]
 
         return data
 
@@ -496,6 +530,11 @@ class HordeLib:
         # Use denoising strength for both samplers if no second denoiser specified
         # but not for txt2img where denoising will always generally be 1.0
         if payload.get("hires_fix"):
+            if payload.get("source_processing") and payload.get("source_processing") != "txt2img":
+                if not payload.get("hires_fix_denoising_strength"):
+                    payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
+
+        if payload.get("workflow") == "qr_code":
             if payload.get("source_processing") and payload.get("source_processing") != "txt2img":
                 if not payload.get("hires_fix_denoising_strength"):
                     payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
@@ -902,6 +941,78 @@ class HordeLib:
                         f"unclip_conditioning_{node_index}",
                     )
 
+        # If we have a qr code request, we check for extra texts such as the generation url
+        if payload.get("workflow") == "qr_code":
+            original_width = pipeline_params.get("empty_latent_image.width", 512)
+            original_height = pipeline_params.get("empty_latent_image.height", 512)
+            pipeline_params["qr_code_split.max_image_size"] = max(original_width, original_height)
+            pipeline_params["qr_code_split.text"] = "https://haidra.net"
+            for text in payload.get("extra_texts"):
+                if text["reference"] == "qr_text":
+                    pipeline_params["qr_code_split.text"] = text["text"]
+                if text["reference"] == "protocol" and text["text"].lower() in ["https", "http"]:
+                    pipeline_params["qr_code_split.protocol"] = text["text"].capitalize()
+                if text["reference"] == "module_drawer" and text["text"].lower() in [
+                    "square",
+                    "gapped square",
+                    "circle",
+                    "rounded",
+                    "vertical bars",
+                    "horizontal bars",
+                ]:
+                    pipeline_params["qr_code_split.module_drawer"] = text["text"].capitalize()
+                if text["reference"] == "function_layer_prompt":
+                    pipeline_params["function_layer_prompt.text"] = text["text"]
+                if text["reference"] == "x_offset" and text["text"].isdigit():
+                    pipeline_params["qr_flattened_composite.x"] = int(text["text"])
+                if text["reference"] == "y_offset" and text["text"].isdigit():
+                    pipeline_params["qr_flattened_composite.y"] = int(text["text"])
+                if text["reference"] == "qr_border" and text["text"].isdigit():
+                    pipeline_params["qr_code_split.border"] = int(text["text"])
+            if not pipeline_params.get("qr_code_split.protocol"):
+                pipeline_params["qr_code_split.protocol"] = "None"
+            if not pipeline_params.get("function_layer_prompt.text"):
+                pipeline_params["function_layer_prompt.text"] = payload["prompt"]
+            try:
+                test_qr = QRByModuleSizeSplitFunctionPatterns()
+                _, _, _, _, _, qr_size = test_qr.generate_qr(
+                    protocol=pipeline_params.get("qr_code_split.protocol"),
+                    text=pipeline_params["qr_code_split.text"],
+                    module_size=16,
+                    max_image_size=pipeline_params["qr_code_split.max_image_size"],
+                    fill_hexcolor="#FFFFFF",
+                    back_hexcolor="#000000",
+                    error_correction="High",
+                    border=1,
+                    module_drawer="Square",
+                )
+            except RuntimeError as err:
+                logger.error(err)
+                pipeline_params["qr_code_split.text"] = "This QR Code is too large for this image"
+                test_qr = QRByModuleSizeSplitFunctionPatterns()
+                qr_size = 624
+            if not pipeline_params.get("qr_flattened_composite.x"):
+                x_offset = int((original_width / 2) - qr_size / 2)
+                # I don't know why but through trial and error I've discovered that the QR codes
+                # are more legible when they're placed in an offset which is a multiple of 64
+                x_offset = x_offset - (x_offset % 64) if x_offset % 64 != 0 else x_offset
+                pipeline_params["qr_flattened_composite.x"] = x_offset
+            if not pipeline_params.get("qr_flattened_composite.y"):
+                y_offset = int((original_height / 2) - qr_size / 2)
+                y_offset = y_offset - (y_offset % 64) if y_offset % 64 != 0 else y_offset
+                pipeline_params["qr_flattened_composite.y"] = y_offset
+            pipeline_params["module_layer_composite.x"] = pipeline_params["qr_flattened_composite.x"]
+            pipeline_params["module_layer_composite.y"] = pipeline_params["qr_flattened_composite.y"]
+            pipeline_params["function_layer_composite.x"] = pipeline_params["qr_flattened_composite.x"]
+            pipeline_params["function_layer_composite.y"] = pipeline_params["qr_flattened_composite.y"]
+            pipeline_params["mask_composite.x"] = pipeline_params["qr_flattened_composite.x"]
+            pipeline_params["mask_composite.y"] = pipeline_params["qr_flattened_composite.y"]
+            if SharedModelManager.manager.compvis:
+                model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
+                if model_details and model_details.get("baseline") == "stable diffusion 1":
+                    pipeline_params["controlnet_qr_model_loader.control_net_name"] = (
+                        "control_v1p_sd15_qrcode_monster_v2.safetensors"
+                    )
         return pipeline_params, faults
 
     def _get_appropriate_pipeline(self, params):
@@ -921,8 +1032,11 @@ class HordeLib:
         #     stable_cascade
         #       stable_cascade_remix
         #       stable_cascade_2pass
+        #     qr_code
 
         # controlnet, controlnet_hires_fix controlnet_annotator
+        if params.get("workflow") == "qr_code":
+            return "qr_code"
         if params.get("model_name"):
             model_details = SharedModelManager.manager.compvis.get_model_reference_info(params["model_name"])
             if model_details.get("baseline") == "stable_cascade":
