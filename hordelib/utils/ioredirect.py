@@ -59,86 +59,94 @@ class OutputCollector(io.TextIOWrapper):
         self.comfyui_progress_callback = comfyui_progress_callback
         self.start_time = perf_counter()
 
+        self.pattern_it_per_s = regex.compile(r"(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d]+\.?\d*)it/s]")
+        self.pattern_s_per_it = regex.compile(r"(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d]+\.?\d*)s/it]")
+        self.pattern_pipe = regex.compile(r"\|.*?\|")
+        self.pattern_whitespace = regex.compile(r"\s{5,}")
+        self.pattern_double_space = regex.compile(r"\s{2,}")
+
     def write(self, message: str):
-        if message != "\n" and "MemoryEfficientCrossAttention." not in message:
-            message = message.strip()
-            if not message:
+        message = message.strip()
+        if not message:
+            return
+
+        # If the has a percent followed by a pipe, it's a progress bar;
+        # log at (approximately) 0%, 25%, 50%, 75%, 100%
+        if "%|" in message:
+            matches = None
+            is_iterations_per_second = None
+            if "DDIM Sampler:" in message:
+                message = message[len("DDIM Sampler:") :]
+                message = message.strip()
+            if "it/s]" in message:
+                matches = self.pattern_it_per_s.match(message)
+                is_iterations_per_second = True
+            elif "s/it]" in message:
+                matches = self.pattern_s_per_it.match(message)
+                is_iterations_per_second = False
+
+            if not matches:
+                logger.debug(f"Unknown progress bar format?: {message}")
+                self.capture_deque.append(message)
                 return
 
-            # If the has a percent followed by a pipe, it's a progress bar;
-            # log at (approximately) 0%, 25%, 50%, 75%, 100%
-            if "%|" in message:
-                matches = None
-                is_iterations_per_second = None
-                if "DDIM Sampler:" in message:
-                    message = message[len("DDIM Sampler:") :]
-                    message = message.strip()
-                if "it/s]" in message:
-                    matches = regex.match(r"(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d]+\.?\d*)it/s]", message)
-                    is_iterations_per_second = True
-                elif "s/it]" in message:
-                    matches = regex.match(r"(\d+)%.*\s(\d+)/(\d+)\s.*\s([\?\d]+\.?\d*)s/it]", message)
-                    is_iterations_per_second = False
+            # Remove everything in between '|' and '|'
+            message = self.pattern_pipe.sub("", message)
 
-                if not matches:
-                    logger.debug(f"Unknown progress bar format?: {message}")
-                    self.capture_deque.append(message)
-                    return
+            # Remove all cases of more than 5 whitespace characters in a row
+            message = self.pattern_whitespace.sub(" ", message)
 
-                # Remove everything in between '|' and '|'
-                message = regex.sub(r"\|.*?\|", "", message)
+            # Add a timestamp to the log
+            message = f"{message} ({perf_counter() - self.start_time:.2f} seconds in ComfyUI)"
 
-                # Remove all cases of more than 5 whitespace characters in a row
-                message = regex.sub(r"\s{5,}", " ", message)
+            # found_percent_number = int(matches.group(1))
+            found_current_step = int(matches.group(2))
+            found_total_steps = int(matches.group(3))
+            iteration_rate = matches.group(4)
 
-                # Add a timestamp to the log
-                message = f"{message} ({perf_counter() - self.start_time:.2f} seconds in ComfyUI)"
+            # Remove any double spaces
+            message = self.pattern_double_space.sub(" ", message)
 
-                # found_percent_number = int(matches.group(1))
-                found_current_step = int(matches.group(2))
-                found_total_steps = int(matches.group(3))
-                iteration_rate = matches.group(4)
+            if (
+                self.slow_message_count < 5
+                and iteration_rate != "?"
+                and (not is_iterations_per_second or float(iteration_rate) < 1.2)
+            ):
+                self.slow_message_count += 1
+                if self.slow_message_count == 5:
+                    logger.warning("Suppressing further slow job warnings. Please investigate.")
+                else:
+                    rate_unit = "iterations per second" if is_iterations_per_second else "*seconds per iterations*"
+                    logger.warning(f"Job Slowdown: Job is running at {iteration_rate} {rate_unit}.")
 
-                if (
-                    self.slow_message_count < 5
-                    and iteration_rate != "?"
-                    and (not is_iterations_per_second or float(iteration_rate) < 1.2)
-                ):
-                    self.slow_message_count += 1
-                    if self.slow_message_count == 5:
-                        logger.warning("Suppressing further slow job warnings. Please investigate.")
-                    else:
-                        rate_unit = "iterations per second" if is_iterations_per_second else "*seconds per iterations*"
-                        logger.warning(f"Job Slowdown: Job is running at {iteration_rate} {rate_unit}.")
+            if found_current_step == 0:
+                logger.info("Job will show progress for the first three steps, and then every 10 steps.")
 
-                if found_current_step == 0:
-                    logger.info("Job will show progress for the first three steps, and then every 10 steps.")
+            # Log the first 3 steps, then every 10 steps, then the last step
+            if (
+                found_current_step in [1, 2, 3]
+                or found_current_step % 10 == 0
+                or found_current_step == found_total_steps
+            ):
+                logger.info(message)
 
-                # Log the first 2 steps, then every 10 steps, then the last step
-                if (
-                    found_current_step in [1, 2, 3]
-                    or found_current_step % 10 == 0
-                    or found_current_step == found_total_steps
-                ):
-                    logger.info(message)
-
-                if self.comfyui_progress_callback:
-                    self.comfyui_progress_callback(
-                        ComfyUIProgress(
-                            percent=int(matches.group(1)),
-                            current_step=found_current_step,
-                            total_steps=found_total_steps,
-                            rate=float(iteration_rate) if iteration_rate != "?" else -1.0,
-                            rate_unit=(
-                                ComfyUIProgressUnit.ITERATIONS_PER_SECOND
-                                if is_iterations_per_second
-                                else ComfyUIProgressUnit.SECONDS_PER_ITERATION
-                            ),
+            if self.comfyui_progress_callback:
+                self.comfyui_progress_callback(
+                    ComfyUIProgress(
+                        percent=int(matches.group(1)),
+                        current_step=found_current_step,
+                        total_steps=found_total_steps,
+                        rate=float(iteration_rate) if iteration_rate != "?" else -1.0,
+                        rate_unit=(
+                            ComfyUIProgressUnit.ITERATIONS_PER_SECOND
+                            if is_iterations_per_second
+                            else ComfyUIProgressUnit.SECONDS_PER_ITERATION
                         ),
-                        message,
-                    )
+                    ),
+                    message,
+                )
 
-            self.capture_deque.append(message)
+        self.capture_deque.append(message)
 
     def set_size(self, size):
         while len(self.capture_deque) > size:
