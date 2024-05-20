@@ -257,6 +257,8 @@ def pytest_collection_modifyitems(items):
     MODULES_TO_RUN_LAST = [
         "tests.test_horde_inference",
         "tests.test_horde_inference_img2img",
+        "tests.test_horde_inference_qrcode",
+        "tests.test_horde_inference_cascade",
         "tests.test_horde_samplers",
         "tests.test_horde_ti",
         "tests.test_horde_lcm",
