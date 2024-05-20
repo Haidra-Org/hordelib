@@ -5,6 +5,7 @@ from PIL import Image
 
 from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
+from tests.testing_shared_functions import check_single_inference_image_similarity
 
 
 class TestHordeInferenceQRCode:
@@ -64,10 +65,10 @@ class TestHordeInferenceQRCode:
         img_filename = "qr_code.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_qr_code_inference_xl(
         self,
@@ -113,10 +114,10 @@ class TestHordeInferenceQRCode:
         img_filename = "qr_code_xl.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_qr_code_inference_too_large_text(
         self,
@@ -180,10 +181,10 @@ Rerum sed incidunt commodi quo quo. Sit sint accusantium modi eligendi molestiae
         img_filename = "qr_code_too_long_text.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_qr_code_control_strength(
         self,
@@ -229,10 +230,10 @@ Rerum sed incidunt commodi quo quo. Sit sint accusantium modi eligendi molestiae
         img_filename = "qr_code_strength.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_qr_code_control_non_square(
         self,
@@ -278,10 +279,10 @@ Rerum sed incidunt commodi quo quo. Sit sint accusantium modi eligendi molestiae
         img_filename = "qr_code_size.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_qr_code_control_qr_texts(
         self,
@@ -346,7 +347,7 @@ Rerum sed incidunt commodi quo quo. Sit sint accusantium modi eligendi molestiae
         img_filename = "qr_code_texts.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
