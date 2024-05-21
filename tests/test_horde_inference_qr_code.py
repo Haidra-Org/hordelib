@@ -36,7 +36,7 @@ class TestHordeInferenceQRCode:
                 "drawing of two witches performing a seanse around a cauldron. Wispy and Ethereal, sepia colors"
                 "###worst quality, bad lighting, deformed, ugly, low contrast"
             ),
-            "ddim_steps": 25,
+            "ddim_steps": 30,
             "n_iter": 1,
             "model": stable_diffusion_model_name_for_testing,
             "workflow": "qr_code",
@@ -69,6 +69,61 @@ class TestHordeInferenceQRCode:
             f"images_expected/{img_filename}",
             pil_image,
         )
+
+    def test_qr_code_inference_out_of_bounds(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        stable_diffusion_model_name_for_testing: str,
+    ):
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 1312,
+            "height": 768,
+            "width": 768,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "prompt": (
+                "drawing of two witches performing a seanse around a cauldron. Wispy and Ethereal, sepia colors"
+                "###worst quality, bad lighting, deformed, ugly, low contrast"
+            ),
+            "ddim_steps": 30,
+            "n_iter": 1,
+            "model": stable_diffusion_model_name_for_testing,
+            "workflow": "qr_code",
+            "extra_texts": [
+                {
+                    "text": "https://aihorde.net",
+                    "reference": "qr_text",
+                },
+                {
+                    "text": "-256",
+                    "reference": "x_offset",
+                },
+                {
+                    "text": "800",
+                    "reference": "y_offset",
+                },
+            ],
+        }
+        assert hordelib_instance is not None
+        assert shared_model_manager.manager.controlnet is not None
+
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+
+        img_filename = "qr_code_out_of_bounds.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        # assert check_single_inference_image_similarity(
+        #     f"images_expected/{img_filename}",
+        #     pil_image,
+        # )
 
     def test_qr_code_inference_xl(
         self,
