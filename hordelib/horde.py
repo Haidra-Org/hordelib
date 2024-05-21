@@ -257,11 +257,13 @@ class HordeLib:
         "sampler_bg.cfg": "cfg_scale",
         "sampler_bg.denoise": "denoising_strength",
         "sampler_bg.seed": "seed",
+        "sampler_bg.steps": "ddim_steps",
         "sampler_bg.noise_seed": "seed",
         "sampler_fg.sampler_name": "sampler_name",
         "sampler_fg.cfg": "cfg_scale",
         "sampler_fg.denoise": "denoising_strength",
         "sampler_fg.seed": "seed",
+        "sampler_fg.steps": "ddim_steps",
         "sampler_fg.noise_seed": "seed",
         "controlnet_bg.strength": "control_strength",
         "solidmask_grey.width": "width",
@@ -963,12 +965,21 @@ class HordeLib:
                     pipeline_params["qr_code_split.module_drawer"] = text["text"].capitalize()
                 if text["reference"] == "function_layer_prompt":
                     pipeline_params["function_layer_prompt.text"] = text["text"]
-                if text["reference"] == "x_offset" and text["text"].isdigit():
-                    pipeline_params["qr_flattened_composite.x"] = int(text["text"])
-                if text["reference"] == "y_offset" and text["text"].isdigit():
-                    pipeline_params["qr_flattened_composite.y"] = int(text["text"])
-                if text["reference"] == "qr_border" and text["text"].isdigit():
-                    pipeline_params["qr_code_split.border"] = int(text["text"])
+                if text["reference"] == "x_offset" and text["text"].lstrip("-").isdigit():
+                    x_offset = int(text["text"])
+                    if x_offset < 0:
+                        x_offset = 10
+                    pipeline_params["qr_flattened_composite.x"] = x_offset
+                if text["reference"] == "y_offset" and text["text"].lstrip("-").isdigit():
+                    y_offset = int(text["text"])
+                    if y_offset < 0:
+                        y_offset = 10
+                    pipeline_params["qr_flattened_composite.y"] = y_offset
+                if text["reference"] == "qr_border" and text["text"].lstrip("-").isdigit():
+                    border = int(text["text"])
+                    if border < 0:
+                        border = 10
+                    pipeline_params["qr_code_split.border"] = border
             if not pipeline_params.get("qr_code_split.protocol"):
                 pipeline_params["qr_code_split.protocol"] = "None"
             if not pipeline_params.get("function_layer_prompt.text"):
@@ -991,16 +1002,21 @@ class HordeLib:
                 pipeline_params["qr_code_split.text"] = "This QR Code is too large for this image"
                 test_qr = QRByModuleSizeSplitFunctionPatterns()
                 qr_size = 624
+
             if not pipeline_params.get("qr_flattened_composite.x"):
                 x_offset = int((original_width / 2) - qr_size / 2)
                 # I don't know why but through trial and error I've discovered that the QR codes
                 # are more legible when they're placed in an offset which is a multiple of 64
                 x_offset = x_offset - (x_offset % 64) if x_offset % 64 != 0 else x_offset
                 pipeline_params["qr_flattened_composite.x"] = x_offset
+            if pipeline_params.get("qr_flattened_composite.x", 0) > int((original_width) - qr_size):
+                pipeline_params["qr_flattened_composite.x"] = int((original_width) - qr_size) - 10
             if not pipeline_params.get("qr_flattened_composite.y"):
                 y_offset = int((original_height / 2) - qr_size / 2)
                 y_offset = y_offset - (y_offset % 64) if y_offset % 64 != 0 else y_offset
                 pipeline_params["qr_flattened_composite.y"] = y_offset
+            if pipeline_params.get("qr_flattened_composite.y", 0) > int((original_height) - qr_size):
+                pipeline_params["qr_flattened_composite.y"] = int((original_height) - qr_size) - 10
             pipeline_params["module_layer_composite.x"] = pipeline_params["qr_flattened_composite.x"]
             pipeline_params["module_layer_composite.y"] = pipeline_params["qr_flattened_composite.y"]
             pipeline_params["function_layer_composite.x"] = pipeline_params["qr_flattened_composite.x"]
