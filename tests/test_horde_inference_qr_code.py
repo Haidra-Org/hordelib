@@ -120,10 +120,10 @@ class TestHordeInferenceQRCode:
         img_filename = "qr_code_out_of_bounds.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     def test_qr_code_inference_xl(
         self,
