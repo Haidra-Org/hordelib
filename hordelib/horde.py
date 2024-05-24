@@ -950,7 +950,7 @@ class HordeLib:
             pipeline_params["qr_code_split.max_image_size"] = max(original_width, original_height)
             pipeline_params["qr_code_split.text"] = "https://haidra.net"
             for text in payload.get("extra_texts"):
-                if text["reference"] == "qr_text":
+                if text["reference"] in ["qr_code", "qr_text"]:
                     pipeline_params["qr_code_split.text"] = text["text"]
                 if text["reference"] == "protocol" and text["text"].lower() in ["https", "http"]:
                     pipeline_params["qr_code_split.protocol"] = text["text"].capitalize()
