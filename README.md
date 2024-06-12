@@ -262,7 +262,7 @@ The `images/` directory should have our test images.
 <!-- Badges: -->
 
 [pypi-image]: https://badge.fury.io/py/hordelib.svg?branch=main&kill_cache=1
-[pypi-url]: https://badge.fury.io/py/hordelib
+[pypi-url]: https://badge.fury.io/py/horde-engine
 [downloads-image]: https://pepy.tech/badge/hordelib
 [downloads-url]: https://pepy.tech/project/hordelib
 [license-url]: https://img.shields.io/github/license/jug-dev/hordelib
