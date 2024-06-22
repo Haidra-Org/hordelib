@@ -174,6 +174,7 @@ class HordeLib:
         "extra_source_images": {"datatype": list, "default": []},  # Stable Cascade Remix
         "extra_texts": {"datatype": list, "default": []},  # QR Codes (for now)
         "workflow": {"datatype": str, "default": "auto_detect"},
+        "transparent": {"datatype": bool, "default": False},
     }
 
     EXTRA_IMAGES_SCHEMA = {
@@ -1029,6 +1030,22 @@ class HordeLib:
                     pipeline_params["controlnet_qr_model_loader.control_net_name"] = (
                         "control_v1p_sd15_qrcode_monster_v2.safetensors"
                     )
+        if payload.get("transparent") is True:
+            if SharedModelManager.manager.compvis:
+                model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
+                # SD2, Cascade and SD3 not supported
+                if model_details and model_details.get("baseline") in ["stable diffusion 1", "stable_diffusion_xl"]:
+                    self.generator.reconnect_input(pipeline_data, "sampler.model", "layer_diffuse_apply")
+                    self.generator.reconnect_input(pipeline_data, "layer_diffuse_apply.model", "model_loader")
+                    self.generator.reconnect_input(pipeline_data, "output_image.images", "layer_diffuse_decode_rgba")
+                    self.generator.reconnect_input(pipeline_data, "layer_diffuse_decode_rgba.images", "vae_decode")
+                    if model_details.get("baseline") == "stable diffusion 1":
+                        pipeline_params["layer_diffuse_apply.config"] = "SD15, Attention Injection, attn_sharing"
+                        pipeline_params["layer_diffuse_decode_rgba.sd_version"] = "SD15"
+                    else:
+                        pipeline_params["layer_diffuse_apply.config"] = "SDXL, Conv Injection"
+                        pipeline_params["layer_diffuse_decode_rgba.sd_version"] = "SDXL"
+
         return pipeline_params, faults
 
     def _get_appropriate_pipeline(self, params):

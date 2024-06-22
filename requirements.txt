@@ -3,6 +3,7 @@
 horde_sdk>=0.9.1
 horde_model_reference>=0.5.2
 pydantic
+numpy==1.26.4
 torch>=2.1.0
 # xformers>=0.0.19
 torchvision
