@@ -12,6 +12,9 @@ from loguru import logger
 from hordelib.shared_model_manager import SharedModelManager
 
 
+# Don't let the name fool you, this class is trying to load all the files that will be necessary
+# for a given comfyUI workflow. That includes loras, etc.
+# TODO: Rename to HordeWorkflowModelsLoader ;)
 class HordeCheckpointLoader:
     @classmethod
     def INPUT_TYPES(s):

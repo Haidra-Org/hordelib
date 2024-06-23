@@ -6,6 +6,7 @@ import numpy as np
 import torch
 
 from .enums import ResizeMode
+from hordelib.shared_model_manager import SharedModelManager
 
 
 def rgba2rgbfp32(x):
@@ -94,7 +95,10 @@ def numpy_to_pytorch(x):
     y = torch.from_numpy(y).float()
     return y
 
-
+# IMPORTANT: Edited by hordelib devs to use model loader!
+# To keep things more maintainable in case we need to update the code
+# We let the same incoming variables, but ignore them in favour of our own
+# model manager paths
 def load_file_from_url(
     url: str,
     *,
@@ -106,6 +110,8 @@ def load_file_from_url(
 
     Returns the path to the downloaded file.
     """
+    from loguru import logger # Debug
+    logger.error(SharedModelManager.manager.miscellaneous.is_file_available(file_name))
     os.makedirs(model_dir, exist_ok=True)
     if not file_name:
         parts = urlparse(url)
