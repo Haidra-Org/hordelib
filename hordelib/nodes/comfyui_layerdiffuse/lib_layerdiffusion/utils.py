@@ -110,19 +110,7 @@ def load_file_from_url(
 
     Returns the path to the downloaded file.
     """
-    from loguru import logger # Debug
-    logger.error(SharedModelManager.manager.miscellaneous.is_file_available(file_name))
-    os.makedirs(model_dir, exist_ok=True)
-    if not file_name:
-        parts = urlparse(url)
-        file_name = os.path.basename(parts.path)
-    cached_file = os.path.abspath(os.path.join(model_dir, file_name))
-    if not os.path.exists(cached_file):
-        print(f'Downloading: "{url}" to {cached_file}\n')
-        from torch.hub import download_url_to_file
-
-        download_url_to_file(url, cached_file, progress=progress)
-    return cached_file
+    return str(SharedModelManager.manager.miscellaneous.model_folder_path / file_name)
 
 
 def to_lora_patch_dict(state_dict: dict) -> dict:
