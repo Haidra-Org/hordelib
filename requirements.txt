@@ -23,7 +23,7 @@ pillow
 loguru
 GitPython
 clip-anytorch
-diffusers
+diffusers>=0.25.0
 omegaconf
 psutil
 typing-extensions

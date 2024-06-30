@@ -252,6 +252,22 @@ python run_controlnet.py
 The `images/` directory should have our test images.
 ```
 
+### Creating a local build of hordelib
+
+This is useful when testing new nodes  via the horde-reGen-worker etc
+
+```bash
+python build_helper.py
+python -m build --sdist --wheel --outdir dist/ .
+python build_helper.py --fix
+```
+
+On the venv where you want to install th new version
+
+```bash
+python -m pip install /path/to/hordelib/dist/horde_engine-*.whl
+```
+
 ### Updating the embedded version of ComfyUI
 
 - Change the value in `consts.py` to the desired ComfyUI version.
