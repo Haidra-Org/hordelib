@@ -1031,6 +1031,8 @@ class HordeLib:
                         "control_v1p_sd15_qrcode_monster_v2.safetensors"
                     )
         if payload.get("transparent") is True:
+            # A transparent gen is basically a fancy lora
+            pipeline_params["model_loader.will_load_loras"] = True
             if SharedModelManager.manager.compvis:
                 model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
                 # SD2, Cascade and SD3 not supported
