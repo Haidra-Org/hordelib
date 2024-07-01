@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.12.0](https://github.com/Haidra-Org/hordelib/compare/v2.11.1...v2.12.0)
+
+1 July 2024
+
+- feat: layer diffuse [`#272`](https://github.com/Haidra-Org/hordelib/pull/272) (Divided by Zer0)
+- docs: fix all pypi hordelib badges [`6b0516e`](https://github.com/Haidra-Org/hordelib/commit/6b0516e63a3357dedfac36cdf7583ffbc6314d59)  (tazlin)
+- docs: fix pypi badge link target [`0aac639`](https://github.com/Haidra-Org/hordelib/commit/0aac6390cbe0934f84e16f7a6e2844ac3881062e)  (tazlin)
+
 ## [v2.11.1](https://github.com/Haidra-Org/hordelib/compare/v2.11.0...v2.11.1)
 
 24 May 2024
