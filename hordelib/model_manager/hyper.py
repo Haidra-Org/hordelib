@@ -18,6 +18,7 @@ from hordelib.model_manager.controlnet import ControlNetModelManager
 from hordelib.model_manager.esrgan import EsrganModelManager
 from hordelib.model_manager.gfpgan import GfpganModelManager
 from hordelib.model_manager.lora import LoraModelManager
+from hordelib.model_manager.miscellaneous import MiscellaneousModelManager
 from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
 from hordelib.model_manager.ti import TextualInversionModelManager
 
@@ -31,6 +32,7 @@ MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES | str, type[BaseModelManag
     MODEL_CATEGORY_NAMES.safety_checker: SafetyCheckerModelManager,
     MODEL_CATEGORY_NAMES.lora: LoraModelManager,
     MODEL_CATEGORY_NAMES.ti: TextualInversionModelManager,
+    MODEL_CATEGORY_NAMES.miscellaneous: MiscellaneousModelManager,
 }
 """A lookup table for the `BaseModelManager` types."""
 
@@ -90,6 +92,12 @@ class ModelManager:
         """The Textual Inversion model manager instance. Returns `None` if not loaded."""
         found_mm = self.get_model_manager_instance(TextualInversionModelManager)
         return found_mm if isinstance(found_mm, TextualInversionModelManager) else None
+
+    @property
+    def miscellaneous(self) -> MiscellaneousModelManager | None:
+        """The miscellaneous model manager instance. Returns `None` if not loaded."""
+        found_mm = self.get_model_manager_instance(MiscellaneousModelManager)
+        return found_mm if isinstance(found_mm, MiscellaneousModelManager) else None
 
     @property
     def models(self) -> dict:
