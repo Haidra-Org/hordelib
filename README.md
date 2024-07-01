@@ -252,6 +252,22 @@ python run_controlnet.py
 The `images/` directory should have our test images.
 ```
 
+### Creating a local build of hordelib
+
+This is useful when testing new nodes  via the horde-reGen-worker etc
+
+```bash
+python build_helper.py
+python -m build --sdist --wheel --outdir dist/ .
+python build_helper.py --fix
+```
+
+On the venv where you want to install th new version
+
+```bash
+python -m pip install /path/to/hordelib/dist/horde_engine-*.whl
+```
+
 ### Updating the embedded version of ComfyUI
 
 - Change the value in `consts.py` to the desired ComfyUI version.
@@ -262,11 +278,11 @@ The `images/` directory should have our test images.
 <!-- Badges: -->
 
 [pypi-image]: https://badge.fury.io/py/hordelib.svg?branch=main&kill_cache=1
-[pypi-url]: https://badge.fury.io/py/hordelib
-[downloads-image]: https://pepy.tech/badge/hordelib
-[downloads-url]: https://pepy.tech/project/hordelib
-[license-url]: https://img.shields.io/github/license/jug-dev/hordelib
-[build-image]: https://github.com/jug-dev/hordelib/actions/workflows/maintests.yml/badge.svg?branch=main
+[pypi-url]: https://badge.fury.io/py/horde-engine
+[downloads-image]: https://pepy.tech/badge/horde-engine
+[downloads-url]: https://pepy.tech/project/horde-engine
+[license-url]: https://img.shields.io/github/license/Haidra-Org/hordelib
+[build-image]: https://github.com/Haidra-Org/hordelib/actions/workflows/maintests.yml/badge.svg?branch=main
 [all-model-images]: https://badgen.net/badge/all-models/images/blue?icon=awesome
 [build-url]: https://tests.hordelib.org/
 [main-test-image]: https://badgen.net/badge/main/latest-images/blue?icon=awesome
@@ -275,4 +291,4 @@ The `images/` directory should have our test images.
 [pr-test-url]: https://tests.hordelib.org/unstable/index.html
 [all-model-url]: https://tests.hordelib.org/all_models/
 [changelog-image]: https://img.shields.io/badge/Release-Changelog-yellow
-[changelog-url]: https://github.com/jug-dev/hordelib/blob/releases/CHANGELOG.md
+[changelog-url]: https://github.com/Haidra-Org/hordelib/blob/releases/CHANGELOG.md

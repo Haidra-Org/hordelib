@@ -30,6 +30,7 @@ _temp_reference_lookup = {
     MODEL_CATEGORY_NAMES.esrgan: MODEL_REFERENCE_CATEGORY.esrgan,
     MODEL_CATEGORY_NAMES.gfpgan: MODEL_REFERENCE_CATEGORY.gfpgan,
     MODEL_CATEGORY_NAMES.safety_checker: MODEL_REFERENCE_CATEGORY.safety_checker,
+    MODEL_CATEGORY_NAMES.miscellaneous: MODEL_REFERENCE_CATEGORY.miscellaneous,
 }
 
 

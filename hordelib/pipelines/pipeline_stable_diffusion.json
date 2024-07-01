@@ -1,7 +1,7 @@
 {
   "3": {
     "inputs": {
-      "seed": 62706718437716,
+      "seed": 325847265780417,
       "steps": 20,
       "cfg": 8,
       "sampler_name": "euler",
@@ -154,6 +154,38 @@
     "class_type": "RepeatImageBatch",
     "_meta": {
       "title": "repeat_image_batch"
+    }
+  },
+  "16": {
+    "inputs": {
+      "config": "SD15, Attention Injection, attn_sharing",
+      "weight": 1,
+      "model": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "LayeredDiffusionApply",
+    "_meta": {
+      "title": "layer_diffuse_apply"
+    }
+  },
+  "17": {
+    "inputs": {
+      "sd_version": "SD15",
+      "sub_batch_size": 16,
+      "samples": [
+        "3",
+        0
+      ],
+      "images": [
+        "14",
+        0
+      ]
+    },
+    "class_type": "LayeredDiffusionDecodeRGBA",
+    "_meta": {
+      "title": "layer_diffuse_decode_rgba"
     }
   }
 }

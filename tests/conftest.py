@@ -116,6 +116,8 @@ def shared_model_manager(
     assert SharedModelManager.manager is not None
     assert SharedModelManager.manager.codeformer is not None
     assert SharedModelManager.manager.codeformer.download_all_models()
+    assert SharedModelManager.manager.miscellaneous is not None
+    assert SharedModelManager.manager.miscellaneous.download_all_models()
     assert SharedModelManager.manager.compvis is not None
 
     assert SharedModelManager.manager.download_model("Deliberate")

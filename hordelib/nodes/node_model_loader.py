@@ -12,6 +12,9 @@ from loguru import logger
 from hordelib.shared_model_manager import SharedModelManager
 
 
+# Don't let the name fool you, this class is trying to load all the files that will be necessary
+# for a given comfyUI workflow. That includes loras, etc.
+# TODO: Rename to HordeWorkflowModelsLoader ;)
 class HordeCheckpointLoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -100,6 +103,13 @@ class HordeCheckpointLoader:
 
         # Clear references so comfy can free memory as needed
         SharedModelManager.manager._models_in_ram = {}
+
+        # TODO: Currently we don't preload the layer_diffuse tensors which can potentially be big
+        # (3G for SDXL). So they will be loaded during runtime, and their memory usage will be
+        # handled by comfy as with any lora.
+        # Potential improvement here is to preload these models at this point
+        # And then just pass their reference to layered_diffusion.py, but that would require
+        # Quite a bit of refactoring.
 
         if ckpt_name is not None and Path(ckpt_name).is_absolute():
             ckpt_path = ckpt_name
