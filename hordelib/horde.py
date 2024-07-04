@@ -1041,6 +1041,8 @@ class HordeLib:
                     self.generator.reconnect_input(pipeline_data, "layer_diffuse_apply.model", "model_loader")
                     self.generator.reconnect_input(pipeline_data, "output_image.images", "layer_diffuse_decode_rgba")
                     self.generator.reconnect_input(pipeline_data, "layer_diffuse_decode_rgba.images", "vae_decode")
+                    if payload.get("hires_fix") is True:
+                        self.generator.reconnect_input(pipeline_data, "upscale_sampler.model", "layer_diffuse_apply")
                     if model_details.get("baseline") == "stable diffusion 1":
                         pipeline_params["layer_diffuse_apply.config"] = "SD15, Attention Injection, attn_sharing"
                         pipeline_params["layer_diffuse_decode_rgba.sd_version"] = "SD15"
