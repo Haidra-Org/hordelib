@@ -34,7 +34,7 @@ class TestHordeInferenceCascade:
                 "A magic glowing long sword lying flat on a medieval shop rack, in the style of Dungeons and Dragons. "
                 "Splash art, Digital Painting, ornate handle with gems"
             ),
-            "ddim_steps": 20,
+            "ddim_steps": 30,
             "n_iter": 1,
             "model": stable_cascade_base_model_name,
         }
@@ -74,7 +74,7 @@ class TestHordeInferenceCascade:
                 "A magic glowing long sword lying flat on a medieval shop rack, in the style of Dungeons and Dragons. "
                 "Splash art, Digital Painting, ornate handle with gems"
             ),
-            "ddim_steps": 20,
+            "ddim_steps": 30,
             "n_iter": 2,
             "model": stable_cascade_base_model_name,
         }
@@ -125,7 +125,7 @@ class TestHordeInferenceCascade:
                 "a medieval fantasy swashbuckler with a big floppy hat walking towards "
                 "a camera while there's an explosion in the background"
             ),
-            "ddim_steps": 20,
+            "ddim_steps": 30,
             "n_iter": 2,
             "model": stable_cascade_base_model_name,
             "source_image": Image.open("images/test_db0.jpg"),
@@ -170,7 +170,7 @@ class TestHordeInferenceCascade:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "A herd of goats grazing under the sunset",
-            "ddim_steps": 20,
+            "ddim_steps": 30,
             "n_iter": 1,
             "model": stable_cascade_base_model_name,
             "source_image": Image.open("images/test_mountains.png"),
@@ -208,7 +208,7 @@ class TestHordeInferenceCascade:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "A herd of goats grazing",
-            "ddim_steps": 20,
+            "ddim_steps": 30,
             "n_iter": 1,
             "model": stable_cascade_base_model_name,
             "source_image": Image.open("images/test_mountains.png"),
@@ -251,7 +251,7 @@ class TestHordeInferenceCascade:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "A herd of goats grazing",
-            "ddim_steps": 20,
+            "ddim_steps": 30,
             "n_iter": 1,
             "model": stable_cascade_base_model_name,
             "source_image": Image.open("images/test_mountains.png"),
@@ -295,7 +295,7 @@ class TestHordeInferenceCascade:
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "Baking Sun",
-            "ddim_steps": 20,
+            "ddim_steps": 30,
             "n_iter": 1,
             "model": stable_cascade_base_model_name,
             "source_image": Image.open("images/test_mountains.png"),
@@ -345,7 +345,7 @@ class TestHordeInferenceCascade:
                 "Lucid Creations, Deep Forest, Moss, ethereal, dreamlike, surreal, "
                 "beautiful, illustration, incredible detail, 8k, abstract"
             ),
-            "ddim_steps": 20,
+            "ddim_steps": 30,
             "n_iter": 1,
             "model": stable_cascade_base_model_name,
         }
