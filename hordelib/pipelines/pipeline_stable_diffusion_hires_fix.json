@@ -1,7 +1,7 @@
 {
   "3": {
     "inputs": {
-      "seed": 458841867575267,
+      "seed": 709052412707182,
       "steps": 12,
       "cfg": 8,
       "sampler_name": "dpmpp_sde",
@@ -84,7 +84,7 @@
   },
   "11": {
     "inputs": {
-      "seed": 65484213431324,
+      "seed": 932988885298999,
       "steps": 14,
       "cfg": 8,
       "sampler_name": "dpmpp_2m",
@@ -200,6 +200,38 @@
     "class_type": "RepeatImageBatch",
     "_meta": {
       "title": "repeat_image_batch"
+    }
+  },
+  "23": {
+    "inputs": {
+      "config": "SD15, Attention Injection, attn_sharing",
+      "weight": 1,
+      "model": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "LayeredDiffusionApply",
+    "_meta": {
+      "title": "layer_diffuse_apply"
+    }
+  },
+  "24": {
+    "inputs": {
+      "sd_version": "SD15",
+      "sub_batch_size": 16,
+      "samples": [
+        "11",
+        0
+      ],
+      "images": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "LayeredDiffusionDecodeRGBA",
+    "_meta": {
+      "title": "layer_diffuse_decode_rgba"
     }
   }
 }
