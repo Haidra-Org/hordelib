@@ -227,7 +227,7 @@ class HordeLib:
         "upscale_sampler.denoise": "hires_fix_denoising_strength",
         "upscale_sampler.seed": "seed",
         "upscale_sampler.cfg": "cfg_scale",
-        "upscale_sampler.steps": "ddim_steps",
+        "upscale_sampler.steps": "ddim_steps*0.3",
         "upscale_sampler.sampler_name": "sampler_name",
         "controlnet_apply.strength": "control_strength",
         "controlnet_model_loader.control_net_name": "control_type",
