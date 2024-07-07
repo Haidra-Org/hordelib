@@ -161,10 +161,10 @@ class TestHordeInference:
         img_filename = "sdxl_text_to_image_hires_fix.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
-        # assert check_single_inference_image_similarity(
-        #     f"images_expected/{img_filename}",
-        #     pil_image,
-        # )
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     @pytest.mark.skip(reason="This test is too slow to run on every test run")
     def test_sdxl_text_to_image_recommended_resolutions(
