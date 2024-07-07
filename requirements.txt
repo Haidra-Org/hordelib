@@ -1,10 +1,10 @@
 # Add this in for tox, comment out for build
 --extra-index-url https://download.pytorch.org/whl/cu121
-horde_sdk>=0.12.0
+horde_sdk>=0.13.0
 horde_model_reference>=0.7.0
 pydantic
 numpy==1.26.4
-torch>=2.1.0
+torch>=2.3.1
 # xformers>=0.0.19
 torchvision
 # torchaudio
@@ -13,7 +13,7 @@ torchsde
 einops
 open-clip-torch
 transformers>=4.25.1
-safetensors>=0.3.0
+safetensors>=0.4.2
 pytorch_lightning
 pynvml
 aiohttp
@@ -48,3 +48,5 @@ fuzzywuzzy
 strenum
 kornia
 qrcode
+spandrel
+
