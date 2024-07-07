@@ -227,7 +227,7 @@ class HordeLib:
         "upscale_sampler.denoise": "hires_fix_denoising_strength",
         "upscale_sampler.seed": "seed",
         "upscale_sampler.cfg": "cfg_scale",
-        "upscale_sampler.steps": "ddim_steps*0.3",
+        "upscale_sampler.steps": "func._calc_upscale_sampler_steps",
         "upscale_sampler.sampler_name": "sampler_name",
         "controlnet_apply.strength": "control_strength",
         "controlnet_model_loader.control_net_name": "control_type",
@@ -547,10 +547,6 @@ class HordeLib:
             if payload.get("source_processing") and payload.get("source_processing") != "txt2img":
                 if not payload.get("hires_fix_denoising_strength"):
                     payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
-            # If we have hires fix, we reduce the steps as it split it in half between first and second pass
-            # But not in cascade as that is the 2pass and the steps there are hardcoded
-            # if SharedModelManager.manager.compvis.model_reference[model].get("baseline") != "stable_cascade":
-            # payload["ddim_steps"] = round(payload.get("ddim_steps", 50) / 2)
 
         if payload.get("workflow") == "qr_code":
             if payload.get("source_processing") and payload.get("source_processing") != "txt2img":
@@ -566,6 +562,14 @@ class HordeLib:
         #         else:
         #             del payload["denoising_strength"]
         return payload, faults
+
+    def _calc_upscale_sampler_steps(self, payload):
+        """Calculates the amount of hires_fix upscaler steps
+        Based on the denoising used and the steps used for the primary image"""
+        upscale_steps = round(payload["ddim_steps"] * (0.9 - payload["hires_fix_denoising_strength"]))
+        if upscale_steps < 3:
+            upscale_steps = 3
+        return upscale_steps
 
     def _final_pipeline_adjustments(self, payload, pipeline_data) -> tuple[dict, list[GenMetadataEntry]]:
         payload = deepcopy(payload)
@@ -812,7 +816,11 @@ class HordeLib:
             # values for steps on things like stable cascade
             if "*" in key:
                 key, multiplier = key.split("*", 1)
-            if key in payload:
+            if key.startswith("func."):
+                key, func_name = key.split(".", 1)
+                parsing_function = getattr(self, func_name)
+                pipeline_params[newkey] = parsing_function(payload)
+            elif key in payload:
                 if multiplier:
                     pipeline_params[newkey] = round(payload.get(key) * float(multiplier))
                 else:
