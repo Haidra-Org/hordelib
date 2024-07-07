@@ -549,8 +549,8 @@ class HordeLib:
                     payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
             # If we have hires fix, we reduce the steps as it split it in half between first and second pass
             # But not in cascade as that is the 2pass and the steps there are hardcoded
-            if SharedModelManager.manager.compvis.model_reference[model].get("baseline") != "stable_cascade":
-                payload["ddim_steps"] = round(payload.get("ddim_steps", 50) / 2)
+            # if SharedModelManager.manager.compvis.model_reference[model].get("baseline") != "stable_cascade":
+            # payload["ddim_steps"] = round(payload.get("ddim_steps", 50) / 2)
 
         if payload.get("workflow") == "qr_code":
             if payload.get("source_processing") and payload.get("source_processing") != "txt2img":
