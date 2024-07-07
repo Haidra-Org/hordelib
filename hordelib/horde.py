@@ -11,6 +11,7 @@ import typing
 from collections.abc import Callable
 from copy import deepcopy
 from enum import Enum, auto
+from types import FunctionType
 
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from horde_sdk.ai_horde_api.apimodels.base import (
@@ -75,6 +76,17 @@ class ResultingImageReturn:
         self.image = image
         self.rawpng = rawpng
         self.faults = faults
+
+
+def _calc_upscale_sampler_steps(payload):
+    """Calculates the amount of hires_fix upscaler steps based on the denoising used and the steps used for the
+    primary image"""
+    upscale_steps = round(payload["ddim_steps"] * (0.9 - payload["hires_fix_denoising_strength"]))
+    if upscale_steps < 3:
+        upscale_steps = 3
+
+    logger.debug(f"Upscale steps calculated as {upscale_steps}")
+    return upscale_steps
 
 
 class HordeLib:
@@ -227,7 +239,7 @@ class HordeLib:
         "upscale_sampler.denoise": "hires_fix_denoising_strength",
         "upscale_sampler.seed": "seed",
         "upscale_sampler.cfg": "cfg_scale",
-        "upscale_sampler.steps": "func._calc_upscale_sampler_steps",
+        "upscale_sampler.steps": _calc_upscale_sampler_steps,
         "upscale_sampler.sampler_name": "sampler_name",
         "controlnet_apply.strength": "control_strength",
         "controlnet_model_loader.control_net_name": "control_type",
@@ -563,14 +575,6 @@ class HordeLib:
         #             del payload["denoising_strength"]
         return payload, faults
 
-    def _calc_upscale_sampler_steps(self, payload):
-        """Calculates the amount of hires_fix upscaler steps
-        Based on the denoising used and the steps used for the primary image"""
-        upscale_steps = round(payload["ddim_steps"] * (0.9 - payload["hires_fix_denoising_strength"]))
-        if upscale_steps < 3:
-            upscale_steps = 3
-        return upscale_steps
-
     def _final_pipeline_adjustments(self, payload, pipeline_data) -> tuple[dict, list[GenMetadataEntry]]:
         payload = deepcopy(payload)
         faults: list[GenMetadataEntry] = []
@@ -814,12 +818,10 @@ class HordeLib:
             multiplier = None
             # We allow a multiplier in the param, so that I can adjust easily the
             # values for steps on things like stable cascade
-            if "*" in key:
+            if isinstance(key, FunctionType):
+                pipeline_params[newkey] = key(payload)
+            elif "*" in key:
                 key, multiplier = key.split("*", 1)
-            if key.startswith("func."):
-                key, func_name = key.split(".", 1)
-                parsing_function = getattr(self, func_name)
-                pipeline_params[newkey] = parsing_function(payload)
             elif key in payload:
                 if multiplier:
                     pipeline_params[newkey] = round(payload.get(key) * float(multiplier))
