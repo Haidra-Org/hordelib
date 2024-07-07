@@ -812,7 +812,6 @@ class HordeLib:
             # values for steps on things like stable cascade
             if "*" in key:
                 key, multiplier = key.split("*", 1)
-                logger.debug(f"Key {key} has multiplier {multiplier}")
             if key in payload:
                 if multiplier:
                     pipeline_params[newkey] = round(payload.get(key) * float(multiplier))
