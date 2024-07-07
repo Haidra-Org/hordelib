@@ -115,6 +115,9 @@ class OutputCollector(io.TextIOWrapper):
                 self.slow_message_count += 1
                 if self.slow_message_count == 5:
                     logger.warning("Suppressing further slow job warnings. Please investigate.")
+                    from hordelib.comfy_horde import log_free_ram
+
+                    log_free_ram()
                 else:
                     rate_unit = "iterations per second" if is_iterations_per_second else "*seconds per iterations*"
                     logger.warning(f"Job Slowdown: Job is running at {iteration_rate} {rate_unit}.")

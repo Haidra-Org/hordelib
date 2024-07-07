@@ -213,14 +213,7 @@ def do_comfy_import(
 
         # comfy.model_management.unet_offload_device = _unet_offload_device_hijack
 
-        total_vram = get_torch_total_vram_mb()
-        total_ram = psutil.virtual_memory().total / (1024 * 1024)
-        free_ram = psutil.virtual_memory().available / (1024 * 1024)
-
-        free_vram = get_torch_free_vram_mb()
-
-        logger.debug(f"Total VRAM {total_vram:0.0f} MB, Total System RAM {total_ram:0.0f} MB")
-        logger.debug(f"Free VRAM {free_vram:0.0f} MB, Free System RAM {free_ram:0.0f} MB")
+    log_free_ram()
     output_collector.replay()
 
 
@@ -306,6 +299,11 @@ def get_torch_total_vram_mb():
 
 def get_torch_free_vram_mb():
     return round(_comfy_get_free_memory() / (1024 * 1024))
+
+
+def log_free_ram():
+    logger.debug(f"Free VRAM: {get_torch_free_vram_mb():0.0f} MB")
+    logger.debug(f"Free RAM: {psutil.virtual_memory().available / (1024 * 1024):0.0f} MB")
 
 
 class Comfy_Horde:
@@ -744,7 +742,7 @@ class Comfy_Horde:
         # if time.time() - self._gc_timer > Comfy_Horde.GC_TIME:
         #     self._gc_timer = time.time()
         #     garbage_collect()
-
+        log_free_ram()
         return self.images
 
     # Run a pipeline that returns an image in pixel space

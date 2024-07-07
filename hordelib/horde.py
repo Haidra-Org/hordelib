@@ -1518,6 +1518,11 @@ class HordeLib:
 
     def image_upscale(self, payload) -> ResultingImageReturn:
         logger.debug("image_upscale called")
+
+        from hordelib.comfy_horde import log_free_ram
+
+        log_free_ram()
+
         # AIHorde hacks to payload
         payload, compatibility_faults = self._apply_aihorde_compatibility_hacks(payload)
         # Remember if we were passed width and height, we wouldn't normally be passed width and height
@@ -1551,10 +1556,16 @@ class HordeLib:
         if not isinstance(image, Image.Image):
             raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
 
+        log_free_ram()
         return ResultingImageReturn(image=image, rawpng=rawpng, faults=compatibility_faults + final_adjustment_faults)
 
     def image_facefix(self, payload) -> ResultingImageReturn:
         logger.debug("image_facefix called")
+
+        from hordelib.comfy_horde import log_free_ram
+
+        log_free_ram()
+
         # AIHorde hacks to payload
         payload, compatibility_faults = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format
@@ -1575,5 +1586,7 @@ class HordeLib:
         image, rawpng = results[0]
         if not isinstance(image, Image.Image):
             raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
+
+        log_free_ram()
 
         return ResultingImageReturn(image=image, rawpng=rawpng, faults=compatibility_faults + final_adjustment_faults)
