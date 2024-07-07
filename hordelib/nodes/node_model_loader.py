@@ -10,6 +10,7 @@ import torch
 from loguru import logger
 
 from hordelib.shared_model_manager import SharedModelManager
+from hordelib.comfy_horde import log_free_ram
 
 
 # Don't let the name fool you, this class is trying to load all the files that will be necessary
@@ -44,6 +45,7 @@ class HordeCheckpointLoader:
         output_clip=True,
         preloading=False,
     ):
+        log_free_ram()
         if file_type is not None:
             logger.debug(f"Loading model {horde_model_name}:{file_type}")
         else:
@@ -77,7 +79,7 @@ class HordeCheckpointLoader:
                 make_regular_vae(same_loaded_model[0][2])
 
             logger.debug("Model was previously loaded, returning it.")
-
+            log_free_ram()
             return same_loaded_model[0]
 
         if not ckpt_name:
@@ -133,6 +135,7 @@ class HordeCheckpointLoader:
             result[0].model.apply(make_regular)
             make_regular_vae(result[2])
 
+        log_free_ram()
         return result
 
 

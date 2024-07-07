@@ -27,6 +27,10 @@ class HordeLoraLoader:
     CATEGORY = "loaders"
 
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
+        from hordelib.comfy_horde import log_free_ram
+
+        log_free_ram()
+
         _test_exception = os.getenv("FAILURE_TEST", False)
         if _test_exception:
             raise Exception("This tests exceptions being thrown from within the pipeline")
@@ -67,6 +71,7 @@ class HordeLoraLoader:
             self.loaded_lora = (lora_path, lora)
 
         model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+        log_free_ram()
         return (model_lora, clip_lora)
 
 
