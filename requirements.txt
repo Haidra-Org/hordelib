@@ -49,4 +49,4 @@ strenum
 kornia
 qrcode
 spandrel
-
+spandrel_extra_arches
