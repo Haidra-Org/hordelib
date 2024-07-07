@@ -35,7 +35,10 @@ class HordeLoraLoader:
         if _test_exception:
             raise Exception("This tests exceptions being thrown from within the pipeline")
 
+        logger.debug(f"Loading lora {lora_name} through our custom node")
+
         if strength_model == 0 and strength_clip == 0:
+            logger.debug("Strengths are 0, skipping lora loading")
             return (model, clip)
 
         if lora_name is None or lora_name == "" or lora_name == "None":
