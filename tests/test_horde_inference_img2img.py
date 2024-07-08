@@ -540,3 +540,5 @@ class TestHordeInferenceImg2Img:
 
             image_result.image.save(f"images/{img_filename}", quality=100)
             img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))
+
+        assert check_list_inference_images_similarity(img_pairs_to_check)

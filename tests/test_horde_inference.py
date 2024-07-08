@@ -130,6 +130,42 @@ class TestHordeInference:
             pil_image,
         )
 
+    def test_sdxl_text_to_image_hires_fix(
+        self,
+        hordelib_instance: HordeLib,
+        sdxl_refined_model_name: str,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": 1536,
+            "width": 1280,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": True,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "an ancient llamia monster",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": sdxl_refined_model_name,
+        }
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+
+        img_filename = "sdxl_text_to_image_hires_fix.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
+
     @pytest.mark.skip(reason="This test is too slow to run on every test run")
     def test_sdxl_text_to_image_recommended_resolutions(
         self,

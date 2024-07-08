@@ -11,6 +11,7 @@ import typing
 from collections.abc import Callable
 from copy import deepcopy
 from enum import Enum, auto
+from types import FunctionType
 
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from horde_sdk.ai_horde_api.apimodels.base import (
@@ -75,6 +76,17 @@ class ResultingImageReturn:
         self.image = image
         self.rawpng = rawpng
         self.faults = faults
+
+
+def _calc_upscale_sampler_steps(payload):
+    """Calculates the amount of hires_fix upscaler steps based on the denoising used and the steps used for the
+    primary image"""
+    upscale_steps = round(payload["ddim_steps"] * (0.9 - payload["hires_fix_denoising_strength"]))
+    if upscale_steps < 3:
+        upscale_steps = 3
+
+    logger.debug(f"Upscale steps calculated as {upscale_steps}")
+    return upscale_steps
 
 
 class HordeLib:
@@ -227,7 +239,7 @@ class HordeLib:
         "upscale_sampler.denoise": "hires_fix_denoising_strength",
         "upscale_sampler.seed": "seed",
         "upscale_sampler.cfg": "cfg_scale",
-        "upscale_sampler.steps": "ddim_steps",
+        "upscale_sampler.steps": _calc_upscale_sampler_steps,
         "upscale_sampler.sampler_name": "sampler_name",
         "controlnet_apply.strength": "control_strength",
         "controlnet_model_loader.control_net_name": "control_type",
@@ -243,6 +255,8 @@ class HordeLib:
         "sampler_stage_c.denoise": "denoising_strength",
         "sampler_stage_b.seed": "seed",
         "sampler_stage_c.seed": "seed",
+        "sampler_stage_b.steps": "ddim_steps*0.33",
+        "sampler_stage_c.steps": "ddim_steps*0.67",
         "model_loader_stage_c.ckpt_name": "stable_cascade_stage_c",
         "model_loader_stage_c.model_name": "stable_cascade_stage_c",
         "model_loader_stage_c.horde_model_name": "model_name",
@@ -251,8 +265,10 @@ class HordeLib:
         "model_loader_stage_b.horde_model_name": "model_name",
         # Stable Cascade 2pass
         "2pass_sampler_stage_c.sampler_name": "sampler_name",
+        "2pass_sampler_stage_c.steps": "ddim_steps*0.67",
         "2pass_sampler_stage_c.denoise": "hires_fix_denoising_strength",
         "2pass_sampler_stage_b.sampler_name": "sampler_name",
+        "2pass_sampler_stage_b.steps": "ddim_steps*0.33",
         # QR Codes
         "sampler_bg.sampler_name": "sampler_name",
         "sampler_bg.cfg": "cfg_scale",
@@ -519,8 +535,15 @@ class HordeLib:
 
         # Turn off hires fix if we're not generating a hires image, or if the params are just confused
         try:
-            if "hires_fix" in payload and (payload["width"] <= 512 or payload["height"] <= 512):
-                payload["hires_fix"] = False
+            if "hires_fix" in payload:
+                if SharedModelManager.manager.compvis.model_reference[model].get(
+                    "baseline",
+                ) == "stable diffusion 1" and (payload["width"] <= 512 or payload["height"] <= 512):
+                    payload["hires_fix"] = False
+                elif SharedModelManager.manager.compvis.model_reference[model].get(
+                    "baseline",
+                ) == "stable_diffusion_xl" and (payload["width"] <= 1024 or payload["height"] <= 1024):
+                    payload["hires_fix"] = False
         except (TypeError, KeyError):
             payload["hires_fix"] = False
 
@@ -792,8 +815,18 @@ class HordeLib:
         # Translate the payload parameters into pipeline parameters
         pipeline_params = {}
         for newkey, key in HordeLib.PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING.items():
-            if key in payload:
-                pipeline_params[newkey] = payload.get(key)
+            multiplier = None
+            # We allow a multiplier in the param, so that I can adjust easily the
+            # values for steps on things like stable cascade
+            if isinstance(key, FunctionType):
+                pipeline_params[newkey] = key(payload)
+            elif "*" in key:
+                key, multiplier = key.split("*", 1)
+            elif key in payload:
+                if multiplier:
+                    pipeline_params[newkey] = round(payload.get(key) * float(multiplier))
+                else:
+                    pipeline_params[newkey] = payload.get(key)
             else:
                 logger.error(f"Parameter {key} not found")
         # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
@@ -827,8 +860,12 @@ class HordeLib:
             original_height = pipeline_params.get("empty_latent_image.height")
 
             if original_width is None or original_height is None:
-                logger.error("empty_latent_image.width or empty_latent_image.height not found. Using 512x512.")
-                original_width, original_height = (512, 512)
+                if model_details and model_details.get("baseline") == "stable diffusion 1":
+                    logger.error("empty_latent_image.width or empty_latent_image.height not found. Using 512x512.")
+                    original_width, original_height = (512, 512)
+                else:
+                    logger.error("empty_latent_image.width or empty_latent_image.height not found. Using 1024x1024.")
+                    original_width, original_height = (1024, 1024)
 
             new_width, new_height = (None, None)
 
@@ -1041,6 +1078,8 @@ class HordeLib:
                     self.generator.reconnect_input(pipeline_data, "layer_diffuse_apply.model", "model_loader")
                     self.generator.reconnect_input(pipeline_data, "output_image.images", "layer_diffuse_decode_rgba")
                     self.generator.reconnect_input(pipeline_data, "layer_diffuse_decode_rgba.images", "vae_decode")
+                    if payload.get("hires_fix") is True:
+                        self.generator.reconnect_input(pipeline_data, "upscale_sampler.model", "layer_diffuse_apply")
                     if model_details.get("baseline") == "stable diffusion 1":
                         pipeline_params["layer_diffuse_apply.config"] = "SD15, Attention Injection, attn_sharing"
                         pipeline_params["layer_diffuse_decode_rgba.sd_version"] = "SD15"
@@ -1489,6 +1528,11 @@ class HordeLib:
 
     def image_upscale(self, payload) -> ResultingImageReturn:
         logger.debug("image_upscale called")
+
+        from hordelib.comfy_horde import log_free_ram
+
+        log_free_ram()
+
         # AIHorde hacks to payload
         payload, compatibility_faults = self._apply_aihorde_compatibility_hacks(payload)
         # Remember if we were passed width and height, we wouldn't normally be passed width and height
@@ -1522,10 +1566,16 @@ class HordeLib:
         if not isinstance(image, Image.Image):
             raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
 
+        log_free_ram()
         return ResultingImageReturn(image=image, rawpng=rawpng, faults=compatibility_faults + final_adjustment_faults)
 
     def image_facefix(self, payload) -> ResultingImageReturn:
         logger.debug("image_facefix called")
+
+        from hordelib.comfy_horde import log_free_ram
+
+        log_free_ram()
+
         # AIHorde hacks to payload
         payload, compatibility_faults = self._apply_aihorde_compatibility_hacks(payload)
         # Check payload types/values and normalise it's format
@@ -1546,5 +1596,7 @@ class HordeLib:
         image, rawpng = results[0]
         if not isinstance(image, Image.Image):
             raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
+
+        log_free_ram()
 
         return ResultingImageReturn(image=image, rawpng=rawpng, faults=compatibility_faults + final_adjustment_faults)

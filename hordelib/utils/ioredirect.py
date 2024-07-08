@@ -106,6 +106,7 @@ class OutputCollector(io.TextIOWrapper):
 
             # Remove any double spaces
             message = self.pattern_double_space.sub(" ", message)
+            from hordelib.comfy_horde import log_free_ram
 
             if (
                 self.slow_message_count < 5
@@ -115,11 +116,14 @@ class OutputCollector(io.TextIOWrapper):
                 self.slow_message_count += 1
                 if self.slow_message_count == 5:
                     logger.warning("Suppressing further slow job warnings. Please investigate.")
+
+                    log_free_ram()
                 else:
                     rate_unit = "iterations per second" if is_iterations_per_second else "*seconds per iterations*"
                     logger.warning(f"Job Slowdown: Job is running at {iteration_rate} {rate_unit}.")
 
             if found_current_step == 0:
+                log_free_ram()
                 logger.info("Job will show progress for the first three steps, and then every 10 steps.")
 
             # Log the first 3 steps, then every 10 steps, then the last step
