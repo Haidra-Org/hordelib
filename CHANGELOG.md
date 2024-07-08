@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.13.0](https://github.com/Haidra-Org/hordelib/compare/v2.12.0...v2.13.0)
+
+8 July 2024
+
+- hires_fix pipeline support for layerdiffuse: [`db602a9`](https://github.com/Haidra-Org/hordelib/commit/db602a9eb8422dc59eb344f513f0f858d0a0b6eb)  (db0)
+- fix: steps on stable cascade [`e373f67`](https://github.com/Haidra-Org/hordelib/commit/e373f674d54701244ad8a104e5bd9c4182c441ed)  (db0)
+- feat: `log_free_ram()` more often [`49f2a59`](https://github.com/Haidra-Org/hordelib/commit/49f2a59a6de933aabdb618a86c76abd5eb49b2d9)  (tazlin)
+
 ## [v2.12.0](https://github.com/Haidra-Org/hordelib/compare/v2.11.1...v2.12.0)
 
 1 July 2024
