@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.13.1](https://github.com/Haidra-Org/hordelib/compare/v2.13.0...v2.13.1)
+
+8 July 2024
+
+- fix: treat SDXL hires fix like cascade (1024x longest dim) [`c0bab91`](https://github.com/Haidra-Org/hordelib/commit/c0bab919b3a8400300ff71ab8aa8b5cd7de7bab6)  (tazlin)
+
 ## [v2.13.0](https://github.com/Haidra-Org/hordelib/compare/v2.12.0...v2.13.0)
 
 8 July 2024
