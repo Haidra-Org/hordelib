@@ -868,8 +868,10 @@ class HordeLib:
                     original_width, original_height = (1024, 1024)
 
             new_width, new_height = (None, None)
-
-            if model_details and model_details.get("baseline") == "stable_cascade":
+            baseline = None
+            if model_details:
+                baseline = model_details.get("baseline")
+            if baseline and (baseline == "stable_cascade" or baseline == "stable_diffusion_xl"):
                 new_width, new_height = ImageUtils.get_first_pass_image_resolution_max(
                     original_width,
                     original_height,
