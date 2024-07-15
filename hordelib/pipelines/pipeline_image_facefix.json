@@ -9,20 +9,11 @@
       "title": "image_loader"
     }
   },
-  "4": {
-    "inputs": {
-      "model_name": "CodeFormers.pth"
-    },
-    "class_type": "UpscaleModelLoader",
-    "_meta": {
-      "title": "model_loader"
-    }
-  },
   "6": {
     "inputs": {
       "filename_prefix": "ComfyUI",
       "images": [
-        "8",
+        "11",
         0
       ]
     },
@@ -31,11 +22,21 @@
       "title": "output_image"
     }
   },
-  "8": {
+  "10": {
+    "inputs": {
+      "model_name": "CodeFormers.pth"
+    },
+    "class_type": "FaceRestoreModelLoader",
+    "_meta": {
+      "title": "model_loader"
+    }
+  },
+  "11": {
     "inputs": {
       "facedetection": "retinaface_resnet50",
-      "upscale_model": [
-        "4",
+      "codeformer_fidelity": 0.5,
+      "facerestore_model": [
+        "10",
         0
       ],
       "image": [
@@ -43,9 +44,9 @@
         0
       ]
     },
+    "class_type": "FaceRestoreCFWithModel",
     "_meta": {
       "title": "face_restore_with_model"
-    },
-    "class_type": "FaceRestoreCFWithModel"
+    }
   }
 }
