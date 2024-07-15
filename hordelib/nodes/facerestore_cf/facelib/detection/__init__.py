@@ -27,9 +27,11 @@ def init_retinaface_model(model_name, half=False, device="cuda"):
     if model_name == "retinaface_resnet50":
         model = RetinaFace(network_name="resnet50", half=half)
         model_url = "https://github.com/xinntao/facexlib/releases/download/v0.1.0/detection_Resnet50_Final.pth"
+        filename = "detection_Resnet50_Final.pth"
     elif model_name == "retinaface_mobile0.25":
         model = RetinaFace(network_name="mobile0.25", half=half)
         model_url = "https://github.com/xinntao/facexlib/releases/download/v0.1.0/detection_mobilenet0.25_Final.pth"
+        filename = "detection_mobilenet0.25_Final.pth"
     else:
         raise NotImplementedError(f"{model_name} is not implemented.")
 
@@ -37,7 +39,7 @@ def init_retinaface_model(model_name, half=False, device="cuda"):
         url=model_url,
         model_dir="../../models/facedetection",
         progress=True,
-        file_name=None,
+        file_name=filename,
     )
     load_net = torch.load(model_path, map_location=lambda storage, loc: storage)
     # remove unnecessary 'module.'

@@ -7,6 +7,7 @@ from torch.hub import download_url_to_file, get_dir
 from tqdm import tqdm
 
 from .misc import sizeof_fmt
+from hordelib.shared_model_manager import SharedModelManager
 
 
 def download_file_from_google_drive(file_id, save_path):
@@ -79,18 +80,4 @@ def load_file_from_url(url, model_dir=None, progress=True, file_name=None):
     Returns:
         str: The path to the downloaded file.
     """
-    if model_dir is None:  # use the pytorch hub_dir
-        hub_dir = get_dir()
-        model_dir = os.path.join(hub_dir, "checkpoints")
-
-    os.makedirs(model_dir, exist_ok=True)
-
-    parts = urlparse(url)
-    filename = os.path.basename(parts.path)
-    if file_name is not None:
-        filename = file_name
-    cached_file = os.path.abspath(os.path.join(model_dir, filename))
-    if not os.path.exists(cached_file):
-        print(f'Downloading: "{url}" to {cached_file}\n')
-        download_url_to_file(url, cached_file, hash_prefix=None, progress=progress)
-    return cached_file
+    return str(SharedModelManager.manager.miscellaneous.model_folder_path / file_name)

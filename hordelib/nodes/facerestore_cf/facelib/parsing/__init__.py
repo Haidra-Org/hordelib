@@ -10,9 +10,11 @@ def init_parsing_model(model_name="bisenet", half=False, device="cuda"):
     if model_name == "bisenet":
         model = BiSeNet(num_class=19)
         model_url = "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/parsing_bisenet.pth"
+        filename = "parsing_bisenet.pth"
     elif model_name == "parsenet":
         model = ParseNet(in_size=512, out_size=512, parsing_ch=19)
         model_url = "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/parsing_parsenet.pth"
+        filename = "parsing_parsenet.pth"
     else:
         raise NotImplementedError(f"{model_name} is not implemented.")
 
@@ -20,7 +22,7 @@ def init_parsing_model(model_name="bisenet", half=False, device="cuda"):
         url=model_url,
         model_dir="../../models/facedetection",
         progress=True,
-        file_name=None,
+        file_name=filename,
     )
     load_net = torch.load(model_path, map_location=lambda storage, loc: storage)
     model.load_state_dict(load_net, strict=True)
