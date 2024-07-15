@@ -80,4 +80,4 @@ def load_file_from_url(url, model_dir=None, progress=True, file_name=None):
     Returns:
         str: The path to the downloaded file.
     """
-    return str(SharedModelManager.manager.miscellaneous.model_folder_path / file_name)
+    return str(SharedModelManager.manager.gfpgan.model_folder_path / file_name)

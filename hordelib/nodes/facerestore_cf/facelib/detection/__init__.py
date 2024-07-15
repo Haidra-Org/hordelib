@@ -59,9 +59,11 @@ def init_yolov5face_model(model_name, device="cuda"):
     if model_name == "YOLOv5l":
         model = YoloDetector(config_name=current_dir + "/yolov5face/models/yolov5l.yaml", device=device)
         model_url = "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/yolov5l-face.pth"
+        filename = "yolov5l-face.pth"
     elif model_name == "YOLOv5n":
         model = YoloDetector(config_name=current_dir + "/yolov5face/models/yolov5n.yaml", device=device)
         model_url = "https://github.com/sczhou/CodeFormer/releases/download/v0.1.0/yolov5n-face.pth"
+        filename = "yolov5n-face.pth"
     else:
         raise NotImplementedError(f"{model_name} is not implemented.")
 
@@ -69,7 +71,7 @@ def init_yolov5face_model(model_name, device="cuda"):
         url=model_url,
         model_dir="../../models/facedetection",
         progress=True,
-        file_name=None,
+        file_name=filename,
     )
     load_net = torch.load(model_path, map_location=lambda storage, loc: storage)
     model.detector.load_state_dict(load_net, strict=True)

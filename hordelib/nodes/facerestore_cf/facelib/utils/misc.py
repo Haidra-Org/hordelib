@@ -6,6 +6,7 @@ import cv2
 import folder_paths
 import torch
 from torch.hub import download_url_to_file, get_dir
+from hordelib.shared_model_manager import SharedModelManager
 
 # from hordelib.nodes.facerestore.basicsr.utils.download_util import download_file_from_google_drive
 # import gdown
@@ -88,26 +89,7 @@ def img2tensor(imgs, bgr2rgb=True, float32=True):
 
 def load_file_from_url(url, model_dir=None, progress=True, file_name=None):
     """Ref:https://github.com/1adrianb/face-alignment/blob/master/face_alignment/utils.py"""
-    if model_dir is None:
-        hub_dir = get_dir()
-        model_dir = os.path.join(hub_dir, "checkpoints")
-
-    os.makedirs(os.path.join(ROOT_DIR, model_dir), exist_ok=True)
-
-    parts = urlparse(url)
-    filename = os.path.basename(parts.path)
-    if file_name is not None:
-        filename = file_name
-
-    model_path = folder_paths.get_full_path("facedetection_models", filename)
-    if model_path:
-        return model_path
-
-    cached_file = os.path.abspath(os.path.join(ROOT_DIR, model_dir, filename))
-    if not os.path.exists(cached_file):
-        print(f'Downloading: "{url}" to {cached_file}\n')
-        download_url_to_file(url, cached_file, hash_prefix=None, progress=progress)
-    return cached_file
+    return str(SharedModelManager.manager.gfpgan.model_folder_path / file_name)
 
 
 def scandir(dir_path, suffix=None, recursive=False, full_path=False):
