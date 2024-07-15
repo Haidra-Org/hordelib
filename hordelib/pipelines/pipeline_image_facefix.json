@@ -46,6 +46,6 @@
     "_meta": {
       "title": "face_restore_with_model"
     },
-    "class_type": "FaceRestoreWithModel"
+    "class_type": "FaceRestoreCFWithModel"
   }
 }

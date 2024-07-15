@@ -63,7 +63,7 @@
     },
     {
       "id": 8,
-      "type": "FaceRestoreWithModel",
+      "type": "FaceRestoreCFWithModel",
       "title": "face_restore_with_model",
       "pos": [
         390,
@@ -99,7 +99,7 @@
         }
       ],
       "properties": {
-        "Node name for S&R": "FaceRestoreWithModel"
+        "Node name for S&R": "FaceRestoreCFWithModel"
       },
       "widgets_values": [
         "retinaface_resnet50"

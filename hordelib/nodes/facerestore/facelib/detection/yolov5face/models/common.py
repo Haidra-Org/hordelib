@@ -149,22 +149,9 @@ class ShuffleV2Block(nn.Module):
             ),
             nn.BatchNorm2d(branch_features),
             nn.SiLU(),
-            self.depthwise_conv(
-                branch_features,
-                branch_features,
-                kernel_size=3,
-                stride=self.stride,
-                padding=1,
-            ),
+            self.depthwise_conv(branch_features, branch_features, kernel_size=3, stride=self.stride, padding=1),
             nn.BatchNorm2d(branch_features),
-            nn.Conv2d(
-                branch_features,
-                branch_features,
-                kernel_size=1,
-                stride=1,
-                padding=0,
-                bias=False,
-            ),
+            nn.Conv2d(branch_features, branch_features, kernel_size=1, stride=1, padding=0, bias=False),
             nn.BatchNorm2d(branch_features),
             nn.SiLU(),
         )
@@ -204,17 +191,7 @@ class Focus(nn.Module):
         self.conv = Conv(c1 * 4, c2, k, s, p, g, act)
 
     def forward(self, x):  # x(b,c,w,h) -> y(b,4c,w/2,h/2)
-        return self.conv(
-            torch.cat(
-                [
-                    x[..., ::2, ::2],
-                    x[..., 1::2, ::2],
-                    x[..., ::2, 1::2],
-                    x[..., 1::2, 1::2],
-                ],
-                1,
-            )
-        )
+        return self.conv(torch.cat([x[..., ::2, ::2], x[..., 1::2, ::2], x[..., ::2, 1::2], x[..., 1::2, 1::2]], 1))
 
 
 class Concat(nn.Module):
@@ -300,9 +277,7 @@ class Detections:
     def __init__(self, imgs, pred, names=None):
         super().__init__()
         d = pred[0].device  # device
-        gn = [
-            torch.tensor([*(im.shape[i] for i in [1, 0, 1, 0]), 1.0, 1.0], device=d) for im in imgs
-        ]  # normalizations
+        gn = [torch.tensor([*(im.shape[i] for i in [1, 0, 1, 0]), 1.0, 1.0], device=d) for im in imgs]  # normalizations
         self.imgs = imgs  # list of images as numpy arrays
         self.pred = pred  # list of tensors pred[0] = (xyxy, conf, cls)
         self.names = names  # class names

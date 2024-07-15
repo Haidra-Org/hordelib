@@ -17,21 +17,18 @@ from hordelib.nodes.facerestore.facelib.detection.yolov5face.utils.general impor
     scale_coords_landmarks,
 )
 
-
-def is_high_version():
-    from packaging import version
-    try:
-        torch_v = version.parse(torch.__version__)
-        return torch_v > version.parse("1.9.0")
-    except Exception:
-        return True
-
+try:
+    version_str = torch.__version__.split('+')[0]
+    major, minor, patch = map(int, version_str.split('.'))
+    IS_HIGH_VERSION = (major, minor, patch) >= (1, 9, 0)
+except ValueError:
+    # Handle the case of a development version here
+    IS_HIGH_VERSION = False
 
 def isListempty(inList):
-    if isinstance(inList, list):  # Is a list
+    if isinstance(inList, list): # Is a list
         return all(map(isListempty, inList))
-    return False  # Not a list
-
+    return False # Not a list
 
 class YoloDetector:
     def __init__(
@@ -39,7 +36,7 @@ class YoloDetector:
         config_name,
         min_face=10,
         target_size=None,
-        device="cuda",
+        device='cuda',
     ):
         """
         config_name: name of .yaml config with network configuration from models/ folder.
@@ -53,6 +50,7 @@ class YoloDetector:
         self.detector = Model(cfg=config_name)
         self.device = device
 
+
     def _preprocess(self, imgs):
         """
         Preprocessing image before passing through the network. Resize and conversion to torch tensor.
@@ -63,13 +61,9 @@ class YoloDetector:
             if self.target_size:
                 r = self.target_size / min(h0, w0)  # resize image to img_size
                 if r < 1:
-                    img = cv2.resize(
-                        img, (int(w0 * r), int(h0 * r)), interpolation=cv2.INTER_LINEAR
-                    )
+                    img = cv2.resize(img, (int(w0 * r), int(h0 * r)), interpolation=cv2.INTER_LINEAR)
 
-            imgsz = check_img_size(
-                max(img.shape[:2]), s=self.detector.stride.max()
-            )  # check img_size
+            imgsz = check_img_size(max(img.shape[:2]), s=self.detector.stride.max())  # check img_size
             img = letterbox(img, new_shape=imgsz)[0]
             pp_imgs.append(img)
         pp_imgs = np.array(pp_imgs)
@@ -94,40 +88,20 @@ class YoloDetector:
             img_shape = origimg.shape
             image_height, image_width = img_shape[:2]
             gn = torch.tensor(img_shape)[[1, 0, 1, 0]]  # normalization gain whwh
-            gn_lks = torch.tensor(img_shape)[
-                [1, 0, 1, 0, 1, 0, 1, 0, 1, 0]
-            ]  # normalization gain landmarks
+            gn_lks = torch.tensor(img_shape)[[1, 0, 1, 0, 1, 0, 1, 0, 1, 0]]  # normalization gain landmarks
             det = pred[image_id].cpu()
             scale_coords(imgs[image_id].shape[1:], det[:, :4], img_shape).round()
-            scale_coords_landmarks(
-                imgs[image_id].shape[1:], det[:, 5:15], img_shape
-            ).round()
+            scale_coords_landmarks(imgs[image_id].shape[1:], det[:, 5:15], img_shape).round()
 
             for j in range(det.size()[0]):
                 box = (det[j, :4].view(1, 4) / gn).view(-1).tolist()
                 box = list(
-                    map(
-                        int,
-                        [
-                            box[0] * image_width,
-                            box[1] * image_height,
-                            box[2] * image_width,
-                            box[3] * image_height,
-                        ],
-                    )
+                    map(int, [box[0] * image_width, box[1] * image_height, box[2] * image_width, box[3] * image_height])
                 )
                 if box[3] - box[1] < self.min_face:
                     continue
                 lm = (det[j, 5:15].view(1, 10) / gn_lks).view(-1).tolist()
-                lm = list(
-                    map(
-                        int,
-                        [
-                            i * image_width if j % 2 == 0 else i * image_height
-                            for j, i in enumerate(lm)
-                        ],
-                    )
-                )
+                lm = list(map(int, [i * image_width if j % 2 == 0 else i * image_height for j, i in enumerate(lm)]))
                 lm = [lm[i : i + 2] for i in range(0, len(lm), 2)]
                 bboxes[image_id].append(box)
                 landmarks[image_id].append(lm)
@@ -151,22 +125,20 @@ class YoloDetector:
 
         images = self._preprocess(images)
 
-        if is_high_version():
+        if IS_HIGH_VERSION:
             with torch.inference_mode():  # for pytorch>=1.9
                 pred = self.detector(images)[0]
         else:
             with torch.no_grad():  # for pytorch<1.9
                 pred = self.detector(images)[0]
 
-        bboxes, points = self._postprocess(
-            images, origimgs, pred, conf_thres, iou_thres
-        )
+        bboxes, points = self._postprocess(images, origimgs, pred, conf_thres, iou_thres)
 
         # return bboxes, points
         if not isListempty(points):
-            bboxes = np.array(bboxes).reshape(-1, 4)
-            points = np.array(points).reshape(-1, 10)
-            padding = bboxes[:, 0].reshape(-1, 1)
+            bboxes = np.array(bboxes).reshape(-1,4)
+            points = np.array(points).reshape(-1,10)
+            padding = bboxes[:,0].reshape(-1,1)
             return np.concatenate((bboxes, padding, points), axis=1)
         else:
             return None
