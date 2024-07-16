@@ -66,8 +66,8 @@ class TestHordeUpscaling:
             similarity_constraints = ImageSimilarityConstraints(
                 cosine_fail_floor=CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL,
                 cosine_warn_floor=CosineSimilarityResultCode.EXTREMELY_SIMILAR,
-                histogram_fail_threshold=HistogramDistanceResultCode.VERY_DISSIMILAR_DISTRIBUTION,
-                histogram_warn_threshold=HistogramDistanceResultCode.SIMILAR_DISTRIBUTION,
+                histogram_fail_threshold=HistogramDistanceResultCode.VERY_SIMILAR_DISTRIBUTION,
+                histogram_warn_threshold=HistogramDistanceResultCode.EXTREMELY_SIMILAR_DISTRIBUTION,
             )
         assert cls.shared_model_manager.manager.download_model(model_name)
         assert cls.shared_model_manager.manager.is_model_available(model_name) is True
