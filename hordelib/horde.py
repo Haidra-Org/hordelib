@@ -214,7 +214,7 @@ class HordeLib:
     }
 
     # pipeline parameter <- hordelib payload parameter mapping
-    PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING = {  # FIXME
+    PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING: dict[str, str | Callable] = {  # FIXME
         "sampler.sampler_name": "sampler_name",
         "sampler.cfg": "cfg_scale",
         "sampler.denoise": "denoising_strength",
@@ -820,6 +820,9 @@ class HordeLib:
             # values for steps on things like stable cascade
             if isinstance(key, FunctionType):
                 pipeline_params[newkey] = key(payload)
+            elif not isinstance(key, str):
+                logger.error(f"Invalid key {key}")
+                raise RuntimeError(f"Invalid key {key}")
             elif "*" in key:
                 key, multiplier = key.split("*", 1)
             elif key in payload:

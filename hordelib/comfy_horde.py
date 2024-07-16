@@ -410,6 +410,14 @@ class Comfy_Horde:
             _comfy_supported_pt_extensions,
         )
 
+        _comfy_folder_names_and_paths["facerestore_models"] = (
+            [
+                str(UserSettings.get_model_directory() / "gfpgan"),
+                str(UserSettings.get_model_directory() / "codeformer"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
+
         _comfy_folder_names_and_paths["controlnet"] = (
             [
                 _comfy_folder_names_and_paths["controlnet"][0][0],
