@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v2.13.2](https://github.com/Haidra-Org/hordelib/compare/v2.13.1...v2.13.2)
+
+16 July 2024
+
+- feat: Updates Facerestore node to latest version.  [`#284`](https://github.com/Haidra-Org/hordelib/pull/284) (Divided by Zer0)
+- tests: fix pr test pre-commit runs; only install tox on runner [`6a238d0`](https://github.com/Haidra-Org/hordelib/commit/6a238d0185d5b75b5570ec59bc848ec555a24eca)  (tazlin)
+
 ## [v2.13.1](https://github.com/Haidra-Org/hordelib/compare/v2.13.0...v2.13.1)
 
 8 July 2024
