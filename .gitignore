@@ -20,7 +20,7 @@ parts/
 sdist/
 var/
 wheels/
-models/
+hordelib/models/
 pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
