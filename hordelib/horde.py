@@ -843,13 +843,15 @@ class HordeLib:
                 raise RuntimeError(f"Invalid key {key}")
             elif "*" in key:
                 key, multiplier = key.split("*", 1)
-            elif key in payload:
+
+            if key in payload:
                 if multiplier:
                     pipeline_params[newkey] = round(payload.get(key) * float(multiplier))
                 else:
                     pipeline_params[newkey] = payload.get(key)
-            else:
+            elif not isinstance(key, FunctionType):
                 logger.error(f"Parameter {key} not found")
+
         # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
         # We don't want to hardcode this into the pipeline.json as we export this directly from ComfyUI
         # and don't want to have to rememebr to re-add those keys
