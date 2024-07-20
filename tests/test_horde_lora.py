@@ -450,6 +450,59 @@ class TestHordeLora:
             pil_image,
         )
 
+    def test_text_to_image_lora_character_hires_fix_sdxl(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+    ):
+        assert shared_model_manager.manager.lora
+
+        shared_model_manager.manager.lora.fetch_adhoc_lora("247778", is_version=True)
+        lora_name_1 = shared_model_manager.manager.lora.get_lora_name("247778", is_version=True)
+        shared_model_manager.manager.lora.fetch_adhoc_lora("135867", is_version=True)
+        lora_name_2 = shared_model_manager.manager.lora.get_lora_name("135867", is_version=True)
+
+        assert lora_name_1
+        assert lora_name_2
+
+        assert shared_model_manager.manager.compvis
+
+        data = {
+            "sampler_name": "k_dpmpp_sde",
+            "cfg_scale": 5,
+            "denoising_strength": 1.0,
+            "seed": 4061434610,
+            "height": 1664,
+            "width": 1152,
+            "karras": True,
+            "tiling": False,
+            "hires_fix": True,
+            "clip_skip": 2,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "(\nVtuber, face closeup, green eyes, heart-shaped pupils, forward horns, white hair, long hair, fox ears, fix whiskers stickers, comical blush, earrings, wink, eyeshadow, makeup, long eyelashes, v sign,\n\n(Red background, abstract background, reflective surface:1.15),\n\n\nscore_9,\n\n:1.0), ### (\n\n(futanari, shemale, dickgirl, futa, trap, yaoi, black and white, b&w, monochrome, 2boys, multiple boys:1.2),\n\n(score_6, score_5, score_4, score_3, score_2, score_1, source_furry, source_pony, source_cartoon, source_anime, source_filmmaker:1.0),\n\n(tongue, licking, chubby, dehydrated, ribs, ribcage, teeth, fish eyes, dead eyes:1.0),\n\nugly, worst quality, low quality, normal quality, messy drawing, amateur drawing, lowres, low resolution, poor resolution, normal resolution, bad anatomy, bad hands, text, watermark, logo, people, plastic, figurine, semi-realistic, painting, surrealist, digital art, cgi, render, sketch, manga, visual novel, drawing, uncanny, 3D, daz3d, anime, cartoon, animation, comic, video game,\n\n:1.0),",  # noqa
+            "loras": [
+                {"name": lora_name_1, "model": 1, "clip": 1.0},
+                {"name": lora_name_2, "model": 5, "clip": 1.0},
+            ],
+            "ddim_steps": 12,
+            "n_iter": 1,
+            "model": "AMPonyXL",
+        }
+
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+
+        img_filename = "lora_character_hires_fix_sdxl.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        # assert check_single_lora_image_similarity(
+        #     f"images_expected/{img_filename}",
+        #     pil_image,
+        # )
+
     @pytest.mark.default_sd15_model
     def test_text_to_image_lora_chained(
         self,
