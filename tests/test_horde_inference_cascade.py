@@ -11,6 +11,8 @@ from tests.testing_shared_functions import (
 
 
 class TestHordeInferenceCascade:
+
+    @pytest.mark.slow
     def test_cascade_text_to_image(
         self,
         hordelib_instance: HordeLib,
@@ -51,6 +53,7 @@ class TestHordeInferenceCascade:
             pil_image,
         )
 
+    @pytest.mark.slow
     def test_cascade_text_to_image_n_iter(
         self,
         hordelib_instance: HordeLib,
@@ -102,6 +105,7 @@ class TestHordeInferenceCascade:
 
         assert check_list_inference_images_similarity(img_pairs_to_check)
 
+    @pytest.mark.slow
     def test_cascade_image_to_image(
         self,
         stable_cascade_base_model_name: str,
@@ -150,6 +154,7 @@ class TestHordeInferenceCascade:
 
         assert check_list_inference_images_similarity(img_pairs_to_check)
 
+    @pytest.mark.slow
     def test_cascade_image_remix_single(
         self,
         stable_cascade_base_model_name: str,
@@ -188,6 +193,7 @@ class TestHordeInferenceCascade:
             pil_image,
         )
 
+    @pytest.mark.slow
     def test_cascade_image_remix_double(
         self,
         stable_cascade_base_model_name: str,
@@ -231,6 +237,7 @@ class TestHordeInferenceCascade:
             pil_image,
         )
 
+    @pytest.mark.slow
     def test_cascade_image_remix_double_weak(
         self,
         stable_cascade_base_model_name: str,
@@ -275,6 +282,7 @@ class TestHordeInferenceCascade:
             pil_image,
         )
 
+    @pytest.mark.slow
     def test_cascade_image_remix_triple(
         self,
         stable_cascade_base_model_name: str,
@@ -321,6 +329,7 @@ class TestHordeInferenceCascade:
             pil_image,
         )
 
+    @pytest.mark.slow
     def test_cascade_text_to_image_hires_2pass(
         self,
         hordelib_instance: HordeLib,

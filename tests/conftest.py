@@ -454,14 +454,42 @@ def pytest_collection_modifyitems(items):
 
     sorted_items = []
 
+    PYTEST_MARK_LAST = [
+        "default_sdxl_model",
+        "refined_sdxl_model",
+    ]
+
     for module in MODULES_TO_RUN_FIRST:
-        sorted_items.extend([item for item in items if module_mapping[item] == module])
+        sorted_module = [item for item in items if module_mapping[item] == module]
+        # Any items with a mark in PYTEST_MARK_LAST will be moved to the end (in the order of the list)
+        for mark in PYTEST_MARK_LAST:
+            marked_items = [
+                item for item in sorted_module if any(own_marker.name == mark for own_marker in item.own_markers)
+            ]
+            sorted_module = [item for item in sorted_module if item not in marked_items] + marked_items
+
+        sorted_items.extend(sorted_module)
 
     sorted_items.extend(
         [item for item in items if module_mapping[item] not in MODULES_TO_RUN_FIRST + MODULES_TO_RUN_LAST],
     )
 
     for module in MODULES_TO_RUN_LAST:
-        sorted_items.extend([item for item in items if module_mapping[item] == module])
+        sorted_module = [item for item in items if module_mapping[item] == module]
+        # Any items with a mark in PYTEST_MARK_LAST will be moved to the end (in the order of the list)
+        for mark in PYTEST_MARK_LAST:
+            marked_items = [
+                item for item in sorted_module if any(own_marker.name == mark for own_marker in item.own_markers)
+            ]
+            sorted_module = [item for item in sorted_module if item not in marked_items] + marked_items
+
+        sorted_items.extend(sorted_module)
+
+    # Any items with a mark in PYTEST_MARK_LAST will be moved to the end (in the order of the list)
+    # for mark in PYTEST_MARK_LAST:
+    #     marked_items = [
+    #         item for item in sorted_items if any(own_marker.name == mark for own_marker in item.own_markers)
+    #     ]
+    #     sorted_items = [item for item in sorted_items if item not in marked_items] + marked_items
 
     items[:] = sorted_items

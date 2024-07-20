@@ -1,6 +1,7 @@
 # test_horde.py
 
 from PIL import Image
+import pytest
 
 from hordelib.horde import HordeLib
 
@@ -8,6 +9,8 @@ from .testing_shared_functions import check_single_inference_image_similarity
 
 
 class TestHordeInferenceTransparent:
+
+    @pytest.mark.default_sd15_model
     def test_layerdiffuse_sd15(
         self,
         hordelib_instance: HordeLib,
@@ -50,6 +53,7 @@ class TestHordeInferenceTransparent:
             image_result.image.save(f"images/{img_filename}", quality=100)
             img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))
 
+    @pytest.mark.refined_sdxl_model
     def test_layerdiffuse_sdxl(
         self,
         hordelib_instance: HordeLib,
@@ -93,6 +97,7 @@ class TestHordeInferenceTransparent:
             image_result.image.save(f"images/{img_filename}", quality=100)
             img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))
 
+    @pytest.mark.default_sd15_model
     def test_layerdiffusion_hires_fix(
         self,
         hordelib_instance: HordeLib,

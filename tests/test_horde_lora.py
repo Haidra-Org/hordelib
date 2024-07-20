@@ -18,6 +18,7 @@ class TestHordeLora:
         shared_model_manager.manager.lora.wait_for_downloads()
         yield
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_lora_red(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -69,6 +70,7 @@ class TestHordeLora:
         if not (last_use > datetime.now() - timedelta(minutes=1)):
             raise Exception("Last use of lora was not updated")
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_lora_blue(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -113,6 +115,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_lora_blue_tiled(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -157,6 +160,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_lora_blue_weighted(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -201,6 +205,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_lora_blue_low_strength(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -268,6 +273,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_lora_blue_negative_strength(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -335,6 +341,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_lora_blue_hires_fix(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -443,6 +450,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_lora_chained(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -509,6 +517,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_lora_chained_bad(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -552,6 +561,7 @@ class TestHordeLora:
         assert len(ret.faults) == 1
         # Don't save this one, just testing we didn't crash and burn
 
+    @pytest.mark.default_sd15_model
     def test_lora_trigger_inject_red(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -595,6 +605,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_lora_trigger_inject_any(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -640,6 +651,7 @@ class TestHordeLora:
         img_filename = "lora_inject_any_2.png"
         pil_image_2.save(f"images/{img_filename}", quality=100)
 
+    @pytest.mark.default_sd15_model
     def test_download_and_use_adhoc_lora(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -685,6 +697,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_download_and_use_specific_version_lora(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -727,6 +740,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_for_probability_tensor_runtime_error(
         self,
         hordelib_instance: HordeLib,
@@ -763,6 +777,7 @@ class TestHordeLora:
         pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
 
+    @pytest.mark.default_sd15_model
     def test_sd21_lora_against_sd15_model(
         self,
         hordelib_instance: HordeLib,
@@ -806,6 +821,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_stonepunk(
         self,
         hordelib_instance: HordeLib,
@@ -851,6 +867,7 @@ class TestHordeLora:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_negative_model_power(
         self,
         hordelib_instance: HordeLib,
