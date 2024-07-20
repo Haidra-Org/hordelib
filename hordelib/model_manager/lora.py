@@ -44,7 +44,7 @@ class LoraModelManager(BaseModelManager):
     )
     LORA_API = "https://civitai.com/api/v1/models?types=LORA&sort=Highest%20Rated&primaryFileOnly=true"
     MAX_RETRIES = 10 if not TESTS_ONGOING else 3
-    MAX_DOWNLOAD_THREADS = 5 if not TESTS_ONGOING else 15
+    MAX_DOWNLOAD_THREADS = 5 if not TESTS_ONGOING else 75
     RETRY_DELAY = 3 if not TESTS_ONGOING else 0.2
     """The time to wait between retries in seconds"""
     REQUEST_METADATA_TIMEOUT = 20  # Longer because civitai performs poorly on metadata requests for more than 5 models
