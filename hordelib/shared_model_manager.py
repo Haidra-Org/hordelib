@@ -6,7 +6,7 @@ from pathlib import Path
 
 import torch
 from horde_model_reference import get_model_reference_file_path
-from horde_model_reference.legacy import LegacyReferenceDownloadManager
+from horde_model_reference.model_reference_manager import ModelReferenceManager
 from loguru import logger
 from typing_extensions import Self
 
@@ -59,6 +59,7 @@ def do_migrations():
 class SharedModelManager:
     _instance: Self = None  # type: ignore
     manager: ModelManager
+    model_reference_manager: ModelReferenceManager
     cuda_available: bool
 
     def __new__(cls, do_not_load_model_mangers: bool = False):
@@ -101,16 +102,17 @@ class SharedModelManager:
         args_passed = locals().copy()  # XXX This is temporary
         args_passed.pop("cls")  # XXX This is temporary
 
-        lrdm = LegacyReferenceDownloadManager()
         if download_legacy_references:
             try:
-                lrdm.download_all_legacy_model_references(overwrite_existing=overwrite_existing_references)
+                cls.model_reference_manager = ModelReferenceManager(download_and_convert_legacy_dbs=True)
             except Exception as e:
                 logger.error(f"Failed to download legacy model references: {e}")
                 logger.error(
                     "If this continues to happen, "
                     "github may be down or your internet connection may be having issues.",
                 )
+        else:
+            cls.model_reference_manager = ModelReferenceManager()
 
         references = {}
         for reference in managers_to_load:

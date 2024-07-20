@@ -138,22 +138,7 @@ class BaseModelManager(ABC):
         )
 
     def download_model_reference(self) -> dict:
-        try:
-            logger.debug(f"Downloading Model Reference for {self.models_db_name}")
-            response = requests.get(self.remote_db)
-            logger.debug("Downloaded Model Reference successfully")
-            models = response.json()
-            logger.info("Updated Model Reference from remote.")
-            return models
-        except Exception as e:  # XXX Double check and/or rework this
-            logger.error(
-                f"Download failed: {e}",
-            )
-            logger.warning("Model Reference not downloaded, using local copy")
-            if self.models_db_path.exists():
-                return json.loads(self.models_db_path.read_text())
-            logger.error("No local copy of Model Reference found!")
-            return {}
+        raise NotImplementedError("Downloading model databases is no longer supported within hordelib.")
 
     def get_free_ram_mb(self) -> int:
         """Returns the amount of free RAM in MB rounded down to the nearest integer.

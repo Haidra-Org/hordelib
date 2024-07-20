@@ -13,6 +13,7 @@ from copy import deepcopy
 from enum import Enum, auto
 from types import FunctionType
 
+from horde_model_reference.meta_consts import get_baseline_native_resolution
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from horde_sdk.ai_horde_api.apimodels.base import (
     GenMetadataEntry,
@@ -78,15 +79,32 @@ class ResultingImageReturn:
         self.faults = faults
 
 
-def _calc_upscale_sampler_steps(payload):
-    """Calculates the amount of hires_fix upscaler steps based on the denoising used and the steps used for the
-    primary image"""
-    upscale_steps = round(payload["ddim_steps"] * (0.9 - payload["hires_fix_denoising_strength"]))
-    if upscale_steps < 3:
-        upscale_steps = 3
+def _calc_upscale_sampler_steps(
+    payload: dict,
+) -> int:
+    """Use `ImageUtils.calc_upscale_sampler_steps(...)` to calculate the number of steps for the upscale sampler.
 
-    logger.debug(f"Upscale steps calculated as {upscale_steps}")
-    return upscale_steps
+    Args:
+        payload (dict): The payload to use for the calculation.
+
+    Returns:
+        int: The number of steps to use.
+    """
+    model_name = payload.get("model_name")
+    baseline = None
+    native_resolution = None
+    if model_name is not None:
+        baseline = SharedModelManager.model_reference_manager.stable_diffusion.get_model_baseline(model_name)
+    if baseline is not None:
+        native_resolution = get_baseline_native_resolution(baseline)
+
+    return ImageUtils.calc_upscale_sampler_steps(
+        model_native_resolution=native_resolution,
+        width=payload.get("width"),
+        height=payload.get("height"),
+        hires_fix_denoising_strength=payload.get("hires_fix_denoising_strength"),
+        ddim_steps=payload.get("ddim_steps"),
+    )
 
 
 class HordeLib:
@@ -874,16 +892,22 @@ class HordeLib:
             baseline = None
             if model_details:
                 baseline = model_details.get("baseline")
-            if baseline and (baseline == "stable_cascade" or baseline == "stable_diffusion_xl"):
-                new_width, new_height = ImageUtils.get_first_pass_image_resolution_max(
-                    original_width,
-                    original_height,
-                )
-            else:
-                new_width, new_height = ImageUtils.get_first_pass_image_resolution_min(
-                    original_width,
-                    original_height,
-                )
+            if baseline:
+                if baseline == "stable_cascade":
+                    new_width, new_height = ImageUtils.get_first_pass_image_resolution_max(
+                        original_width,
+                        original_height,
+                    )
+                elif baseline == "stable_diffusion_xl":
+                    new_width, new_height = ImageUtils.get_first_pass_image_resolution_sdxl(
+                        original_width,
+                        original_height,
+                    )
+                else:  # fall through case; only `stable diffusion 1`` at time of writing
+                    new_width, new_height = ImageUtils.get_first_pass_image_resolution_min(
+                        original_width,
+                        original_height,
+                    )
 
             # This is the *target* resolution
             pipeline_params["latent_upscale.width"] = original_width
