@@ -72,16 +72,12 @@ class StyleGAN2GeneratorCSFT(StyleGAN2GeneratorClean):
             if randomize_noise:
                 noise = [None] * self.num_layers  # for each style conv layer
             else:  # use the stored noise
-                noise = [
-                    getattr(self.noises, f"noise{i}") for i in range(self.num_layers)
-                ]
+                noise = [getattr(self.noises, f"noise{i}") for i in range(self.num_layers)]
         # style truncation
         if truncation < 1:
             style_truncation = []
             for style in styles:
-                style_truncation.append(
-                    truncation_latent + truncation * (style - truncation_latent)
-                )
+                style_truncation.append(truncation_latent + truncation * (style - truncation_latent))
             styles = style_truncation
         # get style latents with injection
         if len(styles) == 1:
@@ -96,9 +92,7 @@ class StyleGAN2GeneratorCSFT(StyleGAN2GeneratorClean):
             if inject_index is None:
                 inject_index = random.randint(1, self.num_latent - 1)
             latent1 = styles[0].unsqueeze(1).repeat(1, inject_index, 1)
-            latent2 = (
-                styles[1].unsqueeze(1).repeat(1, self.num_latent - inject_index, 1)
-            )
+            latent2 = styles[1].unsqueeze(1).repeat(1, self.num_latent - inject_index, 1)
             latent = torch.cat([latent1, latent2], 1)
 
         # main generation
@@ -160,14 +154,10 @@ class ResBlock(nn.Module):
     def forward(self, x):
         out = F.leaky_relu_(self.conv1(x), negative_slope=0.2)
         # upsample/downsample
-        out = F.interpolate(
-            out, scale_factor=self.scale_factor, mode="bilinear", align_corners=False
-        )
+        out = F.interpolate(out, scale_factor=self.scale_factor, mode="bilinear", align_corners=False)
         out = F.leaky_relu_(self.conv2(out), negative_slope=0.2)
         # skip
-        x = F.interpolate(
-            x, scale_factor=self.scale_factor, mode="bilinear", align_corners=False
-        )
+        x = F.interpolate(x, scale_factor=self.scale_factor, mode="bilinear", align_corners=False)
         skip = self.skip(x)
         out = out + skip
         return out
@@ -283,9 +273,7 @@ class GFPGANv1Clean(nn.Module):
         # load pre-trained stylegan2 model if necessary
         if decoder_load_path:
             self.stylegan_decoder.load_state_dict(
-                torch.load(
-                    decoder_load_path, map_location=lambda storage, loc: storage
-                )["params_ema"]
+                torch.load(decoder_load_path, map_location=lambda storage, loc: storage)["params_ema"]
             )
         # fix decoder without updating params
         if fix_decoder:
@@ -317,9 +305,7 @@ class GFPGANv1Clean(nn.Module):
             )
         self.load_state_dict(state_dict)
 
-    def forward(
-        self, x, return_latents=False, return_rgb=True, randomize_noise=True, **kwargs
-    ):
+    def forward(self, x, return_latents=False, return_rgb=True, randomize_noise=True, **kwargs):
         """Forward function for GFPGANv1Clean.
         Args:
             x (Tensor): Input images.

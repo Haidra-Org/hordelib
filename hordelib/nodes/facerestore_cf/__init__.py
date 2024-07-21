@@ -8,6 +8,7 @@ import folder_paths
 import model_management
 import numpy as np
 import torch
+
 # from comfy_extras.chainner_models import model_loading
 from hordelib.nodes.facerestore_cf.r_chainner import model_loading
 from torchvision.transforms.functional import normalize

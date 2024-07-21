@@ -13,6 +13,7 @@ from copy import deepcopy
 from enum import Enum, auto
 from types import FunctionType
 
+from horde_model_reference.meta_consts import STABLE_DIFFUSION_BASELINE_CATEGORY, get_baseline_native_resolution
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from horde_sdk.ai_horde_api.apimodels.base import (
     GenMetadataEntry,
@@ -78,15 +79,55 @@ class ResultingImageReturn:
         self.faults = faults
 
 
-def _calc_upscale_sampler_steps(payload):
-    """Calculates the amount of hires_fix upscaler steps based on the denoising used and the steps used for the
-    primary image"""
-    upscale_steps = round(payload["ddim_steps"] * (0.9 - payload["hires_fix_denoising_strength"]))
-    if upscale_steps < 3:
-        upscale_steps = 3
+def _calc_upscale_sampler_steps(
+    payload: dict,
+) -> int:
+    """Use `ImageUtils.calc_upscale_sampler_steps(...)` to calculate the number of steps for the upscale sampler.
 
-    logger.debug(f"Upscale steps calculated as {upscale_steps}")
-    return upscale_steps
+    Args:
+        payload (dict): The payload to use for the calculation.
+
+    Returns:
+        int: The number of steps to use.
+    """
+    model_name = payload.get("model_name")
+    baseline = None
+    native_resolution = None
+    if model_name is not None:
+        baseline = SharedModelManager.model_reference_manager.stable_diffusion.get_model_baseline(model_name)
+    if baseline is not None:
+        try:
+            baseline = STABLE_DIFFUSION_BASELINE_CATEGORY(baseline)
+        except ValueError:
+            baseline = None
+            logger.warning(
+                f"Model {model_name} has an invalid baseline {baseline} so we cannot calculate "
+                "hires fix upscale steps.",
+            )
+        if baseline is not None:
+            native_resolution = get_baseline_native_resolution(baseline)
+
+    width: int | None = payload.get("width")
+    height: int | None = payload.get("height")
+    hires_fix_denoising_strength: float | None = payload.get("hires_fix_denoising_strength")
+    ddim_steps: int | None = payload.get("ddim_steps")
+
+    if width is None or height is None:
+        raise ValueError("Width and height must be set to calculate upscale sampler steps")
+
+    if hires_fix_denoising_strength is None:
+        raise ValueError("Hires fix denoising strength must be set to calculate upscale sampler steps")
+
+    if ddim_steps is None:
+        raise ValueError("DDIM steps must be set to calculate upscale sampler steps")
+
+    return ImageUtils.calc_upscale_sampler_steps(
+        model_native_resolution=native_resolution,
+        width=width,
+        height=height,
+        hires_fix_denoising_strength=hires_fix_denoising_strength,
+        ddim_steps=ddim_steps,
+    )
 
 
 class HordeLib:
@@ -825,13 +866,15 @@ class HordeLib:
                 raise RuntimeError(f"Invalid key {key}")
             elif "*" in key:
                 key, multiplier = key.split("*", 1)
-            elif key in payload:
+
+            if key in payload:
                 if multiplier:
                     pipeline_params[newkey] = round(payload.get(key) * float(multiplier))
                 else:
                     pipeline_params[newkey] = payload.get(key)
-            else:
+            elif not isinstance(key, FunctionType):
                 logger.error(f"Parameter {key} not found")
+
         # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
         # We don't want to hardcode this into the pipeline.json as we export this directly from ComfyUI
         # and don't want to have to rememebr to re-add those keys
@@ -874,16 +917,22 @@ class HordeLib:
             baseline = None
             if model_details:
                 baseline = model_details.get("baseline")
-            if baseline and (baseline == "stable_cascade" or baseline == "stable_diffusion_xl"):
-                new_width, new_height = ImageUtils.get_first_pass_image_resolution_max(
-                    original_width,
-                    original_height,
-                )
-            else:
-                new_width, new_height = ImageUtils.get_first_pass_image_resolution_min(
-                    original_width,
-                    original_height,
-                )
+            if baseline:
+                if baseline == "stable_cascade":
+                    new_width, new_height = ImageUtils.get_first_pass_image_resolution_max(
+                        original_width,
+                        original_height,
+                    )
+                elif baseline == "stable_diffusion_xl":
+                    new_width, new_height = ImageUtils.get_first_pass_image_resolution_sdxl(
+                        original_width,
+                        original_height,
+                    )
+                else:  # fall through case; only `stable diffusion 1`` at time of writing
+                    new_width, new_height = ImageUtils.get_first_pass_image_resolution_min(
+                        original_width,
+                        original_height,
+                    )
 
             # This is the *target* resolution
             pipeline_params["latent_upscale.width"] = original_width

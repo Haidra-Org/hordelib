@@ -60,6 +60,12 @@ filterwarnings = [
 testpaths = [
     "tests"
 ]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "default_sd15_model: marks tests as default_sd15_model (deselect with '-m \"not default_sd15_model\"')",
+    "default_sdxl_model: marks tests as default_sdxl_model (deselect with '-m \"not default_sdxl_model\"')",
+    "refined_sdxl_model: marks tests as refined_sdxl_model (deselect with '-m \"not refined_sdxl_model\"')",
+]
 
 [tool.black]
 line-length = 119

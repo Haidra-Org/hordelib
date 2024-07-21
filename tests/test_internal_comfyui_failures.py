@@ -4,6 +4,7 @@ from hordelib.horde import HordeLib
 from hordelib.shared_model_manager import SharedModelManager
 
 
+@pytest.mark.default_sd15_model
 def test_lora_failure(
     shared_model_manager: type[SharedModelManager],
     hordelib_instance: HordeLib,

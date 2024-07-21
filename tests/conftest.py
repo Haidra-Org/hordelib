@@ -14,6 +14,8 @@ from hordelib.horde import HordeLib
 from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES
 from hordelib.shared_model_manager import SharedModelManager
 
+from .testing_shared_classes import ResolutionTestCase
+
 
 @pytest.fixture(scope="function", autouse=True)
 def line_break():
@@ -87,7 +89,12 @@ def init_horde(
 
     import hordelib
 
-    hordelib.initialise(setup_logging=True, logging_verbosity=5, disable_smart_memory=True)
+    hordelib.initialise(
+        setup_logging=True,
+        logging_verbosity=5,
+        disable_smart_memory=False,
+        do_not_load_model_mangers=True,
+    )
     from hordelib.settings import UserSettings
 
     UserSettings.set_ram_to_leave_free_mb("100%")
@@ -109,7 +116,7 @@ def shared_model_manager(
     custom_model_info_for_testing: tuple[str, str, str, str],
     hordelib_instance: HordeLib,
 ) -> Generator[type[SharedModelManager], None, None]:
-    SharedModelManager()
+    SharedModelManager(do_not_load_model_mangers=True)
     SharedModelManager.load_model_managers(ALL_MODEL_MANAGER_TYPES)
 
     assert SharedModelManager()._instance is not None
@@ -240,6 +247,180 @@ def lora_GlowingRunesAI(shared_model_manager: type[SharedModelManager]) -> str:
     return name
 
 
+@pytest.fixture(scope="session")
+def default_min_steps() -> int:
+    return 6
+
+
+@pytest.fixture(scope="session")
+def default_first_pass_steps() -> int:
+    return 30
+
+
+@pytest.fixture(scope="session")
+def default_hires_fix_denoise_strength() -> float:
+    return 0.65
+
+
+@pytest.fixture(scope="session")
+def sdxl_hires_test_cases(
+    default_first_pass_steps: int,
+    default_hires_fix_denoise_strength: int,
+    default_min_steps: int,
+) -> list[ResolutionTestCase]:
+    sdxl_model_native_resolution = 1024
+    sdxl_default_second_pass_steps = int(default_first_pass_steps / 2.25)
+    sdxl_high_second_pass_steps = default_first_pass_steps * 0.6
+    return [
+        ResolutionTestCase(
+            width=1024,
+            height=1024,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sdxl_model_native_resolution,
+            max_expected_steps=default_first_pass_steps / 2,
+            min_expected_steps=default_min_steps,
+        ),
+        ResolutionTestCase(
+            width=1280,
+            height=1280,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sdxl_model_native_resolution,
+            max_expected_steps=sdxl_high_second_pass_steps + default_min_steps,
+            min_expected_steps=default_min_steps,
+        ),
+        ResolutionTestCase(
+            width=1156,
+            height=1480,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sdxl_model_native_resolution,
+            max_expected_steps=sdxl_high_second_pass_steps + default_min_steps,
+            min_expected_steps=sdxl_default_second_pass_steps,
+        ),
+        ResolutionTestCase(
+            width=2048,
+            height=2048,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sdxl_model_native_resolution,
+            max_expected_steps=default_first_pass_steps,
+            min_expected_steps=default_first_pass_steps - default_min_steps,
+        ),
+        ResolutionTestCase(
+            width=1600,
+            height=1600,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sdxl_model_native_resolution,
+            max_expected_steps=default_first_pass_steps,
+            min_expected_steps=sdxl_high_second_pass_steps - default_min_steps,
+        ),
+        ResolutionTestCase(
+            width=1664,
+            height=1152,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sdxl_model_native_resolution,
+            max_expected_steps=default_first_pass_steps,
+            min_expected_steps=sdxl_high_second_pass_steps - default_min_steps,
+        ),
+        ResolutionTestCase(
+            height=1664,
+            width=1152,
+            ddim_steps=12,
+            hires_fix_denoise_strength=0.65,
+            model_native_resolution=1024,
+            max_expected_steps=12,
+            min_expected_steps=9,
+        ),
+    ]
+
+
+@pytest.fixture(scope="session")
+def sd15_hires_test_cases(
+    default_first_pass_steps: int,
+    default_hires_fix_denoise_strength: int,
+    default_min_steps: int,
+) -> list[ResolutionTestCase]:
+    sd15_model_native_resolution = 512
+    sd15_high_second_pass_steps = default_first_pass_steps * 0.67
+    return [
+        ResolutionTestCase(
+            width=512,
+            height=512,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sd15_model_native_resolution,
+            max_expected_steps=sd15_high_second_pass_steps,
+            min_expected_steps=default_min_steps,
+        ),
+        ResolutionTestCase(
+            width=640,
+            height=640,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sd15_model_native_resolution,
+            max_expected_steps=sd15_high_second_pass_steps + default_min_steps,
+            min_expected_steps=default_min_steps,
+        ),
+        ResolutionTestCase(
+            width=578,
+            height=740,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sd15_model_native_resolution,
+            max_expected_steps=default_min_steps * 2.25,
+            min_expected_steps=default_min_steps * 1.25,
+        ),
+        ResolutionTestCase(
+            width=1024,
+            height=1024,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sd15_model_native_resolution,
+            max_expected_steps=18,
+            min_expected_steps=default_min_steps * 2,
+        ),
+        ResolutionTestCase(
+            width=1536,
+            height=1024,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sd15_model_native_resolution,
+            max_expected_steps=default_first_pass_steps,
+            min_expected_steps=default_first_pass_steps - default_min_steps,
+        ),
+        ResolutionTestCase(
+            width=800,
+            height=800,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sd15_model_native_resolution,
+            max_expected_steps=default_min_steps * 2.5,
+            min_expected_steps=default_min_steps * 1.5,
+        ),
+        ResolutionTestCase(
+            width=2048,
+            height=2048,
+            ddim_steps=default_first_pass_steps,
+            hires_fix_denoise_strength=default_hires_fix_denoise_strength,
+            model_native_resolution=sd15_model_native_resolution,
+            max_expected_steps=default_first_pass_steps,
+            min_expected_steps=default_first_pass_steps,
+        ),
+    ]
+
+
+@pytest.fixture(scope="session")
+def all_hires_test_cases(
+    sdxl_hires_test_cases: list[ResolutionTestCase],
+    sd15_hires_test_cases: list[ResolutionTestCase],
+) -> list[ResolutionTestCase]:
+    return sdxl_hires_test_cases + sd15_hires_test_cases
+
+
 def pytest_collection_modifyitems(items):
     """Modifies test items to ensure test modules run in a given order."""
     MODULES_TO_RUN_FIRST = [
@@ -260,26 +441,54 @@ def pytest_collection_modifyitems(items):
         "tests.test_horde_inference",
         "tests.test_horde_inference_img2img",
         "tests.test_horde_inference_qrcode",
-        "tests.test_horde_inference_cascade",
         "tests.test_horde_samplers",
         "tests.test_horde_ti",
         "tests.test_horde_lcm",
         "tests.test_horde_lora",
         "tests.test_horde_inference_controlnet",
         "tests.test_horde_inference_painting",
+        "tests.test_horde_inference_cascade",
     ]
     module_mapping = {item: item.module.__name__ for item in items}
 
     sorted_items = []
 
+    PYTEST_MARK_LAST = [
+        "default_sdxl_model",
+        "refined_sdxl_model",
+    ]
+
     for module in MODULES_TO_RUN_FIRST:
-        sorted_items.extend([item for item in items if module_mapping[item] == module])
+        sorted_module = [item for item in items if module_mapping[item] == module]
+        # Any items with a mark in PYTEST_MARK_LAST will be moved to the end (in the order of the list)
+        for mark in PYTEST_MARK_LAST:
+            marked_items = [
+                item for item in sorted_module if any(own_marker.name == mark for own_marker in item.own_markers)
+            ]
+            sorted_module = [item for item in sorted_module if item not in marked_items] + marked_items
+
+        sorted_items.extend(sorted_module)
 
     sorted_items.extend(
         [item for item in items if module_mapping[item] not in MODULES_TO_RUN_FIRST + MODULES_TO_RUN_LAST],
     )
 
     for module in MODULES_TO_RUN_LAST:
-        sorted_items.extend([item for item in items if module_mapping[item] == module])
+        sorted_module = [item for item in items if module_mapping[item] == module]
+        # Any items with a mark in PYTEST_MARK_LAST will be moved to the end (in the order of the list)
+        for mark in PYTEST_MARK_LAST:
+            marked_items = [
+                item for item in sorted_module if any(own_marker.name == mark for own_marker in item.own_markers)
+            ]
+            sorted_module = [item for item in sorted_module if item not in marked_items] + marked_items
+
+        sorted_items.extend(sorted_module)
+
+    # Any items with a mark in PYTEST_MARK_LAST will be moved to the end (in the order of the list)
+    # for mark in PYTEST_MARK_LAST:
+    #     marked_items = [
+    #         item for item in sorted_items if any(own_marker.name == mark for own_marker in item.own_markers)
+    #     ]
+    #     sorted_items = [item for item in sorted_items if item not in marked_items] + marked_items
 
     items[:] = sorted_items

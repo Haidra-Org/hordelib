@@ -16,11 +16,12 @@ class TestHordeLCM:
         shared_model_manager.manager.lora.wait_for_downloads()
         yield
 
+    @pytest.mark.refined_sdxl_model
     def test_use_lcm_turbomix_lora_euler_a(
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_model_name_for_testing: str,
+        sdxl_refined_model_name: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -49,7 +50,7 @@ class TestHordeLCM:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any", "is_version": True}],
             "ddim_steps": 5,
             "n_iter": 1,
-            "model": "AlbedoBase XL (SDXL)",
+            "model": sdxl_refined_model_name,
         }
 
         pil_image = hordelib_instance.basic_inference_single_image(data).image
@@ -63,11 +64,12 @@ class TestHordeLCM:
             pil_image,
         )
 
+    @pytest.mark.refined_sdxl_model
     def test_use_lcm_turbomix_lora_lcm(
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_model_name_for_testing: str,
+        sdxl_refined_model_name: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -96,7 +98,7 @@ class TestHordeLCM:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any", "is_version": True}],
             "ddim_steps": 4,
             "n_iter": 1,
-            "model": "AlbedoBase XL (SDXL)",
+            "model": sdxl_refined_model_name,
         }
 
         pil_image = hordelib_instance.basic_inference_single_image(data).image
@@ -110,11 +112,12 @@ class TestHordeLCM:
             pil_image,
         )
 
+    @pytest.mark.refined_sdxl_model
     def test_use_lcm_turbomix_lora_dpmpp_sde(
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
-        stable_diffusion_model_name_for_testing: str,
+        sdxl_refined_model_name: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -143,7 +146,7 @@ class TestHordeLCM:
             "loras": [{"name": lora_name, "model": 1.0, "clip": 1.0, "inject_trigger": "any", "is_version": True}],
             "ddim_steps": 10,
             "n_iter": 1,
-            "model": "AlbedoBase XL (SDXL)",
+            "model": sdxl_refined_model_name,
         }
 
         pil_image = hordelib_instance.basic_inference_single_image(data).image
@@ -157,6 +160,7 @@ class TestHordeLCM:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_use_sd1_5_lora_lcm(
         self,
         shared_model_manager: type[SharedModelManager],

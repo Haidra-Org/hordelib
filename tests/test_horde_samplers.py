@@ -1,5 +1,6 @@
 # test_horde.py
 
+import pytest
 from loguru import logger
 from PIL import Image
 
@@ -11,6 +12,8 @@ SLOW_SAMPLERS = ["k_dpmpp_2s_a", "k_heun", "k_dpm_2", "k_dpm_2_a"]  # "k_dpmpp_s
 
 
 class TestHordeSamplers:
+
+    @pytest.mark.default_sd15_model
     def test_ddim_sampler(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -42,6 +45,7 @@ class TestHordeSamplers:
         pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
 
+    @pytest.mark.default_sd15_model
     def test_k_dpmpp_sde_sampler(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -81,6 +85,8 @@ class TestHordeSamplers:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
+    @pytest.mark.slow
     def test_samplers(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -132,6 +138,7 @@ class TestHordeSamplers:
                     f"Skipping image similarity check for {img_filename} due to SDE samplers being non-deterministic.",
                 )
 
+    @pytest.mark.default_sd15_model
     def test_slow_samplers(
         self,
         stable_diffusion_model_name_for_testing: str,

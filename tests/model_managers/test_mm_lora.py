@@ -114,7 +114,7 @@ class TestModelManagerLora:
         lora_model_manager.wait_for_downloads(600)
         lora_model_manager.wait_for_adhoc_reset(15)
 
-        lora_model_manager.fetch_adhoc_lora("33970")
+        lora_model_manager.fetch_adhoc_lora("33970", timeout=300)
         lora_model_manager.ensure_lora_deleted("Eula Genshin Impact | Character Lora 1644")
         lora_model_manager.fetch_adhoc_lora("Eula Genshin Impact | Character Lora 1644")
         assert lora_model_manager.get_lora_name("33970") == str("Dehya Genshin Impact | Character Lora 809".lower())
