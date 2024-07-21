@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.13.3](https://github.com/Haidra-Org/hordelib/compare/v2.13.2...v2.13.3)
+
+21 July 2024
+
+- improve hires fix efficiency; fix: better SDXL hires fix default implementation; fix: cascade bug [`#287`](https://github.com/Haidra-Org/hordelib/pull/287) (tazlin)
+
 ## [v2.13.2](https://github.com/Haidra-Org/hordelib/compare/v2.13.1...v2.13.2)
 
 16 July 2024
