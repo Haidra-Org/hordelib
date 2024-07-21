@@ -43,6 +43,7 @@ class TestHordeTI:
             "model": stable_diffusion_model_name_for_testing,
         }
 
+    @pytest.mark.default_sd15_model
     def test_basic_ti(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -60,6 +61,7 @@ class TestHordeTI:
         img_filename = "ti_basic.png"
         pil_image.save(f"images/{img_filename}", quality=100)
 
+    @pytest.mark.default_sd15_model
     def test_inject_ti(
         self,
         hordelib_instance: HordeLib,
@@ -117,6 +119,7 @@ class TestHordeTI:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_bad_inject_ti(
         self,
         hordelib_instance: HordeLib,

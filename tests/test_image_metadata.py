@@ -1,12 +1,15 @@
 # test_horde.py
 import json
 
+import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
 
 
 class TestHordeInferenceMetadata:
+
+    @pytest.mark.default_sd15_model
     def test_text_to_image(
         self,
         hordelib_instance: HordeLib,

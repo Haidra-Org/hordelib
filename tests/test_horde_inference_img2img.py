@@ -1,5 +1,6 @@
 # test_horde.py
 
+import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
@@ -8,6 +9,8 @@ from .testing_shared_functions import check_list_inference_images_similarity, ch
 
 
 class TestHordeInferenceImg2Img:
+
+    @pytest.mark.default_sd15_model
     def test_image_to_image(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -47,6 +50,7 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_image_to_image_tiling(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -86,6 +90,7 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    @pytest.mark.default_sdxl_model
     def test_sdxl_image_to_image(
         self,
         hordelib_instance: HordeLib,
@@ -126,6 +131,7 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_image_to_image_hires_fix_small(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -165,6 +171,7 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_image_to_image_hires_fix_large(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -203,6 +210,7 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_img2img_masked_denoise_1(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -239,6 +247,7 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_img2img_masked_denoise_high(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -273,6 +282,7 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_img2img_masked_denoise_mid(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -307,6 +317,7 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_img2img_masked_denoise_low(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -341,6 +352,7 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    @pytest.mark.default_sdxl_model
     def test_sdxl_img2img_masked_denoise_95(
         self,
         sdxl_1_0_base_model_name: str,
@@ -375,6 +387,7 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_image_to_faulty_source_image(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -413,6 +426,7 @@ class TestHordeInferenceImg2Img:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_image_to_image_n_iter(
         self,
         hordelib_instance: HordeLib,
@@ -458,6 +472,7 @@ class TestHordeInferenceImg2Img:
 
         assert check_list_inference_images_similarity(img_pairs_to_check)
 
+    @pytest.mark.default_sd15_model
     def test_img2img_masked_n_iter(
         self,
         stable_diffusion_model_name_for_testing: str,
@@ -498,6 +513,7 @@ class TestHordeInferenceImg2Img:
 
         assert check_list_inference_images_similarity(img_pairs_to_check)
 
+    @pytest.mark.default_sd15_model
     def test_image_to_image_hires_fix_n_iter(
         self,
         stable_diffusion_model_name_for_testing: str,

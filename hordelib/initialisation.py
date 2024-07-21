@@ -27,6 +27,7 @@ def initialise(
     force_normal_vram_mode: bool = True,
     extra_comfyui_args: list[str] | None = None,
     disable_smart_memory: bool = False,
+    do_not_load_model_mangers: bool = False,
 ):
     """Initialise hordelib. This is required before using any other hordelib functions.
 
@@ -96,7 +97,7 @@ def initialise(
     # Initialise model manager
     from hordelib.shared_model_manager import SharedModelManager
 
-    SharedModelManager()
+    SharedModelManager(do_not_load_model_mangers=do_not_load_model_mangers)
 
     sys.argv = sys_arg_bkp
 

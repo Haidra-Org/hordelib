@@ -16,6 +16,7 @@ class TestHordeInferenceControlnet:
         for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
             shared_model_manager.manager.controlnet.download_control_type(preproc, ["stable diffusion 1"])
 
+    @pytest.mark.default_sd15_model
     def test_controlnet_sd1(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -68,6 +69,7 @@ class TestHordeInferenceControlnet:
                 pil_image,
             )
 
+    @pytest.mark.default_sd15_model
     def test_controlnet_fake_cn(
         self,
         hordelib_instance: HordeLib,
@@ -99,6 +101,8 @@ class TestHordeInferenceControlnet:
         image = hordelib_instance.basic_inference_single_image(data).image
         assert image is not None
 
+    @pytest.mark.slow
+    @pytest.mark.default_sd15_model
     def test_controlnet_strength(
         self,
         hordelib_instance: HordeLib,
@@ -145,6 +149,7 @@ class TestHordeInferenceControlnet:
                 pil_image,
             )
 
+    @pytest.mark.default_sd15_model
     def test_controlnet_hires_fix(
         self,
         hordelib_instance: HordeLib,
@@ -186,6 +191,7 @@ class TestHordeInferenceControlnet:
             pil_image.save(f"images/{img_filename}", quality=100)
             images_to_compare.append((f"images_expected/{img_filename}", pil_image))
 
+    @pytest.mark.default_sd15_model
     def test_controlnet_image_is_control(
         self,
         hordelib_instance: HordeLib,
@@ -230,6 +236,7 @@ class TestHordeInferenceControlnet:
                 pil_image,
             )
 
+    @pytest.mark.default_sd15_model
     def test_controlnet_n_iter(
         self,
         hordelib_instance: HordeLib,

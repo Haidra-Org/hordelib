@@ -366,11 +366,8 @@ class Comfy_Horde:
         # Load our pipelines
         self._load_pipelines()
 
-        stdio = OutputCollector()
-        with contextlib.redirect_stdout(stdio):
-            # Load our custom nodes
-            self._load_custom_nodes()
-        stdio.replay()
+        # Load our custom nodes
+        self._load_custom_nodes()
 
         self._comfyui_callback = comfyui_callback
 

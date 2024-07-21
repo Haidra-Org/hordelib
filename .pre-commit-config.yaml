@@ -34,5 +34,6 @@ repos:
             types-tabulate,
             types-tqdm,
             types-urllib3,
-            horde_sdk==0.12.0,
+            horde_sdk==0.14.0,
+            horde_model_reference==0.8.1,
         ]

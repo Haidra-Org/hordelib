@@ -9,6 +9,8 @@ from .testing_shared_functions import check_list_inference_images_similarity, ch
 
 
 class TestHordeInference:
+
+    @pytest.mark.default_sd15_model
     def test_text_to_image(
         self,
         hordelib_instance: HordeLib,
@@ -45,6 +47,7 @@ class TestHordeInference:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_n_iter(
         self,
         hordelib_instance: HordeLib,
@@ -93,6 +96,7 @@ class TestHordeInference:
 
         assert check_list_inference_images_similarity(img_pairs_to_check)
 
+    @pytest.mark.default_sdxl_model
     def test_sdxl_text_to_image(
         self,
         hordelib_instance: HordeLib,
@@ -130,6 +134,7 @@ class TestHordeInference:
             pil_image,
         )
 
+    @pytest.mark.refined_sdxl_model
     def test_sdxl_text_to_image_hires_fix(
         self,
         hordelib_instance: HordeLib,
@@ -166,6 +171,7 @@ class TestHordeInference:
             pil_image,
         )
 
+    @pytest.mark.default_sdxl_model
     @pytest.mark.skip(reason="This test is too slow to run on every test run")
     def test_sdxl_text_to_image_recommended_resolutions(
         self,
@@ -222,6 +228,7 @@ class TestHordeInference:
                 pil_image,
             )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_small(
         self,
         hordelib_instance: HordeLib,
@@ -258,6 +265,7 @@ class TestHordeInference:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_clip_skip_2(
         self,
         hordelib_instance: HordeLib,
@@ -294,6 +302,7 @@ class TestHordeInference:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_hires_fix(
         self,
         hordelib_instance: HordeLib,
@@ -330,6 +339,7 @@ class TestHordeInference:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_tiling(
         self,
         hordelib_instance: HordeLib,
@@ -379,6 +389,7 @@ class TestHordeInference:
             pil_image_no_tiling,
         )
 
+    @pytest.mark.default_sd15_model
     def test_text_to_image_hires_fix_n_iter(
         self,
         hordelib_instance: HordeLib,
@@ -422,6 +433,7 @@ class TestHordeInference:
 
         assert check_list_inference_images_similarity(img_pairs_to_check)
 
+    @pytest.mark.default_sd15_model
     def test_callback_with_post_processors(
         self,
         hordelib_instance: HordeLib,

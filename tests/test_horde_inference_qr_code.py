@@ -15,6 +15,7 @@ class TestHordeInferenceQRCode:
         for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
             shared_model_manager.manager.controlnet.download_control_type(preproc, ["stable diffusion 1"])
 
+    @pytest.mark.default_sd15_model
     def test_qr_code_inference(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -70,6 +71,7 @@ class TestHordeInferenceQRCode:
             pil_image,
         )
 
+    @pytest.mark.default_sd15_model
     def test_qr_code_inference_out_of_bounds(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -125,6 +127,7 @@ class TestHordeInferenceQRCode:
             pil_image,
         )
 
+    @pytest.mark.refined_sdxl_model
     def test_qr_code_inference_xl(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -174,6 +177,7 @@ class TestHordeInferenceQRCode:
             pil_image,
         )
 
+    @pytest.mark.refined_sdxl_model
     def test_qr_code_inference_too_large_text(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -241,6 +245,7 @@ Rerum sed incidunt commodi quo quo. Sit sint accusantium modi eligendi molestiae
             pil_image,
         )
 
+    @pytest.mark.refined_sdxl_model
     def test_qr_code_control_strength(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -290,6 +295,7 @@ Rerum sed incidunt commodi quo quo. Sit sint accusantium modi eligendi molestiae
             pil_image,
         )
 
+    @pytest.mark.refined_sdxl_model
     def test_qr_code_control_non_square(
         self,
         shared_model_manager: type[SharedModelManager],
@@ -339,6 +345,7 @@ Rerum sed incidunt commodi quo quo. Sit sint accusantium modi eligendi molestiae
             pil_image,
         )
 
+    @pytest.mark.refined_sdxl_model
     def test_qr_code_control_qr_texts(
         self,
         shared_model_manager: type[SharedModelManager],
