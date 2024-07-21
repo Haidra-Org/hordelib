@@ -1,8 +1,8 @@
 # test_horde.py
 import json
 
-from PIL import Image
 import pytest
+from PIL import Image
 
 from hordelib.horde import HordeLib
 

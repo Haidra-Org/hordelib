@@ -1,4 +1,3 @@
-
 from hordelib.nodes.facerestore_cf.r_chainner.gfpganv1_clean_arch import GFPGANv1Clean
 from hordelib.nodes.facerestore_cf.r_chainner.types import PyTorchModel
 
@@ -21,9 +20,6 @@ def load_state_dict(state_dict) -> PyTorchModel:
     state_dict_keys = list(state_dict.keys())
 
     # GFPGAN
-    if (
-        "toRGB.0.weight" in state_dict_keys
-        and "stylegan_decoder.style_mlp.1.weight" in state_dict_keys
-    ):
+    if "toRGB.0.weight" in state_dict_keys and "stylegan_decoder.style_mlp.1.weight" in state_dict_keys:
         model = GFPGANv1Clean(state_dict)
     return model

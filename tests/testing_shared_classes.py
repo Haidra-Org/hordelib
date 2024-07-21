@@ -2,13 +2,13 @@ class ResolutionTestCase:
     def __init__(
         self,
         *,
-        width: int,
-        height: int,
-        ddim_steps: int,
+        width: int | float,
+        height: int | float,
+        ddim_steps: int | float,
         hires_fix_denoise_strength: float,
         model_native_resolution: int,
-        max_expected_steps: int | None,
-        min_expected_steps: int | None,
+        max_expected_steps: int | float | None,
+        min_expected_steps: int | float | None,
     ):
         self.width = int(width)
         self.height = int(height)

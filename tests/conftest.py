@@ -345,7 +345,6 @@ def sd15_hires_test_cases(
     default_min_steps: int,
 ) -> list[ResolutionTestCase]:
     sd15_model_native_resolution = 512
-    sd15_default_second_pass_steps = int(default_first_pass_steps / 2.25)
     sd15_high_second_pass_steps = default_first_pass_steps * 0.67
     return [
         ResolutionTestCase(
