@@ -258,7 +258,7 @@ def default_first_pass_steps() -> int:
 
 
 @pytest.fixture(scope="session")
-def default_hires_fix_denoise_strength() -> int:
+def default_hires_fix_denoise_strength() -> float:
     return 0.65
 
 

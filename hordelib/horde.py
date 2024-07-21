@@ -13,7 +13,7 @@ from copy import deepcopy
 from enum import Enum, auto
 from types import FunctionType
 
-from horde_model_reference.meta_consts import get_baseline_native_resolution
+from horde_model_reference.meta_consts import STABLE_DIFFUSION_BASELINE_CATEGORY, get_baseline_native_resolution
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from horde_sdk.ai_horde_api.apimodels.base import (
     GenMetadataEntry,
@@ -96,14 +96,37 @@ def _calc_upscale_sampler_steps(
     if model_name is not None:
         baseline = SharedModelManager.model_reference_manager.stable_diffusion.get_model_baseline(model_name)
     if baseline is not None:
-        native_resolution = get_baseline_native_resolution(baseline)
+        try:
+            baseline = STABLE_DIFFUSION_BASELINE_CATEGORY(baseline)
+        except ValueError:
+            baseline = None
+            logger.warning(
+                f"Model {model_name} has an invalid baseline {baseline} so we cannot calculate "
+                "hires fix upscale steps.",
+            )
+        if baseline is not None:
+            native_resolution = get_baseline_native_resolution(baseline)
+
+    width: int | None = payload.get("width")
+    height: int | None = payload.get("height")
+    hires_fix_denoising_strength: float | None = payload.get("hires_fix_denoising_strength")
+    ddim_steps: int | None = payload.get("ddim_steps")
+
+    if width is None or height is None:
+        raise ValueError("Width and height must be set to calculate upscale sampler steps")
+
+    if hires_fix_denoising_strength is None:
+        raise ValueError("Hires fix denoising strength must be set to calculate upscale sampler steps")
+
+    if ddim_steps is None:
+        raise ValueError("DDIM steps must be set to calculate upscale sampler steps")
 
     return ImageUtils.calc_upscale_sampler_steps(
         model_native_resolution=native_resolution,
-        width=payload.get("width"),
-        height=payload.get("height"),
-        hires_fix_denoising_strength=payload.get("hires_fix_denoising_strength"),
-        ddim_steps=payload.get("ddim_steps"),
+        width=width,
+        height=height,
+        hires_fix_denoising_strength=hires_fix_denoising_strength,
+        ddim_steps=ddim_steps,
     )
 
 
