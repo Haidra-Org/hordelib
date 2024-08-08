@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v2.14.0](https://github.com/Haidra-Org/hordelib/compare/v2.13.3...v2.14.0)
+
+8 August 2024
+
+- feat: use comfyui `1c08bf35` [`e812f47`](https://github.com/Haidra-Org/hordelib/commit/e812f47495e30e0700ffbb4a25fdda7d955be18e)  (tazlin)
+- Changed gen_metadata to work for requests with post_processors [`bbcecff`](https://github.com/Haidra-Org/hordelib/commit/bbcecff348b462f5e3ec097f954b5e113350f5a8)  (AI Scribbles)
+
 ## [v2.13.3](https://github.com/Haidra-Org/hordelib/compare/v2.13.2...v2.13.3)
 
 21 July 2024
