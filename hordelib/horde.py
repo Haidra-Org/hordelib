@@ -1476,7 +1476,7 @@ class HordeLib:
 
             post_processed = []
             for ret in return_list:
-                single_image_faults = []
+                single_image_faults = faults[:]
                 final_image = ret.image
                 final_rawpng = ret.rawpng
 
