@@ -41,8 +41,8 @@ class HordeCheckpointLoader:
         horde_model_name: str,
         ckpt_name: str | None = None,
         file_type: str | None = None,
-        output_vae=True,
-        output_clip=True,
+        output_vae=True,  # this arg is required by comfyui internals
+        output_clip=True,  # this arg is required by comfyui internals
         preloading=False,
     ):
         log_free_ram()
@@ -115,8 +115,15 @@ class HordeCheckpointLoader:
 
         if ckpt_name is not None and Path(ckpt_name).is_absolute():
             ckpt_path = ckpt_name
+        elif ckpt_name is not None:
+            full_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+
+            if full_path is None:
+                raise ValueError(f"Checkpoint {ckpt_name} not found.")
+
+            ckpt_path = full_path
         else:
-            ckpt_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+            raise ValueError("No checkpoint name provided.")
 
         with torch.no_grad():
             result = comfy.sd.load_checkpoint_guess_config(
