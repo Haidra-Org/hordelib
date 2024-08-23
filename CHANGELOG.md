@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.14.2](https://github.com/Haidra-Org/hordelib/compare/v2.14.1...v2.14.2)
+
+23 August 2024
+
+- fix: support changes to 'prompt' caching mechanism [`13c8617`](https://github.com/Haidra-Org/hordelib/commit/13c8617a096b3426d7ef1c6cf0a1483d3258ac50)  (tazlin)
+- fix: use better assumptions for `images_received` [`55139fc`](https://github.com/Haidra-Org/hordelib/commit/55139fc8e06265c647df14e6a97a8bce90524b34)  (tazlin)
+- feat: use comfyui `7df42b9a` [`be8107c`](https://github.com/Haidra-Org/hordelib/commit/be8107ca1dd6ef6eb2005eef881c2f0437f1705e)  (tazlin)
+
 ## [v2.14.1](https://github.com/Haidra-Org/hordelib/compare/v2.14.0...v2.14.1)
 
 15 August 2024
