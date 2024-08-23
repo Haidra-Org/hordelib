@@ -650,8 +650,15 @@ class Comfy_Horde:
     # This is the callback handler for comfy async events.
     def send_sync(self, label: str, data: dict, _id: str) -> None:
         # Get receive image outputs via this async mechanism
-        if "output" in data and "images" in data["output"]:
-            images_received = data["output"]["images"]
+        output = data.get("output", None)
+        images_received = None
+        if output is not None and "images" in output:
+            images_received = output.get("images", None)
+
+        if images_received is not None:
+            if len(images_received) == 0:
+                logger.warning("Received no output images from comfyui")
+
             for image_info in images_received:
                 if not isinstance(image_info, dict):
                     logger.error(f"Received non dict output from comfyui: {image_info}")
