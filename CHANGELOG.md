@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.14.3](https://github.com/Haidra-Org/hordelib/compare/v2.14.2...v2.14.3)
+
+24 August 2024
+
+- fix: unload from RAM as intended; force empty cache [`a6ec17d`](https://github.com/Haidra-Org/hordelib/commit/a6ec17dfd8687a8f5eb0be803fa49dd286e454bb)  (tazlin)
+
 ## [v2.14.2](https://github.com/Haidra-Org/hordelib/compare/v2.14.1...v2.14.2)
 
 23 August 2024
