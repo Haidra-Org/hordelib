@@ -247,35 +247,61 @@ def IsChangedCache_get_hijack(self, *args, **kwargs):
 
 
 def unload_all_models_vram():
+    log_free_ram()
+
     from hordelib.shared_model_manager import SharedModelManager
 
     logger.debug("In unload_all_models_vram")
+    logger.debug(f"{len(SharedModelManager.manager._models_in_ram)} models cached in shared model manager")
 
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
-    # _comfy_free_memory(_comfy_get_total_memory(), _comfy_get_torch_device())
+
+    logger.debug("Freeing memory on all devices")
+    _comfy_free_memory(1e30, _comfy_get_torch_device())
+    log_free_ram()
+
+    logger.debug("Cleaning up models")
     with torch.no_grad():
         try:
-            for model in _comfy_current_loaded_models:
-                model.model_unload()
-            _comfy_soft_empty_cache()
+            _comfy_soft_empty_cache(True)
+            log_free_ram()
         except Exception as e:
             logger.error(f"Exception during comfy unload: {e}")
             _comfy_cleanup_models()
-            _comfy_soft_empty_cache()
+            _comfy_soft_empty_cache(True)
+
+    logger.debug(f"{len(SharedModelManager.manager._models_in_ram)} models cached in shared model manager")
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
 
 
 def unload_all_models_ram():
+    log_free_ram()
     from hordelib.shared_model_manager import SharedModelManager
 
     logger.debug("In unload_all_models_ram")
+    logger.debug(f"{len(SharedModelManager.manager._models_in_ram)} models cached in shared model manager")
 
     SharedModelManager.manager._models_in_ram = {}
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
+    all_devices = set()
+    for model in _comfy_current_loaded_models:
+        all_devices.add(model.device)
+
     with torch.no_grad():
-        _comfy_free_memory(_comfy_get_total_memory(), _comfy_get_torch_device())
+        for device in all_devices:
+            logger.debug(f"Freeing memory on device {device}")
+            _comfy_free_memory(1e30, device)
+        log_free_ram()
+
+        logger.debug("Cleaning up models")
         _comfy_cleanup_models()
-        _comfy_soft_empty_cache()
+        log_free_ram()
+
+        logger.debug("Soft emptying cache")
+        _comfy_soft_empty_cache(True)
+        log_free_ram()
+
+    logger.debug(f"{len(SharedModelManager.manager._models_in_ram)} models cached in shared model manager")
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
 
 
@@ -292,8 +318,10 @@ def get_torch_free_vram_mb():
 
 
 def log_free_ram():
-    logger.debug(f"Free VRAM: {get_torch_free_vram_mb():0.0f} MB")
-    logger.debug(f"Free RAM: {psutil.virtual_memory().available / (1024 * 1024):0.0f} MB")
+    logger.debug(
+        f"Free VRAM: {get_torch_free_vram_mb():0.0f} MB, "
+        f"Free RAM: {psutil.virtual_memory().available / (1024 * 1024):0.0f} MB",
+    )
 
 
 class Comfy_Horde:
