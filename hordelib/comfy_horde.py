@@ -19,6 +19,7 @@ import threading
 from pprint import pformat
 import requests
 import psutil
+from collections.abc import Callable
 
 import torch
 from loguru import logger
@@ -78,15 +79,22 @@ _comfy_supported_pt_extensions: set[str]
 _comfy_load_checkpoint_guess_config: types.FunctionType
 
 _comfy_get_torch_device: types.FunctionType
+"""Will return the current torch device, typically the GPU."""
 _comfy_get_free_memory: types.FunctionType
+"""Will return the amount of free memory on the current torch device. This value can be misleading."""
 _comfy_get_total_memory: types.FunctionType
+"""Will return the total amount of memory on the current torch device."""
 _comfy_load_torch_file: types.FunctionType
 _comfy_model_loading: types.ModuleType
-_comfy_free_memory: types.FunctionType
-_comfy_cleanup_models: types.FunctionType
-_comfy_soft_empty_cache: types.FunctionType
+_comfy_free_memory: Callable[[float, torch.device, list], None]
+"""Will aggressively unload models from memory"""
+_comfy_cleanup_models: Callable[[bool], None]
+"""Will unload unused models from memory"""
+_comfy_soft_empty_cache: Callable[[bool], None]
+"""Triggers comfyui and torch to empty their caches"""
 
-_comfy_is_changed_cache_get: types.FunctionType
+_comfy_is_changed_cache_get: Callable
+_comfy_model_patcher_load: Callable
 
 _canny: types.ModuleType
 _hed: types.ModuleType
@@ -175,12 +183,12 @@ def do_comfy_import(
         from execution import IsChangedCache
 
         global _comfy_is_changed_cache_get
-        _comfy_is_changed_cache_get = IsChangedCache.get  # type: ignore
+        _comfy_is_changed_cache_get = IsChangedCache.get
 
         IsChangedCache.get = IsChangedCache_get_hijack  # type: ignore
 
-        from folder_paths import folder_names_and_paths as _comfy_folder_names_and_paths  # type: ignore
-        from folder_paths import supported_pt_extensions as _comfy_supported_pt_extensions  # type: ignore
+        from folder_paths import folder_names_and_paths as _comfy_folder_names_and_paths
+        from folder_paths import supported_pt_extensions as _comfy_supported_pt_extensions
         from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config
         from comfy.model_management import current_loaded_models as _comfy_current_loaded_models
         from comfy.model_management import load_models_gpu as _comfy_load_models_gpu
@@ -191,7 +199,7 @@ def do_comfy_import(
         from comfy.model_management import cleanup_models as _comfy_cleanup_models
         from comfy.model_management import soft_empty_cache as _comfy_soft_empty_cache
         from comfy.utils import load_torch_file as _comfy_load_torch_file
-        from comfy_extras.chainner_models import model_loading as _comfy_model_loading  # type: ignore
+        from comfy_extras.chainner_models import model_loading as _comfy_model_loading
         from hordelib.nodes.comfy_controlnet_preprocessors import (
             canny as _canny,
             hed as _hed,
