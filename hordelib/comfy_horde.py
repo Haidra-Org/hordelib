@@ -40,9 +40,10 @@ from hordelib.config_path import get_hordelib_path
 # There may be other ways to skin this cat, but this strategy minimizes certain kinds of hassle.
 #
 # If you tamper with the code in this module to bring the imports out of the function, you may find that you have
-# broken, among other things, the ability of pytest to do its test discovery because you will have lost the ability for
-# modules which, directly or otherwise, import this module without having called `hordelib.initialise()`. Pytest
-# discovery will come across those imports, valiantly attempt to import them and fail with a cryptic error message.
+# broken, among myriad other things, the ability of pytest to do its test discovery because you will have lost the
+# ability for modules which, directly or otherwise, import this module without having called `hordelib.initialise()`.
+# Pytest discovery will come across those imports, valiantly attempt to import them and fail with a cryptic error
+# message.
 #
 # Correspondingly, you will find that to be an enormous hassle if you are are trying to leverage pytest in any
 # reasonability sophisticated way (outside of tox), and you will be forced to adopt solution below or something
@@ -51,17 +52,18 @@ from hordelib.config_path import get_hordelib_path
 #
 # Keen readers may have noticed that the aforementioned issues could be side stepped by simply calling
 # `hordelib.initialise()` automatically, such as in `test/__init__.py` or in a `conftest.py`. You would be correct,
-# but that would be a terrible idea if you ever intended to make alterations to the patch file, as each time you
-# triggered pytest discovery which could be as frequently as *every time you save a file* (such as with VSCode), and
-# you would enter a situation where the patch was automatically being applied at times you may not intend.
+# but that would be a terrible idea as a general practice. It would mean that every time you saved a file in your
+# editor, a number of heavyweight operations would be triggered, such as loading comfyui, while pytest discovery runs
+# and that would cause slow and unpredictable behavior in your editor.
 #
-# This would be a nightmare to debug, as this author is able to attest to.
+# This would be a nightmare to debug, as this author is able to attest to and is the reason this wall of text exists.
 #
 # Further, if you are like myself, and enjoy type hints, you will find that any modules have this file in their import
 # chain will be un-importable in certain contexts and you would be unable to provide the relevant type hints.
 #
-# Having read this, I suggest you glance at the code in `hordelib.initialise()` to get a sense of what is going on
-# there, and if you're still confused, ask a hordelib dev who would be happy to share the burden of understanding.
+# Having exercised a herculean amount of focus to read this far, I suggest you also glance at the code in
+# `hordelib.initialise()` to get a sense of what is going on there, and if you're still confused, ask a hordelib dev
+# who would be happy to share the burden of understanding.
 
 _comfy_load_models_gpu: types.FunctionType
 _comfy_current_loaded_models: list = None  # type: ignore
