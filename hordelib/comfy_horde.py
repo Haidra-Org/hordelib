@@ -427,6 +427,7 @@ class Comfy_Horde:
         self,
         *,
         comfyui_callback: typing.Callable[[str, dict, str], None] | None = None,
+        aggressive_unloading: bool = True,
     ) -> None:
         """Initialise the Comfy_Horde object.
 
@@ -453,6 +454,7 @@ class Comfy_Horde:
         self._load_custom_nodes()
 
         self._comfyui_callback = comfyui_callback
+        self.aggressive_unloading = aggressive_unloading
 
     def _set_comfyui_paths(self) -> None:
         # These set the default paths for comfyui to look for models and embeddings. From within hordelib,
@@ -829,6 +831,12 @@ class Comfy_Horde:
                     inference.execute(pipeline, self.client_id, {"client_id": self.client_id}, valid[2])
             except Exception as e:
                 logger.exception(f"Exception during comfy execute: {e}")
+            finally:
+                if self.aggressive_unloading:
+                    global _comfy_cleanup_models
+                    logger.debug("Cleaning up models")
+                    _comfy_cleanup_models(False)
+                    _comfy_soft_empty_cache(True)
 
         stdio.replay()
 
