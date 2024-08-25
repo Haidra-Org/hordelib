@@ -96,6 +96,8 @@ _comfy_soft_empty_cache: Callable[[bool], None]
 _comfy_is_changed_cache_get: Callable
 _comfy_model_patcher_load: Callable
 
+_comfy_interrupt_current_processing: types.FunctionType
+
 _canny: types.ModuleType
 _hed: types.ModuleType
 _leres: types.ModuleType
@@ -158,6 +160,8 @@ def do_comfy_import(
     global _comfy_free_memory, _comfy_cleanup_models, _comfy_soft_empty_cache
     global _canny, _hed, _leres, _midas, _mlsd, _openpose, _pidinet, _uniformer
 
+    global _comfy_interrupt_current_processing
+
     if disable_smart_memory:
         logger.info("Disabling smart memory")
         sys.argv.append("--disable-smart-memory")
@@ -206,6 +210,7 @@ def do_comfy_import(
         from comfy.model_management import free_memory as _comfy_free_memory
         from comfy.model_management import cleanup_models as _comfy_cleanup_models
         from comfy.model_management import soft_empty_cache as _comfy_soft_empty_cache
+        from comfy.model_management import interrupt_current_processing as _comfy_interrupt_current_processing
         from comfy.utils import load_torch_file as _comfy_load_torch_file
         from comfy_extras.chainner_models import model_loading as _comfy_model_loading
 
@@ -377,6 +382,11 @@ def log_free_ram():
         f"Free VRAM: {get_torch_free_vram_mb():0.0f} MB, "
         f"Free RAM: {psutil.virtual_memory().available / (1024 * 1024):0.0f} MB",
     )
+
+
+def interrupt_comfyui_processing():
+    logger.warning("Interrupting comfyui processing")
+    _comfy_interrupt_current_processing()
 
 
 class Comfy_Horde:
