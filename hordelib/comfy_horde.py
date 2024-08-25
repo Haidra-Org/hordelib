@@ -194,7 +194,12 @@ def do_comfy_import(
         from folder_paths import supported_pt_extensions as _comfy_supported_pt_extensions
         from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config
         from comfy.model_management import current_loaded_models as _comfy_current_loaded_models
-        from comfy.model_management import load_models_gpu as _comfy_load_models_gpu
+        from comfy.model_management import load_models_gpu
+
+        _comfy_load_models_gpu = load_models_gpu  # type: ignore
+        import comfy.model_management
+
+        comfy.model_management.load_models_gpu = _load_models_gpu_hijack
         from comfy.model_management import get_torch_device as _comfy_get_torch_device
         from comfy.model_management import get_free_memory as _comfy_get_free_memory
         from comfy.model_management import get_total_memory as _comfy_get_total_memory
@@ -203,6 +208,13 @@ def do_comfy_import(
         from comfy.model_management import soft_empty_cache as _comfy_soft_empty_cache
         from comfy.utils import load_torch_file as _comfy_load_torch_file
         from comfy_extras.chainner_models import model_loading as _comfy_model_loading
+
+        from comfy.model_patcher import ModelPatcher
+
+        global _comfy_model_patcher_load
+        _comfy_model_patcher_load = ModelPatcher.load
+        ModelPatcher.load = _model_patcher_load_hijack  # type: ignore
+
         from hordelib.nodes.comfy_controlnet_preprocessors import (
             canny as _canny,
             hed as _hed,
@@ -221,6 +233,36 @@ def do_comfy_import(
 
 
 # isort: on
+
+
+def _load_models_gpu_hijack(*args, **kwargs):
+    """Intercepts the comfy load_models_gpu function to force full load.
+
+    ComfyUI is too conservative in its loading to GPU for the worker/horde use case where we can have
+    multiple ComfyUI instances running on the same GPU. This function forces a full load of the model
+    and the worker/horde-engine takes responsibility for managing the memory or the problems this may
+    cause.
+    """
+    global _comfy_current_loaded_models
+    if "force_full_load" in kwargs:
+        kwargs.pop("force_full_load")
+
+    kwargs["force_full_load"] = True
+    _comfy_load_models_gpu(*args, **kwargs)
+
+
+def _model_patcher_load_hijack(*args, **kwargs):
+    """Intercepts the comfy ModelPatcher.load function to force full load.
+
+    See _load_models_gpu_hijack for more information
+    """
+    global _comfy_model_patcher_load
+    if "full_load" in kwargs:
+        kwargs.pop("full_load")
+
+    kwargs["full_load"] = True
+    _comfy_model_patcher_load(*args, **kwargs)
+
 
 _last_pipeline_settings_hash = ""
 
