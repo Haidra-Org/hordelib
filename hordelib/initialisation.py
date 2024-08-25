@@ -28,6 +28,7 @@ def initialise(
     extra_comfyui_args: list[str] | None = None,
     disable_smart_memory: bool = False,
     do_not_load_model_mangers: bool = False,
+    models_not_to_force_load: list[str] | None = None,
 ):
     """Initialise hordelib. This is required before using any other hordelib functions.
 
@@ -39,6 +40,9 @@ def initialise(
             Defaults to None.
         force_low_vram (bool, optional): Whether to forcibly disable ComfyUI's high/med vram modes. Defaults to False.
         extra_comfyui_args (list[str] | None, optional): Any additional CLI args for comfyui that should be used. \
+            Defaults to None.
+        models_not_to_force_load (list[str] | None, optional): A list of baselines that should not be force loaded.\
+            **If this is `None`, the defaults are used.** If you wish to override the defaults, pass an empty list. \
             Defaults to None.
     """
     global _is_initialised
@@ -79,6 +83,8 @@ def initialise(
         extra_comfyui_args=extra_comfyui_args,
         disable_smart_memory=disable_smart_memory,
     )
+    if models_not_to_force_load is not None:
+        hordelib.comfy_horde.models_not_to_force_load = models_not_to_force_load.copy()
 
     vram_on_start_free = hordelib.comfy_horde.get_torch_free_vram_mb()
     vram_total = hordelib.comfy_horde.get_torch_total_vram_mb()

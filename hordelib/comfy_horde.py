@@ -238,10 +238,22 @@ def do_comfy_import(
 
 
 # isort: on
+models_not_to_force_load: list = ["cascade", "sdxl"]  # other possible values could be `basemodel` or `sd1`
+"""Models which should not be forced to load in the comfy model loading hijack.
+
+Possible values include `cascade`, `sdxl`, `basemodel`, `sd1` or any other comfyui classname
+which can be passed to comfyui's `load_models_gpu` function (as a `ModelPatcher.model`).
+"""
+
+disable_force_loading: bool = False
 
 
-def _model_patcher_has_cascade(model_patcher):
-    return "cascade" in str(type(model_patcher.model)).lower()
+def _do_not_force_load_model_in_patcher(model_patcher):
+    for model in models_not_to_force_load:
+        if model in str(type(model_patcher.model)).lower():
+            return True
+
+    return False
 
 
 def _load_models_gpu_hijack(*args, **kwargs):
@@ -252,15 +264,15 @@ def _load_models_gpu_hijack(*args, **kwargs):
     and the worker/horde-engine takes responsibility for managing the memory or the problems this may
     cause.
     """
-    found_cascade = False
+    found_model_to_skip = False
     for model_patcher in args[0]:
-        found_cascade = _model_patcher_has_cascade(model_patcher)
-        if found_cascade:
+        found_model_to_skip = _do_not_force_load_model_in_patcher(model_patcher)
+        if found_model_to_skip:
             break
 
     global _comfy_current_loaded_models
-    if found_cascade:
-        logger.debug("Not overriding cascade model load")
+    if found_model_to_skip:
+        logger.debug("Not overriding model load")
         _comfy_load_models_gpu(*args, **kwargs)
         return
 
@@ -279,8 +291,8 @@ def _model_patcher_load_hijack(*args, **kwargs):
     global _comfy_model_patcher_load
 
     model_patcher = args[0]
-    if _model_patcher_has_cascade(model_patcher):
-        logger.debug("Not overriding cascade model load")
+    if _do_not_force_load_model_in_patcher(model_patcher):
+        logger.debug("Not overriding model load")
         _comfy_model_patcher_load(*args, **kwargs)
         return
 
