@@ -240,6 +240,10 @@ def do_comfy_import(
 # isort: on
 
 
+def _model_patcher_has_cascade(model_patcher):
+    return "cascade" in str(type(model_patcher.model)).lower()
+
+
 def _load_models_gpu_hijack(*args, **kwargs):
     """Intercepts the comfy load_models_gpu function to force full load.
 
@@ -248,7 +252,18 @@ def _load_models_gpu_hijack(*args, **kwargs):
     and the worker/horde-engine takes responsibility for managing the memory or the problems this may
     cause.
     """
+    found_cascade = False
+    for model_patcher in args[0]:
+        found_cascade = _model_patcher_has_cascade(model_patcher)
+        if found_cascade:
+            break
+
     global _comfy_current_loaded_models
+    if found_cascade:
+        logger.debug("Not overriding cascade model load")
+        _comfy_load_models_gpu(*args, **kwargs)
+        return
+
     if "force_full_load" in kwargs:
         kwargs.pop("force_full_load")
 
@@ -262,6 +277,13 @@ def _model_patcher_load_hijack(*args, **kwargs):
     See _load_models_gpu_hijack for more information
     """
     global _comfy_model_patcher_load
+
+    model_patcher = args[0]
+    if _model_patcher_has_cascade(model_patcher):
+        logger.debug("Not overriding cascade model load")
+        _comfy_model_patcher_load(*args, **kwargs)
+        return
+
     if "full_load" in kwargs:
         kwargs.pop("full_load")
 
