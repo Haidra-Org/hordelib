@@ -92,8 +92,13 @@ def init_horde(
     hordelib.initialise(
         setup_logging=True,
         logging_verbosity=5,
-        disable_smart_memory=False,
+        disable_smart_memory=True,
+        force_normal_vram_mode=True,
         do_not_load_model_mangers=True,
+        models_not_to_force_load=[
+            "sdxl",
+            "cascade",
+        ],
     )
     from hordelib.settings import UserSettings
 

@@ -352,10 +352,12 @@ class HordeLib:
         self,
         *,
         comfyui_callback: Callable[[str, dict, str], None] | None = None,
+        aggressive_unloading: bool = True,
     ):
         if not self._initialised:
             self.generator = Comfy_Horde(
                 comfyui_callback=comfyui_callback if comfyui_callback else self._comfyui_callback,
+                aggressive_unloading=aggressive_unloading,
             )
             self.__class__._initialised = True
 
