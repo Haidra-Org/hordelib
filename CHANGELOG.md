@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.14.4](https://github.com/Haidra-Org/hordelib/compare/v2.14.3...v2.14.4)
+
+26 August 2024
+
+- fix: force models loading to the GPU to be gpu-only [`cdcd32c`](https://github.com/Haidra-Org/hordelib/commit/cdcd32c2a2e9dc918abe317705998b68cea74e6d)  (tazlin)
+- fix: configurable `models_not_to_force_load` [`18881b1`](https://github.com/Haidra-Org/hordelib/commit/18881b18af1067e27aec04989de4b47b75b361e3)  (tazlin)
+- tests: run a sd15 job at 2048x during tests [`1ff7fe8`](https://github.com/Haidra-Org/hordelib/commit/1ff7fe8a74397ab44c6ecf3148913974b52d01bb)  (tazlin)
+
 ## [v2.14.3](https://github.com/Haidra-Org/hordelib/compare/v2.14.2...v2.14.3)
 
 24 August 2024
