@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.14.5](https://github.com/Haidra-Org/hordelib/compare/v2.14.4...v2.14.5)
+
+26 August 2024
+
+- fix: add `aggressive_unloading` arg to `HordeLib.__new__(...)` [`85973b2`](https://github.com/Haidra-Org/hordelib/commit/85973b2eda30a86cb7cc0f00494d8a38bdf590d2)  (tazlin)
+
 ## [v2.14.4](https://github.com/Haidra-Org/hordelib/compare/v2.14.3...v2.14.4)
 
 26 August 2024
