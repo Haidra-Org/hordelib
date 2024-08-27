@@ -340,10 +340,12 @@ class HordeLib:
         cls,
         *,
         comfyui_callback: Callable[[str, dict, str], None] | None = None,
+        aggressive_unloading: bool = True,
     ):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._comfyui_callback = comfyui_callback
+            cls.aggressive_unloading = aggressive_unloading
 
         return cls._instance
 
@@ -352,12 +354,16 @@ class HordeLib:
         self,
         *,
         comfyui_callback: Callable[[str, dict, str], None] | None = None,
-        aggressive_unloading: bool = True,
+        aggressive_unloading: bool | None = True,
+        # If you add any more parameters here, you should also add them to __new__ above
+        # and follow the same pattern
     ):
         if not self._initialised:
             self.generator = Comfy_Horde(
                 comfyui_callback=comfyui_callback if comfyui_callback else self._comfyui_callback,
-                aggressive_unloading=aggressive_unloading,
+                aggressive_unloading=(
+                    aggressive_unloading if aggressive_unloading is not None else self.aggressive_unloading
+                ),
             )
             self.__class__._initialised = True
 
