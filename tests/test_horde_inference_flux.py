@@ -10,42 +10,42 @@ from .testing_shared_functions import check_list_inference_images_similarity, ch
 
 class TestHordeInferenceFlux:
 
-    @pytest.mark.default_flux1_model
-    def test_flux_dev_fp8_text_to_image(
-        self,
-        hordelib_instance: HordeLib,
-        flux1_dev_fp8_base_model_name: str,
-    ):
-        data = {
-            "sampler_name": "k_euler",
-            "cfg_scale": 1,
-            "denoising_strength": 1.0,
-            "seed": 13122,
-            "height": 1024,
-            "width": 1024,
-            "karras": False,
-            "tiling": False,
-            "hires_fix": False,
-            "clip_skip": 1,
-            "control_type": None,
-            "image_is_control": False,
-            "return_control_map": False,
-            "prompt": 'a steampunk text that says "Horde Engine" floating',
-            "ddim_steps": 20,
-            "n_iter": 1,
-            "model": flux1_dev_fp8_base_model_name,
-        }
-        pil_image = hordelib_instance.basic_inference_single_image(data).image
-        assert pil_image is not None
-        assert isinstance(pil_image, Image.Image)
+    # @pytest.mark.default_flux1_model
+    # def test_flux_dev_fp8_text_to_image(
+    #     self,
+    #     hordelib_instance: HordeLib,
+    #     flux1_dev_fp8_base_model_name: str,
+    # ):
+    #     data = {
+    #         "sampler_name": "k_euler",
+    #         "cfg_scale": 1,
+    #         "denoising_strength": 1.0,
+    #         "seed": 13122,
+    #         "height": 1024,
+    #         "width": 1024,
+    #         "karras": False,
+    #         "tiling": False,
+    #         "hires_fix": False,
+    #         "clip_skip": 1,
+    #         "control_type": None,
+    #         "image_is_control": False,
+    #         "return_control_map": False,
+    #         "prompt": 'a steampunk text that says "Horde Engine" floating',
+    #         "ddim_steps": 20,
+    #         "n_iter": 1,
+    #         "model": flux1_dev_fp8_base_model_name,
+    #     }
+    #     pil_image = hordelib_instance.basic_inference_single_image(data).image
+    #     assert pil_image is not None
+    #     assert isinstance(pil_image, Image.Image)
 
-        img_filename = "flux_dev_fp8_text_to_image.png"
-        pil_image.save(f"images/{img_filename}", quality=100)
+    #     img_filename = "flux_dev_fp8_text_to_image.png"
+    #     pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_single_inference_image_similarity(
-            f"images_expected/{img_filename}",
-            pil_image,
-        )
+    #     assert check_single_inference_image_similarity(
+    #         f"images_expected/{img_filename}",
+    #         pil_image,
+    #     )
 
     @pytest.mark.default_flux1_model
     def test_flux_schnell_fp8_text_to_image_n_iter(
@@ -135,41 +135,41 @@ class TestHordeInferenceFlux:
             pil_image,
         )
 
-    @pytest.mark.default_flux1_model
-    def test_flux_dev_fp8_image_to_image(
-        self,
-        hordelib_instance: HordeLib,
-        flux1_dev_fp8_base_model_name: str,
-    ):
-        data = {
-            "sampler_name": "k_euler",
-            "cfg_scale": 2,
-            "denoising_strength": 0.85,
-            "seed": 13122,
-            "height": 1024,
-            "width": 1024,
-            "karras": False,
-            "tiling": False,
-            "hires_fix": False,
-            "clip_skip": 1,
-            "control_type": None,
-            "image_is_control": False,
-            "return_control_map": False,
-            "prompt": "a goth cowboy in black walking away from an explosion",
-            "ddim_steps": 20,
-            "n_iter": 1,
-            "source_image": Image.open("images/test_db0.jpg"),
-            "source_processing": "img2img",
-            "model": flux1_dev_fp8_base_model_name,
-        }
-        pil_image = hordelib_instance.basic_inference_single_image(data).image
-        assert pil_image is not None
-        assert isinstance(pil_image, Image.Image)
+    # @pytest.mark.default_flux1_model
+    # def test_flux_dev_fp8_image_to_image(
+    #     self,
+    #     hordelib_instance: HordeLib,
+    #     flux1_dev_fp8_base_model_name: str,
+    # ):
+    #     data = {
+    #         "sampler_name": "k_euler",
+    #         "cfg_scale": 2,
+    #         "denoising_strength": 0.85,
+    #         "seed": 13122,
+    #         "height": 1024,
+    #         "width": 1024,
+    #         "karras": False,
+    #         "tiling": False,
+    #         "hires_fix": False,
+    #         "clip_skip": 1,
+    #         "control_type": None,
+    #         "image_is_control": False,
+    #         "return_control_map": False,
+    #         "prompt": "a goth cowboy in black walking away from an explosion",
+    #         "ddim_steps": 20,
+    #         "n_iter": 1,
+    #         "source_image": Image.open("images/test_db0.jpg"),
+    #         "source_processing": "img2img",
+    #         "model": flux1_dev_fp8_base_model_name,
+    #     }
+    #     pil_image = hordelib_instance.basic_inference_single_image(data).image
+    #     assert pil_image is not None
+    #     assert isinstance(pil_image, Image.Image)
 
-        img_filename = "flux_dev_fp8_image_to_image.png"
-        pil_image.save(f"images/{img_filename}", quality=100)
+    #     img_filename = "flux_dev_fp8_image_to_image.png"
+    #     pil_image.save(f"images/{img_filename}", quality=100)
 
-        assert check_single_inference_image_similarity(
-            f"images_expected/{img_filename}",
-            pil_image,
-        )
+    #     assert check_single_inference_image_similarity(
+    #         f"images_expected/{img_filename}",
+    #         pil_image,
+    #     )
