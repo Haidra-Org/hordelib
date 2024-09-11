@@ -998,11 +998,7 @@ class HordeLib:
         if pipeline_params.get("image_loader.image"):
             if SharedModelManager.manager.compvis:
                 model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
-                if isinstance(model_details, dict) and model_details.get("baseline") in [
-                    "flux.1-dev",
-                    "flux.1-schnell",
-                    "flux.1",
-                ]:
+                if isinstance(model_details, dict) and model_details.get("baseline") == "flux_1":
                     self.generator.reconnect_input(pipeline_data, "sampler_custom_advanced.latent_image", "vae_encode")
                 else:
                     self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
@@ -1196,7 +1192,7 @@ class HordeLib:
                 if params.get("hires_fix", False):
                     return "stable_cascade_2pass"
                 return "stable_cascade"
-            if model_details.get("baseline") in ["flux.1", "flux.1-schnell", "flux.1-dev"]:
+            if model_details.get("baseline") == "flux_1":
                 return "flux"
         if params.get("control_type"):
             if params.get("return_control_map", False):
