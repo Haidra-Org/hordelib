@@ -284,6 +284,12 @@ class HordeLib:
         "upscale_sampler.sampler_name": "sampler_name",
         "controlnet_apply.strength": "control_strength",
         "controlnet_model_loader.control_net_name": "control_type",
+        # Flux
+        "cfg_guider.cfg": "cfg_scale",
+        "random_noise.noise_seed": "seed",
+        "k_sampler_select.sampler_name": "sampler_name",
+        "basic_scheduler.denoise": "denoising_strength",
+        "basic_scheduler.steps": "ddim_steps",
         # Stable Cascade
         "stable_cascade_empty_latent_image.width": "width",
         "stable_cascade_empty_latent_image.height": "height",
@@ -885,7 +891,7 @@ class HordeLib:
 
         # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
         # We don't want to hardcode this into the pipeline.json as we export this directly from ComfyUI
-        # and don't want to have to rememebr to re-add those keys
+        # and don't want to have to rememeber to re-add those keys
         if "model_loader_stage_c.ckpt_name" in pipeline_params:
             pipeline_params["model_loader_stage_c.file_type"] = "stable_cascade_stage_c"
         if "model_loader_stage_b.ckpt_name" in pipeline_params:
@@ -990,7 +996,16 @@ class HordeLib:
         # We do this by reconnecting the nodes in the pipeline to make the input to the vae encoder
         # the source image instead of the latent noise generator
         if pipeline_params.get("image_loader.image"):
-            self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
+            if SharedModelManager.manager.compvis:
+                model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
+                if isinstance(model_details, dict) and model_details.get("baseline") in [
+                    "flux.1-dev",
+                    "flux.1-schnell",
+                    "flux.1",
+                ]:
+                    self.generator.reconnect_input(pipeline_data, "sampler_custom_advanced.latent_image", "vae_encode")
+                else:
+                    self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
         if pipeline_params.get("sc_image_loader.image"):
             self.generator.reconnect_input(
                 pipeline_data,
@@ -1181,6 +1196,8 @@ class HordeLib:
                 if params.get("hires_fix", False):
                     return "stable_cascade_2pass"
                 return "stable_cascade"
+            if model_details.get("baseline") in ["flux.1", "flux.1-schnell", "flux.1-dev"]:
+                return "flux"
         if params.get("control_type"):
             if params.get("return_control_map", False):
                 return "controlnet_annotator"

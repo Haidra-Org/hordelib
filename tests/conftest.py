@@ -189,6 +189,16 @@ def stable_cascade_base_model_name(shared_model_manager: type[SharedModelManager
 
 
 @pytest.fixture(scope="session")
+def flux1_dev_fp8_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    return "Flux.1-Dev fp8 (Compact)"
+
+
+@pytest.fixture(scope="session")
+def flux1_schnell_fp8_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    return "Flux.1-Schnell fp8 (Compact)"
+
+
+@pytest.fixture(scope="session")
 def custom_model_info_for_testing() -> tuple[str, str, str, str]:
     """Returns a tuple of the custom model name, its baseline, the on-disk file name and the download url."""
     # https://civitai.com/models/338712/pvc-style-modelmovable-figure-model-xl?modelVersionId=413807
