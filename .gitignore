@@ -151,6 +151,7 @@ hordelib/model_database/stable_diffusion.json
 hordelib/model_database/lora.json
 ComfyUI
 model.ckpt
+models/
 coverage.lcov
 profiles/
 longprompts.zip

@@ -1,7 +1,7 @@
 # Add this in for tox, comment out for build
 --extra-index-url https://download.pytorch.org/whl/cu121
-horde_sdk>=0.14.0
-horde_model_reference>=0.8.1
+horde_sdk>=0.14.3
+horde_model_reference>=0.9.0
 pydantic
 numpy==1.26.4
 torch>=2.3.1
