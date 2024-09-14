@@ -426,13 +426,13 @@ class LoraModelManager(BaseModelManager):
             logger.debug(f"Rejecting LoRa {lora.get('name')} because it doesn't have a url")
             return None
         # We don't want to start downloading GBs of a single LoRa.
-        # We just ignore anything over 150Mb. Them's the breaks...
+        # We just ignore anything over 400Mb. Them's the breaks...
         if (
             lora["versions"][lora_version]["adhoc"]
-            and lora["versions"][lora_version]["size_mb"] > 220
+            and lora["versions"][lora_version]["size_mb"] > 400
             and lora["id"] not in self._default_lora_ids
         ):
-            logger.debug(f"Rejecting LoRa {lora.get('name')} version {lora_version} because its size is over 220Mb.")
+            logger.debug(f"Rejecting LoRa {lora.get('name')} version {lora_version} because its size is over 400Mb.")
             return None
         if lora["versions"][lora_version]["adhoc"] and lora["nsfw"] and not self.nsfw:
             logger.debug(f"Rejecting LoRa {lora.get('name')} because worker is SFW.")

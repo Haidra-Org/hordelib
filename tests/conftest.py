@@ -116,11 +116,66 @@ def isolated_comfy_horde_instance(init_horde) -> Comfy_Horde:
     return Comfy_Horde()
 
 
+_testing_model_name = "Deliberate"
+_sdxl_1_0_model_name = "SDXL 1.0"
+_sdxl_refined_model_name = "AlbedoBase XL (SDXL)"
+_stable_cascade_base_model_name = "Stable Cascade 1.0"
+_flux1_schnell_fp8_base_model_name = "Flux.1-Schnell fp8 (Compact)"
+
+_all_model_names = [
+    _testing_model_name,
+    _sdxl_1_0_model_name,
+    _sdxl_refined_model_name,
+    _stable_cascade_base_model_name,
+    _flux1_schnell_fp8_base_model_name,
+]
+
+# !!!!
+# If you're adding a model name, follow the pattern and **add it to `_all_model_names`**
+# !!!!
+
+
+@pytest.fixture(scope="session")
+def stable_diffusion_model_name_for_testing(shared_model_manager: type[SharedModelManager]) -> str:
+    """The default stable diffusion 1.5 model name used for testing."""
+    return _testing_model_name
+
+
+@pytest.fixture(scope="session")
+def sdxl_1_0_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    """The default SDXL 1.0 model name used for testing."""
+    return _sdxl_1_0_model_name
+
+
+@pytest.fixture(scope="session")
+def sdxl_refined_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    """The default SDXL finetune model name used for testing."""
+    return _sdxl_refined_model_name
+
+
+@pytest.fixture(scope="session")
+def stable_cascade_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    """The default stable cascade 1.0 model name used for testing."""
+    return _stable_cascade_base_model_name
+
+
+@pytest.fixture(scope="session")
+def flux1_schnell_fp8_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    """The default flux1-schnell fp8 model name used for testing."""
+    return _flux1_schnell_fp8_base_model_name
+
+
+# !!!!
+# If you're adding a model name, follow the pattern and **add it to `_all_model_names`**
+# !!!!
+
+
 @pytest.fixture(scope="session")
 def shared_model_manager(
     custom_model_info_for_testing: tuple[str, str, str, str],
     hordelib_instance: HordeLib,
 ) -> Generator[type[SharedModelManager], None, None]:
+    assert hordelib_instance
     SharedModelManager(do_not_load_model_mangers=True)
     SharedModelManager.load_model_managers(ALL_MODEL_MANAGER_TYPES)
 
@@ -132,17 +187,9 @@ def shared_model_manager(
     assert SharedModelManager.manager.miscellaneous.download_all_models()
     assert SharedModelManager.manager.compvis is not None
 
-    assert SharedModelManager.manager.download_model("Deliberate")
-    assert SharedModelManager.manager.validate_model("Deliberate")
-    assert SharedModelManager.manager.download_model("SDXL 1.0")
-    assert SharedModelManager.manager.validate_model("SDXL 1.0")
-    assert SharedModelManager.manager.download_model("AlbedoBase XL (SDXL)")
-    assert SharedModelManager.manager.validate_model("AlbedoBase XL (SDXL)")
-    assert SharedModelManager.manager.download_model("Rev Animated")
-    assert SharedModelManager.manager.validate_model("Rev Animated")
-
-    assert SharedModelManager.manager.download_model("Stable Cascade 1.0")
-    assert SharedModelManager.manager.validate_model("Stable Cascade 1.0")
+    for model_name in _all_model_names:
+        assert SharedModelManager.manager.compvis.download_model(model_name)
+        assert SharedModelManager.manager.compvis.validate_model(model_name)
 
     custom_model_name, _, _, _ = custom_model_info_for_testing
     assert custom_model_name in SharedModelManager.manager.compvis.available_models
@@ -163,29 +210,6 @@ def shared_model_manager(
 
     SharedModelManager._instance = None  # type: ignore
     SharedModelManager.manager = None  # type: ignore
-
-
-_testing_model_name = "Deliberate"
-
-
-@pytest.fixture(scope="session")
-def stable_diffusion_model_name_for_testing(shared_model_manager: type[SharedModelManager]) -> str:
-    return _testing_model_name
-
-
-@pytest.fixture(scope="session")
-def sdxl_1_0_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
-    return "SDXL 1.0"
-
-
-@pytest.fixture(scope="session")
-def sdxl_refined_model_name(shared_model_manager: type[SharedModelManager]) -> str:
-    return "AlbedoBase XL (SDXL)"
-
-
-@pytest.fixture(scope="session")
-def stable_cascade_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
-    return "Stable Cascade 1.0"
 
 
 @pytest.fixture(scope="session")
