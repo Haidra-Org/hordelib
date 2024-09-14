@@ -4,6 +4,7 @@ import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
+from hordelib.shared_model_manager import SharedModelManager
 
 from .testing_shared_functions import check_list_inference_images_similarity, check_single_inference_image_similarity
 
@@ -173,3 +174,65 @@ class TestHordeInferenceFlux:
     #         f"images_expected/{img_filename}",
     #         pil_image,
     #     )
+
+    @pytest.mark.default_flux1_model
+    def test_flux_dev_fp8_text_to_image_lora(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        flux1_schnell_fp8_base_model_name: str,
+    ):
+
+        lora_schnell_version_id = "812384"
+        lora_dev_version_id = "735063"
+
+        if shared_model_manager.manager.lora:
+            assert shared_model_manager.manager.lora.fetch_adhoc_lora(
+                lora_schnell_version_id,
+                timeout=45,
+                is_version=True,
+            )
+
+            assert shared_model_manager.manager.lora.fetch_adhoc_lora(
+                lora_dev_version_id,
+                timeout=45,
+                is_version=True,
+            )
+
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 1,
+            "denoising_strength": 1.0,
+            "seed": 13122,
+            "height": 1024,
+            "width": 1024,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": (
+                "A close-up of an magical and ominous obsidian monolith, with an glowing orange cat print inside. "
+                "detailmaximizer, dreamy art"
+            ),
+            "ddim_steps": 4,
+            "n_iter": 1,
+            "model": flux1_schnell_fp8_base_model_name,
+            "loras": [
+                {"name": lora_schnell_version_id, "model": 1.0, "clip": 1.0, "is_version": True},
+                {"name": lora_dev_version_id, "model": 0.5, "clip": 1.0, "is_version": True},
+            ],
+        }
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+
+        img_filename = "flux_schnell_fp8_text_to_image_lora.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )

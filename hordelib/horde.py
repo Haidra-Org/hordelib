@@ -862,10 +862,15 @@ class HordeLib:
                     )
 
                 # The last LORA always connects to the sampler and clip text encoders (via the clip_skip)
-                if lora_index == len(payload.get("loras")) - 1:
-                    self.generator.reconnect_input(pipeline_data, "sampler.model", f"lora_{lora_index}")
-                    self.generator.reconnect_input(pipeline_data, "upscale_sampler.model", f"lora_{lora_index}")
-                    self.generator.reconnect_input(pipeline_data, "clip_skip.clip", f"lora_{lora_index}")
+                if lora_index == len(payload.get("loras")) - 1 and SharedModelManager.manager.compvis:
+                    model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
+                    if model_details is not None and model_details["baseline"] == "flux_1":
+                        self.generator.reconnect_input(pipeline_data, "cfg_guider.model", f"lora_{lora_index}")
+                        self.generator.reconnect_input(pipeline_data, "basic_scheduler.model", f"lora_{lora_index}")
+                    else:
+                        self.generator.reconnect_input(pipeline_data, "sampler.model", f"lora_{lora_index}")
+                        self.generator.reconnect_input(pipeline_data, "upscale_sampler.model", f"lora_{lora_index}")
+                        self.generator.reconnect_input(pipeline_data, "clip_skip.clip", f"lora_{lora_index}")
 
         # Translate the payload parameters into pipeline parameters
         pipeline_params = {}
