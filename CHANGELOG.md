@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.14.6](https://github.com/Haidra-Org/hordelib/compare/v2.14.5...v2.14.6)
+
+14 September 2024
+
+- Feat: Support for Flux [`#325`](https://github.com/Haidra-Org/hordelib/pull/325) (Divided by Zer0)
+
 ## [v2.14.5](https://github.com/Haidra-Org/hordelib/compare/v2.14.4...v2.14.5)
 
 26 August 2024
