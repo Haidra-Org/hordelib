@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.15.1](https://github.com/Haidra-Org/hordelib/compare/v2.15.0...v2.15.1)
+
+17 September 2024
+
+- fix: don't abandon job on bad lora file [`ba9456e`](https://github.com/Haidra-Org/hordelib/commit/ba9456ed0000af6eb65f8c42b20ca9a883a6e449)  (tazlin)
+
 ## [v2.15.0](https://github.com/Haidra-Org/hordelib/compare/v2.14.6...v2.15.0)
 
 14 September 2024
