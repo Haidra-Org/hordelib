@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.15.2](https://github.com/Haidra-Org/hordelib/compare/v2.15.1...v2.15.2)
+
+22 September 2024
+
+- fix: dont force load flux; do force load CLIP models [`3fd5c68`](https://github.com/Haidra-Org/hordelib/commit/3fd5c68e1aecf64a162e1261211df5874735bb2b)  (tazlin)
+
 ## [v2.15.1](https://github.com/Haidra-Org/hordelib/compare/v2.15.0...v2.15.1)
 
 17 September 2024
