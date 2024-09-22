@@ -238,7 +238,7 @@ def do_comfy_import(
 
 
 # isort: on
-models_not_to_force_load: list = ["cascade", "sdxl"]  # other possible values could be `basemodel` or `sd1`
+models_not_to_force_load: list = ["cascade", "sdxl", "flux"]  # other possible values could be `basemodel` or `sd1`
 """Models which should not be forced to load in the comfy model loading hijack.
 
 Possible values include `cascade`, `sdxl`, `basemodel`, `sd1` or any other comfyui classname
@@ -249,8 +249,12 @@ disable_force_loading: bool = False
 
 
 def _do_not_force_load_model_in_patcher(model_patcher):
+    model_name_lower = str(type(model_patcher.model)).lower()
+    if "clip" in model_name_lower:
+        return False
+
     for model in models_not_to_force_load:
-        if model in str(type(model_patcher.model)).lower():
+        if model in model_name_lower:
             return True
 
     return False
