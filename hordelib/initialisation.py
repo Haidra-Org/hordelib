@@ -84,6 +84,7 @@ def initialise(
         disable_smart_memory=disable_smart_memory,
     )
     if models_not_to_force_load is not None:
+        logger.debug(f"Overriding models_not_to_force_load with {models_not_to_force_load}")
         hordelib.comfy_horde.models_not_to_force_load = models_not_to_force_load.copy()
 
     vram_on_start_free = hordelib.comfy_horde.get_torch_free_vram_mb()
