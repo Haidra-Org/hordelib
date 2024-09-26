@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.15.3](https://github.com/Haidra-Org/hordelib/compare/v2.15.2...v2.15.3)
+
+26 September 2024
+
+- fix: avoid crashing when lora to delete is missing [`668dfeb`](https://github.com/Haidra-Org/hordelib/commit/668dfeb02d93bd64045daa0fa0879d97999f6925)  (db0)
+
 ## [v2.15.2](https://github.com/Haidra-Org/hordelib/compare/v2.15.1...v2.15.2)
 
 22 September 2024
