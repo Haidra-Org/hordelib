@@ -949,7 +949,10 @@ class LoraModelManager(BaseModelManager):
             time.sleep(0.2)
         loras_to_delete = self.find_unused_loras()
         for lora_filename in loras_to_delete:
-            self.delete_lora_files(lora_filename)
+            try:
+                self.delete_lora_files(lora_filename)
+            except FileNotFoundError:
+                logger.warning(f"Expected to delete lora file {lora_filename} but it was not found.")
         return loras_to_delete
 
     def delete_lora_files(self, lora_filename: str):
