@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.15.4](https://github.com/Haidra-Org/hordelib/compare/v2.15.3...v2.15.4)
+
+30 September 2024
+
+- fix: ignore numba bytecode dumps; config for ignored messages [`7a2e468`](https://github.com/Haidra-Org/hordelib/commit/7a2e468b95a5c3ba621200198671ca527d8e9d1a)  (tazlin)
+
 ## [v2.15.3](https://github.com/Haidra-Org/hordelib/compare/v2.15.2...v2.15.3)
 
 26 September 2024
