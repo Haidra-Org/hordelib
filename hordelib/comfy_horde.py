@@ -121,11 +121,55 @@ class InterceptHandler(logging.Handler):
     loguru.
     """
 
+    _ignored_message_contents: list[str]
+    _ignored_libraries: list[str]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._ignored_message_contents = {
+            "lowvram: loaded module regularly",
+            "lora key not loaded",
+        }
+        self._ignored_libraries = [
+            "numba.core",
+        ]
+
+    def add_ignored_message_content(self, content: str) -> None:
+        """Add a message content to ignore."""
+        self._ignored_message_contents.append(content)
+
+    def get_ignored_message_contents(self) -> list[str]:
+        """Return the list of ignored message contents."""
+        return self._ignored_message_contents.copy()
+
+    def reset_ignored_message_contents(self) -> None:
+        """Reset the list of ignored message contents."""
+        self._ignored_message_contents = []
+
+    def add_ignored_library(self, library: str) -> None:
+        """Add a library to ignore."""
+        self._ignored_libraries.append(library)
+
+    def get_ignored_libraries(self) -> list[str]:
+        """Return the list of ignored libraries."""
+        return self._ignored_libraries.copy()
+
+    def reset_ignored_libraries(self) -> None:
+        """Reset the list of ignored libraries."""
+        self._ignored_libraries = []
+
     @logger.catch(default=True, reraise=True)
     def emit(self, record):
+        library = record.name
+        for ignored_library in self._ignored_libraries:
+            if ignored_library in library:
+                return
+
         message = record.getMessage()
-        if "lowvram: loaded module regularly" in message:
-            return
+        for ignored_message_content in self._ignored_message_contents:
+            if ignored_message_content in message:
+                return
+
         # Get corresponding Loguru level if it exists.
         try:
             level = logger.level(record.levelname).name
@@ -141,8 +185,9 @@ class InterceptHandler(logging.Handler):
         logger.opt(depth=depth, exception=record.exc_info).log(level, message)
 
 
+intercept_handler = InterceptHandler()
 # ComfyUI uses stdlib logging, so we need to intercept it.
-logging.basicConfig(handlers=[InterceptHandler()], level=0, force=True)
+logging.basicConfig(handlers=[intercept_handler], level=0, force=True)
 
 
 def do_comfy_import(
