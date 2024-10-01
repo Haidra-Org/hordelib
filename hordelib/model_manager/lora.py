@@ -47,7 +47,7 @@ class LoraModelManager(BaseModelManager):
     MAX_DOWNLOAD_THREADS = 5 if not TESTS_ONGOING else 75
     RETRY_DELAY = 3 if not TESTS_ONGOING else 0.2
     """The time to wait between retries in seconds"""
-    REQUEST_METADATA_TIMEOUT = 20  # Longer because civitai performs poorly on metadata requests for more than 5 models
+    REQUEST_METADATA_TIMEOUT = 35  # Longer because civitai performs poorly on metadata requests for more than 5 models
     """The maximum time for no data to be received before we give up on a metadata fetch, in seconds"""
     REQUEST_DOWNLOAD_TIMEOUT = 10 if not TESTS_ONGOING else 1
     """The maximum time for no data to be received before we give up on a download, in seconds
