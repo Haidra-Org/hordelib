@@ -49,7 +49,7 @@ unidecode
 fuzzywuzzy
 strenum
 kornia
-qrcode
+qrcode==7.4.2
 spandrel
 spandrel_extra_arches
 lpips
