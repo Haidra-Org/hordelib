@@ -390,6 +390,7 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
+        rev_animated_model_name: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -435,7 +436,7 @@ class TestHordeLora:
             ],
             "ddim_steps": 30,
             "n_iter": 1,
-            "model": "Rev Animated",
+            "model": rev_animated_model_name,
         }
 
         pil_image = hordelib_instance.basic_inference_single_image(data).image
@@ -454,6 +455,7 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
+        am_pony_xl_model_name: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -488,7 +490,7 @@ class TestHordeLora:
             ],
             "ddim_steps": 12,
             "n_iter": 1,
-            "model": "AMPonyXL",
+            "model": am_pony_xl_model_name,
         }
 
         pil_image = hordelib_instance.basic_inference_single_image(data).image
@@ -1010,6 +1012,7 @@ class TestHordeLora:
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
+        sdxl_1_0_base_model_name: str,
     ):
         assert shared_model_manager.manager.lora
 
@@ -1044,7 +1047,7 @@ class TestHordeLora:
             "loras": [{"name": download_gated_lora_version_id, "model": 1.0, "clip": 1.0, "is_version": True}],
             "ddim_steps": 25,
             "n_iter": 1,
-            "model": "SDXL 1.0",
+            "model": sdxl_1_0_base_model_name,
         }
         ret = hordelib_instance.basic_inference_single_image(data)
         assert isinstance(ret, ResultingImageReturn)
