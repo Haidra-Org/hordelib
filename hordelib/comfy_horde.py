@@ -95,6 +95,7 @@ _comfy_soft_empty_cache: Callable[[bool], None]
 
 _comfy_is_changed_cache_get: Callable
 _comfy_model_patcher_load: Callable
+_comfy_load_calculate_weight: Callable
 
 _comfy_interrupt_current_processing: types.FunctionType
 
@@ -265,6 +266,12 @@ def do_comfy_import(
         _comfy_model_patcher_load = ModelPatcher.load
         ModelPatcher.load = _model_patcher_load_hijack  # type: ignore
 
+        global _comfy_load_calculate_weight
+        import comfy.lora
+        from comfy.lora import calculate_weight as _comfy_load_calculate_weight
+
+        comfy.lora.calculate_weight = _calculate_weight_hijack  # type: ignore
+
         from hordelib.nodes.comfy_controlnet_preprocessors import (
             canny as _canny,
             hed as _hed,
@@ -350,6 +357,25 @@ def _model_patcher_load_hijack(*args, **kwargs):
 
     kwargs["full_load"] = True
     _comfy_model_patcher_load(*args, **kwargs)
+
+
+def _calculate_weight_hijack(*args, **kwargs):
+    global _comfy_load_calculate_weight
+    patches = args[0]
+
+    for p in patches:
+        v = p[1]
+        patch_type = v[0]
+        if patch_type != "diff":
+            continue
+        if len(v) == 2 and isinstance(v[1], list):
+            for idx, val in enumerate(v[1]):
+                if val is None:
+                    v[1][idx] = {"pad_weight": False}
+                    # logger.debug(f"Setting pad_weight to False for {v[0]} on {p} in {patches}")
+                    break
+
+    return _comfy_load_calculate_weight(*args, **kwargs)
 
 
 _last_pipeline_settings_hash = ""
