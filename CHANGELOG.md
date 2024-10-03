@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.16.0](https://github.com/Haidra-Org/hordelib/compare/v2.15.4...v2.16.0)
+
+3 October 2024
+
+- tests/fix: check flux n_iter same as other n_iter tests [`b4f87ad`](https://github.com/Haidra-Org/hordelib/commit/b4f87ada7ac600b935596eccef858192ee2d84e2)  (tazlin)
+- fix: prevent comfyui internals error with layer diffusion [`1404626`](https://github.com/Haidra-Org/hordelib/commit/140462620eff2877db944c9087be72a3a3fe2a89)  (tazlin)
+- tests/fix: include all models required for tests as fixtures [`cd9497b`](https://github.com/Haidra-Org/hordelib/commit/cd9497bc12025955a3b17e3cbd02057ed93383f9)  (tazlin)
+
 ## [v2.15.4](https://github.com/Haidra-Org/hordelib/compare/v2.15.3...v2.15.4)
 
 30 September 2024
