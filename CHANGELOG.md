@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v2.17.0](https://github.com/Haidra-Org/hordelib/compare/v2.16.0...v2.17.0)
+
+20 October 2024
+
+- feat: use torch&gt;=2.5.0 by default [`366ca85`](https://github.com/Haidra-Org/hordelib/commit/366ca85ed650b94b602228c9ed48924751581c06)  (tazlin)
+- feat: use comfyui `73e3a9e6` [`89ae3de`](https://github.com/Haidra-Org/hordelib/commit/89ae3deb41b63a87564315474eb24dbda280fd76)  (tazlin)
+
 ## [v2.16.0](https://github.com/Haidra-Org/hordelib/compare/v2.15.4...v2.16.0)
 
 3 October 2024
