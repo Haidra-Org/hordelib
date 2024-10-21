@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.17.1](https://github.com/Haidra-Org/hordelib/compare/v2.17.0...v2.17.1)
+
+21 October 2024
+
+- fix: set torch 2.4.1 for rocm compat for now [`1d83b8d`](https://github.com/Haidra-Org/hordelib/commit/1d83b8dda0f5923fe0b668bb0bb0968da8d231bc)  (tazlin)
+
 ## [v2.17.0](https://github.com/Haidra-Org/hordelib/compare/v2.16.0...v2.17.0)
 
 20 October 2024
