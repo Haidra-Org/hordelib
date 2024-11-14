@@ -432,12 +432,12 @@ def unload_all_models_vram():
     logger.debug("Cleaning up models")
     with torch.no_grad():
         try:
-            _comfy_soft_empty_cache(True)
+            _comfy_soft_empty_cache()
             log_free_ram()
         except Exception as e:
             logger.error(f"Exception during comfy unload: {e}")
             _comfy_cleanup_models()
-            _comfy_soft_empty_cache(True)
+            _comfy_soft_empty_cache()
 
     logger.debug(f"{len(SharedModelManager.manager._models_in_ram)} models cached in shared model manager")
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
@@ -467,7 +467,7 @@ def unload_all_models_ram():
         log_free_ram()
 
         logger.debug("Soft emptying cache")
-        _comfy_soft_empty_cache(True)
+        _comfy_soft_empty_cache()
         log_free_ram()
 
     logger.debug(f"{len(SharedModelManager.manager._models_in_ram)} models cached in shared model manager")
@@ -945,7 +945,7 @@ class Comfy_Horde:
                     global _comfy_cleanup_models
                     logger.debug("Cleaning up models")
                     _comfy_cleanup_models(False)
-                    _comfy_soft_empty_cache(True)
+                    _comfy_soft_empty_cache()
 
         stdio.replay()
 
