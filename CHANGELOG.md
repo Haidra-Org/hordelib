@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v2.18.0](https://github.com/Haidra-Org/hordelib/compare/v2.17.1...v2.18.0)
+
+13 November 2024
+
+- fix: don't force torch cache empties [`cae7ffb`](https://github.com/Haidra-Org/hordelib/commit/cae7ffbaeb4da79efba274ea7c1443284f9817df)  (tazlin)
+- feat: comfyui `3b9a6cf` [`1c9b133`](https://github.com/Haidra-Org/hordelib/commit/1c9b133018d2c64cca654fc85ce67abd64cff814)  (tazlin)
+
 ## [v2.17.1](https://github.com/Haidra-Org/hordelib/compare/v2.17.0...v2.17.1)
 
 21 October 2024
