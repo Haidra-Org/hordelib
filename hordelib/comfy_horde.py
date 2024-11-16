@@ -90,7 +90,7 @@ _comfy_free_memory: Callable[[float, torch.device, list], None]
 """Will aggressively unload models from memory"""
 _comfy_cleanup_models: Callable[[bool], None]
 """Will unload unused models from memory"""
-_comfy_soft_empty_cache: Callable[[bool], None]
+_comfy_soft_empty_cache: Callable[[bool | None], None]
 """Triggers comfyui and torch to empty their caches"""
 
 _comfy_is_changed_cache_get: Callable
