@@ -40,6 +40,8 @@ import hordelib
 
 hordelib.initialise()
 import pickle
+from collections import defaultdict
+from typing import Any
 
 import optuna
 
@@ -57,9 +59,6 @@ DB_CONNECTION_STRING = "mysql://root:root@localhost/optuna"
 # Number of trials to run.
 # Each trial generates a new neural network topology with new hyper parameters and trains it.
 NUMBER_OF_STUDY_TRIALS = 2000
-
-# The version number of our study. Bump for different model versions.
-STUDY_VERSION = "v21"
 
 # Hyper parameter search bounds
 MIN_NUMBER_OF_EPOCHS = 50
@@ -168,10 +167,17 @@ def parse_args():
     parser = argparse.ArgumentParser(description="ML Training Script with configurable parameters")
 
     # Training control
-    parser.add_argument("--enable-training", action="store_true", default=False, help="Enable training mode")
+    parser.add_argument("-e", "--enable-training", action="store_true", default=False, help="Enable training mode")
+    parser.add_argument(
+        "-a",
+        "--analyse",
+        action="store_true",
+        default=False,
+        help="When true will analyse and report which values in the bad predictions are the most common",
+    )
 
     # Test mode
-    parser.add_argument("--test-model", type=str, help="Path to model file for testing one by one")
+    parser.add_argument("-t", "--test-model", type=str, help="Path to model file for testing one by one")
 
     # Database configuration
     parser.add_argument(
@@ -199,7 +205,7 @@ def parse_args():
     # Study parameters
     parser.add_argument("--study-trials", type=int, default=2000, help="Number of trials to run")
 
-    parser.add_argument("--study-version", type=str, default="v21", help="Version number of the study")
+    parser.add_argument("--study-version", type=str, default="v22", help="Version number of the study")
 
     return parser.parse_args()
 
@@ -218,25 +224,144 @@ def load_model(model_filename):
         return pickle.load(infile)
 
 
+def flatten_dict(d: dict, parent_key: str = "") -> dict[str, Any]:
+    """
+    Flatten nested dictionaries, keeping only specific keys.
+    """
+    ALLOWED_KEYS = {
+        "height",
+        "width",
+        "ddim_steps",
+        "cfg_scale",
+        "denoising_strength",
+        "clip_skip",
+        "control_strength",
+        "facefixer_strength",
+        "lora_count",
+        "ti_count",
+        "extra_source_images_count",
+        "extra_source_images_combined_size",
+        "source_image_size",
+        "source_mask_size",
+        "hires_fix",
+        "hires_fix_denoising_strength",
+        "image_is_control",
+        "return_control_map",
+        "transparent",
+        "source_image",
+        "source_mask",
+        "tiling",
+        "post_processing_order",
+    }
+
+    items = []
+    for k, v in d.items():
+        new_key = f"{parent_key}.{k}" if parent_key else k
+        if isinstance(v, dict):
+            items.extend(flatten_dict(v, new_key).items())
+        elif k in ALLOWED_KEYS:
+            items.append((k, v))
+    return dict(items)
+
+
+def analyze_dict_similarities(
+    dict_list: list[dict],
+    float_tolerance: float = 0.1,
+) -> dict[str, list[tuple[Any, float]]]:
+    """
+    Analyzes a list of dictionaries to find common or similar values across all dictionaries.
+    """
+
+    def are_values_similar(val1: Any, val2: Any) -> bool:
+        """Check if two values are similar based on their type."""
+        if type(val1) != type(val2):
+            return False
+
+        if isinstance(val1, int | float) and isinstance(val2, int | float):
+            if val1 == 0 or val2 == 0:
+                return abs(val1 - val2) < float_tolerance
+            diff = abs(val1 - val2) / max(abs(val1), abs(val2))
+            return diff <= float_tolerance
+
+        return val1 == val2
+
+    # Flatten all dictionaries
+    flattened_dicts = [flatten_dict(d) for d in dict_list]
+
+    # Get all unique keys
+    all_keys = set().union(*[d.keys() for d in flattened_dicts])
+
+    # Initialize results
+    results = {}
+
+    # Analyze each key
+    for key in all_keys:
+        values = [d.get(key) for d in flattened_dicts if key in d]
+        if not values:
+            continue
+
+        value_groups = defaultdict(int)
+        processed_values = set()
+
+        for i, val1 in enumerate(values):
+            if val1 is None or str(val1) in processed_values:
+                continue
+
+            count = 1
+            for val2 in values[i + 1 :]:
+                if are_values_similar(val1, val2):
+                    count += 1
+
+            if count > 1:
+                value_groups[str(val1)] = count / len(values)
+                processed_values.add(str(val1))
+
+        if value_groups:
+            sorted_items = sorted(value_groups.items(), key=lambda x: x[1], reverse=True)
+            results[key] = list(sorted_items)
+
+    return results
+
+
+def print_similarity_analysis(results: dict[str, list[tuple[Any, float]]], min_frequency: float = 0.5) -> None:
+    """
+    Pretty prints the similarity analysis results.
+    """
+    print("\nSimilarity Analysis Results:")
+    print("=" * 80)
+
+    for key, values in sorted(results.items()):
+        filtered_values = [(val, freq) for val, freq in values if freq >= min_frequency]
+        if filtered_values:
+            print(f"\nKey: {key}")
+            print("-" * 40)
+            for value, frequency in filtered_values:
+                percentage = frequency * 100
+                print(f"Value: {value:20} Frequency: {percentage:.1f}%")
+
+
 # This is just an helper for walking through the validation dataset one line at a time
 # and using the methods above to calculate an overall average percentage accuracy
 def test_one_by_one(model_filename):
     dataset = []
     with open(VALIDATION_DATA_FILENAME) as infile:
-        while line := infile.readline():
-            dataset.append(json.loads(line))
+        d = json.load(infile)
+        for p in d:
+            if p["time_to_generate"] is not None:
+                dataset.append(p)
 
     model = load_model(model_filename)
 
     perc = []
     total_job_time = 0
     total_time = 0
+    bad_predictions = []
     for data in dataset:
         model_time = time.perf_counter()
         predicted = payload_to_time(model, data)
         total_time += time.perf_counter() - model_time
-        actual = round(data["time"], 2)
-        total_job_time += data["time"]
+        actual = round(data["time_to_generate"], 2)
+        total_job_time += data["time_to_generate"]
 
         diff = abs(actual - predicted)
         max_val = max(actual, predicted)
@@ -245,13 +370,14 @@ def test_one_by_one(model_filename):
         perc.append(percentage_accuracy)
         # Print the data if very inaccurate prediction
         if percentage_accuracy < 60:
-            print(data)
-        print(f"{predicted} predicted, {actual} actual ({round(percentage_accuracy, 1)}%)")
-
+            # print(data)
+            bad_predictions.append(data)
+        # print(f"{predicted} predicted, {actual} actual ({round(percentage_accuracy, 1)}%)")
     avg_perc = round(sum(perc) / len(perc), 1)
     print(f"Average kudos calculation time {round((total_time*1000000)/len(perc))} micro-seconds")
     print(f"Average actual job time in the dataset {round(total_job_time/len(perc), 2)} seconds")
     print(f"Average accuracy = {avg_perc}%")
+    return bad_predictions
 
 
 class KudosDataset(Dataset):
@@ -289,15 +415,15 @@ class KudosDataset(Dataset):
                 p["ddim_steps"] / 100,
                 p["cfg_scale"] / 30,
                 p.get("denoising_strength", 1.0) if p.get("denoising_strength", 1.0) is not None else 1.0,
-                float(p.get("clip_skip", 1.0)),
+                p.get("clip_skip", 1.0) / 4,
                 p.get("control_strength", 1.0) if p.get("control_strength", 1.0) is not None else 1.0,
                 p.get("facefixer_strength", 1.0) if p.get("facefixer_strength", 1.0) is not None else 1.0,
-                float(p.get("lora_count", 0.0)),
-                float(p.get("ti_count", 0.0)),
-                float(p.get("extra_source_images_count", 0.0)),
-                float(p.get("extra_source_images_combined_size", 0.0)),
-                float(p.get("source_image_size", 0.0)),
-                float(p.get("source_mask_size", 0.0)),
+                p.get("lora_count", 0.0) / 5,
+                p.get("ti_count", 0.0) / 10,
+                p.get("extra_source_images_count", 0.0) / 5,
+                p.get("extra_source_images_combined_size", 0.0) / 100_000,
+                p.get("source_image_size", 0.0) / 100_000,
+                p.get("source_mask_size", 0.0) / 100_000,
                 1.0 if p.get("hires_fix", True) else 0.0,
                 1.0 if p.get("hires_fix_denoising_strength", True) else 0.0,
                 1.0 if p.get("image_is_control", True) else 0.0,
@@ -469,7 +595,13 @@ def objective(trial):
 def main():
 
     if args.test_model:
-        test_one_by_one(args.test_model)
+        low_predictions = test_one_by_one(args.test_model)
+        if args.analyse:
+            # Analyze with default 10% tolerance for floats
+            results = analyze_dict_similarities(low_predictions)
+
+            # Print results, showing only values that appear in at least 50% of dictionaries
+            print_similarity_analysis(results, min_frequency=0.5)
         return
 
     if not ENABLE_TRAINING:
