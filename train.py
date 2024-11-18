@@ -594,7 +594,7 @@ def objective(trial):
                 break
 
     # reload the best performing model we found
-    model.load(best_state_dict)
+    model.load_state_dict(best_state_dict)
 
     # Pickle it as we'll forget the model architecture
     filename = f"kudos_models/kudos-{STUDY_VERSION}-{trial.number}.ckpt"
