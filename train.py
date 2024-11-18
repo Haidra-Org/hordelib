@@ -601,7 +601,7 @@ def objective(trial):
     with open(filename, "wb") as outfile:
         pickle.dump(model.to("cpu"), outfile)
 
-    return total_loss
+    return best_loss
 
 
 def main():
