@@ -61,8 +61,8 @@ DB_CONNECTION_STRING = "mysql://root:root@localhost/optuna"
 NUMBER_OF_STUDY_TRIALS = 2000
 
 # Hyper parameter search bounds
-MIN_NUMBER_OF_EPOCHS = 50
-MAX_NUMBER_OF_EPOCHS = 2000
+NUM_EPOCHS = 1000
+PATIENCE = 25  # if no improvement in this many epochs, stop early
 MAX_HIDDEN_LAYERS = 6
 MIN_NODES_IN_LAYER = 4
 MAX_NODES_IN_LAYER = 128
@@ -555,9 +555,9 @@ def objective(trial):
     # Loss function
     criterion = nn.MSELoss()
 
-    num_epochs = trial.suggest_int("num_epochs", MIN_NUMBER_OF_EPOCHS, MAX_NUMBER_OF_EPOCHS)
     total_loss = None
-    for _ in range(num_epochs):
+    best_epoch = best_loss = best_state_dict = None
+    for epoch in range(NUM_EPOCHS):
         # Train the model
         model.train()
         for data, labels in train_loader:
@@ -583,6 +583,18 @@ def objective(trial):
 
         total_loss /= len(validate_loader)
         total_loss = round(float(total_loss), 2)
+        if best_loss is None or total_loss < best_loss:
+            best_loss = total_loss
+            best_epoch = epoch
+            best_state_dict = model.state_dict()
+        else:
+            epochs_since_best = current_epoch - best_epoch
+            if epochs_since_best >= PATIENCE:
+                # Stop early, no improvement in awhile
+                break
+
+    # reload the best performing model we found
+    model.load(best_state_dict)
 
     # Pickle it as we'll forget the model architecture
     filename = f"kudos_models/kudos-{STUDY_VERSION}-{trial.number}.ckpt"
