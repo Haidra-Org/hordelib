@@ -588,7 +588,7 @@ def objective(trial):
             best_epoch = epoch
             best_state_dict = model.state_dict()
         else:
-            epochs_since_best = current_epoch - best_epoch
+            epochs_since_best = epoch - best_epoch
             if epochs_since_best >= PATIENCE:
                 # Stop early, no improvement in awhile
                 break
