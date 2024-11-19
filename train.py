@@ -44,6 +44,8 @@ from collections import defaultdict
 from typing import Any
 
 import optuna
+import optunahub
+from optuna.terminator import EMMREvaluator, MedianErrorEvaluator, Terminator, TerminatorCallback
 
 from hordelib.horde import HordeLib
 
@@ -58,11 +60,12 @@ DB_CONNECTION_STRING = "mysql://root:root@localhost/optuna"
 
 # Number of trials to run.
 # Each trial generates a new neural network topology with new hyper parameters and trains it.
-NUMBER_OF_STUDY_TRIALS = 2000
+NUMBER_OF_STUDY_TRIALS = 300
 
 # Hyper parameter search bounds
 NUM_EPOCHS = 1000
 PATIENCE = 25  # if no improvement in this many epochs, stop early
+MIN_NUMBER_OF_EPOCHS = 50
 MAX_HIDDEN_LAYERS = 6
 MIN_NODES_IN_LAYER = 4
 MAX_NODES_IN_LAYER = 128
@@ -74,10 +77,12 @@ MIN_DATA_BATCH_SIZE = 32
 MAX_DATA_BATCH_SIZE = 512
 
 # The study sampler to use
-OPTUNA_SAMPLER = optuna.samplers.TPESampler(n_startup_trials=30, n_ei_candidates=30)
+# OPTUNA_SAMPLER = optuna.samplers.TPESampler(n_startup_trials=30, n_ei_candidates=30)
+OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
 # OPTUNA_SAMPLER = optuna.samplers.NSGAIISampler()  # genetic algorithm
 
-# We have the following inputs to our kudos calculation, for example:
+# We have the following inputs to our kudos calculation.
+# The payload below is pruned from unused fields during tensor conversion
 PAYLOAD_EXAMPLE = {
     "sdk_api_job_info": {
         "id_": "7ba3b75b-6926-4e78-ad42-6763fa15c262",
@@ -127,8 +132,6 @@ PAYLOAD_EXAMPLE = {
     "time_to_generate": 4.450331687927246,
     "time_to_download_aux_models": None,
 }
-# And one output
-# "time": 13.2032
 
 
 KNOWN_POST_PROCESSORS = [
@@ -161,6 +164,11 @@ KNOWN_MODEL_BASELINES = [
     "flux_1",
 ]
 KNOWN_MODEL_BASELINES.sort()
+KNOWN_WORKFLOWS = [
+    "autodetect",
+    "qr_code",
+]
+KNOWN_WORKFLOWS.sort()
 
 
 def parse_args():
@@ -205,7 +213,7 @@ def parse_args():
     # Study parameters
     parser.add_argument("--study-trials", type=int, default=2000, help="Number of trials to run")
 
-    parser.add_argument("--study-version", type=str, default="v22", help="Version number of the study")
+    parser.add_argument("-v", "--study-version", type=str, default="v25", help="Version number of the study")
 
     return parser.parse_args()
 
@@ -248,8 +256,6 @@ def flatten_dict(d: dict, parent_key: str = "") -> dict[str, Any]:
         "image_is_control",
         "return_control_map",
         "transparent",
-        "source_image",
-        "source_mask",
         "tiling",
         "post_processing_order",
     }
@@ -408,6 +414,7 @@ class KudosDataset(Dataset):
         data_model_baseline = []
         data_post_processors = []
         data_schedulers = []
+        data_workflows = []
         data.append(
             [
                 p["height"] / 1024,
@@ -429,8 +436,6 @@ class KudosDataset(Dataset):
                 1.0 if p.get("image_is_control", True) else 0.0,
                 1.0 if p.get("return_control_map", True) else 0.0,
                 1.0 if p.get("transparent", True) else 0.0,
-                1.0 if p.get("source_image", True) else 0.0,
-                1.0 if p.get("source_mask", True) else 0.0,
                 1.0 if p.get("tiling", True) else 0.0,
                 1.0 if p.get("post_processing_order", "facefixers_first") == "facefixers_first" else 0.0,
             ],
@@ -445,12 +450,17 @@ class KudosDataset(Dataset):
         )
         data_source_processing_types.append(payload.get("source_processing", "txt2img"))
         data_post_processors = p.get("post_processing", [])[:]
+        data_workflows.append(
+            p.get("workflow", "autodetect") if p.get("workflow", "autodetect") is not None else "autodetect",
+        )
+
         _data_floats = torch.tensor(data).float()
         _data_model_baselines = cls.one_hot_encode(data_model_baseline, KNOWN_MODEL_BASELINES)
         _data_samplers = cls.one_hot_encode(data_samplers, KNOWN_SAMPLERS)
         _data_schedulers = cls.one_hot_encode(data_schedulers, KNOWN_SCHEDULERS)
         _data_control_types = cls.one_hot_encode(data_control_types, KNOWN_CONTROL_TYPES)
         _data_source_processing_types = cls.one_hot_encode(data_source_processing_types, KNOWN_SOURCE_PROCESSING)
+        _data_workflows = cls.one_hot_encode(data_workflows, KNOWN_WORKFLOWS)
         _data_post_processors = cls.one_hot_encode_combined(data_post_processors, KNOWN_POST_PROCESSORS)
         return torch.cat(
             (
@@ -461,6 +471,7 @@ class KudosDataset(Dataset):
                 _data_control_types,
                 _data_source_processing_types,
                 _data_post_processors,
+                _data_workflows,
             ),
             dim=1,
         )
@@ -623,22 +634,48 @@ def main():
     os.makedirs("kudos_models", exist_ok=True)
 
     if ENABLE_TRAINING:
-        import optuna
-
         # Create the database directory if it doesn't exist
         db_dir = os.path.dirname(os.path.abspath(args.db_path))
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
 
+        emmr_improvement_evaluator = EMMREvaluator()
+
+        # By default, 1/100 of the median value of the 10th to 30th step of
+        # emmr_improvement_evaluator
+        median_error_evaluator = MedianErrorEvaluator(emmr_improvement_evaluator)
+
+        # If the value of emmr_improvement_evaluator falls below the value of
+        # median_error_evaluator, the early termination occurs.
+        terminator = Terminator(
+            improvement_evaluator=emmr_improvement_evaluator,
+            error_evaluator=median_error_evaluator,
+        )
+
         study = optuna.create_study(
             direction="minimize",
+            pruner=optuna.pruners.MedianPruner(n_startup_trials=20, n_warmup_steps=30, interval_steps=10),
             study_name=f"kudos_model_{STUDY_VERSION}",
             storage=DB_CONNECTION_STRING,
             load_if_exists=True,
             sampler=OPTUNA_SAMPLER,
         )
-        study.optimize(objective, n_trials=NUMBER_OF_STUDY_TRIALS)
-
+        try:
+            study.optimize(
+                objective,
+                n_trials=NUMBER_OF_STUDY_TRIALS,
+                show_progress_bar=True,
+                callbacks=[TerminatorCallback(terminator)],
+            )
+        except KeyboardInterrupt:
+            print("Trial process aborted")
+        fig = optuna.visualization.plot_terminator_improvement(
+            study,
+            plot_error=True,
+            improvement_evaluator=emmr_improvement_evaluator,
+            error_evaluator=median_error_evaluator,
+        )
+        fig.write_image(f"kudos_model_improvement_evaluator_{STUDY_VERSION}")
         # Print the best hyperparameters
         print("Best trial:")
         trial = study.best_trial

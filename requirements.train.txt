@@ -1,0 +1,4 @@
+optuna
+optunahub
+plotly
+# pip install -r https://hub.optuna.org/samplers/auto_sampler/requirements.txt
