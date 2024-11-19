@@ -426,7 +426,7 @@ class KudosDataset(Dataset):
                 p.get("source_image_size", 0.0) / 100_000,
                 p.get("source_mask_size", 0.0) / 100_000,
                 1.0 if p.get("hires_fix", True) else 0.0,
-                p.get("hires_fix_denoising_strength", 0.6) or 0.0,
+                p.get("hires_fix_denoising_strength", 0.65) or 0.0,
                 1.0 if p.get("image_is_control", True) else 0.0,
                 # 1.0 if p.get("return_control_map", True) else 0.0,
                 1.0 if p.get("transparent", True) else 0.0,
@@ -511,7 +511,7 @@ def create_sequential_model(trial, layer_sizes, input_size, output_size=1):
     return nn.Sequential(*layers)
 
 
-def objective(trial):
+def objective(trial: optuna.Trial):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     trial.set_user_attr("name", "predict_kudos")
 
@@ -563,6 +563,13 @@ def objective(trial):
     total_loss = None
     best_epoch = best_loss = best_state_dict = None
 
+    # Print all of the hyperparameters of the trial
+    trial_details_string = (
+        f"Trial {trial.number} - Hidden layers: {num_hidden_layers}, Layer sizes: {layers}, "
+        f"Optimizer: {optimizer_name}, Learning rate: {lr}, Weight decay: {weight_decay}, Batch size: {batch}"
+    )
+    optuna.logging.get_logger("optuna").info(trial_details_string)
+
     # Initialize tqdm progress bar
     pbar = tqdm(range(NUM_EPOCHS), desc="Training Progress")
 
@@ -592,6 +599,8 @@ def objective(trial):
 
         total_loss /= len(validate_loader)
         total_loss = round(float(total_loss), 2)
+        pbar.set_postfix(loss=total_loss)
+
         if best_loss is None or total_loss < best_loss:
             best_loss = total_loss
             best_epoch = epoch
@@ -600,6 +609,7 @@ def objective(trial):
 
         else:
             epochs_since_best = epoch - best_epoch
+            pbar.set_postfix(epochs_since_best=epochs_since_best)
             if epochs_since_best >= PATIENCE:
                 # Stop early, no improvement in awhile
                 pbar.set_postfix(status="Lost patience")
