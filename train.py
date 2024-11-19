@@ -63,10 +63,10 @@ MIN_NUMBER_OF_EPOCHS = 50
 MAX_HIDDEN_LAYERS = 6
 MIN_NODES_IN_LAYER = 4
 MAX_NODES_IN_LAYER = 128
-MIN_LEARNING_RATE = 1e-5
-MAX_LEARNING_RATE = 1e-1
-MIN_WEIGHT_DECAY = 1e-6
-MAX_WEIGHT_DECAY = 1e-1
+MIN_LEARNING_RATE = 1e-4
+MAX_LEARNING_RATE = 1e-2
+MIN_WEIGHT_DECAY = 1e-5
+MAX_WEIGHT_DECAY = 1e-3
 MIN_DATA_BATCH_SIZE = 32
 MAX_DATA_BATCH_SIZE = 512
 
@@ -504,7 +504,7 @@ def create_sequential_model(trial, layer_sizes, input_size, output_size=1):
             layers.append(nn.ReLU())  # Use ReLU activation for all layers except the last one
             # Add a dropout layer
             if i > 0:
-                drop = trial.suggest_float(f"dropout_l{i}", 0.05, 0.2, log=True)
+                drop = trial.suggest_float(f"dropout_l{i}", 0.05, 0.5, log=True)
                 layers.append(nn.Dropout(drop))
 
     # Create the nn.Sequential model
