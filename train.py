@@ -45,35 +45,12 @@ from typing import Any
 
 import optuna
 import optunahub
+import yaml
 from optuna.terminator import EMMREvaluator, MedianErrorEvaluator, Terminator, TerminatorCallback
 from tqdm import tqdm
 
 from hordelib.horde import HordeLib
 
-random.seed()
-
-# Number of trials to run.
-# Each trial generates a new neural network topology with new hyper parameters and trains it.
-NUMBER_OF_STUDY_TRIALS = 300
-
-# Hyper parameter search bounds
-NUM_EPOCHS = 1000
-PATIENCE = 25  # if no improvement in this many epochs, stop early
-MIN_NUMBER_OF_EPOCHS = 50
-MAX_HIDDEN_LAYERS = 6
-MIN_NODES_IN_LAYER = 4
-MAX_NODES_IN_LAYER = 128
-MIN_LEARNING_RATE = 1e-4
-MAX_LEARNING_RATE = 1e-2
-MIN_WEIGHT_DECAY = 1e-5
-MAX_WEIGHT_DECAY = 1e-3
-MIN_DATA_BATCH_SIZE = 32
-MAX_DATA_BATCH_SIZE = 512
-
-# The study sampler to use
-# OPTUNA_SAMPLER = optuna.samplers.TPESampler(n_startup_trials=30, n_ei_candidates=30)
-OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
-# OPTUNA_SAMPLER = optuna.samplers.NSGAIISampler()  # genetic algorithm
 
 # We have the following inputs to our kudos calculation.
 # The payload below is pruned from unused fields during tensor conversion
@@ -165,8 +142,16 @@ KNOWN_WORKFLOWS = [
 KNOWN_WORKFLOWS.sort()
 
 
+def load_config(config_file):
+    with open(config_file) as file:
+        return yaml.safe_load(file)
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="ML Training Script with configurable parameters")
+
+    # Configuration file
+    parser.add_argument("-c", "--config", type=str, required=True, help="Path to YAML configuration file")
 
     # Training control
     parser.add_argument("-e", "--enable-training", action="store_true", default=False, help="Enable training mode")
@@ -180,34 +165,6 @@ def parse_args():
 
     # Test mode
     parser.add_argument("-t", "--test-model", type=str, help="Path to model file for testing one by one")
-
-    # Database configuration
-    parser.add_argument(
-        "--db-path",
-        type=str,
-        default="optuna_studies.db",
-        help="Path to SQLite database file for Optuna",
-    )
-
-    # Data paths
-    parser.add_argument(
-        "--training-data",
-        type=str,
-        default="./inference-time-data.json",
-        help="Path to training data file",
-    )
-
-    parser.add_argument(
-        "--validation-data",
-        type=str,
-        default="./inference-time-data-validation.json",
-        help="Path to validation data file",
-    )
-
-    # Study parameters
-    parser.add_argument("--study-trials", type=int, default=2000, help="Number of trials to run")
-
-    parser.add_argument("-v", "--study-version", type=str, default="v25", help="Version number of the study")
 
     return parser.parse_args()
 
@@ -632,7 +589,6 @@ def objective(trial: optuna.Trial):
 
 
 def main():
-
     if args.test_model:
         low_predictions = test_one_by_one(args.test_model)
         if args.analyse:
@@ -651,7 +607,7 @@ def main():
 
     if ENABLE_TRAINING:
         # Create the database directory if it doesn't exist
-        db_dir = os.path.dirname(os.path.abspath(args.db_path))
+        db_dir = os.path.dirname(os.path.abspath(config["db_path"]))
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
 
@@ -709,16 +665,35 @@ if __name__ == "__main__":
     # Parse command line arguments
     args = parse_args()
 
+    # Load configuration from YAML file
+    config = load_config(args.config)
+
     # Set random seed
     random.seed()
 
-    # Global constants now derived from args
-    ENABLE_TRAINING = args.enable_training
-    TRAINING_DATA_FILENAME = args.training_data
-    VALIDATION_DATA_FILENAME = args.validation_data
-    NUMBER_OF_STUDY_TRIALS = args.study_trials
-    STUDY_VERSION = args.study_version
+    # The study sampler to use
+    # OPTUNA_SAMPLER = optuna.samplers.TPESampler(n_startup_trials=30, n_ei_candidates=30)
+    OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
+    # OPTUNA_SAMPLER = optuna.samplers.NSGAIISampler()  # genetic algorithm
 
-    # Create SQLite connection string
-    DB_CONNECTION_STRING = f"sqlite:///{args.db_path}"
+    ENABLE_TRAINING = args.enable_training
+    TRAINING_DATA_FILENAME = config["training_data"]
+    VALIDATION_DATA_FILENAME = config["validation_data"]
+    NUMBER_OF_STUDY_TRIALS = config["study_trials"]
+    STUDY_VERSION = config["study_version"]
+    DB_CONNECTION_STRING = f"sqlite:///{config['db_path']}"
+
+    # Hyper parameter search bounds
+    NUM_EPOCHS = config["num_epochs"]
+    PATIENCE = config["patience"]
+    MIN_NUMBER_OF_EPOCHS = config["min_number_of_epochs"]
+    MAX_HIDDEN_LAYERS = config["max_hidden_layers"]
+    MIN_NODES_IN_LAYER = config["min_nodes_in_layer"]
+    MAX_NODES_IN_LAYER = config["max_nodes_in_layer"]
+    MIN_LEARNING_RATE = config["min_learning_rate"]
+    MAX_LEARNING_RATE = config["max_learning_rate"]
+    MIN_WEIGHT_DECAY = config["min_weight_decay"]
+    MAX_WEIGHT_DECAY = config["max_weight_decay"]
+    MIN_DATA_BATCH_SIZE = config["min_data_batch_size"]
+    MAX_DATA_BATCH_SIZE = config["max_data_batch_size"]
     main()
