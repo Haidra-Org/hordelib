@@ -51,13 +51,6 @@ from hordelib.horde import HordeLib
 
 random.seed()
 
-# Database connection string for Optuna - don't use root :)
-DB_CONNECTION_STRING = "mysql://root:root@localhost/optuna"
-
-# # Where is our training data?
-# TRAINING_DATA_FILENAME = "f:/ai/dev/AI-Horde-Worker/inference-time-data.json"
-# VALIDATION_DATA_FILENAME = "f:/ai/dev/AI-Horde-Worker/inference-time-data-validation.json"
-
 # Number of trials to run.
 # Each trial generates a new neural network topology with new hyper parameters and trains it.
 NUMBER_OF_STUDY_TRIALS = 300
@@ -664,7 +657,6 @@ def main():
             study.optimize(
                 objective,
                 n_trials=NUMBER_OF_STUDY_TRIALS,
-                show_progress_bar=True,
                 callbacks=[TerminatorCallback(terminator)],
             )
         except KeyboardInterrupt:
