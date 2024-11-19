@@ -684,16 +684,16 @@ if __name__ == "__main__":
     DB_CONNECTION_STRING = f"sqlite:///{config['db_path']}"
 
     # Hyper parameter search bounds
-    NUM_EPOCHS = config["num_epochs"]
-    PATIENCE = config["patience"]
-    MIN_NUMBER_OF_EPOCHS = config["min_number_of_epochs"]
-    MAX_HIDDEN_LAYERS = config["max_hidden_layers"]
-    MIN_NODES_IN_LAYER = config["min_nodes_in_layer"]
-    MAX_NODES_IN_LAYER = config["max_nodes_in_layer"]
-    MIN_LEARNING_RATE = config["min_learning_rate"]
-    MAX_LEARNING_RATE = config["max_learning_rate"]
-    MIN_WEIGHT_DECAY = config["min_weight_decay"]
-    MAX_WEIGHT_DECAY = config["max_weight_decay"]
-    MIN_DATA_BATCH_SIZE = config["min_data_batch_size"]
-    MAX_DATA_BATCH_SIZE = config["max_data_batch_size"]
+    NUM_EPOCHS = int(config["num_epochs"])
+    PATIENCE = int(config["patience"])
+    MIN_NUMBER_OF_EPOCHS = int(config["min_number_of_epochs"])
+    MAX_HIDDEN_LAYERS = int(config["max_hidden_layers"])
+    MIN_NODES_IN_LAYER = int(config["min_nodes_in_layer"])
+    MAX_NODES_IN_LAYER = int(config["max_nodes_in_layer"])
+    MIN_LEARNING_RATE = float(config["min_learning_rate"])
+    MAX_LEARNING_RATE = float(config["max_learning_rate"])
+    MIN_WEIGHT_DECAY = float(config["min_weight_decay"])
+    MAX_WEIGHT_DECAY = float(config["max_weight_decay"])
+    MIN_DATA_BATCH_SIZE = int(config["min_data_batch_size"])
+    MAX_DATA_BATCH_SIZE = int(config["max_data_batch_size"])
     main()
