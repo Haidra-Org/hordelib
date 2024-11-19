@@ -23,6 +23,9 @@ if ! [[ "$VERSION" =~ ^v[0-9]+$ ]]; then
     exit 1
 fi
 
+# Get current datetime for log files
+DATETIME=$(date "+%Y%m%d_%H%M")
+
 # Counter for naming log files
 counter=1
 
@@ -33,9 +36,9 @@ echo "Starting $N training instances with version $VERSION..."
 
 # Start N instances in parallel
 for i in $(seq 1 $N); do
-    # Run each instance with its output redirected to a log file
-    python train.py -ev $VERSION > "logs/train_${VERSION}_${counter}.log" 2>&1 &
-    echo "Started instance $counter with version $VERSION"
+    LOG_FILE="logs/train_${VERSION}_${DATETIME}_${counter}.log"
+    python train.py -ev $VERSION 2>&1 > "$LOG_FILE" &
+    echo "Started instance $counter with version $VERSION (log: $LOG_FILE)"
     ((counter++))
 done
 
@@ -48,3 +51,5 @@ echo "All training instances have completed"
 for job in $(jobs -p); do
     wait $job || echo "Process $job failed"
 done
+
+echo "Log files are stored in the logs directory with format: train_<version>_<datetime>_<instance>.log"
