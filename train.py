@@ -46,6 +46,7 @@ from typing import Any
 import optuna
 import optunahub
 from optuna.terminator import EMMREvaluator, MedianErrorEvaluator, Terminator, TerminatorCallback
+from tqdm import tqdm
 
 from hordelib.horde import HordeLib
 
@@ -561,7 +562,11 @@ def objective(trial):
 
     total_loss = None
     best_epoch = best_loss = best_state_dict = None
-    for epoch in range(NUM_EPOCHS):
+
+    # Initialize tqdm progress bar
+    pbar = tqdm(range(NUM_EPOCHS), desc="Training Progress")
+
+    for epoch in pbar:
         # Train the model
         model.train()
         for data, labels in train_loader:
@@ -591,10 +596,13 @@ def objective(trial):
             best_loss = total_loss
             best_epoch = epoch
             best_state_dict = model.state_dict()
+            pbar.set_postfix(best_loss=best_loss)
+
         else:
             epochs_since_best = epoch - best_epoch
             if epochs_since_best >= PATIENCE:
                 # Stop early, no improvement in awhile
+                pbar.set_postfix(status="Lost patience")
                 break
 
     # reload the best performing model we found
@@ -604,6 +612,8 @@ def objective(trial):
     filename = f"kudos_models/kudos-{STUDY_VERSION}-{trial.number}.ckpt"
     with open(filename, "wb") as outfile:
         pickle.dump(model.to("cpu"), outfile)
+
+    optuna.logging.get_logger("optuna").info(f"Epoch {epoch + 1}/{NUM_EPOCHS} - Best loss: {best_loss}")
 
     return best_loss
 
