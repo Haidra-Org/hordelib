@@ -561,7 +561,9 @@ def objective(trial: optuna.Trial):
     criterion = nn.MSELoss()
 
     total_loss = None
-    best_epoch = best_loss = best_state_dict = None
+    best_epoch = None
+    best_loss = None
+    best_state_dict = None
 
     # Print all of the hyperparameters of the trial
     trial_details_string = (
@@ -599,21 +601,22 @@ def objective(trial: optuna.Trial):
 
         total_loss /= len(validate_loader)
         total_loss = round(float(total_loss), 2)
-        pbar.set_postfix(loss=total_loss)
+
+        epochs_since_best = 0
 
         if best_loss is None or total_loss < best_loss:
             best_loss = total_loss
             best_epoch = epoch
             best_state_dict = model.state_dict()
-            pbar.set_postfix(best_loss=best_loss)
 
         else:
             epochs_since_best = epoch - best_epoch
             pbar.set_postfix(epochs_since_best=epochs_since_best)
             if epochs_since_best >= PATIENCE:
                 # Stop early, no improvement in awhile
-                pbar.set_postfix(status="Lost patience")
                 break
+
+        pbar.set_postfix(loss=total_loss, best_loss=best_loss, epochs_since_best=epochs_since_best)
 
     # reload the best performing model we found
     model.load_state_dict(best_state_dict)
