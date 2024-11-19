@@ -40,6 +40,7 @@ import hordelib
 
 hordelib.initialise()
 import pickle
+import signal
 from collections import defaultdict
 from typing import Any
 
@@ -56,37 +57,45 @@ random.seed()
 NUMBER_OF_STUDY_TRIALS = 300
 
 # Hyper parameter search bounds
-NUM_EPOCHS = 1000
-PATIENCE = 25  # if no improvement in this many epochs, stop early
+NUM_EPOCHS = 2000
+PATIENCE = 100  # if no improvement in this many epochs, stop early
 MIN_NUMBER_OF_EPOCHS = 50
-MAX_HIDDEN_LAYERS = 6
+MIN_HIDDEN_LAYERS = 3
+MAX_HIDDEN_LAYERS = 9
 MIN_NODES_IN_LAYER = 4
 MAX_NODES_IN_LAYER = 128
-MIN_LEARNING_RATE = 1e-5
-MAX_LEARNING_RATE = 1e-1
+MIN_LEARNING_RATE = 1e-3
+MAX_LEARNING_RATE = 1e-2
 MIN_WEIGHT_DECAY = 1e-6
 MAX_WEIGHT_DECAY = 1e-1
 MIN_DATA_BATCH_SIZE = 32
-MAX_DATA_BATCH_SIZE = 512
+MAX_DATA_BATCH_SIZE = 256
 
 # The study sampler to use
 # OPTUNA_SAMPLER = optuna.samplers.TPESampler(n_startup_trials=30, n_ei_candidates=30)
-OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
+# OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
+HEBOSampler = optunahub.load_module("samplers/hebo").HEBOSampler
+OPTUNA_SAMPLER = HEBOSampler(
+    {
+        "x": optuna.distributions.FloatDistribution(-10, 10),
+        "y": optuna.distributions.IntDistribution(-10, 10),
+    },
+)
 # OPTUNA_SAMPLER = optuna.samplers.NSGAIISampler()  # genetic algorithm
 
 # We have the following inputs to our kudos calculation.
 # The payload below is pruned from unused fields during tensor conversion
 PAYLOAD_EXAMPLE = {
     "sdk_api_job_info": {
-        "id_": "7ba3b75b-6926-4e78-ad42-6763fa15c262",
-        "ids": ["7ba3b75b-6926-4e78-ad42-6763fa15c262"],
+        "id_": "12ad89b7-ffaf-498e-9a6c-11690193dc23",
+        "ids": ["12ad89b7-ffaf-498e-9a6c-11690193dc23"],
         "payload": {
-            "sampler_name": "k_euler",
-            "cfg_scale": 24.0,
+            "sampler_name": "k_euler_a",
+            "cfg_scale": 5.0,
             "denoising_strength": None,
-            "seed": "2066405361",
+            "seed": "2746011721",
             "height": 1024,
-            "width": 768,
+            "width": 1024,
             "seed_variation": None,
             "post_processing": [],
             "post_processing_order": "facefixers_first",
@@ -104,15 +113,15 @@ PAYLOAD_EXAMPLE = {
             "workflow": None,
             "transparent": False,
             "use_nsfw_censor": False,
-            "ddim_steps": 40,
+            "ddim_steps": 20,
             "n_iter": 1,
             "scheduler": "karras",
             "lora_count": 0,
             "ti_count": 0,
         },
-        "model": "Dreamshaper",
+        "model": "Unstable Diffusers XL",
         "source_processing": "img2img",
-        "model_baseline": "stable_diffusion_1",
+        "model_baseline": "stable_diffusion_xl",
         "extra_source_images_count": 0,
         "extra_source_images_combined_size": 0,
         "source_image_size": 0,
@@ -120,9 +129,9 @@ PAYLOAD_EXAMPLE = {
     },
     "state": "ok",
     "censored": False,
-    "time_popped": 1729837827.8703332,
-    "time_submitted": 1729837835.3562803,
-    "time_to_generate": 4.450331687927246,
+    "time_popped": 1730365238.8009083,
+    "time_submitted": 1730365253.0033202,
+    "time_to_generate": 6.871337175369263,
     "time_to_download_aux_models": None,
 }
 
@@ -174,7 +183,7 @@ def parse_args():
         "--analyse",
         action="store_true",
         default=False,
-        help="When true will analyse and report which values in the bad predictions are the most common",
+        help="When True will analyse and report which values in the bad predictions are the most common",
     )
 
     # Test mode
@@ -209,6 +218,18 @@ def parse_args():
     parser.add_argument("-v", "--study-version", type=str, default="v25", help="Version number of the study")
 
     return parser.parse_args()
+
+
+class AbortTrial(Exception):
+    pass
+
+
+def signal_handler(sig, frame):
+    raise AbortTrial
+
+
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
 
 
 # This is an example of how to use the final model, pass in a horde payload, get back a predicted time in seconds
@@ -512,11 +533,12 @@ def create_sequential_model(trial, layer_sizes, input_size, output_size=1):
 
 def objective(trial):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     trial.set_user_attr("name", "predict_kudos")
 
     # Network topology
     input_size = len(KudosDataset.payload_to_tensor(PAYLOAD_EXAMPLE)[0])
-    num_hidden_layers = trial.suggest_int("hidden_layers", 1, MAX_HIDDEN_LAYERS, log=True)
+    num_hidden_layers = trial.suggest_int("hidden_layers", MIN_HIDDEN_LAYERS, MAX_HIDDEN_LAYERS, log=True)
     layers = []
     for i in range(num_hidden_layers):
         layers.append(
@@ -529,7 +551,7 @@ def objective(trial):
 
     # Optimiser
     optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
-    lr = trial.suggest_float("lr", MIN_LEARNING_RATE, MAX_LEARNING_RATE, log=True)
+    lr = trial.suggest_float("learning_rate", MIN_LEARNING_RATE, MAX_LEARNING_RATE, log=True)
     weight_decay = trial.suggest_float("weight_decay", MIN_WEIGHT_DECAY, MAX_WEIGHT_DECAY, log=True)
 
     optimizer = None
@@ -626,60 +648,60 @@ def main():
     # Make our model output dir
     os.makedirs("kudos_models", exist_ok=True)
 
-    if ENABLE_TRAINING:
-        # Create the database directory if it doesn't exist
-        db_dir = os.path.dirname(os.path.abspath(args.db_path))
-        if db_dir:
-            os.makedirs(db_dir, exist_ok=True)
+    # Create the database directory if it doesn't exist
+    db_dir = os.path.dirname(os.path.abspath(args.db_path))
+    if db_dir:
+        os.makedirs(db_dir, exist_ok=True)
 
-        emmr_improvement_evaluator = EMMREvaluator()
+    emmr_improvement_evaluator = EMMREvaluator()
 
-        # By default, 1/100 of the median value of the 10th to 30th step of
-        # emmr_improvement_evaluator
-        median_error_evaluator = MedianErrorEvaluator(emmr_improvement_evaluator)
+    # By default, 1/100 of the median value of the 10th to 30th step of
+    # emmr_improvement_evaluator
+    median_error_evaluator = MedianErrorEvaluator(emmr_improvement_evaluator)
 
-        # If the value of emmr_improvement_evaluator falls below the value of
-        # median_error_evaluator, the early termination occurs.
-        terminator = Terminator(
-            improvement_evaluator=emmr_improvement_evaluator,
-            error_evaluator=median_error_evaluator,
+    # If the value of emmr_improvement_evaluator falls below the value of
+    # median_error_evaluator, the early termination occurs.
+    terminator = Terminator(
+        improvement_evaluator=emmr_improvement_evaluator,
+        error_evaluator=median_error_evaluator,
+    )
+
+    study = optuna.create_study(
+        direction="minimize",
+        # pruner=optuna.pruners.MedianPruner(n_startup_trials=20, n_warmup_steps=30, interval_steps=10),
+        pruner=optuna.pruners.SuccessiveHalvingPruner(),
+        study_name=f"kudos_model_{STUDY_VERSION}",
+        storage=DB_CONNECTION_STRING,
+        load_if_exists=True,
+        sampler=OPTUNA_SAMPLER,
+    )
+    try:
+        study.optimize(
+            objective,
+            n_trials=NUMBER_OF_STUDY_TRIALS,
+            callbacks=[TerminatorCallback(terminator)],
         )
+    except (KeyboardInterrupt, AbortTrial):
+        print("Trial process aborted")
+    # fig = optuna.visualization.plot_terminator_improvement(
+    #     study,
+    #     plot_error=True,
+    #     improvement_evaluator=emmr_improvement_evaluator,
+    #     error_evaluator=median_error_evaluator,
+    # )
+    # fig.write_image(f"kudos_model_improvement_evaluator_{STUDY_VERSION}")
+    # Print the best hyperparameters
+    print("Best trial:")
+    trial = study.best_trial
+    print("Value: ", trial.value)
+    print("Params: ")
+    for key, value in trial.params.items():
+        print(f"{key}: {value}")
 
-        study = optuna.create_study(
-            direction="minimize",
-            pruner=optuna.pruners.MedianPruner(n_startup_trials=20, n_warmup_steps=30, interval_steps=10),
-            study_name=f"kudos_model_{STUDY_VERSION}",
-            storage=DB_CONNECTION_STRING,
-            load_if_exists=True,
-            sampler=OPTUNA_SAMPLER,
-        )
-        try:
-            study.optimize(
-                objective,
-                n_trials=NUMBER_OF_STUDY_TRIALS,
-                callbacks=[TerminatorCallback(terminator)],
-            )
-        except KeyboardInterrupt:
-            print("Trial process aborted")
-        fig = optuna.visualization.plot_terminator_improvement(
-            study,
-            plot_error=True,
-            improvement_evaluator=emmr_improvement_evaluator,
-            error_evaluator=median_error_evaluator,
-        )
-        fig.write_image(f"kudos_model_improvement_evaluator_{STUDY_VERSION}")
-        # Print the best hyperparameters
-        print("Best trial:")
-        trial = study.best_trial
-        print("Value: ", trial.value)
-        print("Params: ")
-        for key, value in trial.params.items():
-            print(f"{key}: {value}")
-
-        # Calculate the accuracy of the best model
-        best_filename = f"kudos_models/kudos-{STUDY_VERSION}-{trial.number}.ckpt"
-        # model = test_one_by_one(best_filename)
-        print(f"Best model file is: {best_filename}")
+    # Calculate the accuracy of the best model
+    best_filename = f"kudos_models/kudos-{STUDY_VERSION}-{trial.number}.ckpt"
+    # model = test_one_by_one(best_filename)
+    print(f"Best model file is: {best_filename}")
 
 
 if __name__ == "__main__":

@@ -23,6 +23,24 @@ if ! [[ "$VERSION" =~ ^v[0-9]+$ ]]; then
     exit 1
 fi
 
+# Array to store PIDs of all children
+declare -a PIDS
+
+# Function to clean up processes on exit
+cleanup() {
+    echo -e "\nReceived interrupt signal. Stopping all training processes..."
+    # Kill all children in the process group
+    for pid in "${PIDS[@]}"; do
+        pkill -2 -P "$pid" 2>/dev/null
+        kill -2 "$pid" 2>/dev/null
+        echo "kill sent to ${pid}"
+    done
+    exit 1
+}
+
+# Set up trap for Ctrl+C (SIGINT) and SIGTERM
+trap cleanup SIGINT SIGTERM
+
 # Get current datetime for log files
 DATETIME=$(date "+%Y%m%d_%H%M")
 
@@ -37,10 +55,15 @@ echo "Starting $N training instances with version $VERSION..."
 # Start N instances in parallel
 for i in $(seq 1 $N); do
     LOG_FILE="logs/train_${VERSION}_${DATETIME}_${counter}.log"
-    python train.py -ev $VERSION 2>&1 > "$LOG_FILE" &
-    echo "Started instance $counter with version $VERSION (log: $LOG_FILE)"
+    # Run each instance and pipe output to log file
+    python train.py -ev $VERSION > "$LOG_FILE" 2>&1 &
+    # Store the PID of the python process
+    PIDS+=($!)
+    echo "Started instance $counter with version $VERSION (log: $LOG_FILE, PID: ${PIDS[-1]})"
     ((counter++))
 done
+
+echo "All processes started. Press Ctrl+C to stop all instances."
 
 # Wait for all background processes to complete
 wait
@@ -48,8 +71,8 @@ wait
 echo "All training instances have completed"
 
 # Check exit status of all processes
-for job in $(jobs -p); do
-    wait $job || echo "Process $job failed"
+for pid in "${PIDS[@]}"; do
+    wait $pid || echo "Process $pid failed"
 done
 
 echo "Log files are stored in the logs directory with format: train_<version>_<datetime>_<instance>.log"
