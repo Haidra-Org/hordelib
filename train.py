@@ -33,6 +33,7 @@ import os
 import pickle
 import random
 import signal
+import sys
 import time
 from collections import defaultdict
 from typing import Any
@@ -47,16 +48,10 @@ from torch.utils.data import DataLoader, Dataset
 
 
 def is_notebook() -> bool:
-    try:
-        shell = get_ipython().__class__.__name__
-        if shell == "ZMQInteractiveShell":
-            return True  # Jupyter notebook or qtconsole
-        elif shell == "TerminalInteractiveShell":
-            return False  # Terminal running IPython
-        else:
-            return False  # Other type (?)
-    except NameError:
-        return False  # Probably standard Python interpreter
+    if "ipykernel" in sys.modules:
+        print("Running in Jupyter Notebook")
+        return True
+    return False
 
 
 if is_notebook():
