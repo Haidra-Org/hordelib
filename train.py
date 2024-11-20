@@ -857,7 +857,11 @@ def main() -> None:
         sampler=OPTUNA_SAMPLER,
     )
     train_dataset = KudosDataset(TRAINING_DATA_FILENAME)
+    train_dataset.mixed_data.to("cuda")
+    train_dataset.labels.to("cuda")
     validate_dataset = KudosDataset(VALIDATION_DATA_FILENAME)
+    validate_dataset.mixed_data.to("cuda")
+    validate_dataset.labels.to("cuda")
 
     # Build dataloaders in advance
     batch_start = int(math.ceil(math.log2(MIN_DATA_BATCH_SIZE)))
