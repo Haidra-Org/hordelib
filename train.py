@@ -415,6 +415,14 @@ def test_one_by_one(model_filename):
     total_job_time = 0
     total_time = 0
     bad_predictions = []
+    within_1_second_count = 0
+    within_2_seconds_count = 0
+    within_3_seconds_count = 0
+    within_5_seconds_count = 0
+    within_10_seconds_count = 0
+
+    total_number_of_jobs = len(dataset)
+
     for data in dataset:
         model_time = time.perf_counter()
         predicted = payload_to_time(model, data)
@@ -426,15 +434,31 @@ def test_one_by_one(model_filename):
         max_val = max(actual, predicted)
         percentage_accuracy = (1 - diff / max_val) * 100
         perc.append(percentage_accuracy)
-        # Print the data if very inaccurate prediction
+        if diff <= 1:
+            within_1_second_count += 1
+        if diff <= 2:
+            within_2_seconds_count += 1
+        if diff <= 3:
+            within_3_seconds_count += 1
+        if diff <= 5:
+            within_5_seconds_count += 1
+        if diff <= 10:
+            within_10_seconds_count += 1
         if percentage_accuracy < 60:
-            # print(data)
             bad_predictions.append(data)
-        # print(f"{predicted} predicted, {actual} actual ({round(percentage_accuracy, 1)}%)")
+
     avg_perc = round(sum(perc) / len(perc), 1)
     print(f"Average kudos calculation time {round((total_time*1000000)/len(perc))} micro-seconds")
     print(f"Average actual job time in the dataset {round(total_job_time/len(perc), 2)} seconds")
     print(f"Average accuracy = {avg_perc}%")
+    print(f"% predictions within 1 second of actual: {round((within_1_second_count/total_number_of_jobs)*100, 2)}%")
+    print(f"% predictions within 2 seconds of actual: {round((within_2_seconds_count/total_number_of_jobs)*100, 2)}%")
+    print(f"% predictions within 3 seconds of actual: {round((within_3_seconds_count/total_number_of_jobs)*100, 2)}%")
+    print(f"% predictions within 5 seconds of actual: {round((within_5_seconds_count/total_number_of_jobs)*100, 2)}%")
+    print(
+        f"% predictions within 10 seconds of actual: {round((within_10_seconds_count/total_number_of_jobs)*100, 2)}%",
+    )
+
     return bad_predictions
 
 
