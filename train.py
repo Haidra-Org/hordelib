@@ -70,6 +70,8 @@ MAX_WEIGHT_DECAY = 1e-1
 MIN_DATA_BATCH_SIZE = 32
 MAX_DATA_BATCH_SIZE = 256
 
+DB_PATH = "optuna_studies.db"
+
 # The study sampler to use
 OPTUNA_SAMPLER = optuna.samplers.TPESampler(n_startup_trials=12, n_ei_candidates=20)
 # # OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
@@ -721,8 +723,7 @@ def objective(
     if optimizer is None:
         raise Exception("Unknown optimizer")
 
-    # batch = trial.suggest_categorical("batch_size", list(dataloaders.keys()))
-    batch = 512
+    batch = trial.suggest_categorical("batch_size", list(dataloaders.keys()))
     train_loader, validate_loader = dataloaders[batch]
 
     # Loss function
@@ -813,10 +814,15 @@ def objective(
     return best_loss
 
 
-def main() -> None:
-    if args.test_model:
-        low_predictions = test_one_by_one(args.test_model)
-        if args.analyse:
+def main(
+    test_model: str | None = None,
+    analyse: bool = False,
+) -> None:
+    random.seed()
+
+    if test_model:
+        low_predictions = test_one_by_one(test_model)
+        if analyse:
             # Analyze with default 10% tolerance for floats
             results = analyze_dict_similarities(low_predictions)
 
@@ -831,7 +837,7 @@ def main() -> None:
     os.makedirs("kudos_models", exist_ok=True)
 
     # Create the database directory if it doesn't exist
-    db_dir = os.path.dirname(os.path.abspath(args.db_path))
+    db_dir = os.path.dirname(os.path.abspath(DB_CONNECTION_STRING))
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
 
@@ -867,8 +873,7 @@ def main() -> None:
     # Build dataloaders in advance
     batch_start = int(math.ceil(math.log2(MIN_DATA_BATCH_SIZE)))
     batch_end = int(math.floor(math.log2(MAX_DATA_BATCH_SIZE)))
-    # batch_sizes = [2**i for i in range(batch_start, batch_end + 1)]
-    batch_sizes = [512]
+    batch_sizes = [2**i for i in range(batch_start, batch_end + 1)]
     dataloaders = build_dataloaders(train_dataset, validate_dataset, batch_sizes)
 
     try:
@@ -902,22 +907,57 @@ def main() -> None:
     print(f"Best model file is: {best_filename}")
 
 
+def set_globals(
+    enable_training: bool,
+    training_data_filename: str,
+    validation_data_filename: str,
+    number_of_study_trials: int,
+    study_version: str,
+    db_path: str,
+    workers: int,
+    notebook_mode: bool,
+    test_model: bool = False,
+):
+    global ENABLE_TRAINING
+    global TRAINING_DATA_FILENAME
+    global VALIDATION_DATA_FILENAME
+    global NUMBER_OF_STUDY_TRIALS
+    global STUDY_VERSION
+    global DB_PATH
+    global DB_CONNECTION_STRING
+    global NUM_WORKERS
+    global NOTEBOOK_MODE
+    global TEST_MODEL
+
+    ENABLE_TRAINING = enable_training
+    TRAINING_DATA_FILENAME = training_data_filename
+    VALIDATION_DATA_FILENAME = validation_data_filename
+    NUMBER_OF_STUDY_TRIALS = number_of_study_trials
+    STUDY_VERSION = study_version
+    DB_PATH = db_path
+    DB_CONNECTION_STRING = f"sqlite:///{db_path}"
+    NUM_WORKERS = workers
+    NOTEBOOK_MODE = notebook_mode
+    TEST_MODEL = test_model
+
+
 if __name__ == "__main__":
+
     # Parse command line arguments
     args = parse_args()
 
     # Set random seed
-    random.seed()
 
     # Global constants now derived from args
-    ENABLE_TRAINING = args.enable_training
-    TRAINING_DATA_FILENAME = args.training_data
-    VALIDATION_DATA_FILENAME = args.validation_data
-    NUMBER_OF_STUDY_TRIALS = args.study_trials
-    STUDY_VERSION = args.study_version
-    NUM_WORKERS = args.workers
-    NOTEBOOK_MODE = args.notebook
-
-    # Create SQLite connection string
-    DB_CONNECTION_STRING = f"sqlite:///{args.db_path}"
+    set_globals(
+        args.enable_training,
+        args.training_data,
+        args.validation_data,
+        args.study_trials,
+        args.study_version,
+        args.db_path,
+        args.workers,
+        args.notebook,
+        args.test_model,
+    )
     main()
