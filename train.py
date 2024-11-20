@@ -515,7 +515,7 @@ def objective(trial: optuna.Trial):
     validate_loader = DataLoader(validate_dataset, batch_size=64, shuffle=True)
 
     # Loss function
-    criterion = nn.MSELoss()
+    criterion = nn.L1Loss()
 
     total_loss = None
     best_epoch = None
