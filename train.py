@@ -784,6 +784,7 @@ def objective(
             best_loss=best_loss,
             epochs_since_best=epochs_since_best,
         )
+        pbar.update()
 
     print(f"Best loss: {best_loss} at epoch {best_epoch}. Using the model as of epoch {best_epoch}")
     model.load_state_dict(best_state_dict)
