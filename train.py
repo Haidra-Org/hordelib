@@ -730,7 +730,7 @@ def objective(
     criterion = nn.L1Loss()
 
     # Initialize GradScaler for mixed precision training
-    scaler = amp.GradScaler()
+    scaler = torch.amp.GradScaler()
 
     total_loss = None
     best_epoch = best_loss = best_state_dict = None
@@ -796,10 +796,6 @@ def objective(
             best_loss=best_loss,
             epochs_since_best=epochs_since_best,
         )
-        if NOTEBOOK_MODE:
-            print(f"Epoch {epoch}:")
-            print("  " + info_string)
-            print("  " + f"loss: {total_loss}, best_loss: {best_loss}, epochs_since_best: {epochs_since_best}")
 
         pbar.update()
 
@@ -810,6 +806,8 @@ def objective(
     filename = f"kudos_models/kudos-{STUDY_VERSION}-{trial.number}.ckpt"
     with open(filename, "wb") as outfile:
         pickle.dump(model.to("cpu"), outfile)
+
+    test_one_by_one(filename)
 
     return best_loss
 
