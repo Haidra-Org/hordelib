@@ -28,25 +28,19 @@ import argparse
 import json
 import math
 import os
-import random
-import time
-
-import torch
-import torch.nn as nn
-from torch import optim
-from torch.utils.data import DataLoader, Dataset
-
-import hordelib
-
-hordelib.initialise()
 import pickle
+import random
 import signal
+import time
 from collections import defaultdict
 from typing import Any
 
 import optuna
-import optunahub
+import torch
+import torch.nn as nn
 from optuna.terminator import EMMREvaluator, MedianErrorEvaluator, Terminator, TerminatorCallback
+from torch import optim
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from hordelib.horde import HordeLib
