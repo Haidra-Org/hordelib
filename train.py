@@ -47,6 +47,7 @@ from typing import Any
 import optuna
 import optunahub
 from optuna.terminator import EMMREvaluator, MedianErrorEvaluator, Terminator, TerminatorCallback
+from tqdm import tqdm
 
 from hordelib.horde import HordeLib
 
@@ -618,7 +619,10 @@ def objective(trial):
 
     total_loss = None
     best_epoch = best_loss = best_state_dict = None
-    for epoch in range(NUM_EPOCHS):
+    epochs_since_best = 0
+
+    pbar = tqdm(range(NUM_EPOCHS), desc="Training Progress")
+    for epoch in pbar:
         # Train the model
         model.train()
         for data, labels in train_loader:
@@ -648,11 +652,23 @@ def objective(trial):
             best_loss = total_loss
             best_epoch = epoch
             best_state_dict = model.state_dict()
+            epochs_since_best = 0
         else:
             epochs_since_best = epoch - best_epoch
             if epochs_since_best >= PATIENCE:
                 # Stop early, no improvement in awhile
                 break
+
+        pbar.set_description(
+            f"input_size={input_size}, layers={layers}, output_size={output_size} "
+            f"batch_size={batch}, optimizer={optimizer_name}, lr={lr}, weight_decay={weight_decay}",
+        )
+
+        pbar.set_postfix(
+            loss=total_loss,
+            best_loss=best_loss,
+            epochs_since_best=epochs_since_best,
+        )
 
     # reload the best performing model we found
     model.load_state_dict(best_state_dict)
