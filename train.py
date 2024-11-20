@@ -486,7 +486,7 @@ def objective(trial: optuna.Trial):
     model = create_sequential_model(trial, layers, input_size, output_size).to(device)
 
     # Optimiser
-    optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD"])
+    optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD", "AdamW"])
     lr = trial.suggest_float("lr", MIN_LEARNING_RATE, MAX_LEARNING_RATE, log=True)
     weight_decay = trial.suggest_float("weight_decay", MIN_WEIGHT_DECAY, MAX_WEIGHT_DECAY, log=True)
 
@@ -498,6 +498,8 @@ def objective(trial: optuna.Trial):
         optimizer = optim.RMSprop(model.parameters(), lr=lr, weight_decay=weight_decay)
     elif optimizer_name == "SGD":
         optimizer = optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
+    elif optimizer_name == "AdamW":
+        optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     if optimizer is None:
         raise Exception("Unknown optimizer")
