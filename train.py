@@ -782,16 +782,23 @@ def objective(
                 print(f"Early stopping at epoch {epoch} due to no improvement")
                 break
 
-        pbar.set_description(
-            f"layers={layers}, batch_size={batch}, optimizer={optimizer_name}, lr={lr}, weight_decay={weight_decay}",
-            f"input_size={input_size}, output_size={output_size}",
+        info_string = (
+            f"layers={layers}, batch_size={batch}, optimizer={optimizer_name}, lr={lr}, "
+            f"weight_decay={weight_decay} "
+            f"input_size={input_size}, output_size={output_size}"
         )
+        pbar.set_description(info_string)
 
         pbar.set_postfix(
             loss=total_loss,
             best_loss=best_loss,
             epochs_since_best=epochs_since_best,
         )
+        if NOTEBOOK_MODE:
+            print(f"Epoch {epoch}:")
+            print("  " + info_string)
+            print("  " + f"loss: {total_loss}, best_loss: {best_loss}, epochs_since_best: {epochs_since_best}")
+
         pbar.update()
 
     print(f"Best loss: {best_loss} at epoch {best_epoch}. Using the model as of epoch {best_epoch}")
