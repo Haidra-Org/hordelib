@@ -721,7 +721,8 @@ def objective(
     if optimizer is None:
         raise Exception("Unknown optimizer")
 
-    batch = trial.suggest_categorical("batch_size", list(dataloaders.keys()))
+    # batch = trial.suggest_categorical("batch_size", list(dataloaders.keys()))
+    batch = 512
     train_loader, validate_loader = dataloaders[batch]
 
     # Loss function
@@ -866,7 +867,8 @@ def main() -> None:
     # Build dataloaders in advance
     batch_start = int(math.ceil(math.log2(MIN_DATA_BATCH_SIZE)))
     batch_end = int(math.floor(math.log2(MAX_DATA_BATCH_SIZE)))
-    batch_sizes = [2**i for i in range(batch_start, batch_end + 1)]
+    # batch_sizes = [2**i for i in range(batch_start, batch_end + 1)]
+    batch_sizes = [512]
     dataloaders = build_dataloaders(train_dataset, validate_dataset, batch_sizes)
 
     try:
