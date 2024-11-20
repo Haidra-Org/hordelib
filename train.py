@@ -19,6 +19,10 @@
 # with user "root" password "root". Change to your needs.
 #
 # For visualisation with optuna dashboard:
+#   pip install optuna-dashboard
+#
+#   optuna-dashboard sqlite:///optuna_studies.db
+#   or
 #   optuna-dashboard mysql://root:root@localhost/optuna
 #
 # This is a quick hack to assist with kudos calculation.
