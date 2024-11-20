@@ -837,7 +837,7 @@ def main(
     os.makedirs("kudos_models", exist_ok=True)
 
     # Create the database directory if it doesn't exist
-    db_dir = os.path.dirname(os.path.abspath(DB_CONNECTION_STRING))
+    db_dir = os.path.dirname(os.path.abspath(DB_PATH))
     if db_dir:
         os.makedirs(db_dir, exist_ok=True)
 
