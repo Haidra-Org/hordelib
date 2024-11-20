@@ -72,15 +72,15 @@ MIN_DATA_BATCH_SIZE = 32
 MAX_DATA_BATCH_SIZE = 256
 
 # The study sampler to use
-# OPTUNA_SAMPLER = optuna.samplers.TPESampler(n_startup_trials=30, n_ei_candidates=30)
-# OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
-HEBOSampler = optunahub.load_module("samplers/hebo").HEBOSampler
-OPTUNA_SAMPLER = HEBOSampler(
-    {
-        "x": optuna.distributions.FloatDistribution(-10, 10),
-        "y": optuna.distributions.IntDistribution(-10, 10),
-    },
-)
+OPTUNA_SAMPLER = optuna.samplers.TPESampler(n_startup_trials=12, n_ei_candidates=20)
+# # OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
+# HEBOSampler = optunahub.load_module("samplers/hebo").HEBOSampler
+# OPTUNA_SAMPLER = HEBOSampler(
+#     {
+#         "x": optuna.distributions.FloatDistribution(-10, 10),
+#         "y": optuna.distributions.IntDistribution(-10, 10),
+#     },
+# )
 # OPTUNA_SAMPLER = optuna.samplers.NSGAIISampler()  # genetic algorithm
 
 # We have the following inputs to our kudos calculation.
