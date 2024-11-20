@@ -477,20 +477,28 @@ class KudosDataset(Dataset):
         with open(filename) as infile:
             payload_list = json.load(infile)
 
-            skipped_payloads = 0
+            skipped_payloads_time = 0
+            skipped_payloads_state = 0
             for payload in payload_list:
                 time_to_generate = payload["time_to_generate"]
                 if time_to_generate is None:
                     continue
 
                 if time_to_generate > 180:
-                    skipped_payloads += 1
+                    skipped_payloads_time += 1
+                    continue
+
+                state = payload["state"]
+
+                if state == "faulted":
+                    skipped_payloads_state += 1
                     continue
 
                 self.data.append(KudosDataset.payload_to_tensor(payload)[0])
                 self.labels.append(time_to_generate)
 
-            print(f"Skipped {skipped_payloads} payloads with time_to_generate > 180 seconds")
+            print(f"Skipped {skipped_payloads_time} payloads with time_to_generate > 180 seconds")
+            print(f"Skipped {skipped_payloads_state} payloads with state != 'ok'")
 
         self.labels = torch.tensor(self.labels).float()
         self.mixed_data = torch.stack(self.data)
