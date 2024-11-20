@@ -562,6 +562,8 @@ def objective(trial):
         optimizer = optim.RMSprop(model.parameters(), lr=lr, weight_decay=weight_decay)
     elif optimizer_name == "SGD":
         optimizer = optim.SGD(model.parameters(), lr=lr, weight_decay=weight_decay)
+    elif optimizer_name == "AdamW":
+        optimizer = optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     if optimizer is None:
         raise Exception("Unknown optimizer")
