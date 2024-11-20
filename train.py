@@ -55,7 +55,7 @@ NUMBER_OF_STUDY_TRIALS = 300
 NUM_EPOCHS = 2000
 PATIENCE = 100  # if no improvement in this many epochs, stop early
 MIN_NUMBER_OF_EPOCHS = 50
-MIN_HIDDEN_LAYERS = 3
+MIN_HIDDEN_LAYERS = 1
 MAX_HIDDEN_LAYERS = 9
 MIN_NODES_IN_LAYER = 4
 MAX_NODES_IN_LAYER = 128
@@ -211,6 +211,8 @@ def parse_args():
     parser.add_argument("--study-trials", type=int, default=2000, help="Number of trials to run")
 
     parser.add_argument("-v", "--study-version", type=str, default="v25", help="Version number of the study")
+
+    parser.add_argument("-w", "--workers", type=int, default=0, help="Number of workers to use")
 
     return parser.parse_args()
 
@@ -446,9 +448,9 @@ class KudosDataset(Dataset):
         self.mixed_data = torch.stack(self.data)
 
     @classmethod
-    def payload_to_tensor(cls, payload):
+    def payload_to_tensor(cls, payload: dict):
         payload = payload["sdk_api_job_info"]
-        p = payload["payload"]
+        p: dict = payload["payload"]
         data = []
         data_samplers = []
         data_control_types = []
@@ -572,7 +574,11 @@ def create_sequential_model(trial, layer_sizes, input_size, output_size=1):
     return nn.Sequential(*layers)
 
 
-def objective(trial):
+def objective(
+    trial: optuna.Trial,
+    train_dataset: KudosDataset,
+    validate_dataset: KudosDataset,
+):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     trial.set_user_attr("name", "predict_kudos")
@@ -609,17 +615,25 @@ def objective(trial):
     if optimizer is None:
         raise Exception("Unknown optimizer")
 
-    # Load training dataset
-    train_dataset = KudosDataset(TRAINING_DATA_FILENAME)
     batch_start = int(math.ceil(math.log2(MIN_DATA_BATCH_SIZE)))
     batch_end = int(math.floor(math.log2(MAX_DATA_BATCH_SIZE)))
     batch_sizes = [2**i for i in range(batch_start, batch_end + 1)]
     batch = trial.suggest_categorical("batch_size", batch_sizes)
-    train_loader = DataLoader(train_dataset, batch_size=batch, shuffle=True)
 
-    # Load the validation dataset
-    validate_dataset = KudosDataset(VALIDATION_DATA_FILENAME)
-    validate_loader = DataLoader(validate_dataset, batch_size=64, shuffle=True)
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=batch,
+        shuffle=True,
+        pin_memory=True,
+        num_workers=NUM_WORKERS,
+        persistent_workers=True if NUM_WORKERS > 0 else False,
+    )
+    validate_loader = DataLoader(
+        validate_dataset,
+        batch_size=64,
+        shuffle=True,
+        pin_memory=True,
+    )
 
     # Loss function
     criterion = nn.L1Loss()
@@ -667,8 +681,8 @@ def objective(trial):
                 break
 
         pbar.set_description(
-            f"input_size={input_size}, layers={layers}, output_size={output_size} "
-            f"batch_size={batch}, optimizer={optimizer_name}, lr={lr}, weight_decay={weight_decay}",
+            f"layers={layers}, batch_size={batch}, optimizer={optimizer_name}, lr={lr}, weight_decay={weight_decay}",
+            f"input_size={input_size}, output_size={output_size}",
         )
 
         pbar.set_postfix(
@@ -689,7 +703,6 @@ def objective(trial):
 
 
 def main():
-
     if args.test_model:
         low_predictions = test_one_by_one(args.test_model)
         if args.analyse:
@@ -733,9 +746,13 @@ def main():
         load_if_exists=True,
         sampler=OPTUNA_SAMPLER,
     )
+    train_dataset = KudosDataset(TRAINING_DATA_FILENAME)
+
+    validate_dataset = KudosDataset(VALIDATION_DATA_FILENAME)
+
     try:
         study.optimize(
-            objective,
+            lambda trial: objective(trial, train_dataset, validate_dataset),
             n_trials=NUMBER_OF_STUDY_TRIALS,
             callbacks=[TerminatorCallback(terminator)],
         )
@@ -775,6 +792,7 @@ if __name__ == "__main__":
     VALIDATION_DATA_FILENAME = args.validation_data
     NUMBER_OF_STUDY_TRIALS = args.study_trials
     STUDY_VERSION = args.study_version
+    NUM_WORKERS = args.workers
 
     # Create SQLite connection string
     DB_CONNECTION_STRING = f"sqlite:///{args.db_path}"
