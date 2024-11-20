@@ -1,5 +1,3 @@
-# type: ignore
-#
 # Train a predictive model from horde payload inputs to predict inference time.
 #
 # Supports multi-processing, just run this multiple times and the processes will
@@ -230,7 +228,16 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 
 # This is an example of how to use the final model, pass in a horde payload, get back a predicted time in seconds
-def payload_to_time(model, payload):
+def payload_to_time(model, payload) -> float:
+    """Convert a horde payload to a time prediction using the model.
+
+    Args:
+        model (nn.Module): The PyTorch model
+        payload (dict): The horde payload
+
+    Returns:
+        float: The predicted time in seconds
+    """
     inputs = KudosDataset.payload_to_tensor(payload).squeeze()
     with torch.no_grad():
         output = model(inputs)
@@ -239,6 +246,8 @@ def payload_to_time(model, payload):
 
 # This is how to load the model required above
 def load_model(model_filename):
+    """Load a model from a file."""
+    print(f"Loading model from {model_filename}")
     with open(model_filename, "rb") as infile:
         return pickle.load(infile)
 
@@ -340,7 +349,10 @@ def analyze_dict_similarities(
     return results
 
 
-def print_similarity_analysis(results: dict[str, list[tuple[Any, float]]], min_frequency: float = 0.5) -> None:
+def print_similarity_analysis(
+    results: dict[str, list[tuple[Any, float]]],
+    min_frequency: float = 0.5,
+) -> None:
     """
     Pretty prints the similarity analysis results.
     """
@@ -357,9 +369,20 @@ def print_similarity_analysis(results: dict[str, list[tuple[Any, float]]], min_f
                 print(f"Value: {value:20} Frequency: {percentage:.1f}%")
 
 
-# This is just an helper for walking through the validation dataset one line at a time
-# and using the methods above to calculate an overall average percentage accuracy
-def test_one_by_one(model_filename):
+def test_one_by_one(
+    model_filename: str,
+) -> list[dict]:
+    """Test the model against the validation dataset and return a list of bad predictions.
+
+    Also prints out some statistics about the model's performance.
+
+    Args:
+        model_filename (str): The json file containing the model
+
+    Returns:
+        list[dict]: A list of bad predictions
+    """
+
     dataset = []
     with open(VALIDATION_DATA_FILENAME) as infile:
         d = json.load(infile)
@@ -422,7 +445,22 @@ def test_one_by_one(model_filename):
 
 
 class KudosDataset(Dataset):
+    """A PyTorch dataset for the Kudos training data.
+
+    Use payload_to_tensor to convert a horde payload to a tensor for training.
+    """
+
     def __init__(self, filename):
+        """Initialise the dataset.
+
+        Payloads with time_to_generate > 180 seconds are skipped.
+
+        Args:
+            filename (str): The filename of the training data
+
+        Returns:
+            KudosDataset: The dataset object
+        """
         self.data = []
         self.labels = []
 
@@ -448,7 +486,15 @@ class KudosDataset(Dataset):
         self.mixed_data = torch.stack(self.data)
 
     @classmethod
-    def payload_to_tensor(cls, payload: dict):
+    def payload_to_tensor(cls, payload: dict) -> torch.Tensor:
+        """Convert a horde payload to a tensor for training.
+
+        Args:
+            payload (dict): The horde payload
+
+        Returns:
+            torch.Tensor: The resulting tensor, of shape (1, n)
+        """
         payload = payload["sdk_api_job_info"]
         p: dict = payload["payload"]
         data = []
@@ -555,7 +601,24 @@ class KudosDataset(Dataset):
         return self.mixed_data[idx], self.labels[idx]
 
 
-def create_sequential_model(trial, layer_sizes, input_size, output_size=1):
+def create_sequential_model(
+    trial: optuna.Trial,
+    layer_sizes: list[int],
+    input_size: int,
+    output_size: int = 1,
+) -> nn.Sequential:
+    """Create a PyTorch nn.Sequential model with the given layer sizes.
+
+    Args:
+        trial (optuna.Trial): The trial object
+        layer_sizes (list[int]): The sizes of the hidden layers
+        input_size (int): The size of the input layer
+        output_size (int, optional): The size of the output layer. Defaults to 1.
+
+    Returns:
+        nn.Sequential: The PyTorch model with the given layer sizes
+    """
+
     # Define the layer sizes
     layer_sizes = [input_size] + layer_sizes + [output_size]
 
@@ -578,7 +641,18 @@ def objective(
     trial: optuna.Trial,
     train_dataset: KudosDataset,
     validate_dataset: KudosDataset,
-):
+) -> float:
+    """Calculate the objective function for the trial.
+
+    Args:
+        trial (optuna.Trial): The trial object
+        train_dataset (KudosDataset): The training dataset
+        validate_dataset (KudosDataset): The validation dataset
+
+    Returns:
+        float: The loss value from the best epoch
+    """
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     trial.set_user_attr("name", "predict_kudos")
@@ -652,13 +726,15 @@ def objective(
             optimizer.zero_grad()
             labels = labels.unsqueeze(1)
             outputs = model(data)
-            loss = criterion(outputs, labels)
+            loss: torch.Tensor = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
 
         model.eval()
         total_loss = 0
         with torch.no_grad():
+            data: torch.Tensor
+            labels: torch.Tensor
             for data, labels in validate_loader:
                 data = data.to(device)
                 labels = labels.to(device)
@@ -677,7 +753,7 @@ def objective(
         else:
             epochs_since_best = epoch - best_epoch
             if epochs_since_best >= PATIENCE:
-                # Stop early, no improvement in awhile
+                print(f"Early stopping at epoch {epoch} due to no improvement")
                 break
 
         pbar.set_description(
@@ -691,7 +767,7 @@ def objective(
             epochs_since_best=epochs_since_best,
         )
 
-    # reload the best performing model we found
+    print(f"Best loss: {best_loss} at epoch {best_epoch}. Using the model as of epoch {best_epoch}")
     model.load_state_dict(best_state_dict)
 
     # Pickle it as we'll forget the model architecture
@@ -702,7 +778,7 @@ def objective(
     return best_loss
 
 
-def main():
+def main() -> None:
     if args.test_model:
         low_predictions = test_one_by_one(args.test_model)
         if args.analyse:
@@ -757,7 +833,9 @@ def main():
             callbacks=[TerminatorCallback(terminator)],
         )
     except (KeyboardInterrupt, AbortTrial):
-        print("Trial process aborted")
+        print("Aborting trial")
+    except Exception as e:
+        print(f"Exception: {e}")
     # fig = optuna.visualization.plot_terminator_improvement(
     #     study,
     #     plot_error=True,
