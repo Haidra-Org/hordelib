@@ -637,17 +637,41 @@ def create_sequential_model(
     return nn.Sequential(*layers)
 
 
-def objective(
-    trial: optuna.Trial,
+def build_dataloaders(
     train_dataset: KudosDataset,
     validate_dataset: KudosDataset,
+    batch_sizes: list[int],
+):
+    """Build dataloaders for the specified batch sizes."""
+    dataloaders = {}
+    for batch_size in batch_sizes:
+        train_loader = DataLoader(
+            train_dataset,
+            batch_size=batch_size,
+            shuffle=True,
+            pin_memory=True,
+            num_workers=NUM_WORKERS,
+            persistent_workers=True if NUM_WORKERS > 0 else False,
+        )
+        validate_loader = DataLoader(
+            validate_dataset,
+            batch_size=64,
+            shuffle=True,
+            pin_memory=True,
+        )
+        dataloaders[batch_size] = (train_loader, validate_loader)
+    return dataloaders
+
+
+def objective(
+    trial: optuna.Trial,
+    dataloaders: dict[int, tuple[DataLoader, DataLoader]],
 ) -> float:
     """Calculate the objective function for the trial.
 
     Args:
         trial (optuna.Trial): The trial object
-        train_dataset (KudosDataset): The training dataset
-        validate_dataset (KudosDataset): The validation dataset
+        dataloaders (dict[int, tuple[DataLoader, DataLoader]]): Pre-built dataloaders
 
     Returns:
         float: The loss value from the best epoch
@@ -689,25 +713,8 @@ def objective(
     if optimizer is None:
         raise Exception("Unknown optimizer")
 
-    batch_start = int(math.ceil(math.log2(MIN_DATA_BATCH_SIZE)))
-    batch_end = int(math.floor(math.log2(MAX_DATA_BATCH_SIZE)))
-    batch_sizes = [2**i for i in range(batch_start, batch_end + 1)]
-    batch = trial.suggest_categorical("batch_size", batch_sizes)
-
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch,
-        shuffle=True,
-        pin_memory=True,
-        num_workers=NUM_WORKERS,
-        persistent_workers=True if NUM_WORKERS > 0 else False,
-    )
-    validate_loader = DataLoader(
-        validate_dataset,
-        batch_size=64,
-        shuffle=True,
-        pin_memory=True,
-    )
+    batch = trial.suggest_categorical("batch_size", list(dataloaders.keys()))
+    train_loader, validate_loader = dataloaders[batch]
 
     # Loss function
     criterion = nn.L1Loss()
@@ -823,12 +830,17 @@ def main() -> None:
         sampler=OPTUNA_SAMPLER,
     )
     train_dataset = KudosDataset(TRAINING_DATA_FILENAME)
-
     validate_dataset = KudosDataset(VALIDATION_DATA_FILENAME)
+
+    # Build dataloaders in advance
+    batch_start = int(math.ceil(math.log2(MIN_DATA_BATCH_SIZE)))
+    batch_end = int(math.floor(math.log2(MAX_DATA_BATCH_SIZE)))
+    batch_sizes = [2**i for i in range(batch_start, batch_end + 1)]
+    dataloaders = build_dataloaders(train_dataset, validate_dataset, batch_sizes)
 
     try:
         study.optimize(
-            lambda trial: objective(trial, train_dataset, validate_dataset),
+            lambda trial: objective(trial, dataloaders),
             n_trials=NUMBER_OF_STUDY_TRIALS,
             callbacks=[TerminatorCallback(terminator)],
         )
