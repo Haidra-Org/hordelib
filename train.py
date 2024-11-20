@@ -579,7 +579,7 @@ def objective(trial):
     validate_loader = DataLoader(validate_dataset, batch_size=64, shuffle=True)
 
     # Loss function
-    criterion = nn.MSELoss()
+    criterion = nn.L1Loss()
 
     total_loss = None
     best_epoch = best_loss = best_state_dict = None
