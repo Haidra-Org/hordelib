@@ -35,6 +35,7 @@ from typing import Any
 
 import optuna
 import torch
+import torch.cuda.amp as amp
 import torch.nn as nn
 from optuna.terminator import EMMREvaluator, MedianErrorEvaluator, Terminator, TerminatorCallback
 from torch import optim
@@ -719,6 +720,9 @@ def objective(
     # Loss function
     criterion = nn.L1Loss()
 
+    # Initialize GradScaler for mixed precision training
+    scaler = amp.GradScaler()
+
     total_loss = None
     best_epoch = best_loss = best_state_dict = None
     epochs_since_best = 0
@@ -732,10 +736,12 @@ def objective(
             labels = labels.to(device)
             optimizer.zero_grad()
             labels = labels.unsqueeze(1)
-            outputs = model(data)
-            loss: torch.Tensor = criterion(outputs, labels)
-            loss.backward()
-            optimizer.step()
+            with amp.autocast():
+                outputs = model(data)
+                loss: torch.Tensor = criterion(outputs, labels)
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
         model.eval()
         total_loss = 0
@@ -745,10 +751,11 @@ def objective(
             for data, labels in validate_loader:
                 data = data.to(device)
                 labels = labels.to(device)
-                outputs = model(data)
-                labels = labels.unsqueeze(1)
-                loss = criterion(outputs, labels)
-                total_loss += loss
+                with amp.autocast():
+                    outputs = model(data)
+                    labels = labels.unsqueeze(1)
+                    loss = criterion(outputs, labels)
+                    total_loss += loss
 
         total_loss /= len(validate_loader)
         total_loss = round(float(total_loss), 2)
