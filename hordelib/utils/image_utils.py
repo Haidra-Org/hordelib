@@ -1,7 +1,6 @@
 import base64
 
 import numpy as np
-import rembg  # type: ignore
 from loguru import logger
 from PIL import Image, ImageOps, PngImagePlugin, UnidentifiedImageError
 
@@ -317,6 +316,8 @@ class ImageUtils:
 
     @classmethod
     def strip_background(cls, image: Image.Image):
+        import rembg  # type: ignore
+
         session = rembg.new_session("u2net")
         image = rembg.remove(
             image,
