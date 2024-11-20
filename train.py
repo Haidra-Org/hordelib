@@ -47,18 +47,6 @@ from torch import optim
 from torch.utils.data import DataLoader, Dataset
 
 
-def is_notebook() -> bool:
-    if "ipykernel" in sys.modules:
-        print("Running in Jupyter Notebook")
-        return True
-    return False
-
-
-if is_notebook():
-    from tqdm.notebook import tqdm
-else:
-    from tqdm import tqdm
-
 from hordelib.horde import HordeLib
 
 random.seed()
@@ -229,6 +217,8 @@ def parse_args():
     parser.add_argument("-v", "--study-version", type=str, default="v25", help="Version number of the study")
 
     parser.add_argument("-w", "--workers", type=int, default=0, help="Number of workers to use")
+
+    parser.add_argument("--notebook", action="store_true", default=False, help="Run in notebook mode")
 
     return parser.parse_args()
 
@@ -744,6 +734,11 @@ def objective(
     best_epoch = best_loss = best_state_dict = None
     epochs_since_best = 0
 
+    if NOTEBOOK_MODE:
+        from tqdm.notebook import tqdm
+    else:
+        from tqdm import tqdm
+
     pbar = tqdm(range(NUM_EPOCHS), desc="Training Progress")
     for epoch in pbar:
         # Train the model
@@ -908,6 +903,7 @@ if __name__ == "__main__":
     NUMBER_OF_STUDY_TRIALS = args.study_trials
     STUDY_VERSION = args.study_version
     NUM_WORKERS = args.workers
+    NOTEBOOK_MODE = args.notebook
 
     # Create SQLite connection string
     DB_CONNECTION_STRING = f"sqlite:///{args.db_path}"
