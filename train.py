@@ -73,14 +73,14 @@ MAX_DATA_BATCH_SIZE = 256
 
 # The study sampler to use
 # OPTUNA_SAMPLER = optuna.samplers.TPESampler(n_startup_trials=30, n_ei_candidates=30)
-# OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
-HEBOSampler = optunahub.load_module("samplers/hebo").HEBOSampler
-OPTUNA_SAMPLER = HEBOSampler(
-    {
-        "x": optuna.distributions.FloatDistribution(-10, 10),
-        "y": optuna.distributions.IntDistribution(-10, 10),
-    },
-)
+OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
+# HEBOSampler = optunahub.load_module("samplers/hebo").HEBOSampler
+# OPTUNA_SAMPLER = HEBOSampler(
+#     {
+#         "x": optuna.distributions.FloatDistribution(-10, 10),
+#         "y": optuna.distributions.IntDistribution(-10, 10),
+#     },
+# )
 # OPTUNA_SAMPLER = optuna.samplers.NSGAIISampler()  # genetic algorithm
 
 # We have the following inputs to our kudos calculation.
@@ -410,6 +410,11 @@ class KudosDataset(Dataset):
 
             for payload in payload_list:
                 if payload["time_to_generate"] is None:
+                    continue
+                if payload["state"] == "faulted":
+                    continue
+                # We assume 5+ minutes for a gen on <10 steps is an extreme outlier we won't use
+                if payload["time_to_generate"] > 300 and payload["sdk_api_job_info"]["payload"]["ddim_steps"] < 10:
                     continue
                 self.data.append(KudosDataset.payload_to_tensor(payload)[0])
                 self.labels.append(payload["time_to_generate"])
