@@ -3,3 +3,4 @@ optunahub
 plotly
 -r https://hub.optuna.org/samplers/auto_sampler/requirements.txt
 kaleido
+pandas
