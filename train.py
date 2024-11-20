@@ -958,4 +958,4 @@ if __name__ == "__main__":
         args.notebook,
         args.test_model,
     )
-    main()
+    main(test_model=args.test_model, analyse=args.analyse)
