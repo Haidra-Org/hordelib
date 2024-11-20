@@ -699,6 +699,10 @@ def objective(
     # Create the network
     model = create_sequential_model(trial, layers, input_size, output_size).to(device)
 
+    # Wrap the model with DataParallel for multi-GPU training
+    if torch.cuda.device_count() > 1:
+        model = nn.DataParallel(model)
+
     # Optimiser
     optimizer_name = trial.suggest_categorical("optimizer", ["Adam", "RMSprop", "SGD", "AdamW"])
     lr = trial.suggest_float("learning_rate", MIN_LEARNING_RATE, MAX_LEARNING_RATE, log=True)
