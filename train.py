@@ -457,29 +457,42 @@ class KudosDataset(Dataset):
         data_post_processors = []
         data_schedulers = []
         data_workflows = []
+        total_pixels = p["height"] * p["width"]
+        hires_fix = p.get("hires_fix", False)
+        if hires_fix:
+            hires_fix_denoising_strength = p.get("hires_fix_denoising_strength", 0.65) or 0.65
+
+        control_type = p.get("control_type", "None")
+        has_control = control_type != "None"
+
+        image_is_control = p.get("image_is_control", False)
+        return_control_map = p.get("return_control_map", False)
+        if not has_control:
+            image_is_control = False
+            return_control_map = False
+
         data.append(
             [
-                p["height"] / 1024,
-                p["width"] / 1024,
+                total_pixels / (1024 * 1024),
                 p["ddim_steps"] / 100,
                 p["cfg_scale"] / 30,
                 p.get("denoising_strength", 1.0) if p.get("denoising_strength", 1.0) is not None else 1.0,
-                p.get("clip_skip", 1.0) / 4,
+                # p.get("clip_skip", 1.0) / 4,
                 p.get("control_strength", 1.0) if p.get("control_strength", 1.0) is not None else 1.0,
                 p.get("facefixer_strength", 1.0) if p.get("facefixer_strength", 1.0) is not None else 1.0,
                 p.get("lora_count", 0.0) / 5,
                 p.get("ti_count", 0.0) / 10,
-                p.get("extra_source_images_count", 0.0) / 5,
-                p.get("extra_source_images_combined_size", 0.0) / 100_000,
-                p.get("source_image_size", 0.0) / 100_000,
-                p.get("source_mask_size", 0.0) / 100_000,
-                1.0 if p.get("hires_fix", True) else 0.0,
-                1.0 if p.get("hires_fix_denoising_strength", True) else 0.0,
-                1.0 if p.get("image_is_control", True) else 0.0,
-                1.0 if p.get("return_control_map", True) else 0.0,
+                # p.get("extra_source_images_count", 0.0) / 5,
+                # p.get("extra_source_images_combined_size", 0.0) / 100_000,
+                # p.get("source_image_size", 0.0) / 100_000,
+                # p.get("source_mask_size", 0.0) / 100_000,
+                1.0 if hires_fix else 0.0,
+                hires_fix_denoising_strength if hires_fix else 0.0,
+                1.0 if has_control and image_is_control else 0.0,
+                1.0 if has_control and return_control_map else 0.0,
                 1.0 if p.get("transparent", True) else 0.0,
                 1.0 if p.get("tiling", True) else 0.0,
-                1.0 if p.get("post_processing_order", "facefixers_first") == "facefixers_first" else 0.0,
+                # 1.0 if p.get("post_processing_order", "facefixers_first") == "facefixers_first" else 0.0,
             ],
         )
         data_model_baseline.append(
@@ -488,7 +501,7 @@ class KudosDataset(Dataset):
         data_schedulers.append(p["scheduler"])
         data_samplers.append(p["sampler_name"] if p["sampler_name"] in KNOWN_SAMPLERS else "k_euler")
         data_control_types.append(
-            p.get("control_type", "None") if p.get("control_type", "None") is not None else "None",
+            control_type if control_type is not None else "None",
         )
         data_source_processing_types.append(payload.get("source_processing", "txt2img"))
         data_post_processors = p.get("post_processing", [])[:]
