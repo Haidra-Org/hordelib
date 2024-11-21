@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.18.1](https://github.com/Haidra-Org/hordelib/compare/v2.18.0...v2.18.1)
+
+21 November 2024
+
+- fix: rembg requires explicit runtime flag [`90f625c`](https://github.com/Haidra-Org/hordelib/commit/90f625c99a3d21021d5fadd55ca02a45c3b8d02d)  (tazlin)
+
 ## [v2.18.0](https://github.com/Haidra-Org/hordelib/compare/v2.17.1...v2.18.0)
 
 13 November 2024
