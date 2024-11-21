@@ -13,7 +13,7 @@ def load_dataset(path: PathLike | str) -> tuple[pd.DataFrame, np.ndarray]:
     with Path(path).open() as f:
         samples = json.load(f)
 
-    data = {
+    data: dict = {
         # Payload
         "sampler_name": [],
         "cfg_scale": [],
@@ -80,9 +80,7 @@ def load_dataset(path: PathLike | str) -> tuple[pd.DataFrame, np.ndarray]:
         # Flatten post_processing
         post_processing = payload.get("post_processing", [])
         for i in range(3):
-            payload[f"post_processing_{i}"] = (
-                post_processing[i] if i < len(post_processing) else None
-            )
+            payload[f"post_processing_{i}"] = post_processing[i] if i < len(post_processing) else None
 
         # Flatten loras
         loras = get_clean_arr(payload, "loras")
@@ -110,12 +108,10 @@ def load_dataset(path: PathLike | str) -> tuple[pd.DataFrame, np.ndarray]:
         # Add label
         time_to_generate.append(sample["time_to_generate"])
 
-    df = pd.DataFrame(data)
-
     # Remove entries with unknown time
     labels = np.asarray(time_to_generate, dtype=np.float32)
     mask = ~np.isnan(labels) & (labels < 120)
-    df: pd.DataFrame = df[mask]  # pyright: ignore [reportAssignmentType]
+    df: pd.DataFrame = pd.DataFrame(data)[mask]  # pyright: ignore [reportAssignmentType]
     labels = labels[mask]
 
     # Convert times to hour of the day
@@ -142,9 +138,7 @@ def main():
     categorical_cols = train_dataset.select_dtypes(include="object").columns
     lookup_maps = {}
     for col in categorical_cols:
-        lookup_maps[col] = {
-            value: index for index, value in enumerate(train_dataset[col].unique())
-        }
+        lookup_maps[col] = {value: index for index, value in enumerate(train_dataset[col].unique())}
 
     for col in categorical_cols:
         lookup_map = lookup_maps[col]
@@ -155,9 +149,7 @@ def main():
     for col in train_dataset.columns:
         print(f"{col}: {len(train_dataset[col].unique())} unique values")
 
-    def train(
-        params: dict, columns: list[str] | None = None
-    ) -> tuple[lgb.Booster, np.ndarray]:
+    def train(params: dict, columns: list[str] | None = None) -> tuple[lgb.Booster, np.ndarray]:
         if columns is None:
             columns = [
                 "pixels_steps",
@@ -187,9 +179,7 @@ def main():
             num_boost_round=1000,
         )
 
-        y_pred = np.asarray(
-            model.predict(val_dataset[columns], num_iteration=model.best_iteration)
-        )
+        y_pred = np.asarray(model.predict(val_dataset[columns], num_iteration=model.best_iteration))
 
         print(model.best_iteration, y_pred.min(), y_pred.max())
 
@@ -249,9 +239,7 @@ def main():
     evaluate_best()
 
     # Optimize
-    study = optuna.create_study(
-        direction="minimize", storage="sqlite:///db.sqlite3"
-    )
+    study = optuna.create_study(direction="minimize", storage="sqlite:///db.sqlite3")
     study.optimize(objective, n_trials=100000, n_jobs=4, show_progress_bar=True)
 
 
