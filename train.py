@@ -266,6 +266,7 @@ class PercentageLoss(torch.nn.Module):
         max_val = torch.max(actual, predicted)
         return (diff / max_val).mean()
 
+
 def flatten_dict(d: dict, parent_key: str = "") -> dict[str, Any]:
     """
     Flatten nested dictionaries, keeping only specific keys.
@@ -716,7 +717,7 @@ def main():
             n_trials=NUMBER_OF_STUDY_TRIALS,
             callbacks=[TerminatorCallback(terminator)],
             n_jobs=4,
-            show_progress_bar=True
+            show_progress_bar=True,
         )
     except (KeyboardInterrupt, AbortTrial):
         print("Trial process aborted")
