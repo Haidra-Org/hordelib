@@ -32,7 +32,7 @@ typing-extensions
 distro
 python-dotenv
 strenum
-rembg
+rembg[cpu]
 # image similarity + face fixer custom nodes
 opencv-python
 # controlnet custom nodes
