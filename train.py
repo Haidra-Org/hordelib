@@ -46,6 +46,7 @@ from typing import Any
 
 import optuna
 import optunahub
+from optuna.distributions import CategoricalDistribution, FloatDistribution, IntDistribution
 from optuna.terminator import EMMREvaluator, MedianErrorEvaluator, Terminator, TerminatorCallback
 
 from hordelib.horde import HordeLib
@@ -54,11 +55,12 @@ random.seed()
 
 # Number of trials to run.
 # Each trial generates a new neural network topology with new hyper parameters and trains it.
-NUMBER_OF_STUDY_TRIALS = 300
+NUMBER_OF_STUDY_TRIALS = 150
 
 # Hyper parameter search bounds
 NUM_EPOCHS = 2000
-PATIENCE = 100  # if no improvement in this many epochs, stop early
+MIN_PATIENCE = 25
+MAX_PATIENCE = 300  # if no improvement in this many epochs, stop early
 MIN_NUMBER_OF_EPOCHS = 50
 MIN_HIDDEN_LAYERS = 3
 MAX_HIDDEN_LAYERS = 9
@@ -70,17 +72,29 @@ MIN_WEIGHT_DECAY = 1e-6
 MAX_WEIGHT_DECAY = 1e-1
 MIN_DATA_BATCH_SIZE = 32
 MAX_DATA_BATCH_SIZE = 256
+batch_start = int(math.ceil(math.log2(MIN_DATA_BATCH_SIZE)))
+batch_end = int(math.floor(math.log2(MAX_DATA_BATCH_SIZE)))
+batch_sizes = [2**i for i in range(batch_start, batch_end + 1)]
 
 # The study sampler to use
+USE_HEBO = True
+if USE_HEBO:
+    HEBOSampler = optunahub.load_module("samplers/hebo").HEBOSampler
+
+    search_space = {
+        "learning_rate": FloatDistribution(MIN_LEARNING_RATE, MAX_LEARNING_RATE, log=True),
+        "weight_decay": FloatDistribution(MIN_WEIGHT_DECAY, MAX_WEIGHT_DECAY, log=True),
+        "batch_size": CategoricalDistribution(batch_sizes),
+        "optimizer": CategoricalDistribution(["Adam", "RMSprop", "SGD"]),
+        "hidden_layers": IntDistribution(MIN_HIDDEN_LAYERS, MAX_HIDDEN_LAYERS, log=True),
+    }
+    for i in range(MAX_HIDDEN_LAYERS):
+        search_space[f"hidden_layer_{i}_size"] = IntDistribution(MIN_NODES_IN_LAYER, MAX_NODES_IN_LAYER, log=True)
+
+    OPTUNA_SAMPLER = HEBOSampler(search_space)
+else:
+    OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
 # OPTUNA_SAMPLER = optuna.samplers.TPESampler(n_startup_trials=30, n_ei_candidates=30)
-OPTUNA_SAMPLER = optunahub.load_module("samplers/auto_sampler").AutoSampler()
-# HEBOSampler = optunahub.load_module("samplers/hebo").HEBOSampler
-# OPTUNA_SAMPLER = HEBOSampler(
-#     {
-#         "x": optuna.distributions.FloatDistribution(-10, 10),
-#         "y": optuna.distributions.IntDistribution(-10, 10),
-#     },
-# )
 # OPTUNA_SAMPLER = optuna.samplers.NSGAIISampler()  # genetic algorithm
 
 # We have the following inputs to our kudos calculation.
@@ -367,8 +381,14 @@ def test_one_by_one(model_filename):
     with open(VALIDATION_DATA_FILENAME) as infile:
         d = json.load(infile)
         for p in d:
-            if p["time_to_generate"] is not None:
-                dataset.append(p)
+            if p["time_to_generate"] is None:
+                continue
+            if p["state"] == "faulted":
+                continue
+            # We assume 5+ minutes for a gen on <10 steps is an extreme outlier we won't use
+            if p["time_to_generate"] > 300 and p["sdk_api_job_info"]["payload"]["ddim_steps"] < 10:
+                continue
+            dataset.append(p)
 
     model = load_model(model_filename)
 
@@ -529,7 +549,10 @@ def create_sequential_model(trial, layer_sizes, input_size, output_size=1):
             layers.append(nn.ReLU())  # Use ReLU activation for all layers except the last one
             # Add a dropout layer
             if i > 0:
-                drop = trial.suggest_float(f"dropout_l{i}", 0.05, 0.2, log=True)
+                if USE_HEBO:
+                    drop = 0.08
+                else:
+                    drop = trial.suggest_float(f"dropout_l{i}", 0.05, 0.2, log=True)
                 layers.append(nn.Dropout(drop))
 
     # Create the nn.Sequential model
@@ -573,10 +596,9 @@ def objective(trial):
 
     # Load training dataset
     train_dataset = KudosDataset(TRAINING_DATA_FILENAME)
-    batch_start = int(math.ceil(math.log2(MIN_DATA_BATCH_SIZE)))
-    batch_end = int(math.floor(math.log2(MAX_DATA_BATCH_SIZE)))
-    batch_sizes = [2**i for i in range(batch_start, batch_end + 1)]
-    batch = trial.suggest_categorical("batch_size", batch_sizes)
+    # suggest_categorical returns a numpy.int64 and that
+    # causes an exception when using HEBO, so we convert to simple int.
+    batch = int(trial.suggest_categorical("batch_size", batch_sizes))
     train_loader = DataLoader(train_dataset, batch_size=batch, shuffle=True)
 
     # Load the validation dataset
@@ -588,6 +610,7 @@ def objective(trial):
 
     total_loss = None
     best_epoch = best_loss = best_state_dict = None
+    patience = trial.suggest_int("patience", MIN_PATIENCE, MAX_PATIENCE)
     for epoch in range(NUM_EPOCHS):
         # Train the model
         model.train()
@@ -620,7 +643,7 @@ def objective(trial):
             best_state_dict = model.state_dict()
         else:
             epochs_since_best = epoch - best_epoch
-            if epochs_since_best >= PATIENCE:
+            if epochs_since_best >= patience:
                 # Stop early, no improvement in awhile
                 break
 
