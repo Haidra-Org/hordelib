@@ -260,6 +260,12 @@ def load_model(model_filename):
         return pickle.load(infile)
 
 
+class PercentageLoss(torch.nn.Module):
+    def forward(self, predicted, actual):
+        diff = torch.abs(actual - predicted)
+        max_val = torch.max(actual, predicted)
+        return (diff / max_val).mean()
+
 def flatten_dict(d: dict, parent_key: str = "") -> dict[str, Any]:
     """
     Flatten nested dictionaries, keeping only specific keys.
@@ -606,7 +612,8 @@ def objective(trial):
     validate_loader = DataLoader(validate_dataset, batch_size=64, shuffle=True)
 
     # Loss function
-    criterion = nn.MSELoss()
+    # criterion = nn.HuberLoss()
+    criterion = PercentageLoss()
 
     total_loss = None
     best_epoch = best_loss = best_state_dict = None
@@ -708,6 +715,8 @@ def main():
             objective,
             n_trials=NUMBER_OF_STUDY_TRIALS,
             callbacks=[TerminatorCallback(terminator)],
+            n_jobs=4,
+            show_progress_bar=True
         )
     except (KeyboardInterrupt, AbortTrial):
         print("Trial process aborted")
