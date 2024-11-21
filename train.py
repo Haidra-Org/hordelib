@@ -718,8 +718,6 @@ def main():
             objective,
             n_trials=NUMBER_OF_STUDY_TRIALS,
             callbacks=[TerminatorCallback(terminator)],
-            n_jobs=4,
-            show_progress_bar=True,
         )
     except (KeyboardInterrupt, AbortTrial):
         print("Trial process aborted")
