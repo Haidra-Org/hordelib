@@ -1,3 +1,4 @@
+import argparse
 import json
 from collections import defaultdict
 from dataclasses import dataclass
@@ -16,6 +17,38 @@ class GenerationTimeStats:
     min_time: float
     max_time: float
     time_difference: float
+
+
+def parse_args():
+    """
+    Parse command line arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description="Filters out outlier entries in kudos training data",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+
+    parser.add_argument(
+        "input_file",
+        default="inference-time-data.json",
+        help="Path to JSON file. Must be single file",
+    )
+
+    parser.add_argument(
+        "-m",
+        "--max_deviation_seconds",
+        type=float,
+        default=5,
+        help="The amount of deviation from the mean to allow before considering an entry an outlier and removing it.",
+    )
+
+    args = parser.parse_args()
+
+    # Validate train ratio
+    if args.max_deviation_seconds == 0:
+        parser.error("max_deviation_seconds must be above 0")
+
+    return args
 
 
 def load_data(filename: str) -> list[dict[str, Any]]:
@@ -67,7 +100,7 @@ def create_param_key(entry: dict[str, Any]) -> str:
 def analyze_and_filter_entries(
     entries: list[dict[str, Any]],
     max_deviation_seconds: float = 5.0,
-) -> tuple[list[dict[str, Any]], dict[str, list[tuple[float, dict[str, Any]]]]]:
+) -> tuple[list[dict[str, Any]], dict[str, dict]]:
     """
     Analyzes entries and filters those that deviate too much from their group mean.
     Returns both filtered entries and removed outliers.
@@ -84,7 +117,7 @@ def analyze_and_filter_entries(
 
     # Filter entries within each group
     filtered_entries: list = []
-    outliers = defaultdict(list)
+    outliers: defaultdict = defaultdict(dict)
 
     for param_key, times_and_entries in param_groups.items():
         if len(times_and_entries) <= 1:
@@ -94,17 +127,28 @@ def analyze_and_filter_entries(
         times = [t for t, _ in times_and_entries]
         mean_time = mean(times)
 
+        # Prepare group info
+        group_info = {
+            "total_entries": len(times_and_entries),
+            "mean_time": mean_time,
+            "outliers": [],
+        }
+
         # Separate entries into kept and outliers
         for time, entry in times_and_entries:
             if abs(time - mean_time) <= max_deviation_seconds:
                 filtered_entries.append(entry)
             else:
-                outliers[param_key].append((time, entry))
+                group_info["outliers"].append((time, entry))
+
+        # Only add to outliers if there are any outliers
+        if group_info["outliers"]:
+            outliers[param_key] = group_info
 
     return filtered_entries, outliers
 
 
-def print_outlier_analysis(outliers: dict[str, list[tuple[float, dict[str, Any]]]]) -> None:
+def print_outlier_analysis(outliers: dict[str, dict]) -> None:
     """
     Prints analysis of the outlier entries.
     """
@@ -114,19 +158,22 @@ def print_outlier_analysis(outliers: dict[str, list[tuple[float, dict[str, Any]]
 
     print(f"\nFound outliers in {len(outliers)} parameter combinations:")
 
-    for param_key, outlier_entries in outliers.items():
+    for param_key, group_info in outliers.items():
         # Get model and processing type for this group
         model, source_processing = param_key.split("||")[:2]
 
-        # Calculate mean time for this group's outliers
-        times = [t for t, _ in outlier_entries]
+        # Extract outlier times
+        outlier_times = [t for t, _ in group_info["outliers"]]
 
         print("\nOutlier Group:")
         print(f"  Model: {model}")
         print(f"  Processing Type: {source_processing}")
-        print(f"  Number of outliers: {len(outlier_entries)}")
-        print(f"  Outlier times: {[round(t, 3) for t in sorted(times)]}")
-        print(f"  Range: {min(times):.3f} - {max(times):.3f}")
+        print(f"  Total entries in group: {group_info['total_entries']}")
+        print(f"  Group mean time: {group_info['mean_time']:.3f}")
+        print(f"  Number of outliers: {len(group_info['outliers'])}")
+        print(f"  Outlier times: {[round(t, 3) for t in sorted(outlier_times)]}")
+        print(f"  Outlier range: {min(outlier_times):.3f} - {max(outlier_times):.3f}")
+        print(f"  Outliers removed: {round(len(group_info['outliers'])/group_info['total_entries']*100, 1)}%")
 
 
 def save_filtered_data(entries: list[dict[str, Any]], input_filename: str) -> str:
@@ -156,13 +203,14 @@ def print_summary(original_count: int, filtered_count: int, output_file: str) ->
 
 
 def main():
-    filename = "inference-time-data.json"
+    args = parse_args()
+    filename = args.input_file
     entries = load_data(filename)
     original_count = len(entries)
     print(f"Loaded {original_count} entries from {filename}")
 
     # Filter entries and get outliers
-    filtered_entries, outliers = analyze_and_filter_entries(entries, max_deviation_seconds=5.0)
+    filtered_entries, outliers = analyze_and_filter_entries(entries, max_deviation_seconds=args.max_deviation_seconds)
 
     # Print outlier analysis
     print_outlier_analysis(outliers)
