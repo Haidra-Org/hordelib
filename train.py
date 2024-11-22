@@ -60,12 +60,12 @@ NUMBER_OF_STUDY_TRIALS = 100
 # Hyper parameter search bounds
 NUM_EPOCHS = 2000
 # Patience is an custom terminator that stops a training if no improvement has happened in this many epochs
-USE_PATIENCE = False
+USE_PATIENCE = True
 MIN_PATIENCE = 25
-MAX_PATIENCE = 300
+MAX_PATIENCE = 100
 MIN_NUMBER_OF_EPOCHS = 50
-MIN_HIDDEN_LAYERS = 3
-MAX_HIDDEN_LAYERS = 9
+MIN_HIDDEN_LAYERS = 1
+MAX_HIDDEN_LAYERS = 6
 MIN_NODES_IN_LAYER = 4
 MAX_NODES_IN_LAYER = 128
 MIN_LEARNING_RATE = 1e-3
@@ -79,7 +79,7 @@ batch_end = int(math.floor(math.log2(MAX_DATA_BATCH_SIZE)))
 batch_sizes = [2**i for i in range(batch_start, batch_end + 1)]
 
 # The study sampler to use
-USE_HEBO = True
+USE_HEBO = False
 if USE_HEBO:
     HEBOSampler = optunahub.load_module("samplers/hebo").HEBOSampler
 
@@ -266,7 +266,8 @@ class PercentageLoss(torch.nn.Module):
     def forward(self, predicted, actual):
         diff = torch.abs(actual - predicted)
         max_val = torch.max(actual, predicted)
-        return (diff / max_val).mean()
+        # We make it an order of magnitude higher, so that it appears clearer on the graphs
+        return (diff / max_val).mean() * 100
 
 
 def flatten_dict(d: dict, parent_key: str = "") -> dict[str, Any]:
@@ -394,6 +395,15 @@ def test_one_by_one(model_filename):
                 continue
             if p["state"] == "faulted":
                 continue
+            # We avoid some very rare types of jobs for now
+            if p["sdk_api_job_info"]["payload"].get("transparent", False) is True:
+                continue
+            if p["sdk_api_job_info"]["payload"].get("tiling", False) is True:
+                continue
+            if p["sdk_api_job_info"]["payload"].get("return_control_map", False) is True:
+                continue
+            if p["sdk_api_job_info"]["payload"].get("workflow", "autodetect") not in [None, "autodetect"]:
+                continue
             # We assume 5+ minutes for a gen on <10 steps is an extreme outlier we won't use
             if p["time_to_generate"] > 300 and p["sdk_api_job_info"]["payload"]["ddim_steps"] < 10:
                 continue
@@ -415,7 +425,6 @@ def test_one_by_one(model_filename):
         diff = abs(actual - predicted)
         max_val = max(actual, predicted)
         percentage_accuracy = (1 - diff / max_val) * 100
-
         perc.append(percentage_accuracy)
         # Print the data if very inaccurate prediction
         if percentage_accuracy < 60:
@@ -442,12 +451,20 @@ class KudosDataset(Dataset):
                     continue
                 if payload["state"] == "faulted":
                     continue
+                # We avoid some very rare types of jobs for now
+                if payload["sdk_api_job_info"]["payload"].get("transparent", False) is True:
+                    continue
+                if payload["sdk_api_job_info"]["payload"].get("tiling", False) is True:
+                    continue
+                if payload["sdk_api_job_info"]["payload"].get("return_control_map", False) is True:
+                    continue
+                if payload["sdk_api_job_info"]["payload"].get("workflow", "autodetect") not in [None, "autodetect"]:
+                    continue
                 # We assume 5+ minutes for a gen on <10 steps is an extreme outlier we won't use
                 if payload["time_to_generate"] > 300 and payload["sdk_api_job_info"]["payload"]["ddim_steps"] < 10:
                     continue
                 self.data.append(KudosDataset.payload_to_tensor(payload)[0])
                 self.labels.append(payload["time_to_generate"])
-
         self.labels = torch.tensor(self.labels).float()
         self.mixed_data = torch.stack(self.data)
 
@@ -465,12 +482,9 @@ class KudosDataset(Dataset):
         data_workflows = []
         data.append(
             [
-                p["height"] / 1024,
-                p["width"] / 1024,
+                p["height"] * p["width"] / (1024 * 1024),
                 p["ddim_steps"] / 100,
-                p["cfg_scale"] / 30,
                 p.get("denoising_strength", 1.0) if p.get("denoising_strength", 1.0) is not None else 1.0,
-                p.get("clip_skip", 1.0) / 4,
                 p.get("control_strength", 1.0) if p.get("control_strength", 1.0) is not None else 1.0,
                 p.get("facefixer_strength", 1.0) if p.get("facefixer_strength", 1.0) is not None else 1.0,
                 p.get("lora_count", 0.0) / 5,
@@ -480,11 +494,10 @@ class KudosDataset(Dataset):
                 p.get("source_image_size", 0.0) / 100_000,
                 p.get("source_mask_size", 0.0) / 100_000,
                 1.0 if p.get("hires_fix", True) else 0.0,
-                1.0 if p.get("hires_fix_denoising_strength", True) else 0.0,
                 1.0 if p.get("image_is_control", True) else 0.0,
-                1.0 if p.get("return_control_map", True) else 0.0,
-                1.0 if p.get("transparent", True) else 0.0,
-                1.0 if p.get("tiling", True) else 0.0,
+                # 1.0 if p.get("return_control_map", True) else 0.0,
+                # 1.0 if p.get("transparent", True) else 0.0,
+                # 1.0 if p.get("tiling", True) else 0.0,
                 1.0 if p.get("post_processing_order", "facefixers_first") == "facefixers_first" else 0.0,
             ],
         )
@@ -505,21 +518,21 @@ class KudosDataset(Dataset):
         _data_floats = torch.tensor(data).float()
         _data_model_baselines = cls.one_hot_encode(data_model_baseline, KNOWN_MODEL_BASELINES)
         _data_samplers = cls.one_hot_encode(data_samplers, KNOWN_SAMPLERS)
-        _data_schedulers = cls.one_hot_encode(data_schedulers, KNOWN_SCHEDULERS)
+        # _data_schedulers = cls.one_hot_encode(data_schedulers, KNOWN_SCHEDULERS)
         _data_control_types = cls.one_hot_encode(data_control_types, KNOWN_CONTROL_TYPES)
-        _data_source_processing_types = cls.one_hot_encode(data_source_processing_types, KNOWN_SOURCE_PROCESSING)
-        _data_workflows = cls.one_hot_encode(data_workflows, KNOWN_WORKFLOWS)
+        # _data_source_processing_types = cls.one_hot_encode(data_source_processing_types, KNOWN_SOURCE_PROCESSING)
+        # _data_workflows = cls.one_hot_encode(data_workflows, KNOWN_WORKFLOWS)
         _data_post_processors = cls.one_hot_encode_combined(data_post_processors, KNOWN_POST_PROCESSORS)
         return torch.cat(
             (
                 _data_floats,
                 _data_model_baselines,
                 _data_samplers,
-                _data_schedulers,
+                # _data_schedulers,
                 _data_control_types,
-                _data_source_processing_types,
+                # _data_source_processing_types,
                 _data_post_processors,
-                _data_workflows,
+                # _data_workflows,
             ),
             dim=1,
         )
@@ -646,7 +659,7 @@ def objective(trial):
                 total_loss += loss
 
         total_loss /= len(validate_loader)
-        total_loss = round(float(total_loss), 2)
+        total_loss = round(float(total_loss), 4)
         if best_loss is None or total_loss < best_loss:
             best_loss = total_loss
             best_epoch = epoch
