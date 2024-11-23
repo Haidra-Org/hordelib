@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.19.0](https://github.com/Haidra-Org/hordelib/compare/v2.18.1...v2.19.0)
+
+22 November 2024
+
+- feat: use comfyui `839ed33` [`d432235`](https://github.com/Haidra-Org/hordelib/commit/d432235bbe4eec37f5e5f848c6409f9aa59ba181)  (tazlin)
+
 ## [v2.18.1](https://github.com/Haidra-Org/hordelib/compare/v2.18.0...v2.18.1)
 
 21 November 2024
