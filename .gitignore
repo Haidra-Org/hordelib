@@ -168,3 +168,6 @@ tmp/
 *.pth
 .gitignore
 pipeline_debug.json
+inference-time-data*
+kudos_models/
+optuna_stud*.db
