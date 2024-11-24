@@ -25,6 +25,7 @@ This is a quick hack to assist with kudos calculation.
 """
 
 import argparse
+import enum
 import json
 import math
 import os
@@ -50,6 +51,13 @@ from hordelib.horde import HordeLib
 
 random.seed()
 
+
+class PatienceState(enum.Enum):
+    MAX_EPOCH = enum.auto()
+    FIXED = enum.auto()
+    SUGGEST = enum.auto()
+
+
 # Number of trials to run.
 # Each trial generates a new neural network topology with new hyper parameters and trains it.
 NUMBER_OF_STUDY_TRIALS = 100
@@ -57,16 +65,16 @@ NUMBER_OF_STUDY_TRIALS = 100
 # Hyper parameter search bounds
 NUM_EPOCHS = 2000
 # Patience is an custom terminator that stops a training if no improvement has happened in this many epochs
-USE_PATIENCE = True
+USE_PATIENCE = PatienceState.FIXED
 MIN_PATIENCE = 25
-MAX_PATIENCE = 100
+MAX_PATIENCE = 200
 MIN_NUMBER_OF_EPOCHS = 50
 MIN_HIDDEN_LAYERS = 1
-MAX_HIDDEN_LAYERS = 6
+MAX_HIDDEN_LAYERS = 5
 MIN_NODES_IN_LAYER = 4
 MAX_NODES_IN_LAYER = 128
-MIN_LEARNING_RATE = 1e-3
-MAX_LEARNING_RATE = 1e-2
+MIN_LEARNING_RATE = 1e-4
+MAX_LEARNING_RATE = 1e-1
 MIN_WEIGHT_DECAY = 1e-6
 MAX_WEIGHT_DECAY = 1e-1
 MIN_DATA_BATCH_SIZE = 32
@@ -214,14 +222,14 @@ def parse_args():
     parser.add_argument(
         "--training-data",
         type=str,
-        default="./inference-time-data.json",
+        default="./inference-time-data.analyzed.json",
         help="Path to training data file",
     )
 
     parser.add_argument(
         "--validation-data",
         type=str,
-        default="./inference-time-data-validation.json",
+        default="./inference-time-data-validation.analyzed.json",
         help="Path to validation data file",
     )
 
@@ -536,9 +544,9 @@ class KudosDataset(Dataset):
                 p.get("source_mask_size", 0.0) / 100_000,
                 1.0 if p.get("hires_fix", True) else 0.0,
                 1.0 if p.get("image_is_control", True) else 0.0,
-                # 1.0 if p.get("return_control_map", True) else 0.0,
-                # 1.0 if p.get("transparent", True) else 0.0,
-                # 1.0 if p.get("tiling", True) else 0.0,
+                1.0 if p.get("return_control_map", True) else 0.0,
+                1.0 if p.get("transparent", True) else 0.0,
+                1.0 if p.get("tiling", True) else 0.0,
                 1.0 if p.get("post_processing_order", "facefixers_first") == "facefixers_first" else 0.0,
             ],
         )
@@ -559,21 +567,21 @@ class KudosDataset(Dataset):
         _data_floats = torch.tensor(data).float()
         _data_model_baselines = cls.one_hot_encode(data_model_baseline, KNOWN_MODEL_BASELINES)
         _data_samplers = cls.one_hot_encode(data_samplers, KNOWN_SAMPLERS)
-        # _data_schedulers = cls.one_hot_encode(data_schedulers, KNOWN_SCHEDULERS)
+        _data_schedulers = cls.one_hot_encode(data_schedulers, KNOWN_SCHEDULERS)
         _data_control_types = cls.one_hot_encode(data_control_types, KNOWN_CONTROL_TYPES)
-        # _data_source_processing_types = cls.one_hot_encode(data_source_processing_types, KNOWN_SOURCE_PROCESSING)
-        # _data_workflows = cls.one_hot_encode(data_workflows, KNOWN_WORKFLOWS)
+        _data_source_processing_types = cls.one_hot_encode(data_source_processing_types, KNOWN_SOURCE_PROCESSING)
+        _data_workflows = cls.one_hot_encode(data_workflows, KNOWN_WORKFLOWS)
         _data_post_processors = cls.one_hot_encode_combined(data_post_processors, KNOWN_POST_PROCESSORS)
         return torch.cat(
             (
                 _data_floats,
                 _data_model_baselines,
                 _data_samplers,
-                # _data_schedulers,
+                _data_schedulers,
                 _data_control_types,
-                # _data_source_processing_types,
+                _data_source_processing_types,
                 _data_post_processors,
-                # _data_workflows,
+                _data_workflows,
             ),
             dim=1,
         )
@@ -688,7 +696,10 @@ def objective(trial: optuna.Trial) -> float:
     best_loss = float("inf")
     best_state_dict = None
 
-    patience = trial.suggest_int("patience", MIN_PATIENCE, MAX_PATIENCE) if USE_PATIENCE else 0
+    if USE_PATIENCE == PatienceState.SUGGEST:
+        patience = trial.suggest_int("patience", MIN_PATIENCE, MAX_PATIENCE)
+    elif USE_PATIENCE == PatienceState.FIXED:
+        patience = MAX_PATIENCE
     epochs_since_best = 0
 
     pbar: range | tqdm
@@ -735,7 +746,7 @@ def objective(trial: optuna.Trial) -> float:
             epochs_since_best = 0
         else:
             epochs_since_best = epoch - best_epoch
-            if USE_PATIENCE and epochs_since_best >= patience:
+            if USE_PATIENCE != PatienceState.MAX_EPOCH and epochs_since_best >= patience:
                 # Stop early, no improvement in awhile
                 break
 
