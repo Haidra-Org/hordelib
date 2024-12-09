@@ -1,4 +1,3 @@
-import copy
 import glob
 import hashlib
 import json
@@ -960,6 +959,10 @@ class LoraModelManager(BaseModelManager):
                 logger.warning(f"Expected to delete lora file {lora_filename} but it was not found.")
         return loras_to_delete
 
+    def delete_adhoc_loras_over_limit(self):
+        while self.is_adhoc_cache_full():
+            self.delete_oldest_lora()
+
     def delete_lora_files(self, lora_filename: str):
         filename = os.path.join(self.model_folder_path, lora_filename)
         if not os.path.exists(filename):
@@ -1044,7 +1047,7 @@ class LoraModelManager(BaseModelManager):
         self.save_cached_reference_to_disk()
         logger.debug(
             f"Finished lora reset. Added {len(self._adhoc_loras)} adhoc loras "
-            f"with a total size of {self.calculate_adhoc_loras_cache()}"
+            f"with a total size of {self.calculate_adhoc_loras_cache()}",
         )
 
     def get_lora_metadata(self, url: str) -> dict:
