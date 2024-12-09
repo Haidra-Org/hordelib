@@ -893,7 +893,7 @@ class LoraModelManager(BaseModelManager):
         if not self.is_adhoc_cache_full():
             return 0
         # If we have exceeded our cache, we delete 1 lora + 1 extra lora per 4G over our cache.
-        return 1 + ((self.calculate_adhoc_loras_cache() - self._max_top_disk) / 4096)
+        return 1 + int((self.calculate_adhoc_loras_cache() - self.max_adhoc_disk) / 4096)
 
     def calculate_download_queue(self):
         total_queue = 0
