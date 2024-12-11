@@ -88,7 +88,7 @@ _comfy_load_torch_file: types.FunctionType
 _comfy_model_loading: types.ModuleType
 _comfy_free_memory: Callable[[float, torch.device, list], None]
 """Will aggressively unload models from memory"""
-_comfy_cleanup_models: Callable[[bool], None]
+_comfy_cleanup_models: Callable[[None], None]
 """Will unload unused models from memory"""
 _comfy_soft_empty_cache: Callable
 """Triggers comfyui and torch to empty their caches"""
@@ -944,7 +944,7 @@ class Comfy_Horde:
                 if self.aggressive_unloading:
                     global _comfy_cleanup_models
                     logger.debug("Cleaning up models")
-                    _comfy_cleanup_models(False)
+                    _comfy_cleanup_models()
                     _comfy_soft_empty_cache()
 
         stdio.replay()
