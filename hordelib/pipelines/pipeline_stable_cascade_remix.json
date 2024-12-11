@@ -171,7 +171,8 @@
     }
   },
   "50": {
-    "inputs": {
+    "inputs": {      
+      "crop": "none",
       "clip_vision": [
         "49",
         3
