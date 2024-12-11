@@ -460,7 +460,10 @@
       "title": "clip_vision_encode_0",
       "properties": {
         "Node name for S&R": "CLIPVisionEncode"
-      }
+      },
+      "widgets_values": [
+        "none"
+      ]
     },
     {
       "id": 51,
