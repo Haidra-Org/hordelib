@@ -88,7 +88,7 @@ _comfy_load_torch_file: types.FunctionType
 _comfy_model_loading: types.ModuleType
 _comfy_free_memory: Callable[[float, torch.device, list], None]
 """Will aggressively unload models from memory"""
-_comfy_cleanup_models: Callable[[None], None]
+_comfy_cleanup_models: Callable
 """Will unload unused models from memory"""
 _comfy_soft_empty_cache: Callable
 """Triggers comfyui and torch to empty their caches"""
