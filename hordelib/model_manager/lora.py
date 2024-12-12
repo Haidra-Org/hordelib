@@ -539,7 +539,7 @@ class LoraModelManager(BaseModelManager):
                             f"Downloaded LORA {lora['versions'][version]['filename']} "
                             f"({lora['versions'][version]['size_mb']} MB). "
                             "The current adhoc cache is at "
-                            f"{self.calculate_adhoc_loras_cache()}/{self.max_adhoc_disk}G",
+                            f"{round(self.calculate_adhoc_loras_cache() / 1024,1)}/{self.max_adhoc_disk}G",
                         )
                         if self.is_adhoc_cache_full():
                             for _lora_iter in range(self.amount_of_adhoc_loras_to_delete()):
@@ -884,16 +884,16 @@ class LoraModelManager(BaseModelManager):
         return self.calculate_downloaded_loras(DOWNLOAD_SIZE_CHECK.adhoc)
 
     def is_default_cache_full(self):
-        return self.calculate_default_loras_cache() >= self._max_top_disk
+        return self.calculate_default_loras_cache() >= self._max_top_disk * 1024
 
     def is_adhoc_cache_full(self):
-        return self.calculate_adhoc_loras_cache() >= self.max_adhoc_disk
+        return self.calculate_adhoc_loras_cache() >= self.max_adhoc_disk * 1024
 
     def amount_of_adhoc_loras_to_delete(self):
         if not self.is_adhoc_cache_full():
             return 0
         # If we have exceeded our cache, we delete 1 lora + 1 extra lora per 4G over our cache.
-        return 1 + int((self.calculate_adhoc_loras_cache() - self.max_adhoc_disk) / 4096)
+        return 1 + int((self.calculate_adhoc_loras_cache() - self.max_adhoc_disk * 1024) / 4096)
 
     def calculate_download_queue(self):
         total_queue = 0
