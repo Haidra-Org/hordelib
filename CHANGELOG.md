@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.20.0](https://github.com/Haidra-Org/hordelib/compare/v2.19.0...v2.20.0)
+
+11 December 2024
+
+- fix: ensure adhoc loras can be rotated [`772fb9f`](https://github.com/Haidra-Org/hordelib/commit/772fb9f4801bc53014e757b9b27a635da9207dff)  (db0)
+- fix: add new required param for clip_vision w/ remix [`1a09ddf`](https://github.com/Haidra-Org/hordelib/commit/1a09ddf6b9e6f199d7905ab81b59b490bfbed5dd)  (tazlin)
+- feat: adds delete_adhoc_loras_over_limit() [`a7e8d96`](https://github.com/Haidra-Org/hordelib/commit/a7e8d96c928cca9e4f6564738077cf1150b19594)  (db0)
+
 ## [v2.19.0](https://github.com/Haidra-Org/hordelib/compare/v2.18.1...v2.19.0)
 
 22 November 2024
