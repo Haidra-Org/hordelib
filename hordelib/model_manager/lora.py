@@ -531,16 +531,16 @@ class LoraModelManager(BaseModelManager):
                         # Save the hash file
                         with open(hashfile, "w") as outfile:
                             outfile.write(f"{sha256} *{lora['versions'][version]['filename']}")
-                        # Shout about it
-                        logger.info(
-                            f"Downloaded LORA {lora['versions'][version]['filename']} "
-                            f"({lora['versions'][version]['size_mb']} MB)",
-                        )
-                        # Maybe we're done
-                        # We store as lower to allow case-insensitive search
                         lora["versions"][version]["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         lora["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         self._add_lora_to_reference(lora)
+                        # Shout about it
+                        logger.info(
+                            f"Downloaded LORA {lora['versions'][version]['filename']} "
+                            f"({lora['versions'][version]['size_mb']} MB). "
+                            "The current adhoc cache is at "
+                            f"{self.calculate_adhoc_loras_cache()}/{self.max_adhoc_disk}G",
+                        )
                         if self.is_adhoc_cache_full():
                             for _lora_iter in range(self.amount_of_adhoc_loras_to_delete()):
                                 self.delete_oldest_lora()
