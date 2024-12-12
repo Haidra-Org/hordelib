@@ -906,10 +906,16 @@ class LoraModelManager(BaseModelManager):
         oldest_datetime: datetime | None = None
         for lora in self._adhoc_loras:
             for version in self.model_reference[lora]["versions"]:
-                lora_datetime = datetime.strptime(
-                    self.model_reference[lora]["versions"][version]["last_used"],
-                    "%Y-%m-%d %H:%M:%S",
-                )
+                if "last_used" in self.model_reference[lora]["versions"][version]:
+                    lora_datetime = datetime.strptime(
+                        self.model_reference[lora]["versions"][version]["last_used"],
+                        "%Y-%m-%d %H:%M:%S",
+                    )
+                else:
+                    lora_datetime = datetime.now()
+                    self.model_reference[lora]["versions"][version]["last_used"] = lora_datetime.strftime(
+                        "%Y-%m-%d %H:%M:%S",
+                    )
                 if not oldest_lora:
                     oldest_lora = version
                     oldest_datetime = lora_datetime
@@ -1164,6 +1170,10 @@ class LoraModelManager(BaseModelManager):
             version = self.find_latest_version(lora)
         if version is None:
             return None
+        if "last_used" not in lora["versions"][version]:
+            logger.debug("Lora does not appear to have a last_used key. Setting it to now()")
+            lora["versions"][version]["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            return datetime.now()
         return datetime.strptime(lora["versions"][version]["last_used"], "%Y-%m-%d %H:%M:%S")
 
     def fetch_adhoc_lora(self, lora_name, timeout: int | None = 45, is_version: bool = False) -> str | None:
