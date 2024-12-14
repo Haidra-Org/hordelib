@@ -1040,15 +1040,7 @@ class LoraModelManager(BaseModelManager):
             if prevversion.get("adhoc", True) is False:
                 continue
             # If True, it will initiates a redownload and call _add_lora_to_reference() later
-            if not self._check_for_refresh(prevlora_key):
-                if "last_used" not in prevversion:
-                    prevversion["last_used"] = now
-                # We create a temp lora dict holding the just one version (the one we want to keep)
-                # The _add_lora_to_reference() will anyway merge versions if we keep more than 1
-                temp_lora = self.model_reference[prevlora_key].copy()
-                temp_lora["versions"] = {}
-                temp_lora["versions"][prevversion["version_id"]] = prevversion
-                self._add_lora_to_reference(temp_lora)
+            self._check_for_refresh(prevlora_key)
             self._adhoc_loras.add(prevlora_key)
         self.save_cached_reference_to_disk()
         logger.debug(
