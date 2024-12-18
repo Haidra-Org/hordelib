@@ -3,8 +3,10 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import threading
 import time
+import uuid
 from collections import deque
 from contextlib import nullcontext
 from datetime import datetime, timedelta
@@ -136,77 +138,95 @@ class LoraModelManager(BaseModelManager):
             logger.info("Lora reference download begun asynchronously.")
         else:
             if self.models_db_path.exists():
-                try:
-                    with self._file_mutex, self._file_lock:
+                with self._file_mutex, self._file_lock:
+                    try:
                         self.model_reference = json.loads((self.models_db_path).read_text())
-                    new_model_reference = {}
-                    for old_lora_key in self.model_reference.keys():
-                        lora = self.model_reference[old_lora_key]
-                        # If for some reasons the file for that lora doesn't exist, we ignore it.
-                        if "versions" not in lora:
-                            filepath = os.path.join(self.model_folder_path, lora["filename"])
-                            if not Path(f"{filepath}").exists():
-                                logger.debug(filepath)
-                                continue
-                            lora_key = Sanitizer.sanitise_model_name(lora["orig_name"]).lower().strip()
-                            lora_filename = f'{Sanitizer.sanitise_filename(lora["orig_name"])}_{lora["version_id"]}'
-                            version = {
-                                "filename": f"{lora_filename}.safetensors",
-                                "sha256": lora["sha256"],
-                                "adhoc": lora.get("adhoc"),
-                                "size_mb": lora["size_mb"],
-                                "url": lora["url"],
-                                "triggers": lora["triggers"],
-                                "baseModel": lora["baseModel"],
-                                "version_id": self.ensure_is_version(lora["version_id"]),
-                                "lora_key": lora_key,
-                            }
-                            old_filename = os.path.join(self.model_folder_path, lora["filename"])
-                            new_filename = os.path.join(self.model_folder_path, version["filename"])
-                            logger.warning(
-                                f"Old LoRa format detected for {lora_key}. Converting format and renaming files: "
-                                f"{old_filename} -> {new_filename}",
-                            )
-                            if os.path.exists(new_filename):
-                                logger.warning(
-                                    f"New filename {new_filename} already exists. "
-                                    "This shouldn't happen. Skipping...",
+                    except json.JSONDecodeError:
+                        logger.error(
+                            f"Could not load {self.models_db_name} model reference from disk! "
+                            "Bad JSON? Attempting to load backup file.",
+                        )
+                        backup_read = False
+                        for lora_backup in self.get_all_lora_backup_files():
+                            try:
+                                self.model_reference = json.loads((lora_backup).read_text())
+                                backup_read = True
+                                logger.warning(f"Succesfully loaded {lora_backup} model reference from disk!")
+                            except json.JSONDecodeError:
+                                logger.error(
+                                    f"Could not load {lora_backup} model reference from disk! "
+                                    "Will continue if there's more left",
                                 )
-                                continue
+                        if backup_read is False:
+                            logger.error(
+                                "Could not find any lora model reference backup. Will create an empty reference.",
+                            )
+                            self.model_reference = {}
 
-                            os.rename(old_filename, new_filename)
-                            old_hashfile = f"{os.path.splitext(old_filename)[0]}.sha256"
-                            new_hashfile = f"{os.path.splitext(new_filename)[0]}.sha256"
-                            os.rename(old_hashfile, new_hashfile)
-                            new_lora_entry = {
-                                "name": lora_key,
-                                "orig_name": lora["orig_name"],
-                                "id": lora["id"],
-                                "nsfw": lora["nsfw"],
-                                "versions": {self.ensure_is_version(lora["version_id"]): version},
-                            }
-                            new_model_reference[lora_key] = new_lora_entry
-                        else:
-                            existing_versions = {}
-                            for version in lora["versions"]:
-                                filepath = os.path.join(self.model_folder_path, lora["versions"][version]["filename"])
-                                if not Path(f"{filepath}").exists():
-                                    logger.warning(f"{filepath} doesn't exist. Removing lora version from reference.")
-                                    continue
-                                existing_versions[version] = lora["versions"][version]
-                            lora["versions"] = existing_versions
-                            new_model_reference[old_lora_key] = lora
-                    for lora in new_model_reference.values():
-                        self._index_ids[lora["id"]] = lora["name"]
-                        orig_name = lora.get("orig_name", lora["name"]).lower()
-                        self._index_orig_names[orig_name] = lora["name"]
-                        for version_id in lora["versions"]:
-                            self._index_version_ids[version_id] = lora["name"]
-                    self.model_reference = new_model_reference
-                    logger.info(f"Loaded model reference from disk with {len(self.model_reference)} lora entries.")
-                except json.JSONDecodeError:
-                    logger.error(f"Could not load {self.models_db_name} model reference from disk! Bad JSON?")
-                    self.model_reference = {}
+                new_model_reference = {}
+                for old_lora_key in self.model_reference.keys():
+                    lora = self.model_reference[old_lora_key]
+                    # If for some reasons the file for that lora doesn't exist, we ignore it.
+                    if "versions" not in lora:
+                        filepath = os.path.join(self.model_folder_path, lora["filename"])
+                        if not Path(f"{filepath}").exists():
+                            logger.debug(filepath)
+                            continue
+                        lora_key = Sanitizer.sanitise_model_name(lora["orig_name"]).lower().strip()
+                        lora_filename = f'{Sanitizer.sanitise_filename(lora["orig_name"])}_{lora["version_id"]}'
+                        version = {
+                            "filename": f"{lora_filename}.safetensors",
+                            "sha256": lora["sha256"],
+                            "adhoc": lora.get("adhoc"),
+                            "size_mb": lora["size_mb"],
+                            "url": lora["url"],
+                            "triggers": lora["triggers"],
+                            "baseModel": lora["baseModel"],
+                            "version_id": self.ensure_is_version(lora["version_id"]),
+                            "lora_key": lora_key,
+                        }
+                        old_filename = os.path.join(self.model_folder_path, lora["filename"])
+                        new_filename = os.path.join(self.model_folder_path, version["filename"])
+                        logger.warning(
+                            f"Old LoRa format detected for {lora_key}. Converting format and renaming files: "
+                            f"{old_filename} -> {new_filename}",
+                        )
+                        if os.path.exists(new_filename):
+                            logger.warning(
+                                f"New filename {new_filename} already exists. " "This shouldn't happen. Skipping...",
+                            )
+                            continue
+
+                        os.rename(old_filename, new_filename)
+                        old_hashfile = f"{os.path.splitext(old_filename)[0]}.sha256"
+                        new_hashfile = f"{os.path.splitext(new_filename)[0]}.sha256"
+                        os.rename(old_hashfile, new_hashfile)
+                        new_lora_entry = {
+                            "name": lora_key,
+                            "orig_name": lora["orig_name"],
+                            "id": lora["id"],
+                            "nsfw": lora["nsfw"],
+                            "versions": {self.ensure_is_version(lora["version_id"]): version},
+                        }
+                        new_model_reference[lora_key] = new_lora_entry
+                    else:
+                        existing_versions = {}
+                        for version in lora["versions"]:
+                            filepath = os.path.join(self.model_folder_path, lora["versions"][version]["filename"])
+                            if not Path(f"{filepath}").exists():
+                                logger.warning(f"{filepath} doesn't exist. Removing lora version from reference.")
+                                continue
+                            existing_versions[version] = lora["versions"][version]
+                        lora["versions"] = existing_versions
+                        new_model_reference[old_lora_key] = lora
+                for lora in new_model_reference.values():
+                    self._index_ids[lora["id"]] = lora["name"]
+                    orig_name = lora.get("orig_name", lora["name"]).lower()
+                    self._index_orig_names[orig_name] = lora["name"]
+                    for version_id in lora["versions"]:
+                        self._index_version_ids[version_id] = lora["name"]
+                self.model_reference = new_model_reference
+                logger.info(f"Loaded model reference from disk with {len(self.model_reference)} lora entries.")
             else:
                 logger.warning(
                     f"Could not load {self.models_db_name} model reference from disk! File not found. "
@@ -859,10 +879,52 @@ class LoraModelManager(BaseModelManager):
                 return trigger
         return None
 
+    def get_all_lora_backup_files(self) -> list[Path]:
+        """
+        Retrieve all lora backup filenames that exist, organized by modtime descending
+
+        Returns:
+            list: List of backup filenames
+        """
+        directory = os.path.dirname(self.models_db_path)
+        base_pattern = f"{self.models_db_path}-backup"
+        backup_pattern = f"{base_pattern}-*.json"
+        backup_files = glob.glob(os.path.join(directory, backup_pattern))
+        # Sort files by modification time, newest first
+        backup_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+        return [Path(file) for file in backup_files]
+
+    def cleanup_lora_reference_backup_files(self, keep_latest=3) -> None:
+        """
+        Cleans up backup files, keeping only the specified number of most recent backups.
+
+        Args:
+            keep_latest (int): Number of most recent backup files to keep
+
+        Returns:
+            None
+        """
+        backup_files = self.get_all_lora_backup_files()
+        if len(backup_files) <= keep_latest:
+            return
+        files_to_delete = backup_files[keep_latest:]
+        for file_path in files_to_delete:
+            try:
+                file_path.unlink()  # Path.unlink() instead of os.remove()
+            except OSError as e:
+                logger.warning(f"Error lora backup file: {file_path}: {e}")
+
     def save_cached_reference_to_disk(self):
         with self._file_mutex, self._file_lock:
             with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
+                backup_filename = f"{self.models_db_path}-backup-{uuid.uuid4().hex[:8]}.json"
+                shutil.copyfile(self.models_db_path, backup_filename)
+                logger.debug(
+                    f"Lora refrence backed up to {backup_filename}. "
+                    f"It contained {len(self.model_reference)} loras at time of copy.",
+                )
                 outfile.write(json.dumps(self.model_reference.copy(), indent=4))
+                self.cleanup_lora_reference_backup_files()
             with open(self._adhoc_loras_savefile, "w", encoding="utf-8", errors="ignore") as outfile:
                 outfile.write(json.dumps(list(self._adhoc_loras), indent=4))
 
