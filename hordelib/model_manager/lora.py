@@ -3,7 +3,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import threading
 import time
 import uuid
@@ -916,15 +915,16 @@ class LoraModelManager(BaseModelManager):
 
     def save_cached_reference_to_disk(self):
         with self._file_mutex, self._file_lock:
-            with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
-                backup_filename = f"{self.models_db_path}-backup-{uuid.uuid4().hex[:8]}.json"
-                shutil.copyfile(self.models_db_path, backup_filename)
+            backup_filename = f"{self.models_db_path}-backup-{uuid.uuid4().hex[:8]}.json"
+            with open(backup_filename, "w", encoding="utf-8", errors="ignore") as outfile:
+                outfile.write(json.dumps(self.model_reference.copy(), indent=4))
                 logger.debug(
                     f"Lora refrence backed up to {backup_filename}. "
-                    f"It contained {len(self.model_reference)} loras at time of copy.",
+                    "It contained {len(self.model_reference)} loras at time of copy.",
                 )
+            with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
                 outfile.write(json.dumps(self.model_reference.copy(), indent=4))
-                self.cleanup_lora_reference_backup_files()
+            self.cleanup_lora_reference_backup_files()
             with open(self._adhoc_loras_savefile, "w", encoding="utf-8", errors="ignore") as outfile:
                 outfile.write(json.dumps(list(self._adhoc_loras), indent=4))
 
