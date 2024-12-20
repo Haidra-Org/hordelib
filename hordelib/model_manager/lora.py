@@ -89,7 +89,6 @@ class LoraModelManager(BaseModelManager):
         self._file_mutex = threading.Lock()
         self._download_mutex = threading.Lock()
         self._file_lock = multiprocessing_lock or nullcontext()
-        self._adhoc_loras_savefile: Path
 
         self._file_count = 0
         self._download_threads = {}  # type: ignore # FIXME: add type
@@ -97,7 +96,6 @@ class LoraModelManager(BaseModelManager):
         self._thread = None
         self.stop_downloading = True
         # Not yet handled, as we need a global reference to search through.
-        self._adhoc_loras = set()  # type: ignore # FIXME: add type
         self._download_wait = download_wait
         # If false, this MM will only download SFW loras
         self.nsfw = True
@@ -108,6 +106,7 @@ class LoraModelManager(BaseModelManager):
         self._index_orig_names = {}  # type: ignore # FIXME: add type
         self.total_retries_attempted = 0
         self._default_lora_ids: list = []
+        self._adhoc_loras_cache: set | None = None
 
         models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
 
@@ -130,7 +129,6 @@ class LoraModelManager(BaseModelManager):
             )
             logger.info("Reloading model reference...")
 
-        self._adhoc_loras_savefile = Path(f"{os.path.splitext(self.models_db_path)[0]}_adhoc.json")
         if self.download_reference:
             os.makedirs(self.model_folder_path, exist_ok=True)
             self.download_model_reference()
@@ -650,10 +648,6 @@ class LoraModelManager(BaseModelManager):
         with self._mutex:
             self.reload_reference_from_disk()
             lora_key = lora["name"]
-            if lora.get("adhoc", False):
-                self._adhoc_loras.add(lora_key)
-                # Once added to our set, we don't need to specify it was adhoc anymore
-                del lora["adhoc"]
             # A lora coming to add to our reference should only have 1 version
             # we do the version merge in this function
             # We convert the lora version to string when using it as key
@@ -669,14 +663,12 @@ class LoraModelManager(BaseModelManager):
             self._index_version_ids[new_lora_version] = lora_key
             orig_name = lora.get("orig_name", lora["name"]).lower()
             self._index_orig_names[orig_name] = lora_key
+            # Invalidate the adhoc cache
+            self._adhoc_loras_cache = None
 
     def reload_reference_from_disk(self):
         with self._file_mutex, self._file_lock:
             reloaded_model_reference: dict = json.loads((self.models_db_path).read_text())
-            if self.models_db_path.exists():
-                reloaded_adhoc_loras = set(json.loads((self._adhoc_loras_savefile).read_text()))
-            else:
-                reloaded_adhoc_loras = set()
             reloaded_index_ids = {}
             reloaded_index_orig_names = {}
             reloaded_index_version_ids = {}
@@ -687,7 +679,6 @@ class LoraModelManager(BaseModelManager):
                 for version in lora["versions"]:
                     reloaded_index_version_ids[version] = lora["name"]
             self.model_reference = reloaded_model_reference
-            self._adhoc_loras = reloaded_adhoc_loras
             self._index_ids = reloaded_index_ids
             self._index_orig_names = reloaded_index_orig_names
             self._index_version_ids = reloaded_index_version_ids
@@ -925,15 +916,25 @@ class LoraModelManager(BaseModelManager):
             with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
                 outfile.write(json.dumps(self.model_reference.copy(), indent=4))
             self.cleanup_lora_reference_backup_files()
-            with open(self._adhoc_loras_savefile, "w", encoding="utf-8", errors="ignore") as outfile:
-                outfile.write(json.dumps(list(self._adhoc_loras), indent=4))
+
+    def find_adhoc_loras(self) -> set:
+        """Returns a set of adhoc loras keys"""
+        if self._adhoc_loras_cache is not None:
+            return self._adhoc_loras_cache
+        adhoc_loras = set()
+        for lora in self.model_reference:
+            for version in self.model_reference[lora]["versions"]:
+                if self.model_reference[lora]["versions"][version].get("adhoc", False):
+                    adhoc_loras.add(lora)
+        self._adhoc_loras_cache = adhoc_loras
+        return adhoc_loras
 
     def calculate_downloaded_loras(self, mode=DOWNLOAD_SIZE_CHECK.everything):
         total_size = 0
         for lora in self.model_reference:
-            if mode == DOWNLOAD_SIZE_CHECK.top and lora in self._adhoc_loras:
+            if mode == DOWNLOAD_SIZE_CHECK.top and lora in self.find_adhoc_loras():
                 continue
-            if mode == DOWNLOAD_SIZE_CHECK.adhoc and lora not in self._adhoc_loras:
+            if mode == DOWNLOAD_SIZE_CHECK.adhoc and lora not in self.find_adhoc_loras():
                 continue
             for version in self.model_reference[lora]["versions"]:
                 total_size += self.model_reference[lora]["versions"][version]["size_mb"]
@@ -966,8 +967,8 @@ class LoraModelManager(BaseModelManager):
     def find_oldest_adhoc_lora(self) -> str | None:
         oldest_lora: str | None = None
         oldest_datetime: datetime | None = None
-        for lora in self._adhoc_loras:
-            for version in self.model_reference[lora]["versions"]:
+        for lora in self.model_reference:
+            for version in self.find_adhoc_loras():
                 if "last_used" in self.model_reference[lora]["versions"][version]:
                     lora_datetime = datetime.strptime(
                         self.model_reference[lora]["versions"][version]["last_used"],
@@ -1056,12 +1057,11 @@ class LoraModelManager(BaseModelManager):
         del self._index_version_ids[lora_version]
         del lora_info["versions"][lora_version]
         if len(lora_info["versions"]) == 0:
-            if lora_key in self._adhoc_loras:
-                self._adhoc_loras.remove(lora_key)
             del self._index_ids[lora_info["id"]]
             del self._index_orig_names[lora_info["orig_name"].lower()]
             del self.model_reference[lora_key]
         self.save_cached_reference_to_disk()
+        self._adhoc_loras_cache = None
 
     def ensure_lora_deleted(self, lora_name: str):
         logger.debug(f"Ensuring {lora_name} is deleted")
@@ -1083,7 +1083,6 @@ class LoraModelManager(BaseModelManager):
                 return
             time.sleep(self.THREAD_WAIT_TIME)
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self._adhoc_loras = set()
         unsorted_items = []
         sorted_items = []
         for plora_key, plora in self.model_reference.items():
@@ -1103,10 +1102,9 @@ class LoraModelManager(BaseModelManager):
                 continue
             # If True, it will initiates a redownload and call _add_lora_to_reference() later
             self._check_for_refresh(prevlora_key)
-            self._adhoc_loras.add(prevlora_key)
         self.save_cached_reference_to_disk()
         logger.debug(
-            f"Finished lora reset. Added {len(self._adhoc_loras)} adhoc loras "
+            f"Finished lora reset. Added {len(self.find_adhoc_loras())} adhoc loras "
             f"with a total size of {self.calculate_adhoc_loras_cache()}",
         )
 
