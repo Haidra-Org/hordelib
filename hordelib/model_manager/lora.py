@@ -1106,7 +1106,9 @@ class LoraModelManager(BaseModelManager):
         # Do a cleanup of loras over the limit on init.
         if self.is_adhoc_cache_full():
             logger.info(
-                f"Adhoc loras cache is full. Initiating cleanup of {self.amount_of_adhoc_loras_to_delete()}.",
+                f"Adhoc loras cache is full. Initiating cleanup of {self.amount_of_adhoc_loras_to_delete()}. "
+                "The current adhoc cache is at "
+                f"{round(self.calculate_adhoc_loras_cache() / 1024,1)}/{self.max_adhoc_disk}G",
             )
             for _lora_iter in range(self.amount_of_adhoc_loras_to_delete()):
                 self.delete_oldest_lora()
