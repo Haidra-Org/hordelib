@@ -1103,6 +1103,11 @@ class LoraModelManager(BaseModelManager):
             # If True, it will initiates a redownload and call _add_lora_to_reference() later
             self._check_for_refresh(prevlora_key)
         self.save_cached_reference_to_disk()
+        # Do a cleanup of loras over the limit on init.
+        if self.is_adhoc_cache_full():
+            for _lora_iter in range(self.amount_of_adhoc_loras_to_delete()):
+                self.delete_oldest_lora()
+        self.save_cached_reference_to_disk()
         logger.debug(
             f"Finished lora reset. Added {len(self.find_adhoc_loras())} adhoc loras "
             f"with a total size of {self.calculate_adhoc_loras_cache()}",
