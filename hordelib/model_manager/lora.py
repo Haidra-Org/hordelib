@@ -967,8 +967,8 @@ class LoraModelManager(BaseModelManager):
     def find_oldest_adhoc_lora(self) -> str | None:
         oldest_lora: str | None = None
         oldest_datetime: datetime | None = None
-        for lora in self.model_reference:
-            for version in self.find_adhoc_loras():
+        for lora in self.find_adhoc_loras():
+            for version in self.model_reference[lora]["versions"]:
                 if "last_used" in self.model_reference[lora]["versions"][version]:
                     lora_datetime = datetime.strptime(
                         self.model_reference[lora]["versions"][version]["last_used"],
@@ -1105,7 +1105,9 @@ class LoraModelManager(BaseModelManager):
         self.save_cached_reference_to_disk()
         # Do a cleanup of loras over the limit on init.
         if self.is_adhoc_cache_full():
-            logger.info(f"Adhoc loras cache is full. Initiating cleanup of {len(self.find_adhoc_loras())}.")
+            logger.info(
+                f"Adhoc loras cache is full. Initiating cleanup of {self.amount_of_adhoc_loras_to_delete()}.",
+            )
             for _lora_iter in range(self.amount_of_adhoc_loras_to_delete()):
                 self.delete_oldest_lora()
             self.save_cached_reference_to_disk()
