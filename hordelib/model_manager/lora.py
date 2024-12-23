@@ -149,6 +149,7 @@ class LoraModelManager(BaseModelManager):
                                 self.model_reference = json.loads((lora_backup).read_text())
                                 backup_read = True
                                 logger.warning(f"Succesfully loaded {lora_backup} model reference from disk!")
+                                break
                             except json.JSONDecodeError:
                                 logger.error(
                                     f"Could not load {lora_backup} model reference from disk! "
