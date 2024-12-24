@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v2.20.2](https://github.com/Haidra-Org/hordelib/compare/v2.20.1...v2.20.2)
+
+24 December 2024
+
+- fix: cascade clip vision `crop` arg mapping [`46035e1`](https://github.com/Haidra-Org/hordelib/commit/46035e141ca559ceb1e88f61bc48d219975235f2)  (tazlin)
+- feat: comfyui-73e0498 [`adada05`](https://github.com/Haidra-Org/hordelib/commit/adada057f9f1bd2b98a935d60709dfbee1ffdeaf)  (tazlin)
+
 ## [v2.20.1](https://github.com/Haidra-Org/hordelib/compare/v2.20.0...v2.20.1)
 
 24 December 2024
