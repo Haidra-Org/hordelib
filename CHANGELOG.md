@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.20.5](https://github.com/Haidra-Org/hordelib/compare/v2.20.4...v2.20.5)
+
+24 December 2024
+
+- fix: more multiprocess delete fixes [`e9e3d86`](https://github.com/Haidra-Org/hordelib/commit/e9e3d86ded04f9b0e41aa7b530fff2b7dc6438dd)  (db0)
+
 ## [v2.20.4](https://github.com/Haidra-Org/hordelib/compare/v2.20.3...v2.20.4)
 
 24 December 2024
