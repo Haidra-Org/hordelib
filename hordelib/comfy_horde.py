@@ -329,6 +329,7 @@ def _load_models_gpu_hijack(*args, **kwargs):
     global _comfy_current_loaded_models
     if found_model_to_skip:
         logger.debug("Not overriding model load")
+        kwargs["memory_required"] = 1e30
         _comfy_load_models_gpu(*args, **kwargs)
         return
 
