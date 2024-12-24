@@ -904,6 +904,8 @@ class LoraModelManager(BaseModelManager):
                 file_path.unlink()  # Path.unlink() instead of os.remove()
             except OSError as e:
                 logger.warning(f"Error lora backup file: {file_path}: {e}")
+            except FileNotFoundError:
+                logger.warning(f"Expected to delete lora file {file_path} but it was not found.")
 
     def save_cached_reference_to_disk(self):
         with self._file_mutex, self._file_lock:
