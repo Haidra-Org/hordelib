@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.20.3](https://github.com/Haidra-Org/hordelib/compare/v2.20.2...v2.20.3)
+
+24 December 2024
+
+- fix: aggressively unload other models w/ large models [`75da541`](https://github.com/Haidra-Org/hordelib/commit/75da5416222493522a3bc7ae2a6c7695861201f2)  (tazlin)
+
 ## [v2.20.2](https://github.com/Haidra-Org/hordelib/compare/v2.20.1...v2.20.2)
 
 24 December 2024
