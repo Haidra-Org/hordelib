@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.20.1](https://github.com/Haidra-Org/hordelib/compare/v2.20.0...v2.20.1)
+
+24 December 2024
+
+- fix: correct bugs with adhoc loras and reference on disk [`#372`](https://github.com/Haidra-Org/hordelib/pull/372) (Divided by Zer0)
+
 ## [v2.20.0](https://github.com/Haidra-Org/hordelib/compare/v2.19.0...v2.20.0)
 
 11 December 2024
