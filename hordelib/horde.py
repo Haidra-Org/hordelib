@@ -1037,6 +1037,7 @@ class HordeLib:
                     "inputs": {
                         "clip_vision": ["model_loader_stage_c", 3],
                         "image": [f"sc_image_loader_{node_index}", 0],
+                        "crop": "center",
                     },
                     "class_type": "CLIPVisionEncode",
                 }
