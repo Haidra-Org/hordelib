@@ -882,7 +882,10 @@ class LoraModelManager(BaseModelManager):
         backup_pattern = f"{base_pattern}-*.json"
         backup_files = glob.glob(os.path.join(directory, backup_pattern))
         # Sort files by modification time, newest first
-        backup_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+        try:
+            backup_files.sort(key=lambda x: os.path.getmtime(x), reverse=True)
+        except FileNotFoundError:
+            logger.warning("Could not sort lora backup files. One was probably cleaned up by another process")
         return [Path(file) for file in backup_files]
 
     def cleanup_lora_reference_backup_files(self, keep_latest=3) -> None:
