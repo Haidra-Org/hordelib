@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.20.4](https://github.com/Haidra-Org/hordelib/compare/v2.20.3...v2.20.4)
+
+24 December 2024
+
+- fix: missing lora file [`f5fa1ba`](https://github.com/Haidra-Org/hordelib/commit/f5fa1bac49572787c7fc06687ec980d04211d939)  (db0)
+
 ## [v2.20.3](https://github.com/Haidra-Org/hordelib/compare/v2.20.2...v2.20.3)
 
 24 December 2024
