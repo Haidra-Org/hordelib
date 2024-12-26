@@ -1,5 +1,12 @@
 ## hordelib Changelog
 
+## [v2.20.6](https://github.com/Haidra-Org/hordelib/compare/v2.20.5...v2.20.6)
+
+26 December 2024
+
+- fix: force the initial text enc. device to always be CPU [`0f34cca`](https://github.com/Haidra-Org/hordelib/commit/0f34cca2b383ae61c54a6f8830f90243de8a64ac)  (tazlin)
+- fix: f string as intended in lora ref count log [`3325d0f`](https://github.com/Haidra-Org/hordelib/commit/3325d0f91dea38e4a29f7bdd6f6c6f317f973a88)  (tazlin)
+
 ## [v2.20.5](https://github.com/Haidra-Org/hordelib/compare/v2.20.4...v2.20.5)
 
 24 December 2024
