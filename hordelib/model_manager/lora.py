@@ -917,7 +917,7 @@ class LoraModelManager(BaseModelManager):
                 outfile.write(json.dumps(self.model_reference.copy(), indent=4))
                 logger.debug(
                     f"Lora refrence backed up to {backup_filename}. "
-                    "It contained {len(self.model_reference)} loras at time of copy.",
+                    f"It contained {len(self.model_reference)} loras at time of copy.",
                 )
             with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
                 outfile.write(json.dumps(self.model_reference.copy(), indent=4))
