@@ -96,6 +96,7 @@ _comfy_soft_empty_cache: Callable
 _comfy_is_changed_cache_get: Callable
 _comfy_model_patcher_load: Callable
 _comfy_load_calculate_weight: Callable
+_comfy_text_encoder_initial_device: Callable
 
 _comfy_interrupt_current_processing: types.FunctionType
 
@@ -202,7 +203,7 @@ def do_comfy_import(
     global _comfy_folder_names_and_paths, _comfy_supported_pt_extensions
     global _comfy_load_checkpoint_guess_config
     global _comfy_get_torch_device, _comfy_get_free_memory, _comfy_get_total_memory
-    global _comfy_load_torch_file, _comfy_model_loading
+    global _comfy_load_torch_file, _comfy_model_loading, _comfy_text_encoder_initial_device
     global _comfy_free_memory, _comfy_cleanup_models, _comfy_soft_empty_cache
     global _canny, _hed, _leres, _midas, _mlsd, _openpose, _pidinet, _uniformer
 
@@ -257,6 +258,10 @@ def do_comfy_import(
         from comfy.model_management import cleanup_models as _comfy_cleanup_models
         from comfy.model_management import soft_empty_cache as _comfy_soft_empty_cache
         from comfy.model_management import interrupt_current_processing as _comfy_interrupt_current_processing
+        from comfy.model_management import text_encoder_initial_device as _comfy_text_encoder_initial_device
+
+        comfy.model_management.text_encoder_initial_device = text_encoder_initial_device_hijack  # type: ignore
+
         from comfy.utils import load_torch_file as _comfy_load_torch_file
         from comfy_extras.chainner_models import model_loading as _comfy_model_loading
 
@@ -414,6 +419,11 @@ def IsChangedCache_get_hijack(self, *args, **kwargs):
         logger.debug(f"IsChangedCache.get: {result}")
 
     return result
+
+
+def text_encoder_initial_device_hijack(*args, **kwargs):
+    # This ensures clip models are loaded on the CPU first
+    return torch.device("cpu")
 
 
 def unload_all_models_vram():
