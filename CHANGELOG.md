@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.20.7](https://github.com/Haidra-Org/hordelib/compare/v2.20.6...v2.20.7)
+
+29 December 2024
+
+- fix: only use lora backups w/ multiproc [`107eca5`](https://github.com/Haidra-Org/hordelib/commit/107eca5af9c4ad05b5d21b7f8a5314134da00f60)  (tazlin)
+- fix: abort download on 403 [`ddadd06`](https://github.com/Haidra-Org/hordelib/commit/ddadd06809890b0d034796f7ede4a598b647ef33)  (db0)
+- fix: prevent trying to download early access loras [`1dcf72d`](https://github.com/Haidra-Org/hordelib/commit/1dcf72d0e3c9dca2ca6427c0b27608e76ebe006d)  (db0)
+
 ## [v2.20.6](https://github.com/Haidra-Org/hordelib/compare/v2.20.5...v2.20.6)
 
 26 December 2024
