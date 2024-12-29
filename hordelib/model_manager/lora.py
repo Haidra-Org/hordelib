@@ -579,11 +579,11 @@ class LoraModelManager(BaseModelManager):
                         f"Retry {retries}/{self.MAX_RETRIES}",
                     )
 
-                    # If this is a 401, we're not going to get anywhere, just just give up
-                    if isinstance(e, requests.HTTPError) and e.response.status_code == 401:
+                    # If this is a 401 or 403, we're not going to get anywhere, just just give up
+                    if isinstance(e, requests.HTTPError) and e.response.status_code in [401, 403]:
                         logger.error(
                             f"Error downloading {lora['versions'][version]['filename']}. "
-                            "CivitAI appears to be redirecting us to a login page. Aborting",
+                            "CivitAI appears to be denying access. Aborting",
                         )
                         break
 
