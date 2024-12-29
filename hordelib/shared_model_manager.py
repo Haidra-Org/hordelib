@@ -62,7 +62,7 @@ class SharedModelManager:
     model_reference_manager: ModelReferenceManager
     cuda_available: bool
 
-    def __new__(cls, do_not_load_model_mangers: bool = False):
+    def __new__(cls, do_not_load_model_mangers: bool = True):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls.manager = ModelManager()
