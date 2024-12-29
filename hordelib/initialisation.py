@@ -27,7 +27,7 @@ def initialise(
     force_normal_vram_mode: bool = True,
     extra_comfyui_args: list[str] | None = None,
     disable_smart_memory: bool = False,
-    do_not_load_model_mangers: bool = False,
+    do_not_load_model_mangers: bool = True,
     models_not_to_force_load: list[str] | None = None,
 ):
     """Initialise hordelib. This is required before using any other hordelib functions.
