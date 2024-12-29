@@ -433,6 +433,7 @@ class LoraModelManager(BaseModelManager):
                 lora["versions"][lora_version]["version_id"] = self.ensure_is_version(version.get("id", 0))
                 # To be able to refer back to the parent if needed
                 lora["versions"][lora_version]["lora_key"] = lora_key
+                lora["versions"][lora_version]["availability"] = version.get("availability", "Public")
                 break
         # If we don't have everything required, fail
         if lora["versions"][lora_version]["adhoc"] and not lora["versions"][lora_version].get("sha256"):
@@ -843,7 +844,6 @@ class LoraModelManager(BaseModelManager):
         if is_version:
             triggers = lora["versions"][model_name].get("triggers")
         else:
-            logger.debug(lora)
             lora_version = self.get_latest_version(lora)
             if lora_version is None:
                 return None
@@ -1214,7 +1214,9 @@ class LoraModelManager(BaseModelManager):
         # logger.debug(f"Touched lora {lora_name}")
 
     def find_latest_version(self, lora) -> str | None:
-        all_versions = [int(v) for v in lora.get("versions", {}).keys()]
+        all_versions = [
+            int(v) for v in lora.get("versions", {}).keys() if lora["versions"][v].get("availability") != "EarlyAccess"
+        ]
         if len(all_versions) > 0:
             all_versions.sort(reverse=True)
             return self.ensure_is_version(all_versions[0])
