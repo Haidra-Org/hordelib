@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.20.8](https://github.com/Haidra-Org/hordelib/compare/v2.20.7...v2.20.8)
+
+29 December 2024
+
+- fix: do not init model managers by default [`82defa5`](https://github.com/Haidra-Org/hordelib/commit/82defa5d347db50bf6e859abfca4ef217d019850)  (tazlin)
+
 ## [v2.20.7](https://github.com/Haidra-Org/hordelib/compare/v2.20.6...v2.20.7)
 
 29 December 2024
