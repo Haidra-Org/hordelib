@@ -60,6 +60,7 @@ class LoraModelManager(BaseModelManager):
     """The time to wait between checking the download queue in seconds"""
 
     _file_lock: multiprocessing_lock | nullcontext
+    _using_multiprocessing: bool = False
 
     def __init__(
         self,
@@ -88,6 +89,10 @@ class LoraModelManager(BaseModelManager):
         self._mutex = threading.Lock()
         self._file_mutex = threading.Lock()
         self._download_mutex = threading.Lock()
+
+        if multiprocessing_lock:
+            self._using_multiprocessing = True
+
         self._file_lock = multiprocessing_lock or nullcontext()
 
         self._file_count = 0
@@ -912,16 +917,18 @@ class LoraModelManager(BaseModelManager):
 
     def save_cached_reference_to_disk(self):
         with self._file_mutex, self._file_lock:
-            backup_filename = f"{self.models_db_path}-backup-{uuid.uuid4().hex[:8]}.json"
-            with open(backup_filename, "w", encoding="utf-8", errors="ignore") as outfile:
-                outfile.write(json.dumps(self.model_reference.copy(), indent=4))
-                logger.debug(
-                    f"Lora refrence backed up to {backup_filename}. "
-                    f"It contained {len(self.model_reference)} loras at time of copy.",
-                )
+            if self._using_multiprocessing:
+                backup_filename = f"{self.models_db_path}-backup-{uuid.uuid4().hex[:8]}.json"
+                with open(backup_filename, "w", encoding="utf-8", errors="ignore") as outfile:
+                    outfile.write(json.dumps(self.model_reference.copy(), indent=4))
+                    logger.debug(
+                        f"Lora refrence backed up to {backup_filename}. "
+                        f"It contained {len(self.model_reference)} loras at time of copy.",
+                    )
             with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
                 outfile.write(json.dumps(self.model_reference.copy(), indent=4))
-            self.cleanup_lora_reference_backup_files()
+            if self._using_multiprocessing:
+                self.cleanup_lora_reference_backup_files()
 
     def find_adhoc_loras(self) -> set:
         """Returns a set of adhoc loras keys"""
