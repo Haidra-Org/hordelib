@@ -427,6 +427,8 @@ def text_encoder_initial_device_hijack(*args, **kwargs):
 
 
 def unload_all_models_vram():
+    global _comfy_current_loaded_models
+
     log_free_ram()
 
     from hordelib.shared_model_manager import SharedModelManager
@@ -455,6 +457,8 @@ def unload_all_models_vram():
 
 
 def unload_all_models_ram():
+    global _comfy_current_loaded_models
+
     log_free_ram()
     from hordelib.shared_model_manager import SharedModelManager
 
@@ -467,10 +471,17 @@ def unload_all_models_ram():
     for model in _comfy_current_loaded_models:
         all_devices.add(model.device)
 
+    all_devices.add(get_torch_device())
+
     with torch.no_grad():
         for device in all_devices:
             logger.debug(f"Freeing memory on device {device}")
             _comfy_free_memory(1e30, device)
+
+        log_free_ram()
+        logger.debug("Freeing memory on CPU")
+        _comfy_free_memory(1e30, torch.device("cpu"))
+
         log_free_ram()
 
         logger.debug("Cleaning up models")
