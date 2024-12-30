@@ -1,5 +1,13 @@
 ## hordelib Changelog
 
+## [v2.20.9](https://github.com/Haidra-Org/hordelib/compare/v2.20.8...v2.20.9)
+
+30 December 2024
+
+- fix: except if model reference manager fails to init [`550151d`](https://github.com/Haidra-Org/hordelib/commit/550151dddf57cd948a7d3517ffc033537027e5ac)  (tazlin)
+- fix: accurately unload models from comfyui [`01eff68`](https://github.com/Haidra-Org/hordelib/commit/01eff68897bab2791a189fa8100dbc65bce032f3)  (tazlin)
+- fix: do not init model managers by default [`b521f64`](https://github.com/Haidra-Org/hordelib/commit/b521f64f2ed14d224ca3ddbee8e42e836ef1baf8)  (tazlin)
+
 ## [v2.20.8](https://github.com/Haidra-Org/hordelib/compare/v2.20.7...v2.20.8)
 
 29 December 2024
