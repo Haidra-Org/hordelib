@@ -102,17 +102,14 @@ class SharedModelManager:
         args_passed = locals().copy()  # XXX This is temporary
         args_passed.pop("cls")  # XXX This is temporary
 
-        if download_legacy_references:
-            try:
-                cls.model_reference_manager = ModelReferenceManager(download_and_convert_legacy_dbs=True)
-            except Exception as e:
-                logger.error(f"Failed to download legacy model references: {e}")
-                logger.error(
-                    "If this continues to happen, "
-                    "github may be down or your internet connection may be having issues.",
-                )
-        else:
-            cls.model_reference_manager = ModelReferenceManager()
+        try:
+            cls.model_reference_manager = ModelReferenceManager(
+                download_and_convert_legacy_dbs=download_legacy_references,
+                override_existing=overwrite_existing_references,
+            )
+        except Exception as e:
+            logger.error(f"Failed to initialize model reference manager: {e}")
+            raise e
 
         references = {}
         for reference in managers_to_load:
