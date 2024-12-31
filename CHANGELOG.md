@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.20.10](https://github.com/Haidra-Org/hordelib/compare/v2.20.9...v2.20.10)
+
+30 December 2024
+
+- fix: don't retry on unrecoverable ti type error [`849dd2b`](https://github.com/Haidra-Org/hordelib/commit/849dd2bebf4b8120a1eb0092c8e9b2ab3e397d1f)  (tazlin)
+
 ## [v2.20.9](https://github.com/Haidra-Org/hordelib/compare/v2.20.8...v2.20.9)
 
 30 December 2024
