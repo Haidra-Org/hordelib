@@ -1153,6 +1153,7 @@ class LoraModelManager(BaseModelManager):
         """Returns True if a refresh has been initiated
         Else returns False
         """
+        return False  # FIXME: Slows down loras init. Need to improve this.
         lora_details = self.get_model_reference_info(lora_name)
         if not lora_details:
             return False
