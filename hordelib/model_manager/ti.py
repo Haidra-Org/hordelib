@@ -311,19 +311,32 @@ class TextualInversionModelManager(BaseModelManager):
                             )
 
                         hordeling_json = hordeling_response.json()
+
+                        if "message" in hordeling_json:
+                            message = hordeling_json["message"]
+                            if isinstance(message, str):
+                                message = message.lower()
+                            else:
+                                logger.error(f"AI Hordeling reported an error when downloading metadata: {message}")
+                                message = ""
+
+                            if "unexpected type" in message:
+                                logger.debug(
+                                    "AI Hordeling reported an unexpected type error when downloading metadata. "
+                                    "Ignoring this Textual Inversion.",
+                                )
+                                break
+                            if "hash" in message:
+                                logger.debug(f"Textual Inversion: {ti['filename']} hash mismatch reported.")
+                                break
+
                         # We will retry
                         logger.debug(
                             "AI Hordeling reported error when downloading metadata "
                             f"for Textual Inversion: {ti['filename']}: "
-                            f"{hordeling_json}"
+                            f"{hordeling_json} "
                             f"Retry {retries}/{self.MAX_RETRIES}",
                         )
-
-                        message = hordeling_json.get("message", "")
-                        if message is not None and isinstance(message, str) and "hash" in message.lower():
-                            logger.debug(f"Textual Inversion: {ti['filename']} hash mismatch reported.")
-                            break
-
                     else:
                         hordeling_json = hordeling_response.json()
                         if hordeling_json.get("sha256"):
