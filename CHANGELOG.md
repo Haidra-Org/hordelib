@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.20.11](https://github.com/Haidra-Org/hordelib/compare/v2.20.10...v2.20.11)
+
+1 January 2025
+
+- fix: avoid checking lora refresh for now [`8c8e990`](https://github.com/Haidra-Org/hordelib/commit/8c8e990d62dfee394f2a8a60b1577277327853f1)  (db0)
+
 ## [v2.20.10](https://github.com/Haidra-Org/hordelib/compare/v2.20.9...v2.20.10)
 
 30 December 2024
