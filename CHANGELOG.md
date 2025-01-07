@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.20.12](https://github.com/Haidra-Org/hordelib/compare/v2.20.11...v2.20.12)
+
+7 January 2025
+
+- fix: punt lora downloads on 5xx (other than 500) [`a0555b4`](https://github.com/Haidra-Org/hordelib/commit/a0555b474696257a2374f4d1d4bc10b3d3fae5e3)  (tazlin)
+
 ## [v2.20.11](https://github.com/Haidra-Org/hordelib/compare/v2.20.10...v2.20.11)
 
 1 January 2025
