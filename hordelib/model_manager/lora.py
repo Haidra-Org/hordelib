@@ -323,6 +323,10 @@ class LoraModelManager(BaseModelManager):
                     if response.status_code == 500:
                         logger.debug(f"url '{url}' download failed with status code {response.status_code}")
                         retries += 3
+                    elif response.status_code > 500:
+                        # We're going to assume all other 5xx errors are not going to pass quickly
+                        logger.debug(f"url '{url}' download failed with status code {response.status_code}")
+                        return None
 
                 # The json being invalid is a CivitAI issue, possibly it showing an HTML page and
                 # this isn't likely to change in the next 30 seconds, so we'll try twice more
