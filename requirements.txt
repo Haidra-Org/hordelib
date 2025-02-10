@@ -3,7 +3,7 @@
 horde_sdk>=0.15.0
 horde_model_reference>=0.9.1
 pydantic
-numpy==1.26.4
+numpy==2.2.2
 torch>=2.4.1
 # xformers>=0.0.19
 torchvision
@@ -38,7 +38,7 @@ opencv-python
 # controlnet custom nodes
 opencv-contrib-python
 opencv-python
-timm==0.9.16
+timm==1.0.14
 torchvision
 scipy
 addict
@@ -49,7 +49,7 @@ unidecode
 fuzzywuzzy
 strenum
 kornia
-qrcode==7.4.2
+qrcode==8.0
 spandrel
 spandrel_extra_arches
 lpips
