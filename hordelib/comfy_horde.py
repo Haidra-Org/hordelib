@@ -18,6 +18,7 @@ import uuid
 import random
 import threading
 from pprint import pformat
+import loguru
 import requests
 import psutil
 from collections.abc import Callable
@@ -181,7 +182,11 @@ class InterceptHandler(logging.Handler):
 
         # Find caller from where originated the logged message.
         frame, depth = logging.currentframe(), 2
-        while frame and frame.f_code.co_filename == logging.__file__:
+        while frame and (
+            "loguru" in frame.f_code.co_filename
+            or frame.f_code.co_filename == logging.__file__
+            or frame.f_code.co_filename == __file__
+        ):
             frame = frame.f_back
             depth += 1
 
