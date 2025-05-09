@@ -1,6 +1,7 @@
 # test_horde.py
 
 import pytest
+from loguru import logger
 from PIL import Image
 
 from hordelib.horde import HordeLib
@@ -11,6 +12,14 @@ from tests.testing_shared_functions import (
 
 
 class TestHordeInferenceCascade:
+
+    @pytest.fixture(scope="function", autouse=True)
+    def cleanup_models(self, hordelib_instance: HordeLib):
+        yield
+        from hordelib.comfy_horde import unload_all_models_ram
+
+        logger.debug("Unloading all models")
+        unload_all_models_ram()
 
     @pytest.mark.slow
     def test_cascade_text_to_image(

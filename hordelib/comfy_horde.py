@@ -382,6 +382,8 @@ def _calculate_weight_hijack(*args, **kwargs):
 
     for p in patches:
         v = p[1]
+        if not isinstance(v, tuple):
+            continue
         patch_type = v[0]
         if patch_type != "diff":
             continue
@@ -437,6 +439,14 @@ def text_encoder_initial_device_hijack(*args, **kwargs):
     return torch.device("cpu")
 
 
+def clear_gc_and_torch_cache() -> None:
+    """Clear the garbage collector and the PyTorch cache."""
+    gc.collect()
+    from torch.cuda import empty_cache
+
+    empty_cache()
+
+
 def unload_all_models_vram():
     global _comfy_current_loaded_models
 
@@ -465,6 +475,9 @@ def unload_all_models_vram():
 
     logger.debug(f"{len(SharedModelManager.manager._models_in_ram)} models cached in shared model manager")
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
+
+    clear_gc_and_torch_cache()
+    log_free_ram()
 
 
 def unload_all_models_ram():
@@ -505,6 +518,9 @@ def unload_all_models_ram():
 
     logger.debug(f"{len(SharedModelManager.manager._models_in_ram)} models cached in shared model manager")
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
+
+    clear_gc_and_torch_cache()
+    log_free_ram()
 
 
 def get_torch_device():

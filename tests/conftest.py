@@ -90,12 +90,16 @@ def init_horde(
 
     import hordelib
 
+    extra_comfyui_args = []
+    extra_comfyui_args.extend(["--reserve-vram", "1.4"])
+
     hordelib.initialise(
         setup_logging=True,
         logging_verbosity=5,
         disable_smart_memory=True,
         force_normal_vram_mode=True,
         do_not_load_model_mangers=True,
+        extra_comfyui_args=extra_comfyui_args,
         # models_not_to_force_load=[
         #     "sdxl",
         #     "cascade",
