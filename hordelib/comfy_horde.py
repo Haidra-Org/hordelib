@@ -1,5 +1,6 @@
 # comfy.py
 # Wrapper around comfy to allow usage by the horde worker.
+import asyncio
 import contextlib
 import copy
 import gc
@@ -295,7 +296,12 @@ def do_comfy_import(
 
 
 # isort: on
-models_not_to_force_load: list = ["cascade", "sdxl", "flux"]  # other possible values could be `basemodel` or `sd1`
+models_not_to_force_load: list = [
+    "cascade",
+    "sdxl",
+    "flux",
+    "qwen_image",
+]  # other possible values could be `basemodel` or `sd1`
 """Models which should not be forced to load in the comfy model loading hijack.
 
 Possible values include `cascade`, `sdxl`, `basemodel`, `sd1` or any other comfyui classname
@@ -951,7 +957,7 @@ class Comfy_Horde:
             # validate_prompt from comfy returns [bool, str, list]
             # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
             self.client_id = str(uuid.uuid4())
-            valid = _comfy_validate_prompt(pipeline)
+            valid = asyncio.run(_comfy_validate_prompt(1, pipeline, []))
             import folder_paths
 
             if "embeddings" in folder_paths.filename_list_cache:

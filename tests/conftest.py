@@ -57,12 +57,13 @@ def init_horde(
 
     HORDELIB_CUSTOM_MODELS = os.getenv("HORDELIB_CUSTOM_MODELS", None)
 
-    assert HORDELIB_CUSTOM_MODELS is not None
+    # assert HORDELIB_CUSTOM_MODELS is not None
 
     # Load the custom models json and confirm the model is on disk
     custom_models = None
-    with open(HORDELIB_CUSTOM_MODELS) as f:
-        custom_models = json.load(f)
+    if HORDELIB_CUSTOM_MODELS is not None:
+        with open(HORDELIB_CUSTOM_MODELS) as f:
+            custom_models = json.load(f)
 
     assert custom_models is not None
 
@@ -122,6 +123,7 @@ _sdxl_1_0_model_name = "SDXL 1.0"
 _sdxl_refined_model_name = "AlbedoBase XL (SDXL)"
 _stable_cascade_base_model_name = "Stable Cascade 1.0"
 _flux1_schnell_fp8_base_model_name = "Flux.1-Schnell fp8 (Compact)"
+_qwen_fp8_base_model_name = "Qwen-Image_fp8"
 _am_pony_xl_model_name = "AMPonyXL"
 _rev_animated_model_name = "Rev Animated"
 
@@ -131,6 +133,7 @@ _all_model_names = [
     _sdxl_refined_model_name,
     _stable_cascade_base_model_name,
     _flux1_schnell_fp8_base_model_name,
+    _qwen_fp8_base_model_name,
     _am_pony_xl_model_name,
     _rev_animated_model_name,
 ]
@@ -168,6 +171,12 @@ def stable_cascade_base_model_name(shared_model_manager: type[SharedModelManager
 def flux1_schnell_fp8_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
     """The default flux1-schnell fp8 model name used for testing."""
     return _flux1_schnell_fp8_base_model_name
+
+
+@pytest.fixture(scope="session")
+def qwen_image_fp8_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    """The default qwen-iimage fp8 model name used for testing."""
+    return _qwen_fp8_base_model_name
 
 
 @pytest.fixture(scope="session")
