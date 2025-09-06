@@ -171,18 +171,11 @@ class BaseModelManager(ABC):
         for model_file_entry in model_file_entries:
             path_config_item = model_file_entry.get("path")
             path_config_type = model_file_entry.get("file_type")
-            directory = model_file_entry.get("directory")
             if path_config_item:
                 if path_config_item.endswith((".ckpt", ".safetensors", ".pt", ".pth", ".bin")):
                     path_entry = {"file_path": Path(path_config_item)}
-                    if directory:
-                        path_entry["file_path"] = Path(f"{directory}/{path_config_item}")
                     if path_config_type:
                         path_entry["file_type"] = path_config_type
-                    if "sha256sum" in model_file_entry:
-                        path_entry["sha256sum"] = model_file_entry.get("sha256sum")
-                    if "md5sum" in model_file_entry:
-                        path_entry["md5sum"] = model_file_entry.get("md5sum")
                     model_files.append(path_entry)
         if len(model_files) == 0:
             raise ValueError(f"Model {model_name} does not have a valid file entry")
@@ -271,26 +264,26 @@ class BaseModelManager(ABC):
         for file_entry in model_files:
             if not self.is_file_available(file_entry["file_path"]):
                 return None
-            if not skip_checksum and not self.validate_file(file_entry):
-                logger.warning(f"File {file_entry['file_path']} has different contents to what we expected.")
+
+        file_details = self.get_model_config_files(model_name)
+
+        for file_detail in file_details:
+            if ".yaml" in file_detail["path"] or ".json" in file_detail["path"]:
+                continue
+            if not self.is_file_available(file_detail["path"]):
+                logger.debug(f"File {file_detail['path']} not found")
+                return None
+            if not skip_checksum and not self.validate_file(file_detail):
+                logger.warning(f"File {file_detail['path']} has different contents to what we expected.")
                 try:
                     # The file must have been considered valid once, or we wouldn't have renamed
                     # it from the ".part" download. Likely there is an update, or a model database hash problem
-                    logger.warning(f"Likely updated, will attempt to re-download {file_entry['file_path']}.")
+                    logger.warning(f"Likely updated, will attempt to re-download {file_detail['path']}.")
                     self.taint_model(model_name)
                 except OSError as e:
-                    logger.error(f"Unable to delete {file_entry['file_path']}: {e}.")
-                    logger.error(f"Please delete {file_entry['file_path']} if this error persists.")
+                    logger.error(f"Unable to delete {file_detail['path']}: {e}.")
+                    logger.error(f"Please delete {file_detail['path']} if this error persists.")
                 return False
-
-        # FIXME: The below commented lines are already done in L267. Is this still needed?
-        # file_details = self.get_model_config_files(model_name)
-        # for file_detail in file_details:
-        #     if ".yaml" in file_detail["path"] or ".json" in file_detail["path"]:
-        #         continue
-        #     if not self.is_file_available(file_detail["path"]):
-        #         logger.debug(f"File {file_detail['path']} not found")
-        #         return None
 
         if model_name not in self.available_models:
             self.available_models.append(model_name)
@@ -378,16 +371,8 @@ class BaseModelManager(ABC):
         Checks if the file exists and if the checksum is correct
         Returns True if the file is valid, False otherwise
         """
-        # TODO: It's all a bit ugly now, trying to handle both get_model_filenames()
-        # as well as direct image reference dicts
-        # But I couldn't figure out how to handle multiple files per model,
-        # where I want to place them in other locations than in compvis.
-        if "file_path" in file_details:  # This means it's an dict that was processed through get_model_filenames()
-            full_path = file_details["file_path"]
-            if isinstance(full_path, Path) and not full_path.is_absolute():
-                full_path = f"{self.model_folder_path}/{file_details['file_path']}"
-        else:
-            full_path = f"{self.model_folder_path}/{file_details['path']}"
+        full_path = f"{self.model_folder_path}/{file_details['path']}"
+
         # Default to sha256 hashes
         if "sha256sum" in file_details:
             logger.debug(f"Getting sha256sum of {full_path}")
@@ -433,9 +418,11 @@ class BaseModelManager(ABC):
         if parsed_full_path.suffix == ".part":
             logger.debug(f"File {file_path} is a partial download, skipping")
             return False
-        sha_file_path = Path(f"{parsed_full_path.parent}/{parsed_full_path.stem}.sha256")
+        sha_file_path = Path(f"{self.model_folder_path}/{parsed_full_path.stem}.sha256")
+
         if parsed_full_path.exists() and not sha_file_path.exists() and not is_custom_model:
             self.get_file_sha256_hash(parsed_full_path)
+
         return parsed_full_path.exists() and (sha_file_path.exists() or is_custom_model)
 
     def download_file(
@@ -598,7 +585,7 @@ class BaseModelManager(ABC):
         for i in range(len(download)):
             file_path = (
                 f"{download[i]['file_path']}/{download[i]['file_name']}"
-                if "file_path" in download[i] and download[i]["file_path"]
+                if "file_path" in download[i]
                 else files[i]["path"]
             )
             download_url = None
@@ -711,6 +698,7 @@ class BaseModelManager(ABC):
                     download_succeeded = self.download_file(download_url, file_path, callback=callback)
                     if not download_succeeded:
                         return False
+
         return self.validate_model(model_name)
 
     def download_all_models(

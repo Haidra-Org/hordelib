@@ -960,6 +960,8 @@ class Comfy_Horde:
             # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
             self.client_id = str(uuid.uuid4())
             valid = asyncio.run(_comfy_validate_prompt(1, pipeline, []))
+            logger.debug(valid)
+            assert valid[0] is True
             import folder_paths
 
             if "embeddings" in folder_paths.filename_list_cache:
