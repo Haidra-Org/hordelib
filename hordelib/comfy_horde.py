@@ -401,9 +401,9 @@ def default_json_serializer_pil_image(obj):
     return obj
 
 
-def IsChangedCache_get_hijack(self, *args, **kwargs):
+async def IsChangedCache_get_hijack(self, *args, **kwargs):
     global _comfy_is_changed_cache_get
-    result = _comfy_is_changed_cache_get(self, *args, **kwargs)
+    result = await _comfy_is_changed_cache_get(self, *args, **kwargs)
 
     global _last_pipeline_settings_hash
 
@@ -884,6 +884,7 @@ class Comfy_Horde:
     def send_sync(self, label: str, data: dict, _id: str) -> None:
         # Get receive image outputs via this async mechanism
         output = data.get("output", None)
+        logger.debug([label, output])
         images_received = None
         if output is not None and "images" in output:
             images_received = output.get("images", None)
