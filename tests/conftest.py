@@ -123,7 +123,7 @@ _sdxl_1_0_model_name = "SDXL 1.0"
 _sdxl_refined_model_name = "AlbedoBase XL (SDXL)"
 _stable_cascade_base_model_name = "Stable Cascade 1.0"
 _flux1_schnell_fp8_base_model_name = "Flux.1-Schnell fp8 (Compact)"
-_qwen_fp8_base_model_name = "Qwen-Image_fp8"
+# _qwen_fp8_base_model_name = "Qwen-Image_fp8"
 _am_pony_xl_model_name = "AMPonyXL"
 _rev_animated_model_name = "Rev Animated"
 
@@ -133,7 +133,7 @@ _all_model_names = [
     _sdxl_refined_model_name,
     _stable_cascade_base_model_name,
     _flux1_schnell_fp8_base_model_name,
-    _qwen_fp8_base_model_name,
+    # _qwen_fp8_base_model_name,
     _am_pony_xl_model_name,
     _rev_animated_model_name,
 ]
@@ -173,10 +173,10 @@ def flux1_schnell_fp8_base_model_name(shared_model_manager: type[SharedModelMana
     return _flux1_schnell_fp8_base_model_name
 
 
-@pytest.fixture(scope="session")
-def qwen_image_fp8_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
-    """The default qwen-iimage fp8 model name used for testing."""
-    return _qwen_fp8_base_model_name
+# @pytest.fixture(scope="session")
+# def qwen_image_fp8_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+#     """The default qwen-iimage fp8 model name used for testing."""
+#     return _qwen_fp8_base_model_name
 
 
 @pytest.fixture(scope="session")

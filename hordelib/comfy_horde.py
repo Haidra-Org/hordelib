@@ -579,7 +579,6 @@ class Comfy_Horde:
         self._callers = 0
         self._gc_timer = time.time()
         self._counter_mutex = threading.Lock()
-
         self.images = None
 
         # Set comfyui paths for checkpoints, loras, etc
@@ -881,7 +880,7 @@ class Comfy_Horde:
     _comfyui_callback: typing.Callable[[str, dict, str], None] | None = None
 
     # This is the callback handler for comfy async events.
-    def send_sync(self, label: str, data: dict, _id: str) -> None:
+    def send_sync(self, label: str, data: dict, sid: str | None = None) -> None:
         # Get receive image outputs via this async mechanism
         output = data.get("output", None)
         logger.debug([label, output])
@@ -909,14 +908,14 @@ class Comfy_Horde:
             logger.debug("Received output image(s) from comfyui")
         else:
             if self._comfyui_callback is not None:
-                self._comfyui_callback(label, data, _id)
+                self._comfyui_callback(label, data, sid)
 
             if label == "execution_error":
-                logger.error(f"{label}, {data}, {_id}")
+                logger.error(f"{label}, {data}, {sid}")
                 # Reset images on error so that we receive expected None input and can raise an exception
                 self.images = None
             elif label != "executing":
-                logger.debug(f"{label}, {data}, {_id}")
+                logger.debug(f"{label}, {data}, {sid}")
             else:
                 node_name = data.get("node", "")
                 logger.debug(f"{label} comfyui node: {node_name}")
@@ -952,14 +951,14 @@ class Comfy_Horde:
         # pretty_pipeline = pformat(pipeline)
         # logger.warning(pretty_pipeline)
 
-        # The client_id parameter here is just so we receive comfy callbacks for debugging.
+        # The client_id parameter used to only be for debugging, but is now required for all requests.
         # We pretend we are a web client and want async callbacks.
         stdio = OutputCollector(comfyui_progress_callback=comfyui_progress_callback)
         with contextlib.redirect_stdout(stdio), contextlib.redirect_stderr(stdio):
             # validate_prompt from comfy returns [bool, str, list]
             # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
             self.client_id = str(uuid.uuid4())
-            valid = asyncio.run(_comfy_validate_prompt(1, pipeline, []))
+            valid = asyncio.run(_comfy_validate_prompt(1, pipeline, None))
             import folder_paths
 
             if "embeddings" in folder_paths.filename_list_cache:

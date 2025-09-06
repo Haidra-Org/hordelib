@@ -25,7 +25,7 @@ class HordeCheckpointLoader:
                 "seamless_tiling_enabled": ("<bool>",),
                 "horde_model_name": ("<horde model name>",),
                 "ckpt_name": ("<ckpt name>",),
-                "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],), # Unet model type
+                # "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],), # Unet model type
                 "file_type": ("<file type>",),  # TODO: Make this optional
             },
         }
