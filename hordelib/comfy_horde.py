@@ -672,7 +672,7 @@ class Comfy_Horde:
 
     def _load_custom_nodes(self) -> None:
         """Force ComfyUI to load its normal custom nodes and the horde custom nodes."""
-        _comfy_nodes.init_extra_nodes(init_custom_nodes=True)
+        asyncio.run(_comfy_nodes.init_extra_nodes(init_custom_nodes=True))
 
     def _get_executor(self):
         """Return the ComfyUI PromptExecutor object."""
