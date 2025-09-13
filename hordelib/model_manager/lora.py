@@ -38,7 +38,9 @@ AIWORKER_LORA_CACHE_SIZE_DEFAULT = 10 * 1024  # 10GB
 
 
 class LoraModelManager(BaseModelManager):
-    LORA_DEFAULTS = "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/main/lora.json"
+    LORA_DEFAULTS = (
+        "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/refs/heads/qwen/lora.json"
+    )
     LORA_VERSIONS_DEFAULTS = (
         "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/main/lora_versions.json"
     )
@@ -619,7 +621,7 @@ class LoraModelManager(BaseModelManager):
                 thread = threading.Thread(target=self._download_thread, daemon=True, args=(thread_iter,))
                 self._download_threads[thread_iter] = {"thread": thread, "lora": None}
                 logger.debug(f"Started download thread {thread_iter}")
-                logger.debug(f"Download threads: {self._download_threads}")
+                # logger.debug(f"Download threads: {self._download_threads}")
                 thread.start()
 
             # Add this lora to the download queue
@@ -665,9 +667,11 @@ class LoraModelManager(BaseModelManager):
             # To avoid converting the lora_name to int every time later
             new_lora_version = self.ensure_is_version(list(lora["versions"].keys())[0])
             if lora_key not in self.model_reference:
+                logger.debug(f"New LoRa {lora_key} added to reference")
                 self.model_reference[lora_key] = lora
             else:
                 # If we already know of one version of this lora, we simply add the extra version to our versions
+                logger.debug(f"Existing LoRa {lora_key} updated in reference")
                 if new_lora_version not in self.model_reference[lora_key]["versions"]:
                     self.model_reference[lora_key]["versions"][new_lora_version] = lora["versions"][new_lora_version]
             self._index_ids[lora["id"]] = lora_key
@@ -676,6 +680,8 @@ class LoraModelManager(BaseModelManager):
             self._index_orig_names[orig_name] = lora_key
             # Invalidate the adhoc cache
             self._adhoc_loras_cache = None
+            logger.debug(f"LoRa reference now has {len(self.model_reference)} entries")
+            logger.debug(self.model_reference.keys())
 
     def reload_reference_from_disk(self):
         with self._file_mutex, self._file_lock:
@@ -929,6 +935,7 @@ class LoraModelManager(BaseModelManager):
                         f"Lora refrence backed up to {backup_filename}. "
                         f"It contained {len(self.model_reference)} loras at time of copy.",
                     )
+            logger.debug(f"Saving lora reference with {len(self.model_reference)} loras to {self.models_db_path}")
             with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
                 outfile.write(json.dumps(self.model_reference.copy(), indent=4))
             if self._using_multiprocessing:
