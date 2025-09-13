@@ -762,6 +762,7 @@ class HordeLib:
                 else:
                     lora_name = SharedModelManager.manager.lora.get_lora_name(str(lora["name"]))
                 if lora_name is None:
+                    logger.debug(f"Lora requested '{lora['name']}' could not be found in the json DB. Ignoring!")
                     faults.append(
                         GenMetadataEntry(
                             type=METADATA_TYPE.lora,

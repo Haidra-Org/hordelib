@@ -928,7 +928,7 @@ class Comfy_Horde:
                         logger.error(f"Received unexpected image output from comfyui: {key}:{value}")
             logger.debug("Received output image(s) from comfyui")
         else:
-            if self._comfyui_callback is not None:
+            if self._comfyui_callback is not None and sid is not None:
                 self._comfyui_callback(label, data, sid)
 
             if label == "execution_error":
@@ -936,7 +936,8 @@ class Comfy_Horde:
                 # Reset images on error so that we receive expected None input and can raise an exception
                 self.images = None
             elif label != "executing":
-                logger.debug(f"{label}, {data}, {sid}")
+                pass
+                # logger.debug(f"{label}, {data}, {sid}")
             else:
                 node_name = data.get("node", "")
                 logger.debug(f"{label} comfyui node: {node_name}")
