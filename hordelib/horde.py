@@ -226,6 +226,7 @@ class HordeLib:
         "stable_cascade_stage_c": {"datatype": str, "default": None},  # Stable Cascade
         "extra_source_images": {"datatype": list, "default": []},  # Stable Cascade Remix
         "extra_texts": {"datatype": list, "default": []},  # QR Codes (for now)
+        "weight_dtype": {"datatype": list, "default": []},  # For Qwen
         "workflow": {"datatype": str, "default": "auto_detect"},
         "transparent": {"datatype": bool, "default": False},
     }
@@ -570,6 +571,7 @@ class HordeLib:
         for file_entry in model_files:
             if "file_type" in file_entry:
                 payload[file_entry["file_type"]] = file_entry["file_path"]
+                logger.debug(f"AAAAA {payload}")
 
         # Rather than specify a scheduler, only karras or not karras is specified
         if payload.get("karras", False):
@@ -898,12 +900,15 @@ class HordeLib:
         # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
         # We don't want to hardcode this into the pipeline.json as we export this directly from ComfyUI
         # and don't want to have to rememeber to re-add those keys
+        logger.debug(f"BBBBBBB: {pipeline_params}")
         if "model_loader_stage_c.ckpt_name" in pipeline_params:
             pipeline_params["model_loader_stage_c.file_type"] = "stable_cascade_stage_c"
         if "model_loader_stage_b.ckpt_name" in pipeline_params:
             pipeline_params["model_loader_stage_b.file_type"] = "stable_cascade_stage_b"
-        pipeline_params["model_loader.file_type"] = None  # To allow normal SD pipelines to keep working
-
+        if pipeline_params["model_loader.horde_model_name"] == "Qwen-Image_fp8":
+            pipeline_params["model_loader.file_type"] = "unet"
+        else:
+            pipeline_params["model_loader.file_type"] = None  # To allow normal SD pipelines to keep working
         # Inject our model manager
         # pipeline_params["model_loader.model_manager"] = SharedModelManager
         pipeline_params["model_loader.will_load_loras"] = bool(payload.get("loras"))
@@ -1187,6 +1192,7 @@ class HordeLib:
         #       stable_cascade_remix
         #       stable_cascade_2pass
         #     qr_code
+        #     qwen
 
         # controlnet, controlnet_hires_fix controlnet_annotator
         if params.get("workflow") == "qr_code":
@@ -1201,6 +1207,8 @@ class HordeLib:
                 return "stable_cascade"
             if model_details.get("baseline") == "flux_1":
                 return "flux"
+            if model_details.get("baseline") == "qwen_image":
+                return "qwen"
         if params.get("control_type"):
             if params.get("return_control_map", False):
                 return "controlnet_annotator"
