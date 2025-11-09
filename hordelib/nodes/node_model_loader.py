@@ -25,8 +25,10 @@ class HordeCheckpointLoader:
                 "seamless_tiling_enabled": ("<bool>",),
                 "horde_model_name": ("<horde model name>",),
                 "ckpt_name": ("<ckpt name>",),
-                # "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],), # Unet model type
                 "file_type": ("<file type>",),  # TODO: Make this optional
+            },
+            "optional": {
+                "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],), # Unet model type
             },
         }
 
@@ -145,6 +147,7 @@ class HordeCheckpointLoader:
                     ckpt_path,
                     model_options=model_options,
                 )
+                logger.debug(result)
             else:
                 result = comfy.sd.load_checkpoint_guess_config(
                     ckpt_path,
@@ -152,10 +155,11 @@ class HordeCheckpointLoader:
                     output_clip=True,
                     embedding_directory=folder_paths.get_folder_paths("embeddings"),
                 )
-
+                logger.debug(result)
         SharedModelManager.manager._models_in_ram[horde_in_memory_name] = result, will_load_loras
 
-        if seamless_tiling_enabled and file_type in ["unet", "vae", "text_encoder"]:
+
+        if seamless_tiling_enabled and file_type not in ["unet", "vae", "text_encoder"]:
             result[0].model.apply(make_circular)
             make_circular_vae(result[2])
         else:

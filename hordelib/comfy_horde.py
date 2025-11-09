@@ -557,7 +557,7 @@ class Comfy_Horde:
     # which our custom nodes don't allow.
     NODE_REPLACEMENTS = {
         "CheckpointLoaderSimple": "HordeCheckpointLoader",
-        "UNETLoader": "HordeCheckpointLoader",
+        # "UNETLoader": "HordeCheckpointLoader",
         # "UpscaleModelLoader": "HordeUpscaleModelLoader",
         "SaveImage": "HordeImageOutput",
         "LoadImage": "HordeImageLoader",
@@ -636,6 +636,30 @@ class Comfy_Horde:
             [
                 _comfy_folder_names_and_paths["checkpoints"][0][0],
                 str(UserSettings.get_model_directory() / "compvis"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
+
+        _comfy_folder_names_and_paths["diffusion_models"] = (
+            [
+                _comfy_folder_names_and_paths["diffusion_models"][0][0],
+                str(UserSettings.get_model_directory() / "compvis"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
+
+        _comfy_folder_names_and_paths["vae"] = (
+            [
+                _comfy_folder_names_and_paths["vae"][0][0],
+                str(UserSettings.get_model_directory() / "vae"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
+
+        _comfy_folder_names_and_paths["text_encoders"] = (
+            [
+                _comfy_folder_names_and_paths["text_encoders"][0][0],
+                str(UserSettings.get_model_directory() / "text_encoders"),
             ],
             _comfy_supported_pt_extensions,
         )
