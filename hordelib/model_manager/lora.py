@@ -13,6 +13,7 @@ from enum import auto
 from multiprocessing.synchronize import Lock as multiprocessing_lock
 from pathlib import Path
 
+import logfire
 import requests
 from fuzzywuzzy import fuzz
 from horde_model_reference import LEGACY_REFERENCE_FOLDER
@@ -35,6 +36,44 @@ class DOWNLOAD_SIZE_CHECK(StrEnum):
 TESTS_ONGOING = os.getenv("TESTS_ONGOING", "0") == "1"
 
 AIWORKER_LORA_CACHE_SIZE_DEFAULT = 10 * 1024  # 10GB
+
+
+# Module-level metrics for LoRA operations
+lora_download_duration_histogram = logfire.metric_histogram(
+    "lora.download.duration_s",
+    unit="s",
+    description="Duration to download individual LoRA files from CivitAI",
+)
+
+lora_metadata_fetch_duration_histogram = logfire.metric_histogram(
+    "lora.metadata_fetch.duration_ms",
+    unit="ms",
+    description="Duration to fetch LoRA metadata from CivitAI API",
+)
+
+lora_download_retries_counter = logfire.metric_counter(
+    "lora.download.retries",
+    unit="1",
+    description="Number of download retry attempts",
+)
+
+lora_network_errors_counter = logfire.metric_counter(
+    "lora.network.errors",
+    unit="1",
+    description="Number of network errors encountered",
+)
+
+lora_queue_size_gauge = logfire.metric_gauge(
+    "lora.queue.size",
+    unit="1",
+    description="Current size of LoRA download queue",
+)
+
+lora_active_threads_gauge = logfire.metric_gauge(
+    "lora.threads.active",
+    unit="1",
+    description="Number of active download threads",
+)
 
 
 class LoraModelManager(BaseModelManager):
@@ -73,15 +112,34 @@ class LoraModelManager(BaseModelManager):
         multiprocessing_lock: multiprocessing_lock | None = None,
         civitai_api_token: str | None = None,
     ):
+        manager_logger = logger.bind(manager="lora")
+        manager_logger.debug(
+            "lora.init_called",
+            download_reference=download_reference,
+            allowed_top_storage_mb=allowed_top_lora_storage,
+            allowed_adhoc_storage_mb=allowed_adhoc_lora_storage,
+            download_wait=download_wait,
+            multiprocessing_lock_enabled=multiprocessing_lock is not None,
+            civitai_api_token_set=bool(civitai_api_token),
+        )
         self.max_adhoc_disk = allowed_adhoc_lora_storage
         try:
             AIWORKER_LORA_CACHE_SIZE = os.getenv("AIWORKER_LORA_CACHE_SIZE")
             if AIWORKER_LORA_CACHE_SIZE is not None:
                 self.max_adhoc_disk = int(AIWORKER_LORA_CACHE_SIZE)
-                logger.debug(f"AIWORKER_LORA_CACHE_SIZE is {self.max_adhoc_disk}")
+                manager_logger.debug(
+                    "lora.env_cache_size_override",
+                    cache_size=self.max_adhoc_disk,
+                )
         except (ValueError, TypeError):
-            logger.error(f"AIWORKER_LORA_CACHE_SIZE is not a valid integer: {AIWORKER_LORA_CACHE_SIZE}")
-            logger.warning(f"Using default value of {AIWORKER_LORA_CACHE_SIZE_DEFAULT}")
+            manager_logger.error(
+                "lora.env_cache_size_invalid",
+                raw_value=AIWORKER_LORA_CACHE_SIZE,
+            )
+            manager_logger.warning(
+                "lora.env_cache_size_default_applied",
+                default_cache_size=AIWORKER_LORA_CACHE_SIZE_DEFAULT,
+            )
             self.max_adhoc_disk = AIWORKER_LORA_CACHE_SIZE_DEFAULT
 
         self._max_top_disk = allowed_top_lora_storage
@@ -117,55 +175,66 @@ class LoraModelManager(BaseModelManager):
 
         models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
 
+        manager_logger.debug(
+            "lora.base_init_invoked",
+            models_db_path=str(models_db_path),
+        )
         super().__init__(
             model_category_name=MODEL_CATEGORY_NAMES.lora,
             download_reference=download_reference,
             models_db_path=models_db_path,
             civitai_api_token=civitai_api_token,
         )
+        manager_logger.debug(
+            "lora.init_complete",
+            model_reference_entries=len(self.model_reference),
+        )
         # FIXME (shift lora.json handling into horde_model_reference?)
 
     @override
     def load_model_database(self) -> None:
+        manager_logger = logger.bind(manager="lora")
         if self.model_reference:
-            logger.info(
-                (
-                    "Model reference was already loaded."
-                    f" Got {len(self.model_reference)} models for {self.models_db_name}."
-                ),
+            manager_logger.info(
+                "lora.model_reference_already_loaded",
+                model_count=len(self.model_reference),
+                database_name=self.models_db_name,
             )
-            logger.info("Reloading model reference...")
+            manager_logger.info("lora.reload_requested")
 
         if self.download_reference:
             os.makedirs(self.model_folder_path, exist_ok=True)
             self.download_model_reference()
-            logger.info("Lora reference download begun asynchronously.")
+            manager_logger.info("lora.reference_download_started")
         else:
             if self.models_db_path.exists():
                 with self._file_mutex, self._file_lock:
                     try:
                         self.model_reference = json.loads((self.models_db_path).read_text())
                     except json.JSONDecodeError:
-                        logger.error(
-                            f"Could not load {self.models_db_name} model reference from disk! "
-                            "Bad JSON? Attempting to load backup file.",
+                        manager_logger.error(
+                            "lora.model_reference_load_failed",
+                            database_name=self.models_db_name,
+                            reason="invalid_json",
+                            attempt="primary",
                         )
                         backup_read = False
                         for lora_backup in self.get_all_lora_backup_files():
                             try:
                                 self.model_reference = json.loads((lora_backup).read_text())
                                 backup_read = True
-                                logger.warning(f"Succesfully loaded {lora_backup} model reference from disk!")
+                                manager_logger.warning(
+                                    "lora.model_reference_backup_loaded",
+                                    backup_path=str(lora_backup),
+                                )
                                 break
                             except (json.JSONDecodeError, FileNotFoundError):
-                                logger.error(
-                                    f"Could not load {lora_backup} model reference from disk! "
-                                    "Will continue if there's more left",
+                                manager_logger.error(
+                                    "lora.model_reference_backup_failed",
+                                    backup_path=str(lora_backup),
                                 )
                         if backup_read is False:
-                            logger.error(
-                                "Could not find any lora model reference backup. Will create an empty reference.",
-                            )
+                            manager_logger.error("lora.model_reference_no_backups_found")
                             self.model_reference = {}
 
                 new_model_reference = {}
@@ -175,7 +244,10 @@ class LoraModelManager(BaseModelManager):
                     if "versions" not in lora:
                         filepath = os.path.join(self.model_folder_path, lora["filename"])
                         if not Path(f"{filepath}").exists():
-                            logger.debug(filepath)
+                            manager_logger.debug(
+                                "lora.legacy_missing_file_skipped",
+                                file_path=filepath,
+                            )
                             continue
                         lora_key = Sanitizer.sanitise_model_name(lora["orig_name"]).lower().strip()
                         lora_filename = f'{Sanitizer.sanitise_filename(lora["orig_name"])}_{lora["version_id"]}'
@@ -192,13 +264,16 @@ class LoraModelManager(BaseModelManager):
                         }
                         old_filename = os.path.join(self.model_folder_path, lora["filename"])
                         new_filename = os.path.join(self.model_folder_path, version["filename"])
-                        logger.warning(
-                            f"Old LoRa format detected for {lora_key}. Converting format and renaming files: "
-                            f"{old_filename} -> {new_filename}",
+                        manager_logger.warning(
+                            "lora.legacy_format_detected",
+                            lora_key=lora_key,
+                            old_filename=old_filename,
+                            new_filename=new_filename,
                         )
                         if os.path.exists(new_filename):
-                            logger.warning(
-                                f"New filename {new_filename} already exists. " "This shouldn't happen. Skipping...",
+                            manager_logger.warning(
+                                "lora.legacy_conversion_collision",
+                                existing_filename=new_filename,
                             )
                             continue
 
@@ -219,7 +294,12 @@ class LoraModelManager(BaseModelManager):
                         for version in lora["versions"]:
                             filepath = os.path.join(self.model_folder_path, lora["versions"][version]["filename"])
                             if not Path(f"{filepath}").exists():
-                                logger.warning(f"{filepath} doesn't exist. Removing lora version from reference.")
+                                manager_logger.warning(
+                                    "lora.version_missing_file_removed",
+                                    file_path=filepath,
+                                    lora_key=old_lora_key,
+                                    version_id=version,
+                                )
                                 continue
                             existing_versions[version] = lora["versions"][version]
                         lora["versions"] = existing_versions
@@ -231,110 +311,267 @@ class LoraModelManager(BaseModelManager):
                     for version_id in lora["versions"]:
                         self._index_version_ids[version_id] = lora["name"]
                 self.model_reference = new_model_reference
-                logger.info(f"Loaded model reference from disk with {len(self.model_reference)} lora entries.")
+                manager_logger.info(
+                    "lora.model_reference_loaded",
+                    model_count=len(self.model_reference),
+                    source="disk",
+                )
             else:
-                logger.warning(
-                    f"Could not load {self.models_db_name} model reference from disk! File not found. "
-                    "This is normal if you're running the this for the first time.",
+                manager_logger.warning(
+                    "lora.model_reference_missing",
+                    database_name=self.models_db_name,
                 )
                 self.model_reference = {}
             self.save_cached_reference_to_disk()
-            logger.info(
-                (f"Got {len(self.model_reference)} models for {self.models_db_name}.",),
+            manager_logger.info(
+                "lora.model_reference_ready",
+                model_count=len(self.model_reference),
+                database_name=self.models_db_name,
             )
 
     def download_model_reference(self):
+        logger.debug("download_model_reference() called - wiping model_reference")
         # We have to wipe it, as we are going to be adding it it instead of replacing it
         # We're not downloading now, as we need to be able to init without it
         self.model_reference = {}
         self.save_cached_reference_to_disk()
+        logger.debug("download_model_reference() complete - model_reference cleared and saved")
 
     def _get_lora_defaults(self):
+        defaults_logger = logger.bind(manager="lora")
+        defaults_logger.debug(
+            "lora.defaults_fetch_started",
+            source_url=self.LORA_DEFAULTS,
+        )
         try:
             self._default_lora_ids = self._get_json(self.LORA_DEFAULTS)
+            defaults_logger.debug(
+                "lora.defaults_fetch_type",
+                data_type=type(self._default_lora_ids).__name__,
+            )
             if not isinstance(self._default_lora_ids, list):
-                logger.error("Could not download default LoRas reference!")
+                defaults_logger.error("lora.defaults_fetch_invalid_type")
                 self._default_lora_ids = []
+            else:
+                defaults_logger.debug(
+                    "lora.defaults_count",
+                    default_count=len(self._default_lora_ids),
+                )
+                if len(self._default_lora_ids) == 0:
+                    defaults_logger.warning(
+                        "lora.defaults_empty",
+                        source_url=self.LORA_DEFAULTS,
+                    )
+            defaults_logger.debug(
+                "lora.defaults_queue_enqueue",
+                ids_to_enqueue=len(self._default_lora_ids),
+            )
             self._add_lora_ids_to_download_queue(self._default_lora_ids)
 
         except Exception as err:
-            logger.error(f"_get_lora_defaults() raised {err}")
+            defaults_logger.error(
+                "lora.defaults_fetch_failed",
+                error_type=type(err).__name__,
+                error=str(err),
+            )
             raise err
 
     def _add_lora_ids_to_download_queue(self, lora_ids, adhoc=False, version_compare=None, id_type="lora"):
+        queue_logger = logger.bind(
+            manager="lora",
+            adhoc=adhoc,
+            id_type=id_type,
+        )
+        queue_logger.debug(
+            "lora.queue_add_requested",
+            id_count=len(lora_ids) if lora_ids else 0,
+            version_compare=str(version_compare) if version_compare is not None else None,
+        )
+        if not lora_ids or len(lora_ids) == 0:
+            queue_logger.warning("lora.queue_add_empty")
+            return
         if id_type == "version":
             # CivitAI doesn't support fetching multiple versions from the same API call, so we have to loop
             for version_id in lora_ids:
                 model_items = []
                 if isinstance(version_id, str) and not version_id.isdigit:
-                    logger.warning(f"Non-integer lora model version sent: {version_id}. Ignoring...")
+                    queue_logger.warning(
+                        "lora.queue_version_id_invalid",
+                        version_id=version_id,
+                    )
                 url = f"https://civitai.com/api/v1/model-versions/{version_id}"
                 data = self._get_json(url)
                 if not data:
-                    logger.warning(f"metadata for LoRa {lora_ids} could not be downloaded!")
+                    queue_logger.warning(
+                        "lora.queue_version_metadata_missing",
+                        requested_ids=lora_ids,
+                    )
                     return
                 model_items.append(data)
         else:
             idsq = "&ids=".join([str(id) for id in lora_ids])
             url = f"https://civitai.com/api/v1/models?limit=100&ids={idsq}"
+            queue_logger.debug(
+                "lora.queue_metadata_fetch",
+                url=url[:100] + "..." if len(url) > 100 else url,
+                url_length=len(url),
+            )
             data = self._get_json(url)
             if not data:
-                logger.warning(f"metadata for LoRa {lora_ids} could not be downloaded!")
+                queue_logger.warning(
+                    "lora.queue_metadata_missing",
+                    requested_ids=lora_ids,
+                )
                 return
             model_items = data.get("items", [])
-        for lora_data in model_items:
+            queue_logger.debug(
+                "lora.queue_metadata_received",
+                item_count=len(model_items),
+            )
+        for idx, lora_data in enumerate(model_items):
+            queue_logger.debug(
+                "lora.queue_metadata_process",
+                item_index=idx + 1,
+                total_items=len(model_items),
+                lora_name=lora_data.get("name", "unknown"),
+            )
             lora = self._parse_civitai_lora_data(lora_data, adhoc=adhoc)
             # If we're comparing versions, then we don't download if the existing lora metadata matches
             # Instead we just refresh metadata information
             if not lora:
+                queue_logger.debug(
+                    "lora.queue_metadata_rejected",
+                    item_index=idx + 1,
+                )
                 continue
             if version_compare and self.find_latest_version(lora) == version_compare:
-                logger.debug(
-                    f"Downloaded metadata for LoRa {lora['name']} "
-                    f"('{lora['name']}') and found version match! Refreshing metadata.",
+                queue_logger.debug(
+                    "lora.queue_version_match",
+                    lora_name=lora["name"],
+                    version_compare=version_compare,
                 )
                 lora["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 self._add_lora_to_reference(lora)
                 continue
-            # logger.debug(f"Downloaded metadata for LoRas {lora['id']} ('{lora['name']}') and added to download queue"
-            self._download_lora(lora)
+            queue_logger.debug(
+                "lora.queue_enqueue_lora",
+                lora_id=lora["id"],
+                lora_name=lora["name"],
+            )
+            # Add context based on whether this is adhoc or default
+            download_context = {
+                "trigger_source": "adhoc_queue" if adhoc else "default_queue",
+            }
+            self._download_lora(lora, context=download_context)
 
+    @logfire.instrument("lora.fetch_metadata", extract_args=False)
     def _get_json(self, url):
+        import time
+
+        start_time = time.perf_counter()
+
+        fetch_logger = logger.bind(manager="lora")
+
+        truncated_url = url[:100] + "..." if len(url) > 100 else url
+
+        fetch_logger.info(
+            "lora.metadata_fetch_start",
+            url=truncated_url,
+            url_length=len(url),
+        )
+
         retries = 0
         while retries <= self.MAX_RETRIES:
             response = None
             try:
-                response = requests.get(
-                    url,
-                    timeout=self.REQUEST_METADATA_TIMEOUT if len(url) < 200 else self.REQUEST_METADATA_TIMEOUT * 1.5,
-                )
-                response.raise_for_status()
-                # Attempt to decode the response to JSON
-                return response.json()
+                with logfire.span(
+                    "lora.http_request",
+                    url=url[:100] + "..." if len(url) > 100 else url,
+                    attempt=retries + 1,
+                ):
+                    response = requests.get(
+                        url,
+                        timeout=(
+                            self.REQUEST_METADATA_TIMEOUT if len(url) < 200 else self.REQUEST_METADATA_TIMEOUT * 1.5
+                        ),
+                    )
+                    response.raise_for_status()
+                    # Attempt to decode the response to JSON
+                    result = response.json()
+
+                    duration_ms = (time.perf_counter() - start_time) * 1000
+                    lora_metadata_fetch_duration_histogram.record(duration_ms)
+
+                    fetch_logger.info(
+                        "lora.metadata_fetch_success",
+                        duration_ms=duration_ms,
+                        attempts=retries + 1,
+                        response_size=len(str(result)),
+                    )
+                    return result
 
             except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
-                logger.debug(f"url '{url}' download failed {type(e)} {e}")
+                error_type = type(e).__name__
+                lora_network_errors_counter.add(1, {"error_type": error_type})
+
+                fetch_logger.warning(
+                    "lora.metadata_fetch_error",
+                    error_type=error_type,
+                    error_msg=str(e),
+                    url=truncated_url,
+                    attempt=retries + 1,
+                    status_code=response.status_code if response else None,
+                )
+                fetch_logger.debug(
+                    "lora.metadata_fetch_error_detail",
+                    error_type=error_type,
+                    error_msg=str(e),
+                    status_code=response.status_code if response else None,
+                )
 
                 # If this is a 401, 404, or 500, we're not going to get anywhere, just give up
                 # The following are the CivitAI errors encountered so far
                 # [401: requires a token, 404: model ID too long, 500: internal server error]
                 if response is not None:
                     if response.status_code in [401, 404]:
-                        logger.debug(f"url '{url}' download failed with status code {response.status_code}")
+                        fetch_logger.error(
+                            "lora.metadata_fetch_fatal",
+                            status_code=response.status_code,
+                            reason="client_error",
+                        )
+                        fetch_logger.debug(
+                            "lora.metadata_fetch_status_detail",
+                            status_code=response.status_code,
+                        )
                         return None
                     if response.status_code == 500:
-                        logger.debug(f"url '{url}' download failed with status code {response.status_code}")
+                        fetch_logger.debug(
+                            "lora.metadata_fetch_status_detail",
+                            status_code=response.status_code,
+                        )
                         retries += 3
                     elif response.status_code > 500:
                         # We're going to assume all other 5xx errors are not going to pass quickly
-                        logger.debug(f"url '{url}' download failed with status code {response.status_code}")
+                        fetch_logger.error(
+                            "lora.metadata_fetch_fatal",
+                            status_code=response.status_code,
+                            reason="server_error",
+                        )
+                        fetch_logger.debug(
+                            "lora.metadata_fetch_status_detail",
+                            status_code=response.status_code,
+                        )
                         return None
 
                 # The json being invalid is a CivitAI issue, possibly it showing an HTML page and
                 # this isn't likely to change in the next 30 seconds, so we'll try twice more
                 # and give up if it doesn't work
                 if isinstance(e, json.JSONDecodeError):
-                    logger.debug(f"url '{url}' download failed with {type(e)} {e}")
+                    fetch_logger.debug(
+                        "lora.metadata_fetch_decode_error",
+                        error_type=type(e).__name__,
+                        error_msg=str(e),
+                    )
                     retries += 3
 
                 # If the network connection timed out, then self.REQUEST_METADATA_TIMEOUT seconds passed
@@ -344,16 +581,36 @@ class LoraModelManager(BaseModelManager):
 
                 retries += 1
                 self.total_retries_attempted += 1
+                lora_download_retries_counter.add(1, {"reason": error_type})
 
                 if retries <= self.MAX_RETRIES:
+                    fetch_logger.debug(
+                        "lora.metadata_fetch_retry",
+                        retry_count=retries,
+                        max_retries=self.MAX_RETRIES,
+                        delay_s=self.RETRY_DELAY,
+                    )
                     time.sleep(self.RETRY_DELAY)
                 else:
                     # Max retries exceeded, give up
+                    fetch_logger.error(
+                        "lora.metadata_fetch_failed",
+                        reason="max_retries_exceeded",
+                        total_attempts=retries,
+                    )
                     return None
 
             except Exception as e:
                 # Failed badly
-                logger.error(f"url '{url}' download failed {e}")
+                fetch_logger.error(
+                    "lora.metadata_fetch_exception",
+                    error_type=type(e).__name__,
+                    error_msg=str(e),
+                )
+                fetch_logger.error(
+                    "lora.metadata_fetch_exception_detail",
+                    error_msg=str(e),
+                )
                 return None
         return None
 
@@ -382,6 +639,7 @@ class LoraModelManager(BaseModelManager):
 
     def _parse_civitai_lora_data(self, item, adhoc=False):
         """Return a simplified dictionary with the information we actually need about a lora"""
+        parse_logger = logger.bind(manager="lora", adhoc=adhoc)
         lora = {
             "name": "",
             "orig_name": "",
@@ -400,7 +658,10 @@ class LoraModelManager(BaseModelManager):
             else:
                 lora_data = self._get_json(f"https://civitai.com/api/v1/models/{lora_id}")
                 if lora_data is None:
-                    logger.debug(f"Rejecting LoRa version {lora_id} because we can't retrieve it's model data")
+                    parse_logger.debug(
+                        "lora.parse_missing_model_data",
+                        lora_id=lora_id,
+                    )
                     return None
                 lora_name = lora_data.get("name", "")
             lora_nsfw = lora_data.get("nsfw", True)
@@ -437,7 +698,12 @@ class LoraModelManager(BaseModelManager):
                     lora["versions"][lora_version][
                         "size_mb"
                     ] = 144  # guess common case of 144MB, it's not critical here
-                    logger.debug(f"Could not get sizeKB for {lora['name']} version {lora_version}. Using 144MB")
+                    parse_logger.debug(
+                        "lora.parse_size_missing",
+                        lora_name=lora.get("name"),
+                        lora_version=lora_version,
+                        default_size_mb=144,
+                    )
                 lora["versions"][lora_version]["url"] = file.get("downloadUrl", "")
                 lora["versions"][lora_version]["triggers"] = triggers
                 lora["versions"][lora_version]["baseModel"] = version.get("baseModel", "SD 1.5")
@@ -447,11 +713,12 @@ class LoraModelManager(BaseModelManager):
                 lora["versions"][lora_version]["availability"] = version.get("availability", "Public")
                 break
         # If we don't have everything required, fail
+        parse_logger = parse_logger.bind(lora_id=lora.get("id"), lora_name=lora.get("orig_name"))
         if lora["versions"][lora_version]["adhoc"] and not lora["versions"][lora_version].get("sha256"):
-            logger.debug(f"Rejecting LoRa {lora.get('name')} because it doesn't have a sha256")
+            parse_logger.debug("lora.parse_rejected_missing_sha256", lora_version=lora_version)
             return None
         if not lora["versions"][lora_version].get("filename") or not lora["versions"][lora_version].get("url"):
-            logger.debug(f"Rejecting LoRa {lora.get('name')} because it doesn't have a url")
+            parse_logger.debug("lora.parse_rejected_missing_url", lora_version=lora_version)
             return None
         # We don't want to start downloading GBs of a single LoRa.
         # We just ignore anything over 400Mb. Them's the breaks...
@@ -460,10 +727,14 @@ class LoraModelManager(BaseModelManager):
             and lora["versions"][lora_version]["size_mb"] > 400
             and lora["id"] not in self._default_lora_ids
         ):
-            logger.debug(f"Rejecting LoRa {lora.get('name')} version {lora_version} because its size is over 400Mb.")
+            parse_logger.debug(
+                "lora.parse_rejected_size",
+                lora_version=lora_version,
+                size_mb=lora["versions"][lora_version]["size_mb"],
+            )
             return None
         if lora["versions"][lora_version]["adhoc"] and lora["nsfw"] and not self.nsfw:
-            logger.debug(f"Rejecting LoRa {lora.get('name')} because worker is SFW.")
+            parse_logger.debug("lora.parse_rejected_sfw_worker", lora_version=lora_version)
             return None
         # Fixup A1111 centric triggers
         for i, trigger in enumerate(lora["versions"][lora_version]["triggers"]):
@@ -471,161 +742,368 @@ class LoraModelManager(BaseModelManager):
                 lora["versions"][lora_version]["triggers"][i] = re.sub("<lora:(.*):.*>", "\\1", trigger)
         return lora
 
+    @logfire.instrument("lora.download_thread", extract_args=False)
     def _download_thread(self, thread_number):
         # We try to download the LORA. There are tens of thousands of these things, we aren't
         # picky if downloads fail, as they often will if civitai is the host, we just move on to
         # the next one
-        logger.debug(f"Started Download Thread {thread_number}")
+        thread_logger = logger.bind(manager="lora", thread_number=thread_number)
+        thread_logger.info("lora.thread_started")
+        thread_logger.debug("Download thread started")
+
         while True:
             # Endlessly look for files to download and download them
             if self._stop_all_threads:
-                logger.debug(f"Stopped Download Thread {thread_number}")
+                thread_logger.info("lora.thread_stopped", reason="stop_requested")
+                thread_logger.debug("Download thread stopped")
                 return
+
             try:
-                lora = self._download_queue.popleft()
+                download_item = self._download_queue.popleft()
+                lora = download_item["lora"]
+                context = download_item.get("context", {})
+
                 self._download_threads[thread_number]["lora"] = lora
+                lora_queue_size_gauge.set(len(self._download_queue))
+
+                # Create enriched logger with generation context
+                lora_logger = thread_logger.bind(
+                    lora_name=lora.get("orig_name", "unknown"),
+                    lora_id=lora.get("id", "unknown"),
+                    trigger_source=context.get("trigger_source", "unknown"),
+                    generation_model=context.get("model"),
+                    generation_resolution=context.get("resolution"),
+                )
+
+                lora_logger.info(
+                    "lora.download_dequeued",
+                    queue_remaining=len(self._download_queue),
+                    _span_name="LoRA download dequeued",
+                )
+
             except IndexError:
-                # Nothing in the queue
-                # logger.debug(f"Lora download thread {thread_number} idle.")
+                # Nothing in the queue - idle
                 self._download_threads[thread_number]["lora"] = None
                 time.sleep(self.THREAD_WAIT_TIME)
                 continue
+
             # Download the lora
             retries = 0
             # Normally a lora in this method should only have one version specified
             # So we can use this method to extract it.
             version = self.find_latest_version(lora)
-            logger.debug(f"Starting download thread  {thread_number} for lora {lora['orig_name']} version {version}.")
+            lora_logger.debug(
+                "lora.download_version_selected",
+                lora_version=version,
+            )
+
             if version is None:
-                logger.warning("Lora without version sent to the download queue. This should never happen. Ignoring")
+                lora_logger.error("lora.download_no_version")
+                lora_logger.warning("lora.download_missing_version")
                 continue
-            while retries <= self.MAX_RETRIES:
-                try:
-                    # Just before we download this file, check if we already have it
-                    filename = os.path.join(self.model_folder_path, lora["versions"][version]["filename"])
-                    hashfile = f"{os.path.splitext(filename)[0]}.sha256"
-                    if os.path.exists(filename) and os.path.exists(hashfile):
-                        # Check the hash
-                        with open(hashfile) as infile:
-                            try:
-                                hashdata = infile.read().split()[0]
-                            except (IndexError, OSError, PermissionError) as e:
-                                logger.error(
-                                    f"Error reading hash file {hashfile} for {filename} {type(e)} {e}",
+
+            lora_filename = lora["versions"][version]["filename"]
+            lora_size_mb = lora["versions"][version]["size_mb"]
+            lora_logger = lora_logger.bind(
+                lora_version=version, lora_filename=lora_filename, lora_size_mb=lora_size_mb
+            )
+
+            with logfire.span(
+                "lora.file_download",
+                thread_number=thread_number,
+                lora_name=lora.get("orig_name", "unknown"),
+                lora_filename=lora_filename,
+                size_mb=lora_size_mb,
+            ) as download_span:
+                import time as time_module
+
+                download_start = time_module.perf_counter()
+                download_success = False
+
+                while retries <= self.MAX_RETRIES:
+                    try:
+                        # Just before we download this file, check if we already have it
+                        filename = os.path.join(self.model_folder_path, lora["versions"][version]["filename"])
+                        hashfile = f"{os.path.splitext(filename)[0]}.sha256"
+
+                        if os.path.exists(filename) and os.path.exists(hashfile):
+                            with logfire.span("lora.check_existing_file"):
+                                # Check the hash
+                                with open(hashfile) as infile:
+                                    try:
+                                        hashdata = infile.read().split()[0]
+                                    except (IndexError, OSError, PermissionError) as e:
+                                        lora_logger.error(
+                                            "lora.hash_read_failed",
+                                            hashfile=hashfile,
+                                            data_filename=filename,
+                                            error_type=type(e).__name__,
+                                            error=str(e),
+                                        )
+                                        hashdata = ""
+
+                                if (
+                                    not lora["versions"][version].get("sha256")
+                                    or hashdata.lower() == lora["versions"][version]["sha256"].lower()
+                                ):
+                                    # we already have this lora, consider it downloaded
+                                    if not lora["versions"][version].get("sha256"):
+                                        lora_logger.debug("lora.download_cached_without_hash")
+
+                                    lora_logger.info(
+                                        "lora.already_downloaded",
+                                        bypassed_sha256=not lora["versions"][version].get("sha256"),
+                                    )
+
+                                    # We store as lower to allow case-insensitive search
+                                    lora["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                    self._add_lora_to_reference(lora)
+                                    if self.is_default_cache_full():
+                                        self.stop_downloading = True
+                                    self.save_cached_reference_to_disk()
+                                    download_success = True
+                                    break
+
+                        lora_logger.info("lora.download_start")
+
+                        lora_url = lora["versions"][version]["url"]
+                        if self._civitai_api_token and self.is_model_url_from_civitai(lora_url):
+                            lora_url += f"?token={self._civitai_api_token}"
+
+                        with logfire.span(
+                            "lora.http_download",
+                            url=lora_url[:100] + "..." if len(lora_url) > 100 else lora_url,
+                            attempt=retries + 1,
+                            size_mb=lora_size_mb,
+                        ) as http_span:
+                            http_start = time_module.perf_counter()
+                            response = requests.get(lora_url, timeout=self.REQUEST_DOWNLOAD_TIMEOUT)
+                            response.raise_for_status()
+                            http_duration = time_module.perf_counter() - http_start
+
+                            http_span.set_attribute("http_duration_s", http_duration)
+                            http_span.set_attribute(
+                                "download_speed_mbps", lora_size_mb / http_duration if http_duration > 0 else 0
+                            )
+
+                            if "reason=download-auth" in response.url:
+                                lora_logger.error("lora.download_auth_redirect")
+                                lora_logger.error(
+                                    "lora.download_auth_redirect_detail",
+                                    response_url=response.url,
                                 )
-                                hashdata = ""
-                        if (
-                            not lora["versions"][version].get("sha256")
-                            or hashdata.lower() == lora["versions"][version]["sha256"].lower()
-                        ):
-                            # we already have this lora, consider it downloaded
-                            # the SHA256 might not exist when the lora has been selected in the curation list
-                            # Where we allow them to skip it
-                            if not lora["versions"][version].get("sha256"):
-                                logger.debug(
-                                    f"Already have LORA {lora['versions'][version]['filename']}. "
-                                    "Bypassing SHA256 check as there's none stored",
-                                )
-                            # else:
-                            #     logger.debug(f"Already have LORA {lora['filename']}")
-                            # We store as lower to allow case-insensitive search
+                                break
+
+                        # Check the data hash
+                        with logfire.span("lora.verify_hash"):
+                            hash_object = hashlib.sha256()
+                            hash_object.update(response.content)
+                            sha256 = hash_object.hexdigest()
+
+                        if not lora.get("sha256") or sha256.lower() == lora["versions"][version]["sha256"].lower():
+                            # wow, we actually got a valid file, save it
+                            with logfire.span("lora.save_file"):
+                                with open(filename, "wb") as outfile:
+                                    outfile.write(response.content)
+                                # Save the hash file
+                                with open(hashfile, "w") as outfile:
+                                    outfile.write(f"{sha256} *{lora['versions'][version]['filename']}")
+
+                            lora["versions"][version]["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             lora["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                             self._add_lora_to_reference(lora)
-                            if self.is_default_cache_full():
-                                self.stop_downloading = True
+
+                            download_duration = time_module.perf_counter() - download_start
+                            lora_download_duration_histogram.record(download_duration)
+
+                            adhoc_cache_gb = round(self.calculate_adhoc_loras_cache() / 1024, 1)
+
+                            lora_logger.info(
+                                "lora.download_success",
+                                duration_s=download_duration,
+                                download_speed_mbps=(lora_size_mb / download_duration if download_duration > 0 else 0),
+                                adhoc_cache_gb=adhoc_cache_gb,
+                                max_cache_gb=self.max_adhoc_disk,
+                            )
+
+                            lora_logger.info(
+                                "lora.download_complete",
+                                size_mb=lora["versions"][version]["size_mb"],
+                                adhoc_cache_gb=adhoc_cache_gb,
+                            )
+
+                            if self.is_adhoc_cache_full():
+                                with logfire.span("lora.cleanup_old_files"):
+                                    delete_count = self.amount_of_adhoc_loras_to_delete()
+                                    lora_logger.info("lora.cache_full_cleanup", files_to_delete=delete_count)
+                                    for _lora_iter in range(delete_count):
+                                        self.delete_oldest_lora()
+
                             self.save_cached_reference_to_disk()
+                            download_success = True
                             break
 
-                    logger.info(f"Starting download of LORA {lora['versions'][version]['filename']}")
-
-                    lora_url = lora["versions"][version]["url"]
-                    if self._civitai_api_token and self.is_model_url_from_civitai(lora_url):
-                        lora_url += f"?token={self._civitai_api_token}"
-
-                    response = requests.get(lora_url, timeout=self.REQUEST_DOWNLOAD_TIMEOUT)
-                    response.raise_for_status()
-                    if "reason=download-auth" in response.url:
-                        logger.error(
-                            f"Error downloading {lora['versions'][version]['filename']}. "
-                            "CivitAI appears to be redirecting us to a login page. Aborting",
+                        # We will retry
+                        lora_logger.warning(
+                            "lora.download_hash_mismatch",
+                            expected_hash=lora["versions"][version].get("sha256", "none")[:16],
+                            actual_hash=sha256[:16],
+                            attempt=retries + 1,
+                            max_retries=self.MAX_RETRIES,
                         )
-                        break
-                    # Check the data hash
-                    hash_object = hashlib.sha256()
-                    hash_object.update(response.content)
-                    sha256 = hash_object.hexdigest()
-                    if not lora.get("sha256") or sha256.lower() == lora["versions"][version]["sha256"].lower():
-                        # wow, we actually got a valid file, save it
-                        with open(filename, "wb") as outfile:
-                            outfile.write(response.content)
-                        # Save the hash file
-                        with open(hashfile, "w") as outfile:
-                            outfile.write(f"{sha256} *{lora['versions'][version]['filename']}")
-                        lora["versions"][version]["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        lora["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                        self._add_lora_to_reference(lora)
-                        # Shout about it
-                        logger.info(
-                            f"Downloaded LORA {lora['versions'][version]['filename']} "
-                            f"({lora['versions'][version]['size_mb']} MB). "
-                            "The current adhoc cache is at "
-                            f"{round(self.calculate_adhoc_loras_cache() / 1024,1)}/{self.max_adhoc_disk}G",
+                        lora_logger.debug(
+                            "lora.download_hash_retry",
+                            retry_count=retries,
+                            max_retries=self.MAX_RETRIES,
                         )
-                        if self.is_adhoc_cache_full():
-                            for _lora_iter in range(self.amount_of_adhoc_loras_to_delete()):
-                                self.delete_oldest_lora()
-                        self.save_cached_reference_to_disk()
-                        break
 
-                    # We will retry
-                    logger.debug(
-                        f"Downloaded LORA file for {lora['versions'][version]['filename']} didn't match hash. "
-                        f"Retry {retries}/{self.MAX_RETRIES}",
-                    )
+                    except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
+                        error_type = type(e).__name__
+                        status_code = e.response.status_code if hasattr(e, "response") and e.response else None
 
-                except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
-                    # We will retry
-                    logger.debug(
-                        f"Error downloading {lora['versions'][version]['filename']} {e} ({type(e)}). "
-                        f"Retry {retries}/{self.MAX_RETRIES}",
-                    )
+                        lora_network_errors_counter.add(1, {"error_type": error_type})
+                        lora_download_retries_counter.add(1, {"reason": error_type})
 
-                    # If this is a 401 or 403, we're not going to get anywhere, just just give up
-                    if isinstance(e, requests.HTTPError) and e.response.status_code in [401, 403]:
-                        logger.error(
-                            f"Error downloading {lora['versions'][version]['filename']}. "
-                            "CivitAI appears to be denying access. Aborting",
+                        lora_logger.warning(
+                            "lora.download_network_error",
+                            error_type=error_type,
+                            error_msg=str(e),
+                            status_code=status_code,
+                            attempt=retries + 1,
                         )
-                        break
 
-                except Exception as e:
-                    # Failed badly, ignore and retry
-                    logger.debug(
-                        f"Fatal error downloading {lora['versions'][version]['filename']} {e} ({type(e)}). "
-                        f"Retry {retries}/{self.MAX_RETRIES}",
-                    )
+                        # We will retry
+                        lora_logger.debug(
+                            "lora.download_retry_scheduled",
+                            error_type=error_type,
+                            error_msg=str(e),
+                            status_code=status_code,
+                            retry_count=retries,
+                            max_retries=self.MAX_RETRIES,
+                        )
 
-                retries += 1
-                self.total_retries_attempted += 1
-                if retries > self.MAX_RETRIES:
-                    break  # fail
+                        # If this is a 401 or 403, we're not going to get anywhere, just just give up
+                        if isinstance(e, requests.HTTPError) and status_code in [401, 403]:
+                            lora_logger.error(
+                                "lora.download_auth_error",
+                                status_code=status_code,
+                            )
+                            lora_logger.error(
+                                "lora.download_auth_error_detail",
+                                error_msg=str(e),
+                            )
+                            break
 
-                time.sleep(self.RETRY_DELAY)
+                    except Exception as e:
+                        # Failed badly, ignore and retry
+                        lora_network_errors_counter.add(1, {"error_type": "fatal"})
 
-    def _download_lora(self, lora):
+                        lora_logger.error(
+                            "lora.download_fatal_error",
+                            error_type=type(e).__name__,
+                            error_msg=str(e),
+                            attempt=retries + 1,
+                        )
+                        lora_logger.debug(
+                            "lora.download_fatal_retry",
+                            error_type=type(e).__name__,
+                            error_msg=str(e),
+                            retry_count=retries,
+                            max_retries=self.MAX_RETRIES,
+                        )
+
+                    retries += 1
+                    self.total_retries_attempted += 1
+
+                    if retries > self.MAX_RETRIES:
+                        lora_logger.error(
+                            "lora.download_max_retries",
+                            total_attempts=retries,
+                        )
+                        break  # fail
+
+                    time.sleep(self.RETRY_DELAY)
+
+                # Set final span status
+                if download_success:
+                    download_span.set_attribute("success", True)
+                else:
+                    download_span.set_attribute("success", False)
+                    download_span.set_attribute("failed_after_attempts", retries)
+
+    @logfire.instrument("lora.queue_download", extract_args=False)
+    def _download_lora(self, lora, context: dict | None = None):
+        lora_name = lora.get("name", "unknown")
+        lora_id = lora.get("id", "unknown")
+
+        if context is None:
+            context = {}
+
+        queue_logger = logger.bind(
+            manager="lora",
+            lora_name=lora_name,
+            lora_id=lora_id,
+            trigger_source=context.get("trigger_source", "unknown"),
+        )
+
+        queue_logger.info("lora.queue_download_requested")
+
+        queue_logger.debug("lora.queue_download_invoked")
         with self._download_mutex:
             # Start download threads if they aren't already started
-            while len(self._download_threads) < self.MAX_DOWNLOAD_THREADS:
-                thread_iter = len(self._download_threads)
-                logger.debug(f"Starting download thread {thread_iter}")
-                thread = threading.Thread(target=self._download_thread, daemon=True, args=(thread_iter,))
-                self._download_threads[thread_iter] = {"thread": thread, "lora": None}
-                logger.debug(f"Started download thread {thread_iter}")
-                # logger.debug(f"Download threads: {self._download_threads}")
-                thread.start()
+            current_threads = len(self._download_threads)
+            queue_logger.debug(
+                "lora.queue_thread_count",
+                active_threads=current_threads,
+                max_threads=self.MAX_DOWNLOAD_THREADS,
+            )
 
-            # Add this lora to the download queue
-            self._download_queue.append(lora)
+            if current_threads < self.MAX_DOWNLOAD_THREADS:
+                with logfire.span(
+                    "lora.spawn_download_threads",
+                    current_threads=current_threads,
+                    max_threads=self.MAX_DOWNLOAD_THREADS,
+                ):
+                    while len(self._download_threads) < self.MAX_DOWNLOAD_THREADS:
+                        thread_iter = len(self._download_threads)
+                        spawn_logger = queue_logger.bind(thread_number=thread_iter)
+                        spawn_logger.debug("lora.thread_starting")
+
+                        spawn_logger.info(
+                            "lora.thread_spawned",
+                            total_threads=len(self._download_threads) + 1,
+                        )
+
+                        thread = threading.Thread(target=self._download_thread, daemon=True, args=(thread_iter,))
+                        self._download_threads[thread_iter] = {"thread": thread, "lora": None}
+                        spawn_logger.debug("lora.thread_started")
+                        spawn_logger.debug(
+                            "lora.thread_pool_state",
+                            active_threads=list(self._download_threads.keys()),
+                        )
+                        thread.start()
+
+                        lora_active_threads_gauge.set(len(self._download_threads))
+
+            # Add this lora to the download queue with context
+            download_item = {
+                "lora": lora,
+                "context": context,
+            }
+            self._download_queue.append(download_item)
+            queue_size = len(self._download_queue)
+            lora_queue_size_gauge.set(queue_size)
+
+            queue_logger.info(
+                "lora.added_to_queue",
+                queue_size=queue_size,
+                active_threads=len(self._download_threads),
+            )
+
+            queue_logger.debug(
+                "lora.queue_add_state",
+                queue_size=queue_size,
+            )
 
     def _process_items(self):
         # i.e. given a bunch of LORA item metadata, download them
@@ -640,7 +1118,10 @@ class LoraModelManager(BaseModelManager):
                 if self.calculate_download_queue() + self.calculate_downloaded_loras() > self._max_top_disk:
                     return
                 # We have valid lora data, download it
-                self._download_lora(lora)
+                download_context = {
+                    "trigger_source": "bulk_default",
+                }
+                self._download_lora(lora, context=download_context)
 
     def _start_processing(self):
         self.stop_downloading = False
@@ -657,30 +1138,37 @@ class LoraModelManager(BaseModelManager):
                 self._process_items()
 
     def _add_lora_to_reference(self, lora):
+        logger.debug("_add_lora_to_reference() called: lora_name={}", lora.get("name", "unknown"))
         # We don't want other threads trying to write on the reference while we're reloading it
         with self._mutex:
             self.reload_reference_from_disk()
             lora_key = lora["name"]
+            logger.debug("Adding lora with key: lora_key={}", lora_key)
             # A lora coming to add to our reference should only have 1 version
             # we do the version merge in this function
             # We convert the lora version to string when using it as key
             # To avoid converting the lora_name to int every time later
             new_lora_version = self.ensure_is_version(list(lora["versions"].keys())[0])
             if lora_key not in self.model_reference:
-                logger.debug(f"New LoRa {lora_key} added to reference")
+                logger.debug("New LoRa added to reference: lora_key={}", lora_key)
                 self.model_reference[lora_key] = lora
             else:
                 # If we already know of one version of this lora, we simply add the extra version to our versions
-                logger.debug(f"Existing LoRa {lora_key} updated in reference")
+                logger.debug("Existing LoRa updated in reference: lora_key={}", lora_key)
                 if new_lora_version not in self.model_reference[lora_key]["versions"]:
                     self.model_reference[lora_key]["versions"][new_lora_version] = lora["versions"][new_lora_version]
             self._index_ids[lora["id"]] = lora_key
             self._index_version_ids[new_lora_version] = lora_key
             orig_name = lora.get("orig_name", lora["name"]).lower()
             self._index_orig_names[orig_name] = lora_key
+            logger.debug(
+                f"Updated indexes: _index_ids[{lora['id']}]={lora_key}, "
+                f"_index_version_ids[{new_lora_version}]={lora_key}, "
+                f"_index_orig_names[{orig_name}]={lora_key},",
+            )
             # Invalidate the adhoc cache
             self._adhoc_loras_cache = None
-            logger.debug(f"LoRa reference now has {len(self.model_reference)} entries")
+            logger.debug("LoRa reference entry count: count={}", len(self.model_reference))
             logger.debug(self.model_reference.keys())
 
     def reload_reference_from_disk(self):
@@ -702,22 +1190,31 @@ class LoraModelManager(BaseModelManager):
 
     def download_default_loras(self, nsfw=True, timeout=None):
         """Start up a background thread downloading and return immediately"""
+        logger.debug("download_default_loras() called: nsfw={}, timeout={}", nsfw, timeout)
         # Don't start if we're already busy doing something
         if not self.are_downloads_complete():
+            logger.warning("Downloads already in progress, skipping download_default_loras")
             return
         self.nsfw = nsfw
         # TODO: Avoid clearing this out, until we know CivitAI is not dead.
+        logger.debug("Clearing all references before downloading")
         self.clear_all_references()
+        logger.debug("Ensuring model folder exists: path={}", self.model_folder_path)
         os.makedirs(self.model_folder_path, exist_ok=True)
         # Start processing in a background thread
+        logger.debug("Starting background thread for _get_lora_defaults")
         self._thread = threading.Thread(target=self._get_lora_defaults, daemon=True)
         self._thread.start()
+        logger.debug("Background thread started")
         # Wait for completion of our threads if requested
         if self._download_wait:
+            logger.debug("Waiting for downloads to complete: timeout={}", timeout)
             self.wait_for_downloads(timeout)
         if self.is_adhoc_reset_complete():
+            logger.debug("Starting adhoc reset thread")
             self._adhoc_reset_thread = threading.Thread(target=self.reset_adhoc_loras, daemon=True)
             self._adhoc_reset_thread.start()
+            logger.debug("Adhoc reset thread started")
 
     def clear_all_references(self):
         self.model_reference = {}
@@ -737,11 +1234,14 @@ class LoraModelManager(BaseModelManager):
     def are_downloads_complete(self):
         # If we don't have any models in our reference, then we haven't downloaded anything
         # perhaps faulty civitai?
-        if self._thread and self._thread.is_alive():
+        thread_alive = self._thread and self._thread.is_alive()
+        threads_idle = self.are_download_threads_idle()
+        queue_size = len(self._download_queue)
+        if thread_alive:
             return False
-        if not self.are_download_threads_idle():
+        if not threads_idle:
             return False
-        if len(self._download_queue) > 0:
+        if queue_size > 0:
             return False
         return self.stop_downloading
 
@@ -766,32 +1266,54 @@ class LoraModelManager(BaseModelManager):
         return str(lora_version)
 
     def fuzzy_find_lora_key(self, lora_name: int | str):
+        logger.debug("fuzzy_find_lora_key() called: lora_name={}, type={}", lora_name, type(lora_name))
+        logger.debug("Current model_reference entry count: count={}", len(self.model_reference))
+        logger.debug("_index_ids entry count: count={}", len(self._index_ids))
+        logger.debug("_index_orig_names entry count: count={}", len(self._index_orig_names))
         # sname = Sanitizer.remove_version(lora_name).lower()
-        # logger.debug(f"Looking for lora {lora_name}")
         if isinstance(lora_name, int) or lora_name.isdigit():
+            logger.debug("Searching by ID: lora_name={}", lora_name)
             if int(lora_name) in self._index_ids:
-                return self._index_ids[int(lora_name)]
+                result = self._index_ids[int(lora_name)]
+                logger.debug("Found in _index_ids: result={}", result)
+                return result
+            logger.debug("ID not found in _index_ids: lora_name={}", lora_name)
             return None
         if lora_name in self.model_reference:
+            logger.debug("Found exact match in model_reference: lora_name={}", lora_name)
             return lora_name
         if lora_name.lower() in self._index_orig_names:
-            return self._index_orig_names[lora_name.lower()]
+            result = self._index_orig_names[lora_name.lower()]
+            logger.debug("Found in _index_orig_names: result={}", result)
+            return result
         if Sanitizer.has_unicode(lora_name):
+            logger.debug("Lora name has unicode characters, searching in _index_orig_names")
             for lora in self._index_orig_names:
                 if lora_name in lora:
-                    return self._index_orig_names[lora]
+                    result = self._index_orig_names[lora]
+                    logger.debug("Found unicode match: result={}", result)
+                    return result
             # If a unicode name is not found in the orig_names index
             # it won't be found anywhere else, as unicode chars are converted to ascii in the keys
             # This saves us time doing unnecessary fuzzy searches
+            logger.debug("Unicode lora name not found in _index_orig_names")
             return None
+        logger.debug("Lora name entries in model_reference: count={}", len(lora_name))
+        logger.debug("Performing fuzzy search for: lora_name={}", lora_name)
         for lora in self.model_reference:
             if lora_name in lora:
+                logger.debug("Found substring match: lora={}", lora)
                 return lora
         for lora in self.model_reference:
-            if fuzz.ratio(lora_name, lora) > 80:
+            ratio = fuzz.ratio(lora_name, lora)
+            if ratio > 90:
+                logger.debug("Found fuzzy match: lora={}, ratio={}", lora, ratio)
                 return lora
-            if fuzz.ratio(lora_name, self.model_reference[lora]["orig_name"]) > 80:
+            ratio = fuzz.ratio(lora_name, self.model_reference[lora]["orig_name"])
+            if ratio > 90:
+                logger.debug("Found fuzzy match on orig_name: lora={}, ratio={}", lora, ratio)
                 return lora
+        logger.debug("No fuzzy match found: lora_name={}", lora_name)
         return None
 
     # Using `get_model` instead of `get_lora` as it exists in the base class
@@ -921,9 +1443,9 @@ class LoraModelManager(BaseModelManager):
             try:
                 file_path.unlink()  # Path.unlink() instead of os.remove()
             except OSError as e:
-                logger.warning(f"Error lora backup file: {file_path}: {e}")
+                logger.warning("Error lora backup file: file_path={}, error={}", file_path, e)
             except FileNotFoundError:
-                logger.warning(f"Expected to delete lora file {file_path} but it was not found.")
+                logger.warning("Expected to delete lora file but it was not found: file_path={}", file_path)
 
     def save_cached_reference_to_disk(self):
         with self._file_mutex, self._file_lock:
@@ -935,7 +1457,7 @@ class LoraModelManager(BaseModelManager):
                         f"Lora refrence backed up to {backup_filename}. "
                         f"It contained {len(self.model_reference)} loras at time of copy.",
                     )
-            logger.debug(f"Saving lora reference with {len(self.model_reference)} loras to {self.models_db_path}")
+            logger.debug("Saving lora reference: count={}, path={}", len(self.model_reference), self.models_db_path)
             with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
                 outfile.write(json.dumps(self.model_reference.copy(), indent=4))
             if self._using_multiprocessing:
@@ -1049,7 +1571,7 @@ class LoraModelManager(BaseModelManager):
             try:
                 self.delete_lora_files(lora_filename)
             except FileNotFoundError:
-                logger.warning(f"Expected to delete lora file {lora_filename} but it was not found.")
+                logger.warning("Expected to delete lora file but it was not found: lora_filename={}", lora_filename)
         return loras_to_delete
 
     def delete_adhoc_loras_over_limit(self):
@@ -1059,13 +1581,13 @@ class LoraModelManager(BaseModelManager):
     def delete_lora_files(self, lora_filename: str):
         filename = os.path.join(self.model_folder_path, lora_filename)
         if not os.path.exists(filename):
-            logger.warning(f"Could not find LoRa file on disk to delete: {filename}")
+            logger.warning("Could not find LoRa file on disk to delete: filename={}", filename)
             return
         os.remove(filename)
         hashfile = f"{os.path.splitext(filename)[0]}.sha256"
         if not os.path.exists(hashfile):
             os.remove(hashfile)
-        logger.info(f"Deleted LoRa file: {filename}")
+        logger.info("Deleted LoRa file: filename={}", filename)
 
     def delete_lora(self, lora_version: str):
         """Deletes the version passed. If not versions remains, forgets the lora"""
@@ -1074,7 +1596,7 @@ class LoraModelManager(BaseModelManager):
             self.reload_reference_from_disk()
         lora_info = self.get_model_reference_info(lora_version, is_version=True)
         if not lora_info:
-            logger.warning(f"Could not find lora version {lora_version} to delete")
+            logger.warning("Could not find lora version to delete: lora_version={}", lora_version)
             return
         lora_key = lora_info["name"]
         self.delete_lora_files(lora_info["versions"][lora_version]["filename"])
@@ -1088,8 +1610,34 @@ class LoraModelManager(BaseModelManager):
         self._adhoc_loras_cache = None
 
     def ensure_lora_deleted(self, lora_name: str):
-        logger.debug(f"Ensuring {lora_name} is deleted")
-        lora_key = self.fuzzy_find_lora_key(lora_name)
+        logger.debug("Ensuring lora is deleted: lora_name={}", lora_name)
+        lora_key: str | None = None
+        if isinstance(lora_name, int) or (isinstance(lora_name, str) and lora_name.isdigit()):
+            idx = int(lora_name)
+            if idx in self._index_ids:
+                lora_key = self._index_ids[idx]
+        if lora_key is None and isinstance(lora_name, str):
+            canonical = self._canonical_lora_key(lora_name)
+            if canonical in self.model_reference:
+                lora_key = canonical
+        if lora_key is None:
+            candidate = self.fuzzy_find_lora_key(lora_name)
+            if candidate:
+                request_key = self._canonical_lora_key(lora_name)
+                candidate_key = self._canonical_lora_key(candidate)
+                if (
+                    request_key
+                    and candidate_key
+                    and (request_key == candidate_key or request_key in candidate_key or candidate_key in request_key)
+                ):
+                    lora_key = candidate
+                else:
+                    logger.warning(
+                        "Rejecting fuzzy deletion for %s -> %s due to weak canonical match",
+                        lora_name,
+                        candidate,
+                    )
+                    return
         if not lora_key:
             return
         logger.debug(lora_key)
@@ -1178,16 +1726,19 @@ class LoraModelManager(BaseModelManager):
             if lora_datetime < datetime.now() - timedelta(days=1):
                 refresh = True
         if refresh:
-            logger.debug(f"Lora {lora_name} found needing refresh. Initiating metadata download...")
+            logger.debug("Lora found needing refresh. Initiating metadata download: lora_name={}", lora_name)
             url = f"https://civitai.com/api/v1/models/{lora_details['id']}"
             try:
                 lora = self.get_lora_metadata(url)
             except Exception as e:
-                logger.warning(f"Could not refresh lora {lora_name} metadata: ({type(e)}) {e}")
+                logger.warning(
+                    "Could not refresh lora metadata: lora_name={}, error_type={}, error={}", lora_name, type(e), e
+                )
                 return False
             latest_version = self.find_latest_version(lora)
             if latest_version != self.find_latest_version(lora_details):
-                self._add_lora_ids_to_download_queue([lora["id"]], latest_version)
+                # Note: _add_lora_ids_to_download_queue will set trigger_source based on adhoc parameter
+                self._add_lora_ids_to_download_queue([lora["id"]], adhoc=True, version_compare=latest_version)
                 return True
             # We need to record to disk the last time this lora was checked
             with self._mutex:
@@ -1216,11 +1767,66 @@ class LoraModelManager(BaseModelManager):
     def stop_all(self):
         self._stop_all_threads = True
 
+    def _metadata_matches_request(self, requested: str | int, lora: dict, is_version: bool = False) -> bool:
+        """Validate that fetched metadata corresponds to the requested identifier."""
+        if is_version:
+            version_key = self.ensure_is_version(requested)
+            if version_key is None:
+                return False
+            return version_key in lora.get("versions", {})
+
+        normalized = self._canonical_lora_key(requested)
+
+        if isinstance(requested, int):
+            return str(lora.get("id")) == str(requested)
+
+        if isinstance(requested, str):
+            if requested.isdigit():
+                return str(lora.get("id")) == requested
+
+            requested_sanitized = normalized
+            if not requested_sanitized:
+                return False
+
+            candidate_names = set()
+            candidate_names.add(lora.get("name", "").lower())
+            orig_name = lora.get("orig_name", "")
+            if orig_name:
+                candidate_names.add(Sanitizer.sanitise_model_name(orig_name).lower())
+            for version in lora.get("versions", {}).values():
+                lora_key = version.get("lora_key")
+                if lora_key:
+                    candidate_names.add(lora_key.lower())
+
+            candidate_names = {name for name in candidate_names if name}
+            if not candidate_names:
+                return False
+
+            if any(
+                requested_sanitized == candidate
+                or requested_sanitized in candidate
+                or candidate in requested_sanitized
+                for candidate in candidate_names
+            ):
+                return True
+
+            best_ratio = max((fuzz.ratio(requested_sanitized, candidate) for candidate in candidate_names), default=0)
+            return best_ratio >= 90
+
+        return False
+
+    def _canonical_lora_key(self, requested: str | int) -> str:
+        if isinstance(requested, int):
+            return str(requested)
+        if isinstance(requested, str):
+            return Sanitizer.sanitise_model_name(requested).lower().strip()
+        return ""
+
     def _touch_lora(self, lora_name: str | int, is_version: bool = False):
         """Updates the "last_used" key in a lora entry to current UTC time"""
         lora = self.get_model_reference_info(lora_name, is_version)
         if not lora:
-            logger.warning(f"Could not find lora {lora_name} to touch")
+            logger.warning("Could not find lora to touch: lora_name={}", lora_name)
             return
         if not is_version:
             version = self.find_latest_version(lora)
@@ -1251,7 +1857,7 @@ class LoraModelManager(BaseModelManager):
         """Returns a dateimte object based on the "last_used" key in a lora entry"""
         lora = self.get_model_reference_info(lora_name, is_version)
         if not lora:
-            logger.warning(f"Could not find lora {lora_name} to get last use")
+            logger.warning("Could not find lora to get last use: lora_name={}", lora_name)
             return None
         if is_version:
             version = self.ensure_is_version(lora_name)
@@ -1265,14 +1871,39 @@ class LoraModelManager(BaseModelManager):
             return datetime.now()
         return datetime.strptime(lora["versions"][version]["last_used"], "%Y-%m-%d %H:%M:%S")
 
-    def fetch_adhoc_lora(self, lora_name, timeout: int | None = 45, is_version: bool = False) -> str | None:
+    @logfire.instrument("lora.fetch_adhoc", extract_args=True)
+    def fetch_adhoc_lora(
+        self,
+        lora_name,
+        timeout: int | None = 45,
+        is_version: bool = False,
+        job_context: dict | None = None,
+    ) -> str | None:
         """Checks if a LoRa is available. If not, waits for it to be downloaded to complete *if timeout is set*.
 
         - If timeout is set, it will wait for the download to complete and return the lora name.
         - If timeout is *not* set, it will begin a download thread and return `None` immediately.
+
+        Args:
+            lora_name: The LoRA name or ID to fetch
+            timeout: Seconds to wait for download, or None for async
+            is_version: Whether lora_name is a version ID
+            job_context: Optional context about the generation job triggering this download
         """
+        logger.info(
+            "lora.adhoc_fetch_requested",
+            lora_name=str(lora_name)[:100],
+            timeout=timeout,
+            is_version=is_version,
+            has_job_context=job_context is not None,
+        )
+
+        logger.debug(
+            f"fetch_adhoc_lora() called with lora_name={lora_name}, " f"timeout={timeout}, is_version={is_version},",
+        )
         if is_version and not isinstance(lora_name, int) and not lora_name.isdigit():
             logger.debug("Lora version requested, but lora name is not an integer")
+            logger.warning("lora.adhoc_invalid_version", lora_name=str(lora_name)[:100])
             return None
         if isinstance(lora_name, int) or lora_name.isdigit():
             if is_version:
@@ -1284,46 +1915,111 @@ class LoraModelManager(BaseModelManager):
         # We're not using self.get_lora_metadata(url)
         # in order to be able to know if CivitAI is down
         try:
-            lora = self.get_lora_metadata(url)
+            with logfire.span("lora.adhoc_metadata_fetch", url=url[:100] + "..."):
+                lora = self.get_lora_metadata(url)
         except he.CivitAIDown as err:
+            logger.warning("lora.adhoc_civitai_down", error_msg=str(err)[:200])
             if isinstance(lora_name, str):
                 if lora_name in self.model_reference:
                     self._touch_lora(lora_name)
-                    logger.warning(f"CivitAI Appears down. Using cached info: {err}")
+                    logger.warning("CivitAI appears down. Using cached info: error={}", err)
+                    logger.info("lora.adhoc_using_cache", lora_name=lora_name)
                     return lora_name
-            logger.warning(f"Exception when getting lora metadata: {err}")
+            logger.warning("Exception when getting lora metadata (after cache check): error={}", err)
             return None
         except Exception as err:
-            logger.warning(f"Exception when getting lora metadata: {err}")
+            logger.error("lora.adhoc_metadata_error", error_type=type(err).__name__, error_msg=str(err)[:200])
+            logger.warning("Exception when getting lora metadata (general exception): error={}", err)
+            return None
+        if not self._metadata_matches_request(lora_name, lora, is_version):
+            logger.warning(
+                "lora.adhoc_metadata_mismatch",
+                lora_name=str(lora_name)[:100],
+                is_version=is_version,
+                returned_id=lora.get("id"),
+                returned_name=lora.get("name", "unknown")[:100],
+            )
+            logger.warning(
+                "CivitAI returned metadata that does not match request: %s (version=%s) -> id=%s name=%s",
+                lora_name,
+                is_version,
+                lora.get("id"),
+                lora.get("name"),
+            )
+            if is_version:
+                cached_key = self.find_lora_key_by_version(lora_name)
+                if cached_key:
+                    logger.info("Using cached LoRa version after metadata mismatch: %s", cached_key)
+                    logger.info("lora.adhoc_cache_hit_version", cached_key=cached_key, version=lora_name)
+                    self._touch_lora(lora_name, True)
+                    return cached_key
+            else:
+                cached_key = self.fuzzy_find_lora_key(lora_name)
+                if not cached_key:
+                    canonical = self._canonical_lora_key(lora_name)
+                    if canonical and canonical != lora_name:
+                        cached_key = self.fuzzy_find_lora_key(canonical)
+                if cached_key:
+                    logger.info("Using cached LoRa after metadata mismatch: %s", cached_key)
+                    logger.info("lora.adhoc_cache_hit_fuzzy", cached_key=cached_key)
+                    self._touch_lora(cached_key, False)
+                    return cached_key
             return None
         # We double-check that somehow our search missed it but CivitAI searches differently and found it
         fuzzy_find = self.fuzzy_find_lora_key(lora["id"])
         if fuzzy_find:
+            logger.info("lora.adhoc_already_exists_fuzzy", lora_name=fuzzy_find)
             # For versions of loras, we check in the lora versions
             # to see if we've downloaded this specific version before
             if is_version and lora_name in self.model_reference[fuzzy_find]["versions"]:
-                logger.debug(f"Found lora version with ID: {fuzzy_find}")
+                logger.debug("Found lora version with ID: fuzzy_find={}", fuzzy_find)
+                logger.info("lora.adhoc_found_version", lora_id=fuzzy_find, version=lora_name)
                 self._touch_lora(lora_name, True)
                 return fuzzy_find
             # We only return the known version, if it's also the latest version when no version was requested.
             if not is_version and self.get_latest_version(
                 self.get_model_reference_info(fuzzy_find),
             ) == self.get_latest_version(lora):
-                logger.debug(f"Found lora with ID: {fuzzy_find}")
+                logger.debug("Found lora with ID: fuzzy_find={}", fuzzy_find)
+                logger.info("lora.adhoc_found_latest", lora_id=fuzzy_find)
                 self._touch_lora(lora_name, False)
                 return fuzzy_find
-        self._download_lora(lora)
+
+        # Start the download with context
+        download_context = job_context or {}
+        if "trigger_source" not in download_context:
+            download_context["trigger_source"] = "adhoc_generation"
+
+        with logfire.span(
+            "lora.adhoc_download_triggered",
+            lora_id=lora["id"],
+            has_timeout=timeout is not None,
+            trigger_source=download_context.get("trigger_source"),
+        ):
+            self._download_lora(lora, context=download_context)
+
         if timeout is not None:
             # We need to wait a bit to make sure the threads pick up the download
-            time.sleep(self.THREAD_WAIT_TIME)
-            self.wait_for_downloads(timeout)
+            import time as time_module
+
+            with logfire.span("lora.adhoc_wait_for_completion", timeout=timeout) as wait_span:
+                wait_start = time_module.perf_counter()
+                time.sleep(self.THREAD_WAIT_TIME)
+                self.wait_for_downloads(timeout)
+                wait_duration = time_module.perf_counter() - wait_start
+                wait_span.set_attribute("wait_duration_s", wait_duration)
+
             version = self.find_latest_version(lora)
             if is_version:
                 version = lora_name
             if version is None:
+                logger.warning("lora.adhoc_version_not_found", lora_name=lora["name"])
                 return None
             self._touch_lora(version, True)
+            logger.info("lora.adhoc_success", lora_name=lora["name"], version=version)
             return lora["name"]
+
+        logger.info("lora.adhoc_no_wait", lora_id=lora["id"])
         return None
 
     def do_baselines_match(self, lora_name, model_details, is_version: bool = False):
@@ -1331,7 +2027,7 @@ class LoraModelManager(BaseModelManager):
         lora_details = self.get_model_reference_info(lora_name, is_version)
         return True  # FIXME: Disabled for now
         if not lora_details:
-            logger.warning(f"Could not find lora {lora_name} to check baselines")
+            logger.warning("Could not find lora to check baselines: lora_name={}", lora_name)
             return False
         if "SD 1.5" in lora_details["baseModel"] and model_details["baseline"] == "stable diffusion 1":
             return True

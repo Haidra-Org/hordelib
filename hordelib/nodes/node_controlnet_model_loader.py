@@ -20,7 +20,7 @@ class HordeDiffControlNetLoader:
     def load_controlnet(self, model, control_net_name, model_manager):
         from hordelib.comfy_horde import log_free_ram
 
-        logger.debug(f"Loading controlnet {control_net_name} through our custom node")
+        logger.debug("Loading controlnet through custom node: controlnet_name={}", control_net_name)
         log_free_ram()
 
         if not model_manager or not model_manager.manager or not model_manager.manager.controlnet:

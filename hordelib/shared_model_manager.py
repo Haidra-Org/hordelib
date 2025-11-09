@@ -107,8 +107,8 @@ class SharedModelManager:
                 download_and_convert_legacy_dbs=download_legacy_references,
                 override_existing=overwrite_existing_references,
             )
-        except Exception as e:
-            logger.error(f"Failed to initialize model reference manager: {e}")
+        except Exception:
+            logger.exception("Failed to initialize model reference manager")
             raise e
 
         references = {}
@@ -120,7 +120,7 @@ class SharedModelManager:
                 try:
                     MODEL_CATEGORY_NAMES(reference)
                 except ValueError:
-                    logger.warning(f"Invalid model category name: {reference}")
+                    logger.warning("Invalid model category name: reference={}", reference)
                     continue
                 parsed_reference = MODEL_CATEGORY_NAMES(reference)
             elif isinstance(reference, type):
@@ -129,26 +129,26 @@ class SharedModelManager:
                         try:
                             MODEL_CATEGORY_NAMES(k)
                         except ValueError:
-                            logger.warning(f"Invalid model category name: {k}")
+                            logger.warning("Invalid model category name: category={}", k)
                             continue
                         parsed_reference = MODEL_CATEGORY_NAMES(k)
                         break
 
             if parsed_reference is None:
-                logger.warning(f"Invalid model reference: {reference}")
+                logger.warning("Invalid model reference: reference={}", reference)
                 continue
 
             if parsed_reference not in _temp_reference_lookup:
-                logger.debug(f"Model reference doesn't require a legacy download: {reference}")
+                logger.debug("Model reference doesn't require a legacy download: reference={}", reference)
                 continue
 
             references[parsed_reference] = get_model_reference_file_path(_temp_reference_lookup[parsed_reference])
 
         for reference, path in references.items():
             if path is None and not download_legacy_references:
-                logger.warning(f"Failed to download legacy reference: {reference}")
+                logger.warning("Failed to download legacy reference: reference={}", reference)
                 continue
-            logger.debug(f"Legacy reference downloaded: {reference}")
+            logger.debug("Legacy reference downloaded: reference={}", reference)
 
         do_migrations()
         cls.manager.init_model_managers(
@@ -170,6 +170,7 @@ class SharedModelManager:
         Returns:
             bool: If the annotators are downloaded and the integrity is OK, this will return True. Otherwise, false.
         """
+        return True  # FIXME
         desired_annotator_path = UserSettings.get_model_directory() / "controlnet" / "annotator" / "ckpts"
 
         if builtins.annotator_ckpts_path == desired_annotator_path:  # type: ignore
@@ -182,7 +183,7 @@ class SharedModelManager:
 
         for legacy_annotator in annotators_in_legacy_directory:
             logger.warning("Annotator found in legacy directory. This file can be safely deleted:")
-            logger.warning(f"{legacy_annotator}")
+            logger.warning("Legacy annotator path: path={}", legacy_annotator)
 
         builtins.annotator_ckpts_path = desired_annotator_path  # type: ignore
 

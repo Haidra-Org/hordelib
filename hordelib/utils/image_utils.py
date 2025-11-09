@@ -204,19 +204,19 @@ class ImageUtils:
             upscale_steps * ((1 / (UPSCALE_ADJUSTMENT_FACTOR**native_resolution_distance_factor)) / UPSCALE_DIVISOR),
         )
 
-        logger.debug(f"Upscale steps calculated as {upscale_steps}")
+        logger.debug("Upscale steps calculated: steps={}", upscale_steps)
 
         if ddim_steps <= 18:
-            logger.debug(f"Upscale steps increased by {MIN_STEPS} due to low requested ddim steps")
+            logger.debug("Upscale steps increased: added_steps={}, reason=low_ddim_steps", MIN_STEPS)
             upscale_steps += MIN_STEPS
 
         if upscale_steps > ddim_steps:
-            logger.debug(f"Upscale steps adjusted to {ddim_steps} from {upscale_steps}")
+            logger.debug("Upscale steps adjusted: adjusted_to={}, original={}", ddim_steps, upscale_steps)
             upscale_steps = ddim_steps
 
         step_floor = min(6, ddim_steps)
         if step_floor > upscale_steps:
-            logger.debug(f"Upscale steps adjusted to {step_floor} from {upscale_steps}")
+            logger.debug("Upscale steps adjusted to floor: adjusted_to={}, original={}", step_floor, upscale_steps)
             upscale_steps = step_floor
 
         return upscale_steps

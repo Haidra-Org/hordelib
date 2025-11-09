@@ -67,7 +67,7 @@ class BaseModelManager(ABC):
         """
 
         if len(kwargs) > 0:
-            logger.debug(f"Unused kwargs in {type(self)}: {kwargs}")
+            logger.debug("Unused kwargs: type={}, kwargs={}", type(self), kwargs)
 
         self.model_folder_path = UserSettings.get_model_directory() / f"{MODEL_FOLDER_NAMES[model_category_name]}"
 
@@ -94,7 +94,7 @@ class BaseModelManager(ABC):
         if models_db_path is None:
             raise ValueError(f"Model database path not found for {model_category_name}")
 
-        logger.debug(f"Model database path: {models_db_path}")
+        logger.debug("Model database path: path={}", models_db_path)
         self.models_db_path = models_db_path
 
         self.remote_db = f"{REMOTE_MODEL_DB}{self.models_db_name}.json"
@@ -125,7 +125,7 @@ class BaseModelManager(ABC):
                     )
                     time.sleep(1)
                     continue
-                logger.error(f"Model database {self.models_db_path} is not valid JSON: {e}")
+                logger.error("Model database is not valid JSON: path={}, error={}", self.models_db_path, e)
                 raise
 
         models_available = []
@@ -267,20 +267,22 @@ class BaseModelManager(ABC):
             bool | None: `True` if the model is valid, `False` if not, `None` if the model is not on disk.
         """
         model_files = self.get_model_filenames(model_name)
-        logger.debug(f"Validating {model_name}. Files: {model_files}")
+        logger.debug("Validating model: name={}, files={}", model_name, model_files)
         for file_entry in model_files:
             if not self.is_file_available(file_entry["file_path"]):
                 return None
             if not skip_checksum and not self.validate_file(file_entry):
-                logger.warning(f"File {file_entry['file_path']} has different contents to what we expected.")
+                logger.warning("File has different contents than expected: file_path={}", file_entry["file_path"])
                 try:
                     # The file must have been considered valid once, or we wouldn't have renamed
                     # it from the ".part" download. Likely there is an update, or a model database hash problem
-                    logger.warning(f"Likely updated, will attempt to re-download {file_entry['file_path']}.")
+                    logger.warning(
+                        "Likely updated, will attempt to re-download: file_path={}", file_entry["file_path"]
+                    )
                     self.taint_model(model_name)
                 except OSError as e:
-                    logger.error(f"Unable to delete {file_entry['file_path']}: {e}.")
-                    logger.error(f"Please delete {file_entry['file_path']} if this error persists.")
+                    logger.error("Unable to delete file: file_path={}, error={}", file_entry["file_path"], e)
+                    logger.error("Please delete file if this error persists: file_path={}", file_entry["file_path"])
                 return False
 
         # FIXME: The below commented lines are already done in L267. Is this still needed?
@@ -350,7 +352,7 @@ class BaseModelManager(ABC):
             # Use our cached hash
             with open(sha256_file) as handle:
                 return handle.read().split()[0]
-        logger.info(f"Calculating sha256sum of {file_name}. This may take a while.")
+        logger.info("Calculating sha256sum. This may take a while: file_name={}", file_name)
         # Calculate the hash of the source file
         with open(file_name, "rb") as file_to_check:
             file_hash = hashlib.sha256()
@@ -390,19 +392,19 @@ class BaseModelManager(ABC):
             full_path = f"{self.model_folder_path}/{file_details['path']}"
         # Default to sha256 hashes
         if "sha256sum" in file_details:
-            logger.debug(f"Getting sha256sum of {full_path}")
+            logger.debug("Getting sha256sum: full_path={}", full_path)
             sha256_file_hash = self.get_file_sha256_hash(full_path).lower()
             expected_hash = file_details["sha256sum"].lower()
-            logger.debug(f"sha256sum: {sha256_file_hash}")
-            logger.debug(f"Expected: {expected_hash}")
+            logger.debug("sha256sum: hash={}", sha256_file_hash)
+            logger.debug("Expected: hash={}", expected_hash)
             return expected_hash == sha256_file_hash
 
         # If sha256 is not available, fall back to md5
         if "md5sum" in file_details:
-            logger.debug(f"Getting md5sum of {full_path}")
+            logger.debug("Getting md5sum: full_path={}", full_path)
             md5_file_hash = self.get_file_md5sum_hash(full_path)
-            logger.debug(f"md5sum: {md5_file_hash}")
-            logger.debug(f"Expected: {file_details['md5sum']}")
+            logger.debug("md5sum: hash={}", md5_file_hash)
+            logger.debug("Expected: hash={}", file_details["md5sum"])
             return file_details["md5sum"] == md5_file_hash
 
         # If no hashes available, return True for now
@@ -410,7 +412,7 @@ class BaseModelManager(ABC):
         # But currently not all models specify hashes
         # XXX this warning preexists me (@tazlin), probably should look into it
 
-        logger.debug(f"Model {file_details['path']} doesn't have a checksum, skipping validation!")
+        logger.debug("Model doesn't have a checksum, skipping validation: path={}", file_details["path"])
 
         return True
 
@@ -431,7 +433,7 @@ class BaseModelManager(ABC):
             parsed_full_path = Path(file_path)
             is_custom_model = True
         if parsed_full_path.suffix == ".part":
-            logger.debug(f"File {file_path} is a partial download, skipping")
+            logger.debug("File is a partial download, skipping: file_path={}", file_path)
             return False
         sha_file_path = Path(f"{parsed_full_path.parent}/{parsed_full_path.stem}.sha256")
         if parsed_full_path.exists() and not sha_file_path.exists() and not is_custom_model:
@@ -468,10 +470,10 @@ class BaseModelManager(ABC):
             if os.path.exists(partial_pathname):
                 # If file exists, find the size and append to it
                 partial_size = os.path.getsize(partial_pathname)
-                logger.info(f"Resuming download of file {filename}")
+                logger.info("Resuming download of file: filename={}", filename)
             else:
                 # If file doesn't exist, start from beginning
-                logger.info(f"Starting download of file {filename}")
+                logger.info("Starting download of file: filename={}", filename)
                 partial_size = 0
 
             # Add the 'Range' header to start downloading from where we left off
@@ -489,7 +491,7 @@ class BaseModelManager(ABC):
                     if partial_size == remote_file_size:
                         # Successful download, swap the files
                         self.progress()
-                        logger.info(f"Successfully downloaded the file {filename}")
+                        logger.info("Successfully downloaded the file: filename={}", filename)
                         if os.path.exists(final_pathname):
                             os.remove(final_pathname)
                         # Move the downloaded data into it's final location
@@ -544,7 +546,7 @@ class BaseModelManager(ABC):
                             if callback:
                                 callback(downloaded, remote_file_size + partial_size)
                 # Successful download, swap the files
-                logger.info(f"Successfully downloaded the file {filename}")
+                logger.info("Successfully downloaded the file: filename={}", filename)
                 self.progress()
                 if os.path.exists(final_pathname):
                     os.remove(final_pathname)
@@ -553,7 +555,7 @@ class BaseModelManager(ABC):
                 return True
 
             except requests.RequestException:
-                logger.info(f"Download of file {filename} failed.")
+                logger.info("Download of file failed: filename={}", filename)
                 retries -= 1
                 if retries:
                     logger.info("Attempting download of file again")
@@ -588,12 +590,12 @@ class BaseModelManager(ABC):
         # XXX this function is wacky in its premise and needs to be reworked
         is_model_tainted = model_name in self.tainted_models
         if not is_model_tainted and model_name in self.available_models:
-            logger.debug(f"{model_name} is already available.")
+            logger.debug("Model is already available: model={}", model_name)
             return True
         download = self.get_model_download(model_name)
         files = self.get_model_config_files(model_name)
         if self.is_model_available(model_name):
-            logger.debug(f"{model_name} is already downloaded.")
+            logger.debug("Model is already downloaded: model={}", model_name)
             return True
         for i in range(len(download)):
             file_path = (
@@ -627,7 +629,7 @@ class BaseModelManager(ABC):
             # TODO: simplify
             if "file_content" in download[i]:
                 file_content = download[i]["file_content"]
-                logger.info(f"writing {file_content} to {file_path}")
+                logger.info("Writing file content: content={}, path={}", file_content, file_path)
                 if not download_path or not download_name:
                     raise RuntimeError(
                         f"download_path and download_name are required for file_content download type for "
@@ -643,7 +645,7 @@ class BaseModelManager(ABC):
                 ) as f:
                     f.write(file_content)
             elif "symlink" in download[i]:
-                logger.info(f"symlink {file_path} to {download[i]['symlink']}")
+                logger.info("Creating symlink: file_path={}, target={}", file_path, download[i]["symlink"])
                 symlink = download[i]["symlink"]
                 if not download_path or not download_name:
                     raise RuntimeError(
@@ -661,7 +663,7 @@ class BaseModelManager(ABC):
                     ),
                 )
             elif "git" in download[i]:
-                logger.info(f"git clone {download_url} to {file_path}")
+                logger.info("Git clone: url={}, path={}", download_url, file_path)
                 os.makedirs(
                     os.path.join(self.model_folder_path, file_path),
                     exist_ok=True,
@@ -681,26 +683,26 @@ class BaseModelManager(ABC):
                 if not download_succeeded:
                     return False
 
-                logger.info(f"unzip {zip_path}")
+                logger.info("Unzipping: zip_path={}", zip_path)
                 with zipfile.ZipFile(zip_path, "r") as zip_ref:
                     zip_ref.extractall(temp_path)
 
-                logger.info(f"moving {temp_path} to {download_path}")
+                logger.info("Moving unzipped content: from={}, to={}", temp_path, download_path)
                 shutil.move(
                     temp_path,
                     os.path.join(self.model_folder_path, download_path),
                 )
 
-                logger.info(f"delete {zip_path}")
+                logger.info("Deleting zip file: zip_path={}", zip_path)
                 os.remove(zip_path)
 
-                logger.info(f"delete {temp_path}")
+                logger.info("Deleting temp directory: temp_path={}", temp_path)
                 shutil.rmtree(temp_path)
             else:
                 if not self.is_file_available(file_path) or is_model_tainted:
-                    logger.debug(f"Downloading {download_url} to {self.model_folder_path / file_path}")
+                    logger.debug("Downloading: url={}, path={}", download_url, self.model_folder_path / file_path)
                     if is_model_tainted:
-                        logger.debug(f"Model {model_name} is tainted.")
+                        logger.debug("Model is tainted: model={}", model_name)
 
                     if not download_url:
                         logger.error(
@@ -723,7 +725,7 @@ class BaseModelManager(ABC):
         # FIXME this has no fall back and always returns true
         for model in self.model_reference:
             if not self.is_model_available(model):
-                logger.info(f"Downloading {model}")
+                logger.info("Downloading model: model={}", model)
                 self.download_model(model, callback=callback)
             # else:
             #   logger.debug(f"{model} is already downloaded.")

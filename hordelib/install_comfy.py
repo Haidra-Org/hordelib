@@ -143,22 +143,22 @@ class Installer:
             could_reverse = not result.returncode
             if could_apply:
                 # Apply the patch
-                logger.info(f"Applying patch {patch_file}")
+                logger.info("Applying patch: patch_file={}", patch_file)
                 result = cls._run_get_result(f"git apply {patch_file}", get_comfyui_path())
-                logger.debug(f"{result}")
+                logger.debug("Patch apply result: result={}", result)
             elif could_reverse:
                 # Patch is already applied, all is well
-                logger.info(f"Already applied patch {patch_file}")
+                logger.info("Already applied patch: patch_file={}", patch_file)
             else:
                 # Couldn't apply or reverse? That's not so good, but maybe we are partially applied?
                 # Reset local changes
                 cls.remove_local_comfyui_changes()
                 # Try to apply the patch
-                logger.info(f"Applying patch {patch_file}")
+                logger.info("Applying patch (after reset): patch_file={}", patch_file)
                 result = cls._run_get_result(f"git apply {patch_file}", get_comfyui_path())
-                logger.debug(f"{result}")
+                logger.debug("Patch apply result: result={}", result)
                 if result.returncode:
-                    logger.error(f"Could not apply patch {patch_file}")
+                    logger.error("Could not apply patch: patch_file={}", patch_file)
 
         # Drop in custom node config
         config_file = os.path.join(get_comfyui_path(), "extra_model_paths.yaml")

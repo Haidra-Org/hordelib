@@ -172,18 +172,25 @@ class ModelManager:
             resolve_manager_to_load_type: type[BaseModelManager] | None = None
             if isinstance(manager_to_load, type) and issubclass(manager_to_load, BaseModelManager):
                 if manager_to_load not in MODEL_MANAGERS_TYPE_LOOKUP.values():
-                    logger.debug(f"Attempted to load a model manager which doesn't exist: '{manager_to_load}'.")
+                    logger.debug(
+                        "Attempted to load unknown model manager",
+                        manager_identifier=str(manager_to_load),
+                    )
                     continue
                 resolve_manager_to_load_type = manager_to_load
             elif manager_to_load in MODEL_MANAGERS_TYPE_LOOKUP.keys():
                 resolve_manager_to_load_type = MODEL_MANAGERS_TYPE_LOOKUP[manager_to_load]
             else:
-                logger.warning(f"Attempted to load a model manager which doesn't exist: '{manager_to_load}'.")
+                logger.warning(
+                    "Attempted to load unknown model manager",
+                    manager_identifier=str(manager_to_load),
+                )
                 continue
 
             if any(mm for mm in self.active_model_managers if isinstance(mm, resolve_manager_to_load_type)):
                 logger.debug(
-                    f"Attempted to load a model manager which is already loaded: '{resolve_manager_to_load_type}'.",
+                    "Attempted to load model manager which is already active",
+                    manager_type=resolve_manager_to_load_type.__name__,
                 )
                 continue
             self.active_model_managers.append(
@@ -201,18 +208,29 @@ class ModelManager:
             resolved_manager_to_unload_type: type[BaseModelManager] | None = None
             if isinstance(manager_to_unload, type) and issubclass(manager_to_unload, BaseModelManager):
                 if manager_to_unload not in MODEL_MANAGERS_TYPE_LOOKUP.values():
-                    logger.warning(f"Attempted to unload a model manager which doesn't exist: '{manager_to_unload}'.")
+                    logger.warning(
+                        "Attempted to unload unknown model manager",
+                        manager_identifier=str(manager_to_unload),
+                    )
                     continue
                 resolved_manager_to_unload_type = manager_to_unload
             elif manager_to_unload in MODEL_MANAGERS_TYPE_LOOKUP.keys():
                 resolved_manager_to_unload_type = MODEL_MANAGERS_TYPE_LOOKUP[manager_to_unload]
             else:
-                logger.warning(f"Attempted to unload a model manager which doesn't exist: '{manager_to_unload}'.")
+                logger.warning(
+                    "Attempted to unload unknown model manager",
+                    manager_identifier=str(manager_to_unload),
+                )
                 continue
 
             if not [mm for mm in self.active_model_managers if isinstance(mm, resolved_manager_to_unload_type)]:
                 logger.warning(
-                    f"Attempted to unload a model manager which is not loaded: '{resolved_manager_to_unload_type}'.",
+                    "Attempted to unload model manager which is not active",
+                    manager_type=(
+                        resolved_manager_to_unload_type.__name__
+                        if resolved_manager_to_unload_type is not None
+                        else None
+                    ),
                 )
                 continue
             self.active_model_managers = [
@@ -246,7 +264,7 @@ class ModelManager:
                 continue
 
             return model_manager.download_model(model_name, callback=callback)
-        logger.warning(f"Model '{model_name}' not found!")
+        logger.warning("Model not found", model_name=model_name)
         return None  # XXX if the download fails, the file causes issues # FIXME
 
     def download_all(
@@ -341,20 +359,25 @@ class ModelManager:
             if isinstance(mm_type, type) and mm_type.__name__ in active_model_managers_types_names:
                 resolved_types.append(mm_type)
                 logger.debug(
-                    (
-                        f"Found model manager by name: {mm_type.__name__}."
-                        " This may not be the model manager you are looking for.",
-                    ),
+                    "Resolved model manager by name",
+                    manager_name=mm_type.__name__,
+                    warning="May not match desired manager",
                 )
                 continue
 
             if not isinstance(mm_type, str) or mm_type not in MODEL_MANAGERS_TYPE_LOOKUP:
-                logger.debug(f"Attempted to reference a model manager which doesn't exist: '{mm_type}'.")
+                logger.debug(
+                    "Attempted to reference unknown model manager",
+                    manager_identifier=str(mm_type),
+                )
                 continue
 
             if mm_type in MODEL_MANAGERS_TYPE_LOOKUP:
                 if MODEL_MANAGERS_TYPE_LOOKUP[mm_type] not in active_model_managers_types:
-                    logger.debug(f"Attempted to reference a model manager which isn't loaded: '{mm_type}'.")
+                    logger.debug(
+                        "Attempted to reference model manager which is not active",
+                        manager_identifier=str(mm_type),
+                    )
                     continue
 
                 resolved_types.append(MODEL_MANAGERS_TYPE_LOOKUP[mm_type])

@@ -23,7 +23,7 @@ def validate_all_controlnet_annotators(annotatorPath: Path) -> int:
             logger.warning(
                 f"Annotator file {annotator} is not in the model database. Ignoring...",
             )
-            logger.warning(f"File location: {annotator_full_path}")
+            logger.warning("Annotator file location: path={}", annotator_full_path)
             validated_file_num += 1
             continue
 
@@ -36,9 +36,10 @@ def validate_all_controlnet_annotators(annotatorPath: Path) -> int:
                 )
             except OSError:
                 logger.error(
-                    f"Annotator file {annotator} is corrupt. Please delete it and try again.",
+                    "Annotator file is corrupt. Please delete it and try again: annotator={}",
+                    annotator,
                 )
-                logger.error(f"File location: {annotator_full_path}")
+                logger.error("File location: path={}", annotator_full_path)
             return validated_file_num
 
     # Create a file called `.controlnet_annotators` to indicate that all annotators are valid

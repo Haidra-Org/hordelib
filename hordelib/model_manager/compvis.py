@@ -44,7 +44,7 @@ class CompVisModelManager(BaseModelManager):
                     num_custom_models += len(extra_models)
 
         except json.decoder.JSONDecodeError as e:
-            logger.error(f"Custom model database {self.models_db_path} is not valid JSON: {e}")
+            logger.error("Custom model database is not valid JSON: path={}, error={}", self.models_db_path, e)
             raise
 
-        logger.info(f"Loaded {num_custom_models} models from {self.models_db_path}")
+        logger.info("Loaded custom models: count={}, path={}", num_custom_models, self.models_db_path)

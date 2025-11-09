@@ -100,7 +100,7 @@ def main():
             print("No model directory found. Environmental variable AIWORKER_CACHE_HOME is not set.")
             exit(1)
 
-    logger.info(f"Using model directory: {model_dir}")
+    logger.info("Using model directory: path={}", model_dir)
 
     try:
         gpu = GPUInfo().get_info()

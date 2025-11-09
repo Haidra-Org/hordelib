@@ -25,7 +25,7 @@ class HordeImageLoader:
             image = PIL.Image.new("RGB", (64, 64), (255, 255, 255))
 
         if not isinstance(image, PIL.Image.Image):
-            logger.error(f"Input image is not a PIL Image, it is a {type(image)}")
+            logger.error("Input image is not a PIL Image: image_type={}", type(image).__name__)
             raise ValueError(f"Input image is not a PIL Image, it is a {type(image)}")
 
         new_image = image.convert("RGB")

@@ -84,7 +84,7 @@ def initialise(
         disable_smart_memory=disable_smart_memory,
     )
     if models_not_to_force_load is not None:
-        logger.debug(f"Overriding models_not_to_force_load with {models_not_to_force_load}")
+        logger.debug("Overriding models_not_to_force_load: models={}", models_not_to_force_load)
         hordelib.comfy_horde.models_not_to_force_load = models_not_to_force_load.copy()
 
     vram_on_start_free = hordelib.comfy_horde.get_torch_free_vram_mb()
@@ -93,10 +93,10 @@ def initialise(
     message_addendum = "This will almost certainly cause issues. "
     message_addendum += "It is strongly recommended you close other applications before running the worker."
     if vram_on_start_free < 2000:
-        logger.warning(f"You have less than 2GB of VRAM free. {message_addendum}")
+        logger.warning("You have less than 2GB of VRAM free. {}", message_addendum)
 
     if vram_percent_used > 60:
-        logger.warning(f"There was already {vram_percent_used}% of VRAM used on start. {message_addendum}")
+        logger.warning("VRAM percent used on start: percent={}%. {}", vram_percent_used, message_addendum)
 
     if vram_total < 4000:
         logger.warning("You have less than 4GB of VRAM total. It is likely that generations will happen very slowly.")

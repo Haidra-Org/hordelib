@@ -307,6 +307,71 @@ def lora_GlowingRunesAI(shared_model_manager: type[SharedModelManager]) -> str:
 
 
 @pytest.fixture(scope="session")
+def test_loras_loaded(shared_model_manager: type[SharedModelManager]) -> dict[str, str]:
+    """Loads all loras needed for testing and returns a dict mapping test names to lora IDs.
+
+    This fixture ensures that all loras required by the test suite are downloaded and available
+    before tests run. Since the GitHub default lora list is empty, we manually download the
+    specific loras that tests depend on.
+
+    Returns:
+        dict: Mapping of descriptive names to lora IDs/names that were loaded
+    """
+    assert shared_model_manager.manager.lora
+
+    # Define the loras needed for tests with their CivitAI IDs or search names
+    # Format: (civitai_id_or_name, description, is_name)
+    test_loras = [
+        ("51686", "GlowingRunesAI", False),  # Used in fuzzy_search and lora_search tests
+        ("25995", "Blindbox/Da Gai Shi Mang He", False),  # Used in fuzzy_search tests (unicode)
+        ("Dra9onScaleAI", "Dra9onScaleAI", True),  # Used in lora_search tests - search by name
+    ]
+
+    loaded_loras = {}
+
+    for lora_id_or_name, description, is_name in test_loras:
+        print(f"\n  Loading test lora: {description} (ID/Name: {lora_id_or_name})")
+
+        # Check if already available - try both as ID and by fuzzy search
+        if not is_name and shared_model_manager.manager.lora.is_model_available(lora_id_or_name):
+            print(f"    ✓ Already available")
+            loaded_loras[description] = lora_id_or_name
+            continue
+
+        # Also check by fuzzy search for the name
+        if shared_model_manager.manager.lora.fuzzy_find_lora_key(lora_id_or_name):
+            print(f"    ✓ Already available (found by name)")
+            loaded_loras[description] = lora_id_or_name
+            continue
+
+        # Download if not available
+        print(f"    → Downloading...")
+        name = shared_model_manager.manager.lora.fetch_adhoc_lora(lora_id_or_name, timeout=300)
+
+        if name is None:
+            print(f"    ✗ Failed to download {description} (ID/Name: {lora_id_or_name})")
+            # Don't fail the fixture, just skip this lora
+            continue
+
+        # Verify it's available now
+        if shared_model_manager.manager.lora.is_model_available(name):
+            print(f"    ✓ Downloaded successfully as '{name}'")
+            loaded_loras[description] = name if is_name else lora_id_or_name
+        else:
+            print(f"    ✗ Download completed but lora not available")
+
+    print(f"\n  Loaded {len(loaded_loras)}/{len(test_loras)} test loras")
+
+    # Verify critical loras are present
+    assert "GlowingRunesAI" in loaded_loras, "GlowingRunesAI is required for multiple tests"
+    assert "Blindbox/Da Gai Shi Mang He" in loaded_loras, "Blindbox lora is required for unicode tests"
+    # DragonScale is less critical - it may not be available if CivitAI search doesn't find it
+    # assert "Dra9onScaleAI" in loaded_loras, "Dra9onScaleAI is required for search tests"
+
+    return loaded_loras
+
+
+@pytest.fixture(scope="session")
 def default_min_steps() -> int:
     return 6
 

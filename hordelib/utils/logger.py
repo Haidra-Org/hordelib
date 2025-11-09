@@ -4,6 +4,70 @@ import sys
 from loguru import logger
 
 
+def _format_with_extras(record, *, color: bool) -> str:
+    """Generate the log format string including any bound extras."""
+
+    # Check if this log came from stdlib logging via InterceptHandler
+    # If so, use the stdlib source location info for better accuracy
+    extras = record["extra"]
+    if "stdlib_pathname" in extras:
+        # This is a stdlib logging message intercepted by our handler
+        # Use the original source location from the LogRecord
+        import os
+
+        name = extras.get("stdlib_loggername", "unknown")
+        function = extras.get("stdlib_funcname", "unknown")
+        line = extras.get("stdlib_lineno", 0)
+
+        # Extract just the filename from the full path for readability
+        pathname = extras.get("stdlib_pathname", "")
+        filename = os.path.basename(pathname) if pathname else "unknown"
+
+        if color:
+            # Use {extra[key]} to safely access values without interpretation as color tags
+            base = (
+                "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | "
+                "<cyan>{extra[stdlib_loggername]}</cyan>:<cyan>" + filename + "</cyan>:"
+                "<cyan>{extra[stdlib_funcname]}</cyan>:<cyan>{extra[stdlib_lineno]}</cyan> - "
+                "<level>{message}</level>"
+            )
+        else:
+            base = "{{time:YYYY-MM-DD HH:mm:ss.SSS}} | {{level: <8}} | {{extra[stdlib_loggername]}}:{filename}:{{extra[stdlib_funcname]}}:{{extra[stdlib_lineno]}} - {{message}}".format(
+                filename=filename,
+            )
+    else:
+        # Normal loguru log - use loguru's own source tracking
+        if color:
+            base = (
+                "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | "
+                "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+            )
+        else:
+            base = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
+
+    # Avoid modifying the original extras when rendering the formatted string
+    # Skip stdlib_ extras as we've already used them above
+    extra_items = [
+        f"{key}={value!r}"
+        for key, value in sorted(record["extra"].items())
+        if not key.startswith("_") and not key.startswith("stdlib_")
+    ]
+    extra_str = ""
+    if extra_items:
+        extra_repr = ", ".join(extra_items)
+        extra_str = f" | {extra_repr}"
+
+    return base + extra_str + "\n{exception}"
+
+
+def _color_format(record) -> str:
+    return _format_with_extras(record, color=True)
+
+
+def _plain_format(record) -> str:
+    return _format_with_extras(record, color=False)
+
+
 class HordeLog:
     # By default we're at info level or higher
     verbosity: int = 20
@@ -118,18 +182,21 @@ class HordeLog:
                     "colorize": True,
                     "filter": cls.is_stderr_log,
                     "level": verbosity_level,
+                    "format": _color_format,
                 },
                 {
                     "sink": sys.stdout,
                     "colorize": True,
                     "filter": cls.is_stdout_log,
                     "level": verbosity_level,
+                    "format": _color_format,
                 },
                 {
                     "sink": "logs/bridge.log" if cls.process_id is None else f"logs/bridge_{cls.process_id}.log",
                     "level": "DEBUG",
                     "retention": "2 days",
                     "rotation": "1 days",
+                    "format": _plain_format,
                 },
                 # {
                 #     "sink": "logs/stats.log" if cls.process_id is None else f"logs/stats_{cls.process_id}.log",
@@ -146,6 +213,7 @@ class HordeLog:
                     "rotation": "1 days",
                     "backtrace": True,
                     "diagnose": True,
+                    "format": _plain_format,
                 },
             ],
         }
@@ -162,6 +230,6 @@ class HordeLog:
         cls.sinks = logger.configure(**config)  # type: ignore
 
         if cls.process_id is not None:
-            logger.debug(f"Logger finished setting up for process {cls.process_id}")
+            logger.debug("Logger finished setting up for process: process_id={}", cls.process_id)
         else:
             logger.debug("Setting up logger for main process")

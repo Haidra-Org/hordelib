@@ -318,8 +318,8 @@ def evaluate_image_distance(
 ) -> tuple[CosineSimilarityResult, HistogramDistanceResult]:
     cosine_similarity_result = cv2_image_similarity(img_or_path_1, img_or_path_2)
     histogram_distance_result = get_image_histogram_distance(img_or_path_1, img_or_path_2)
-    logger.info(f"Cosine similarity: {cosine_similarity_result}")
-    logger.info(f"Histogram distance: {histogram_distance_result}")
+    logger.info("Cosine similarity: value={}", cosine_similarity_result)
+    logger.info("Histogram distance: value={}", histogram_distance_result)
     return cosine_similarity_result, histogram_distance_result
 
 
