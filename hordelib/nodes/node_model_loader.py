@@ -143,11 +143,11 @@ class HordeCheckpointLoader:
                     model_options["fp8_optimizations"] = True
                 elif weight_dtype == "fp8_e5m2":
                     model_options["dtype"] = torch.float8_e5m2
-                result = comfy.sd.load_diffusion_model(
+                # Result is always a tuple: (model, clip, vae, None)
+                result = (comfy.sd.load_diffusion_model(
                     ckpt_path,
                     model_options=model_options,
-                )
-                logger.debug(result)
+                ),)
             else:
                 result = comfy.sd.load_checkpoint_guess_config(
                     ckpt_path,
@@ -155,18 +155,19 @@ class HordeCheckpointLoader:
                     output_clip=True,
                     embedding_directory=folder_paths.get_folder_paths("embeddings"),
                 )
-                logger.debug(result)
         SharedModelManager.manager._models_in_ram[horde_in_memory_name] = result, will_load_loras
 
 
-        if seamless_tiling_enabled and file_type not in ["unet", "vae", "text_encoder"]:
-            result[0].model.apply(make_circular)
-            make_circular_vae(result[2])
-        else:
-            result[0].model.apply(make_regular)
-            make_regular_vae(result[2])
+        if len(result) > 2 and file_type not in ["unet", "vae", "text_encoder"]:
+            if seamless_tiling_enabled and file_type not in ["unet", "vae", "text_encoder"]:
+                result[0].model.apply(make_circular)
+                make_circular_vae(result[2])
+            else:
+                result[0].model.apply(make_regular)
+                make_regular_vae(result[2])
 
         log_free_ram()
+        logger.debug(result)
         return result
 
 

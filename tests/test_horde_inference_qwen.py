@@ -18,7 +18,7 @@ class TestHordeInferenceQwen:
             "sampler_name": "k_euler",
             "cfg_scale": 2.5,
             "denoising_strength": 1.0,
-            "seed": 1312,
+            "seed": 1886,
             "height": 1024,
             "width": 1024,
             "karras": False,
