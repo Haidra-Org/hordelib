@@ -220,6 +220,7 @@ class HordeCheckpointLoader:
             make_regular_vae(result[2])
 
         log_free_ram()
+        logger.debug(result)
         return result
 
 
