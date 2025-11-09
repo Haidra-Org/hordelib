@@ -2,6 +2,7 @@ import os
 
 import comfy.utils
 import folder_paths  # type: ignore
+import logfire
 from loguru import logger
 
 
@@ -26,10 +27,17 @@ class HordeLoraLoader:
 
     CATEGORY = "loaders"
 
+    @logfire.instrument("lora.load_node")
     def load_lora(self, model, clip, lora_name, strength_model, strength_clip):
         from hordelib.comfy_horde import log_free_ram
 
         log_free_ram()
+        logfire.info(
+            "lora.load_requested",
+            lora_name=lora_name,
+            strength_model=strength_model,
+            strength_clip=strength_clip,
+        )
 
         _test_exception = os.getenv("FAILURE_TEST", False)
         if _test_exception:
@@ -39,14 +47,17 @@ class HordeLoraLoader:
 
         if strength_model == 0 and strength_clip == 0:
             logger.debug("Strengths are 0, skipping lora loading")
+            logfire.info("lora.load_skipped", reason="zero_strength")
             return (model, clip)
 
         if lora_name is None or lora_name == "" or lora_name == "None":
             logger.warning("No lora name provided, skipping lora loading")
+            logfire.warn("lora.load_skipped", reason="no_name")
             return (model, clip)
 
         if not os.path.exists(folder_paths.get_full_path("loras", lora_name)):
             logger.warning(f"Lora file {lora_name} does not exist, skipping lora loading")
+            logfire.warn("lora.load_failed", reason="file_not_found", lora_name=lora_name)
             return (model, clip)
 
         loras_on_disk = folder_paths.get_filename_list("loras")
@@ -71,14 +82,20 @@ class HordeLoraLoader:
         try:
             with logger.catch(reraise=True):
                 if lora is None:
-                    lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
-                    self.loaded_lora = (lora_path, lora)
+                    with logfire.span("lora.load_from_disk", lora_path=lora_path):
+                        lora = comfy.utils.load_torch_file(lora_path, safe_load=True)
+                        self.loaded_lora = (lora_path, lora)
 
-                model_lora, clip_lora = comfy.sd.load_lora_for_models(model, clip, lora, strength_model, strength_clip)
+                with logfire.span("lora.apply_to_models"):
+                    model_lora, clip_lora = comfy.sd.load_lora_for_models(
+                        model, clip, lora, strength_model, strength_clip
+                    )
                 log_free_ram()
+                logfire.info("lora.loaded_successfully", lora_name=lora_name)
                 return (model_lora, clip_lora)
         except Exception as e:
             logger.error(f"Error loading lora {lora_name}: {e}")
+            logfire.error("lora.load_exception", lora_name=lora_name, error=str(e))
             return (model, clip)
 
 

@@ -7,6 +7,7 @@ import io
 import json
 import random
 import sys
+import time
 import typing
 from collections.abc import Callable
 from copy import deepcopy
@@ -19,12 +20,14 @@ from horde_sdk.ai_horde_api.apimodels.base import (
     GenMetadataEntry,
 )
 from horde_sdk.ai_horde_api.consts import KNOWN_FACEFIXERS, KNOWN_UPSCALERS, METADATA_TYPE, METADATA_VALUE
+import logfire
 from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.consts import MODEL_CATEGORY_NAMES
+from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES
 from hordelib.nodes.comfy_qr.qr_nodes import QRByModuleSizeSplitFunctionPatterns
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
@@ -128,6 +131,26 @@ def _calc_upscale_sampler_steps(
         hires_fix_denoising_strength=hires_fix_denoising_strength,
         ddim_steps=ddim_steps,
     )
+
+
+# Module-level metrics for inference performance tracking
+inference_duration_histogram = logfire.metric_histogram(
+    "horde.inference.duration_ms",
+    unit="ms",
+    description="Total inference duration including model loading and generation",
+)
+
+progress_gauge = logfire.metric_gauge(
+    "horde.progress.percent",
+    unit="percent",
+    description="Current progress percentage of inference job",
+)
+
+post_process_duration_histogram = logfire.metric_histogram(
+    "horde.post_process.duration_ms",
+    unit="ms",
+    description="Duration of individual post-processing operations",
+)
 
 
 class HordeLib:
@@ -475,6 +498,15 @@ class HordeLib:
         faults: list[GenMetadataEntry] = []
 
         if SharedModelManager.manager.compvis is None:
+            # Lazily load the compvis manager if it was not explicitly initialised yet.
+            try:
+                SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis])
+            except Exception as exc:
+                raise RuntimeError(
+                    "Cannot load compvis model manager required for AI Horde compatibility hacks!",
+                ) from exc
+
+        if SharedModelManager.manager.compvis is None:
             raise RuntimeError("Cannot use AI Horde compatibility hacks without compvis loaded!")
 
         payload = deepcopy(payload)
@@ -632,6 +664,7 @@ class HordeLib:
         #             del payload["denoising_strength"]
         return payload, faults
 
+    @logfire.instrument("horde.adjust_pipeline")
     def _final_pipeline_adjustments(self, payload, pipeline_data) -> tuple[dict, list[GenMetadataEntry]]:
         payload = deepcopy(payload)
         faults: list[GenMetadataEntry] = []
@@ -652,66 +685,76 @@ class HordeLib:
             payload["control_type"] = HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(payload.get("control_type"))
         if payload.get("tis") and SharedModelManager.manager.ti:
             # Remove any requested TIs that we don't have
-            for ti in payload.get("tis"):
-                # Determine the actual ti filename
-                if not SharedModelManager.manager.ti.is_local_model(str(ti["name"])):
-                    try:
-                        adhoc_ti = SharedModelManager.manager.ti.fetch_adhoc_ti(str(ti["name"]))
-                    except Exception as e:
-                        logger.info(f"Error fetching adhoc TI {ti['name']}: ({type(e).__name__}) {e}")
-                        faults.append(
-                            GenMetadataEntry(
-                                type=METADATA_TYPE.ti,
-                                value=METADATA_VALUE.download_failed,
-                                ref=ti["name"],
-                            ),
-                        )
-                        adhoc_ti = None
-                    if not adhoc_ti:
-                        logger.info(f"Adhoc TI requested '{ti['name']}' could not be found in CivitAI. Ignoring!")
-                        faults.append(
-                            GenMetadataEntry(
-                                type=METADATA_TYPE.ti,
-                                value=METADATA_VALUE.download_failed,
-                                ref=ti["name"],
-                            ),
-                        )
-                        continue
-                ti_name = SharedModelManager.manager.ti.get_ti_name(str(ti["name"]))
-                if ti_name:
-                    logger.debug(f"Found valid TI {ti_name}")
-                    if SharedModelManager.manager.compvis is None:
-                        raise RuntimeError("Cannot use TIs without compvis loaded!")
-                    model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model"])
-                    # If the ti and model do not match baseline, we ignore the TI
-                    if not SharedModelManager.manager.ti.do_baselines_match(ti_name, model_details):
-                        logger.info(f"Skipped TI {ti_name} because its baseline does not match the model's")
-                        faults.append(
-                            GenMetadataEntry(
-                                type=METADATA_TYPE.ti,
-                                value=METADATA_VALUE.baseline_mismatch,
-                                ref=ti_name,
-                            ),
-                        )
-                        continue
-                    ti_inject = ti.get("inject_ti")
-                    ti_strength = ti.get("strength", 1.0)
-                    if type(ti_strength) not in [float, int]:
-                        ti_strength = 1.0
-                    ti_id = SharedModelManager.manager.ti.get_ti_id(str(ti["name"]))
-                    if ti_inject == "prompt":
-                        payload["prompt"] = f'(embedding:{ti_id}:{ti_strength}),{payload["prompt"]}'
-                    elif ti_inject == "negprompt":
-                        # create negative prompt if empty
-                        if "negative_prompt" not in payload:
-                            payload["negative_prompt"] = ""
+            with logfire.span("ti.process_loop", ti_count=len(payload.get("tis"))):
+                for ti in payload.get("tis"):
+                    ti_name_requested = str(ti["name"])
+                    with logfire.span("ti.process_single", ti_name=ti_name_requested):
+                        # Determine the actual ti filename
+                        if not SharedModelManager.manager.ti.is_local_model(ti_name_requested):
+                            try:
+                                adhoc_ti = SharedModelManager.manager.ti.fetch_adhoc_ti(ti_name_requested)
+                            except Exception as e:
+                                logger.info(f"Error fetching adhoc TI {ti['name']}: ({type(e).__name__}) {e}")
+                                faults.append(
+                                    GenMetadataEntry(
+                                        type=METADATA_TYPE.ti,
+                                        value=METADATA_VALUE.download_failed,
+                                        ref=ti["name"],
+                                    ),
+                                )
+                                adhoc_ti = None
+                            if not adhoc_ti:
+                                logger.info(
+                                    f"Adhoc TI requested '{ti['name']}' could not be found in CivitAI. Ignoring!"
+                                )
+                                faults.append(
+                                    GenMetadataEntry(
+                                        type=METADATA_TYPE.ti,
+                                        value=METADATA_VALUE.download_failed,
+                                        ref=ti["name"],
+                                    ),
+                                )
+                                continue
+                        ti_name = SharedModelManager.manager.ti.get_ti_name(ti_name_requested)
+                        if ti_name:
+                            logger.debug(f"Found valid TI {ti_name}")
+                            if SharedModelManager.manager.compvis is None:
+                                raise RuntimeError("Cannot use TIs without compvis loaded!")
+                            model_details = SharedModelManager.manager.compvis.get_model_reference_info(
+                                payload["model"]
+                            )
+                            # If the ti and model do not match baseline, we ignore the TI
+                            if not SharedModelManager.manager.ti.do_baselines_match(ti_name, model_details):
+                                logger.info(f"Skipped TI {ti_name} because its baseline does not match the model's")
+                                faults.append(
+                                    GenMetadataEntry(
+                                        type=METADATA_TYPE.ti,
+                                        value=METADATA_VALUE.baseline_mismatch,
+                                        ref=ti_name,
+                                    ),
+                                )
+                                continue
+                            ti_inject = ti.get("inject_ti")
+                            ti_strength = ti.get("strength", 1.0)
+                            if type(ti_strength) not in [float, int]:
+                                ti_strength = 1.0
+                            ti_id = SharedModelManager.manager.ti.get_ti_id(str(ti["name"]))
+                            logfire.info("ti.injecting", ti_id=ti_id, inject_target=ti_inject, strength=ti_strength)
+                            if ti_inject == "prompt":
+                                payload["prompt"] = f'(embedding:{ti_id}:{ti_strength}),{payload["prompt"]}'
+                            elif ti_inject == "negprompt":
+                                # create negative prompt if empty
+                                if "negative_prompt" not in payload:
+                                    payload["negative_prompt"] = ""
 
-                        had_leading_comma = payload["negative_prompt"].startswith(",")
+                                had_leading_comma = payload["negative_prompt"].startswith(",")
 
-                        payload["negative_prompt"] = f'{payload["negative_prompt"]},(embedding:{ti_id}:{ti_strength})'
-                        if not had_leading_comma:
-                            payload["negative_prompt"] = payload["negative_prompt"].strip(",")
-                    SharedModelManager.manager.ti.touch_ti(ti_name)
+                                payload["negative_prompt"] = (
+                                    f'{payload["negative_prompt"]},(embedding:{ti_id}:{ti_strength})'
+                                )
+                                if not had_leading_comma:
+                                    payload["negative_prompt"] = payload["negative_prompt"].strip(",")
+                            SharedModelManager.manager.ti.touch_ti(ti_name)
         # Setup controlnet if required
 
         # For LORAs we completely build the LORA section of the pipeline dynamically, as we have
@@ -818,62 +861,69 @@ class HordeLib:
                 SharedModelManager.manager.lora._touch_lora(lora_name, is_version=is_version)
                 valid_loras.append(lora)
             payload["loras"] = valid_loras
-            for lora_index, lora in enumerate(payload.get("loras")):
-                # Inject a lora node (first lora)
-                if lora_index == 0:
-                    pipeline_data[f"lora_{lora_index}"] = {
-                        "inputs": {
-                            "model": ["model_loader", 0],
-                            "clip": ["model_loader", 1],
-                            "lora_name": lora["name"],
-                            "strength_model": lora["model"],
-                            "strength_clip": lora["clip"],
-                            # "model_manager": SharedModelManager,
-                        },
-                        "class_type": "HordeLoraLoader",
-                    }
-                else:
-                    # Subsequent chained loras
-                    pipeline_data[f"lora_{lora_index}"] = {
-                        "inputs": {
-                            "model": [f"lora_{lora_index-1}", 0],
-                            "clip": [f"lora_{lora_index-1}", 1],
-                            "lora_name": lora["name"],
-                            "strength_model": lora["model"],
-                            "strength_clip": lora["clip"],
-                            # "model_manager": SharedModelManager,
-                        },
-                        "class_type": "HordeLoraLoader",
-                    }
-
-            for lora_index in range(len(payload.get("loras"))):
-                # The first LORA always connects to the model loader
-                if lora_index == 0:
-                    self.generator.reconnect_input(pipeline_data, "lora_0.model", "model_loader")
-                    self.generator.reconnect_input(pipeline_data, "lora_0.clip", "model_loader")
-                else:
-                    # Other loras connect to the previous lora
-                    self.generator.reconnect_input(
-                        pipeline_data,
-                        f"lora_{lora_index}.model",
-                        f"lora_{lora_index-1}.model",
-                    )
-                    self.generator.reconnect_input(
-                        pipeline_data,
-                        f"lora_{lora_index}.clip",
-                        f"lora_{lora_index-1}.clip",
-                    )
-
-                # The last LORA always connects to the sampler and clip text encoders (via the clip_skip)
-                if lora_index == len(payload.get("loras")) - 1 and SharedModelManager.manager.compvis:
-                    model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
-                    if model_details is not None and model_details["baseline"] == "flux_1":
-                        self.generator.reconnect_input(pipeline_data, "cfg_guider.model", f"lora_{lora_index}")
-                        self.generator.reconnect_input(pipeline_data, "basic_scheduler.model", f"lora_{lora_index}")
+            with logfire.span("lora.inject_nodes", node_count=len(valid_loras)):
+                for lora_index, lora in enumerate(payload.get("loras")):
+                    # Inject a lora node (first lora)
+                    if lora_index == 0:
+                        pipeline_data[f"lora_{lora_index}"] = {
+                            "inputs": {
+                                "model": ["model_loader", 0],
+                                "clip": ["model_loader", 1],
+                                "lora_name": lora["name"],
+                                "strength_model": lora["model"],
+                                "strength_clip": lora["clip"],
+                                # "model_manager": SharedModelManager,
+                            },
+                            "class_type": "HordeLoraLoader",
+                        }
                     else:
-                        self.generator.reconnect_input(pipeline_data, "sampler.model", f"lora_{lora_index}")
-                        self.generator.reconnect_input(pipeline_data, "upscale_sampler.model", f"lora_{lora_index}")
-                        self.generator.reconnect_input(pipeline_data, "clip_skip.clip", f"lora_{lora_index}")
+                        # Subsequent chained loras
+                        pipeline_data[f"lora_{lora_index}"] = {
+                            "inputs": {
+                                "model": [f"lora_{lora_index-1}", 0],
+                                "clip": [f"lora_{lora_index-1}", 1],
+                                "lora_name": lora["name"],
+                                "strength_model": lora["model"],
+                                "strength_clip": lora["clip"],
+                                # "model_manager": SharedModelManager,
+                            },
+                            "class_type": "HordeLoraLoader",
+                        }
+
+                for lora_index in range(len(payload.get("loras"))):
+                    # The first LORA always connects to the model loader
+                    if lora_index == 0:
+                        self.generator.reconnect_input(pipeline_data, "lora_0.model", "model_loader")
+                        self.generator.reconnect_input(pipeline_data, "lora_0.clip", "model_loader")
+                    else:
+                        # Other loras connect to the previous lora
+                        self.generator.reconnect_input(
+                            pipeline_data,
+                            f"lora_{lora_index}.model",
+                            f"lora_{lora_index-1}.model",
+                        )
+                        self.generator.reconnect_input(
+                            pipeline_data,
+                            f"lora_{lora_index}.clip",
+                            f"lora_{lora_index-1}.clip",
+                        )
+
+                    # The last LORA always connects to the sampler and clip text encoders (via the clip_skip)
+                    if lora_index == len(payload.get("loras")) - 1 and SharedModelManager.manager.compvis:
+                        model_details = SharedModelManager.manager.compvis.get_model_reference_info(
+                            payload["model_name"]
+                        )
+                        if model_details is not None and model_details["baseline"] == "flux_1":
+                            self.generator.reconnect_input(pipeline_data, "cfg_guider.model", f"lora_{lora_index}")
+                            self.generator.reconnect_input(
+                                pipeline_data, "basic_scheduler.model", f"lora_{lora_index}"
+                            )
+                        else:
+                            self.generator.reconnect_input(pipeline_data, "sampler.model", f"lora_{lora_index}")
+                            self.generator.reconnect_input(
+                                pipeline_data, "upscale_sampler.model", f"lora_{lora_index}"
+                            )
+                            self.generator.reconnect_input(pipeline_data, "clip_skip.clip", f"lora_{lora_index}")
 
         # Translate the payload parameters into pipeline parameters
         pipeline_params = {}
@@ -973,34 +1023,41 @@ class HordeLib:
                 pipeline_params["empty_latent_image.height"] = 1024
 
         if payload.get("control_type"):
-            # Inject control net model manager
-            # pipeline_params["controlnet_model_loader.model_manager"] = SharedModelManager
-            model_name = self.CONTROLNET_MODEL_MAP.get(payload.get("control_type"))
-            if not model_name:
-                logger.error(f"Controlnet model for {payload.get('control_type')} not found")
-            pipeline_params["controlnet_model_loader.control_net_name"] = model_name
+            with logfire.span("controlnet.setup", control_type=payload.get("control_type")):
+                # Inject control net model manager
+                # pipeline_params["controlnet_model_loader.model_manager"] = SharedModelManager
+                model_name = self.CONTROLNET_MODEL_MAP.get(payload.get("control_type"))
+                if not model_name:
+                    logger.error(f"Controlnet model for {payload.get('control_type')} not found")
+                pipeline_params["controlnet_model_loader.control_net_name"] = model_name
 
-            # Dynamically reconnect nodes in the pipeline to connect the correct pre-processor node
-            if payload.get("return_control_map"):
-                # Connect annotator to output image directly if we need to return the control map
-                self.generator.reconnect_input(
-                    pipeline_data,
-                    "output_image.images",
-                    payload["control_type"],
-                )
-            elif payload.get("image_is_control"):
-                # Connect source image directly to controlnet apply node
-                self.generator.reconnect_input(
-                    pipeline_data,
-                    "controlnet_apply.image",
-                    "image_loader.image",
-                )
-            else:
-                # Connect annotator to controlnet apply node
-                self.generator.reconnect_input(
-                    pipeline_data,
-                    "controlnet_apply.image",
-                    payload["control_type"],
+                # Dynamically reconnect nodes in the pipeline to connect the correct pre-processor node
+                if payload.get("return_control_map"):
+                    # Connect annotator to output image directly if we need to return the control map
+                    self.generator.reconnect_input(
+                        pipeline_data,
+                        "output_image.images",
+                        payload["control_type"],
+                    )
+                elif payload.get("image_is_control"):
+                    # Connect source image directly to controlnet apply node
+                    self.generator.reconnect_input(
+                        pipeline_data,
+                        "controlnet_apply.image",
+                        "image_loader.image",
+                    )
+                else:
+                    # Connect annotator to controlnet apply node
+                    self.generator.reconnect_input(
+                        pipeline_data,
+                        "controlnet_apply.image",
+                        payload["control_type"],
+                    )
+                logfire.info(
+                    "controlnet.configured",
+                    model_name=model_name,
+                    return_control_map=payload.get("return_control_map", False),
+                    image_is_control=payload.get("image_is_control", False),
                 )
 
         # If we have a source image, use that rather than latent noise (i.e. img2img)
@@ -1068,90 +1125,98 @@ class HordeLib:
 
         # If we have a qr code request, we check for extra texts such as the generation url
         if payload.get("workflow") == "qr_code":
-            original_width = pipeline_params.get("empty_latent_image.width", 512)
-            original_height = pipeline_params.get("empty_latent_image.height", 512)
-            pipeline_params["qr_code_split.max_image_size"] = max(original_width, original_height)
-            pipeline_params["qr_code_split.text"] = "https://haidra.net"
-            for text in payload.get("extra_texts"):
-                if text["reference"] in ["qr_code", "qr_text"]:
-                    pipeline_params["qr_code_split.text"] = text["text"]
-                if text["reference"] == "protocol" and text["text"].lower() in ["https", "http"]:
-                    pipeline_params["qr_code_split.protocol"] = text["text"].capitalize()
-                if text["reference"] == "module_drawer" and text["text"].lower() in [
-                    "square",
-                    "gapped square",
-                    "circle",
-                    "rounded",
-                    "vertical bars",
-                    "horizontal bars",
-                ]:
-                    pipeline_params["qr_code_split.module_drawer"] = text["text"].capitalize()
-                if text["reference"] == "function_layer_prompt":
-                    pipeline_params["function_layer_prompt.text"] = text["text"]
-                if text["reference"] == "x_offset" and text["text"].lstrip("-").isdigit():
-                    x_offset = int(text["text"])
-                    if x_offset < 0:
-                        x_offset = 10
-                    pipeline_params["qr_flattened_composite.x"] = x_offset
-                if text["reference"] == "y_offset" and text["text"].lstrip("-").isdigit():
-                    y_offset = int(text["text"])
-                    if y_offset < 0:
-                        y_offset = 10
-                    pipeline_params["qr_flattened_composite.y"] = y_offset
-                if text["reference"] == "qr_border" and text["text"].lstrip("-").isdigit():
-                    border = int(text["text"])
-                    if border < 0:
-                        border = 10
-                    pipeline_params["qr_code_split.border"] = border
-            if not pipeline_params.get("qr_code_split.protocol"):
-                pipeline_params["qr_code_split.protocol"] = "None"
-            if not pipeline_params.get("function_layer_prompt.text"):
-                pipeline_params["function_layer_prompt.text"] = payload["prompt"]
-            try:
-                test_qr = QRByModuleSizeSplitFunctionPatterns()
-                _, _, _, _, _, qr_size = test_qr.generate_qr(
-                    protocol=pipeline_params.get("qr_code_split.protocol"),
-                    text=pipeline_params["qr_code_split.text"],
-                    module_size=16,
-                    max_image_size=pipeline_params["qr_code_split.max_image_size"],
-                    fill_hexcolor="#FFFFFF",
-                    back_hexcolor="#000000",
-                    error_correction="High",
-                    border=1,
-                    module_drawer="Square",
-                )
-            except RuntimeError as err:
-                logger.error(err)
-                pipeline_params["qr_code_split.text"] = "This QR Code is too large for this image"
-                test_qr = QRByModuleSizeSplitFunctionPatterns()
-                qr_size = 624
-
-            if not pipeline_params.get("qr_flattened_composite.x"):
-                x_offset = int((original_width / 2) - qr_size / 2)
-                # I don't know why but through trial and error I've discovered that the QR codes
-                # are more legible when they're placed in an offset which is a multiple of 64
-                x_offset = x_offset - (x_offset % 64) if x_offset % 64 != 0 else x_offset
-                pipeline_params["qr_flattened_composite.x"] = x_offset
-            if pipeline_params.get("qr_flattened_composite.x", 0) > int((original_width) - qr_size):
-                pipeline_params["qr_flattened_composite.x"] = int((original_width) - qr_size) - 10
-            if not pipeline_params.get("qr_flattened_composite.y"):
-                y_offset = int((original_height / 2) - qr_size / 2)
-                y_offset = y_offset - (y_offset % 64) if y_offset % 64 != 0 else y_offset
-                pipeline_params["qr_flattened_composite.y"] = y_offset
-            if pipeline_params.get("qr_flattened_composite.y", 0) > int((original_height) - qr_size):
-                pipeline_params["qr_flattened_composite.y"] = int((original_height) - qr_size) - 10
-            pipeline_params["module_layer_composite.x"] = pipeline_params["qr_flattened_composite.x"]
-            pipeline_params["module_layer_composite.y"] = pipeline_params["qr_flattened_composite.y"]
-            pipeline_params["function_layer_composite.x"] = pipeline_params["qr_flattened_composite.x"]
-            pipeline_params["function_layer_composite.y"] = pipeline_params["qr_flattened_composite.y"]
-            pipeline_params["mask_composite.x"] = pipeline_params["qr_flattened_composite.x"]
-            pipeline_params["mask_composite.y"] = pipeline_params["qr_flattened_composite.y"]
-            if SharedModelManager.manager.compvis:
-                model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
-                if model_details and model_details.get("baseline") == "stable diffusion 1":
-                    pipeline_params["controlnet_qr_model_loader.control_net_name"] = (
-                        "control_v1p_sd15_qrcode_monster_v2.safetensors"
+            with logfire.span("qr.setup", has_extra_texts=bool(payload.get("extra_texts"))):
+                original_width = pipeline_params.get("empty_latent_image.width", 512)
+                original_height = pipeline_params.get("empty_latent_image.height", 512)
+                pipeline_params["qr_code_split.max_image_size"] = max(original_width, original_height)
+                pipeline_params["qr_code_split.text"] = "https://haidra.net"
+                for text in payload.get("extra_texts"):
+                    if text["reference"] in ["qr_code", "qr_text"]:
+                        pipeline_params["qr_code_split.text"] = text["text"]
+                    if text["reference"] == "protocol" and text["text"].lower() in ["https", "http"]:
+                        pipeline_params["qr_code_split.protocol"] = text["text"].capitalize()
+                    if text["reference"] == "module_drawer" and text["text"].lower() in [
+                        "square",
+                        "gapped square",
+                        "circle",
+                        "rounded",
+                        "vertical bars",
+                        "horizontal bars",
+                    ]:
+                        pipeline_params["qr_code_split.module_drawer"] = text["text"].capitalize()
+                    if text["reference"] == "function_layer_prompt":
+                        pipeline_params["function_layer_prompt.text"] = text["text"]
+                    if text["reference"] == "x_offset" and text["text"].lstrip("-").isdigit():
+                        x_offset = int(text["text"])
+                        if x_offset < 0:
+                            x_offset = 10
+                        pipeline_params["qr_flattened_composite.x"] = x_offset
+                    if text["reference"] == "y_offset" and text["text"].lstrip("-").isdigit():
+                        y_offset = int(text["text"])
+                        if y_offset < 0:
+                            y_offset = 10
+                        pipeline_params["qr_flattened_composite.y"] = y_offset
+                    if text["reference"] == "qr_border" and text["text"].lstrip("-").isdigit():
+                        border = int(text["text"])
+                        if border < 0:
+                            border = 10
+                        pipeline_params["qr_code_split.border"] = border
+                if not pipeline_params.get("qr_code_split.protocol"):
+                    pipeline_params["qr_code_split.protocol"] = "None"
+                if not pipeline_params.get("function_layer_prompt.text"):
+                    pipeline_params["function_layer_prompt.text"] = payload["prompt"]
+                try:
+                    test_qr = QRByModuleSizeSplitFunctionPatterns()
+                    _, _, _, _, _, qr_size = test_qr.generate_qr(
+                        protocol=pipeline_params.get("qr_code_split.protocol"),
+                        text=pipeline_params["qr_code_split.text"],
+                        module_size=16,
+                        max_image_size=pipeline_params["qr_code_split.max_image_size"],
+                        fill_hexcolor="#FFFFFF",
+                        back_hexcolor="#000000",
+                        error_correction="High",
+                        border=1,
+                        module_drawer="Square",
                     )
+                except RuntimeError as err:
+                    logger.error(err)
+                    pipeline_params["qr_code_split.text"] = "This QR Code is too large for this image"
+                    test_qr = QRByModuleSizeSplitFunctionPatterns()
+                    qr_size = 624
+
+                if not pipeline_params.get("qr_flattened_composite.x"):
+                    x_offset = int((original_width / 2) - qr_size / 2)
+                    # I don't know why but through trial and error I've discovered that the QR codes
+                    # are more legible when they're placed in an offset which is a multiple of 64
+                    x_offset = x_offset - (x_offset % 64) if x_offset % 64 != 0 else x_offset
+                    pipeline_params["qr_flattened_composite.x"] = x_offset
+                if pipeline_params.get("qr_flattened_composite.x", 0) > int((original_width) - qr_size):
+                    pipeline_params["qr_flattened_composite.x"] = int((original_width) - qr_size) - 10
+                if not pipeline_params.get("qr_flattened_composite.y"):
+                    y_offset = int((original_height / 2) - qr_size / 2)
+                    y_offset = y_offset - (y_offset % 64) if y_offset % 64 != 0 else y_offset
+                    pipeline_params["qr_flattened_composite.y"] = y_offset
+                if pipeline_params.get("qr_flattened_composite.y", 0) > int((original_height) - qr_size):
+                    pipeline_params["qr_flattened_composite.y"] = int((original_height) - qr_size) - 10
+                pipeline_params["module_layer_composite.x"] = pipeline_params["qr_flattened_composite.x"]
+                pipeline_params["module_layer_composite.y"] = pipeline_params["qr_flattened_composite.y"]
+                pipeline_params["function_layer_composite.x"] = pipeline_params["qr_flattened_composite.x"]
+                pipeline_params["function_layer_composite.y"] = pipeline_params["qr_flattened_composite.y"]
+                pipeline_params["mask_composite.x"] = pipeline_params["qr_flattened_composite.x"]
+                pipeline_params["mask_composite.y"] = pipeline_params["qr_flattened_composite.y"]
+                if SharedModelManager.manager.compvis:
+                    model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
+                    if model_details and model_details.get("baseline") == "stable diffusion 1":
+                        pipeline_params["controlnet_qr_model_loader.control_net_name"] = (
+                            "control_v1p_sd15_qrcode_monster_v2.safetensors"
+                        )
+                logfire.info(
+                    "qr.configured",
+                    qr_text=pipeline_params["qr_code_split.text"],
+                    qr_size=qr_size,
+                    x_offset=pipeline_params["qr_flattened_composite.x"],
+                    y_offset=pipeline_params["qr_flattened_composite.y"],
+                )
         if payload.get("transparent") is True:
             # A transparent gen is basically a fancy lora
             pipeline_params["model_loader.will_load_loras"] = True
@@ -1256,20 +1321,33 @@ class HordeLib:
             )
         return results
 
+    @logfire.instrument("horde.validate_and_select_pipeline", extract_args=False)
     def _get_validated_payload_and_pipeline_data(self, payload: dict) -> tuple[dict, dict, list[GenMetadataEntry]]:
         # AIHorde hacks to payload
         payload, compatibility_faults = self._apply_aihorde_compatibility_hacks(payload)
+
         # Check payload types/values and normalise it's format
         payload = self._validate_data_structure(payload)
+
         # Resize the source image and mask to actual final width/height requested
         ImageUtils.resize_sources_to_request(payload)
+
         # Determine the correct pipeline to use
         pipeline = self._get_appropriate_pipeline(payload)
+
         # Final adjustments to the pipeline
         pipeline_data = self.generator.get_pipeline_data(pipeline)
         payload, finale_adjustment_faults = self._final_pipeline_adjustments(payload, pipeline_data)
+
+        logfire.info(
+            "Pipeline validation complete",
+            pipeline=pipeline,
+            faults_count=len(compatibility_faults + finale_adjustment_faults),
+        )
+
         return payload, pipeline_data, compatibility_faults + finale_adjustment_faults
 
+    @logfire.instrument("horde.inference", extract_args=False)
     def _inference(
         self,
         payload: dict,
@@ -1277,6 +1355,8 @@ class HordeLib:
         single_image_expected: bool = True,
         comfyui_progress_callback: Callable[[ComfyUIProgress, str], None] | None = None,
     ) -> list[ResultingImageReturn] | ResultingImageReturn:
+        start_time = time.time()
+
         payload, pipeline_data, faults = self._get_validated_payload_and_pipeline_data(payload)
 
         # Run the pipeline
@@ -1292,6 +1372,20 @@ class HordeLib:
 
         resolution = f"{payload.get('empty_latent_image.width')}x{payload.get('empty_latent_image.height')}"
         steps = payload.get("sampler.steps")
+        sampler = payload.get("sampler.sampler_name")
+
+        # Log inference parameters as structured data
+        logfire.info(
+            "Starting inference",
+            model=main_model,
+            resolution=resolution,
+            steps=steps,
+            sampler=sampler,
+            single_image=single_image_expected,
+            loras_count=len(loras_being_used),
+            tis_count=len(tis_being_used),
+            has_controlnet=controlnet_name is not None,
+        )
 
         logger.info(f"Generating image {resolution} in size for {steps} steps with model {main_model}.")
         if "latent_upscale.width" in payload:
@@ -1320,6 +1414,11 @@ class HordeLib:
             for image, rawpng in results
         ]
 
+        # Record inference duration metric
+        duration_ms = (time.time() - start_time) * 1000
+        inference_duration_histogram.record(duration_ms)
+        logfire.info("Inference complete", duration_ms=duration_ms, image_count=len(ret_results))
+
         if single_image_expected:
             if len(results) != 1:
                 raise RuntimeError("Expected a single image but got multiple")
@@ -1327,6 +1426,7 @@ class HordeLib:
 
         return ret_results
 
+    @logfire.instrument("horde.basic_inference", extract_args=False)
     def basic_inference(
         self,
         payload: dict | ImageGenerateJobPopResponse,
@@ -1336,6 +1436,16 @@ class HordeLib:
         post_processing_requested: list[str] | None = None
         if isinstance(payload, dict):
             post_processing_requested = payload.get("post_processing")
+            n_iter = payload.get("n_iter", 1)
+        else:
+            n_iter = getattr(payload.payload, "n_iter", 1)
+
+        logfire.info(
+            "Basic inference started",
+            n_iter=n_iter,
+            post_processing_count=len(post_processing_requested) if post_processing_requested else 0,
+            has_callback=progress_callback is not None,
+        )
 
         faults = []
         if isinstance(payload, ImageGenerateJobPopResponse):  # TODO move this to _inference()
@@ -1470,6 +1580,19 @@ class HordeLib:
 
         def _default_progress_callback(comfyui_progress: ComfyUIProgress, message: str) -> None:
             nonlocal progress_callback
+            # Record progress metric
+            progress_gauge.set(comfyui_progress.percent)
+
+            # Log progress event
+            logfire.info(
+                "horde.progress_update",
+                percent=comfyui_progress.percent,
+                current_step=comfyui_progress.current_step,
+                total_steps=comfyui_progress.total_steps,
+                rate=comfyui_progress.rate,
+                rate_unit=comfyui_progress.rate_unit.name,
+            )
+
             if progress_callback is not None:
                 try:
                     progress_callback(
@@ -1499,78 +1622,124 @@ class HordeLib:
 
         post_processed: list[ResultingImageReturn] | None = None
         if post_processing_requested is not None:
-            if progress_callback is not None:
-                try:
-                    progress_callback(
-                        ProgressReport(
-                            hordelib_progress_state=ProgressState.post_processing,
-                            hordelib_message="Post Processing.",
-                        ),
-                    )
-                except Exception as e:
-                    logger.error(f"Progress callback failed ({type(e)}): {e}")
-
-            post_processed = []
-            for ret in return_list:
-                single_image_faults = faults[:]
-                final_image = ret.image
-                final_rawpng = ret.rawpng
-
+            with logfire.span(
+                "horde.post_processing",
+                image_count=len(return_list),
+                operation_count=len(post_processing_requested),
+            ):
                 if progress_callback is not None:
                     try:
                         progress_callback(
                             ProgressReport(
-                                hordelib_progress_state=ProgressState.progress,
-                                hordelib_message="Post Processing new image.",
+                                hordelib_progress_state=ProgressState.post_processing,
+                                hordelib_message="Post Processing.",
                             ),
                         )
                     except Exception as e:
                         logger.error(f"Progress callback failed ({type(e)}): {e}")
 
-                # Ensure facefixers always happen first
-                post_processing_requested = sorted(
-                    post_processing_requested,
-                    key=lambda x: 1 if x in KNOWN_FACEFIXERS.__members__ else 0,
-                )
+                post_processed = []
+                for img_idx, ret in enumerate(return_list):
+                    with logfire.span("horde.post_process_image", image_index=img_idx):
+                        single_image_faults = faults[:]
+                        final_image = ret.image
+                        final_rawpng = ret.rawpng
 
-                for post_processing in post_processing_requested:
-                    if (
-                        post_processing in KNOWN_UPSCALERS.__members__
-                        or post_processing in KNOWN_UPSCALERS._value2member_map_
-                    ):
-                        image_ret = self.image_upscale(
-                            {
-                                "model": post_processing,
-                                "source_image": final_image,
-                            },
+                        if progress_callback is not None:
+                            try:
+                                progress_callback(
+                                    ProgressReport(
+                                        hordelib_progress_state=ProgressState.progress,
+                                        hordelib_message="Post Processing new image.",
+                                    ),
+                                )
+                            except Exception as e:
+                                logger.error(f"Progress callback failed ({type(e)}): {e}")
+
+                        # Ensure facefixers always happen first
+                        post_processing_requested = sorted(
+                            post_processing_requested,
+                            key=lambda x: 1 if x in KNOWN_FACEFIXERS.__members__ else 0,
                         )
-                        single_image_faults += image_ret.faults
-                        final_rawpng = image_ret.rawpng
-                        final_image = image_ret.image
 
-                    elif post_processing in KNOWN_FACEFIXERS.__members__:
-                        image_ret = self.image_facefix(
-                            {
-                                "model": post_processing,
-                                "source_image": final_image,
-                                "facefixer_strength": payload.get("facefixer_strength", 1.0),
-                            },
-                        )
-                        single_image_faults += image_ret.faults
-                        final_rawpng = image_ret.rawpng
-                        final_image = image_ret.image
+                        for post_processing in post_processing_requested:
+                            import time
 
-                    elif post_processing == "strip_background":
-                        if final_image is not None:
-                            final_image = ImageUtils.strip_background(final_image)
+                            pp_start = time.perf_counter()
+                            if (
+                                post_processing in KNOWN_UPSCALERS.__members__
+                                or post_processing in KNOWN_UPSCALERS._value2member_map_
+                            ):
+                                with logfire.span(
+                                    "pp.upscale",
+                                    model=post_processing,
+                                    image_index=img_idx,
+                                ):
+                                    image_ret = self.image_upscale(
+                                        {
+                                            "model": post_processing,
+                                            "source_image": final_image,
+                                        },
+                                    )
+                                    single_image_faults += image_ret.faults
+                                    final_rawpng = image_ret.rawpng
+                                    final_image = image_ret.image
+                                    pp_duration = (time.perf_counter() - pp_start) * 1000
+                                    post_process_duration_histogram.record(pp_duration)
+                                    logfire.info(
+                                        "pp.upscale_complete",
+                                        model=post_processing,
+                                        duration_ms=pp_duration,
+                                        fault_count=len(image_ret.faults),
+                                    )
 
-                if final_image is None:
-                    # TODO: Allow to return a partially PP image?
-                    logger.error("Post processing failed and there is no output image!")
-                else:
-                    post_processed.append(
-                        ResultingImageReturn(image=final_image, rawpng=final_rawpng, faults=single_image_faults),
-                    )
+                            elif post_processing in KNOWN_FACEFIXERS.__members__:
+                                with logfire.span(
+                                    "pp.facefix",
+                                    model=post_processing,
+                                    strength=payload.get("facefixer_strength", 1.0),
+                                    image_index=img_idx,
+                                ):
+                                    image_ret = self.image_facefix(
+                                        {
+                                            "model": post_processing,
+                                            "source_image": final_image,
+                                            "facefixer_strength": payload.get("facefixer_strength", 1.0),
+                                        },
+                                    )
+                                    single_image_faults += image_ret.faults
+                                    final_rawpng = image_ret.rawpng
+                                    final_image = image_ret.image
+                                    pp_duration = (time.perf_counter() - pp_start) * 1000
+                                    post_process_duration_histogram.record(pp_duration)
+                                    logfire.info(
+                                        "pp.facefix_complete",
+                                        model=post_processing,
+                                        duration_ms=pp_duration,
+                                        fault_count=len(image_ret.faults),
+                                    )
+
+                            elif post_processing == "strip_background":
+                                with logfire.span("pp.strip_background", image_index=img_idx):
+                                    if final_image is not None:
+                                        final_image = ImageUtils.strip_background(final_image)
+                                    pp_duration = (time.perf_counter() - pp_start) * 1000
+                                    post_process_duration_histogram.record(pp_duration)
+                                    logfire.info(
+                                        "pp.strip_background_complete",
+                                        duration_ms=pp_duration,
+                                    )
+
+                        if final_image is None:
+                            # TODO: Allow to return a partially PP image?
+                            logger.error("Post processing failed and there is no output image!")
+                            logfire.error("pp.failed_no_output", image_index=img_idx)
+                        else:
+                            post_processed.append(
+                                ResultingImageReturn(
+                                    image=final_image, rawpng=final_rawpng, faults=single_image_faults
+                                ),
+                            )
 
         if progress_callback is not None:
             try:
@@ -1593,6 +1762,7 @@ class HordeLib:
 
         raise RuntimeError("Expected a list of PIL.Image.Image but got a mix of types!")
 
+    @logfire.instrument("horde.basic_inference_single_image", extract_args=False)
     def basic_inference_single_image(self, payload: dict) -> ResultingImageReturn:
         result = self._inference(payload, single_image_expected=True)
         if isinstance(result, ResultingImageReturn):

@@ -11,7 +11,7 @@ authors = [
     {name = "Jug", email = "jugdev@proton.me"},
 ]
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = { file="LICENSE" }
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -22,7 +22,82 @@ classifiers = [
 
 # Don't specify dynamic deps for tox, only for build
 dynamic=["version"]
+dependencies = [
+    "accelerate>=1.11.0",
+    "addict>=2.4.0",
+    "aiohttp>=3.11.8",
+    "alembic>=1.17.1",
+    "av>=14.2.0",
+    "clip-anytorch>=2.6.0",
+    "comfyui-embedded-docs==0.2.6",
+    "comfyui-frontend-package==1.27.10",
+    "comfyui-workflow-templates==0.1.95",
+    "diffusers>=0.25.0",
+    "distro>=1.9.0",
+    "einops>=0.8.1",
+    "fairscale>=0.4.13",
+    "fuzzywuzzy>=0.18.0",
+    "gitpython>=3.1.45",
+    "horde-model-reference==0.9.1",
+    "horde-sdk>=0.15.0",
+    "kornia>=0.7.1",
+    "logfire[system-metrics]==4.14.2",
+    "loguru>=0.7.3",
+    "lpips>=0.1.4",
+    "numpy>=1.26.0",
+    "omegaconf>=2.3.0",
+    "open-clip-torch>=2.32.0",
+    "opencv-contrib-python>=4.11.0.86",
+    "opencv-python>=4.11.0.86",
+    "pillow>=12.0.0",
+    "psutil>=7.1.3",
+    "pydantic~=2.0",
+    "pydantic-settings~=2.0",
+    "pynvml>=13.0.1",
+    "python-dotenv>=1.2.1",
+    "pytorch-lightning>=2.5.6",
+    "pyyaml>=6.0.3",
+    "qrcode==7.4.2",
+    "rembg[cpu]>=2.0.67",
+    "safetensors>=0.4.2",
+    "scikit-image>=0.25.2",
+    "scipy>=1.15.3",
+    "sentencepiece>=0.2.1",
+    "soundfile>=0.13.1",
+    "spandrel>=0.4.1",
+    "spandrel-extra-arches>=0.2.0",
+    "sqlalchemy>=2.0.44",
+    "strenum>=0.4.15",
+    "timm==0.9.16",
+    "tokenizers>=0.13.3",
+    "torch>=2.8.0",
+    "torchaudio>=2.9.0",
+    "torchdiffeq>=0.2.5",
+    "torchsde>=0.2.6",
+    "torchvision>=0.24.0",
+    "tqdm>=4.67.1",
+    "transformers>=4.37.2",
+    "typing-extensions>=4.15.0",
+    "unidecode>=1.4.0",
+    "yarl>=1.18.0",
+]
 #dynamic=["version", "dependencies"]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128" },
+]
+torchvision = [
+    { index = "pytorch-cu128" },
+]
+torchaudio = [
+    { index = "pytorch-cu128" },
+]
 
 [project.urls]
 "Homepage" = "https://github.com/Haidra-Org/hordelib"
@@ -45,7 +120,35 @@ hordelib = "hordelib"
 
 
 [options.index-client]
-extra-index-urls = ["https://download.pytorch.org/whl/cu121"]
+extra-index-urls = ["https://download.pytorch.org/whl/cu128"]
+
+[dependency-groups]
+dev = [
+    "black>=25.9.0",
+    "build>=1.3.0",
+    "coverage>=7.11.1",
+    "mypy>=1.18.2",
+    "pre-commit>=4.3.0",
+    "prometheus-client>=0.23.1",
+    "pytest>=8.4.2",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.4",
+    "tox>=4.32.0",
+    "types-colorama>=0.4.15.20250801",
+    "types-docutils>=0.22.2.20251006",
+    "types-pillow>=10.2.0.20240822",
+    "types-psutil>=7.0.0.20251001",
+    "types-pygments>=2.19.0.20250809",
+    "types-pywin32>=311.0.0.20251008",
+    "types-pyyaml>=6.0.12.20250915",
+    "types-regex>=2025.11.3.20251106",
+    "types-requests>=2.32.4.20250913",
+    "types-setuptools>=80.9.0.20250822",
+    "types-tabulate>=0.9.0.20241207",
+    "types-tqdm>=4.67.0.20250809",
+    "types-urllib3>=1.26.25.14",
+]
+
 
 [tool.pytest.ini_options]
 minversion = "7.0"
@@ -65,6 +168,7 @@ markers = [
     "default_sd15_model: marks tests as default_sd15_model (deselect with '-m \"not default_sd15_model\"')",
     "default_sdxl_model: marks tests as default_sdxl_model (deselect with '-m \"not default_sdxl_model\"')",
     "refined_sdxl_model: marks tests as refined_sdxl_model (deselect with '-m \"not refined_sdxl_model\"')",
+    "patch_harness: instrumentation-only tests for ComfyUI monkeypatch impact",
 ]
 
 [tool.black]

@@ -2,15 +2,37 @@
 # Simple proof of concept custom node to load models.
 
 from pathlib import Path
+import time
 
 import comfy.model_management
 import comfy.sd
 import folder_paths  # type: ignore
+import logfire
 import torch
 from loguru import logger
 
 from hordelib.comfy_horde import log_free_ram
 from hordelib.shared_model_manager import SharedModelManager
+
+
+# Module-level metrics for model loading performance
+cache_hits_counter = logfire.metric_counter(
+    "model.cache.hits",
+    unit="1",
+    description="Number of model cache hits",
+)
+
+cache_misses_counter = logfire.metric_counter(
+    "model.cache.misses",
+    unit="1",
+    description="Number of model cache misses",
+)
+
+disk_load_histogram = logfire.metric_histogram(
+    "model.disk_load.duration_ms",
+    unit="ms",
+    description="Duration to load model from disk",
+)
 
 
 # Don't let the name fool you, this class is trying to load all the files that will be necessary
@@ -28,7 +50,7 @@ class HordeCheckpointLoader:
                 "file_type": ("<file type>",),  # TODO: Make this optional
             },
             "optional": {
-                "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],), # Unet model type
+                "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],),  # Unet model type
             },
         }
 
@@ -37,6 +59,7 @@ class HordeCheckpointLoader:
 
     CATEGORY = "loaders"
 
+    @logfire.instrument("model.load_checkpoint", extract_args=False)
     def load_checkpoint(
         self,
         will_load_loras: bool,
@@ -49,6 +72,14 @@ class HordeCheckpointLoader:
         output_clip=True,  # this arg is required by comfyui internals
         preloading=False,
     ):
+        logfire.info(
+            "Loading model checkpoint",
+            model=horde_model_name,
+            file_type=file_type,
+            will_load_loras=will_load_loras,
+            seamless=seamless_tiling_enabled,
+        )
+
         log_free_ram()
         if file_type is not None:
             logger.debug(f"Loading model {horde_model_name}:{file_type}")
@@ -72,6 +103,16 @@ class HordeCheckpointLoader:
             horde_in_memory_name = f"{horde_model_name}:{file_type}"
         same_loaded_model = SharedModelManager.manager._models_in_ram.get(horde_in_memory_name)
         logger.debug([horde_in_memory_name, file_type, same_loaded_model])
+
+        # Check cache hit/miss
+        cache_hit = same_loaded_model is not None and not same_loaded_model[1]
+
+        if cache_hit:
+            cache_hits_counter.add(1)
+            logfire.info("Model cache hit", model=horde_model_name, file_type=file_type)
+        else:
+            cache_misses_counter.add(1)
+            logfire.info("Model cache miss - loading from disk", model=horde_model_name, file_type=file_type)
 
         # Check if the model was previously loaded and if so, not loaded with Loras
         if same_loaded_model and not same_loaded_model[1]:
@@ -134,30 +175,42 @@ class HordeCheckpointLoader:
             raise ValueError("No model file name provided.")
 
         with torch.no_grad():
-            if file_type is not None:
-                model_options = {}
-                if weight_dtype == "fp8_e4m3fn":
-                    model_options["dtype"] = torch.float8_e4m3fn
-                elif weight_dtype == "fp8_e4m3fn_fast":
-                    model_options["dtype"] = torch.float8_e4m3fn
-                    model_options["fp8_optimizations"] = True
-                elif weight_dtype == "fp8_e5m2":
-                    model_options["dtype"] = torch.float8_e5m2
-                result = comfy.sd.load_diffusion_model(
-                    ckpt_path,
-                    model_options=model_options,
-                )
-                logger.debug(result)
-            else:
-                result = comfy.sd.load_checkpoint_guess_config(
-                    ckpt_path,
-                    output_vae=True,
-                    output_clip=True,
-                    embedding_directory=folder_paths.get_folder_paths("embeddings"),
-                )
-                logger.debug(result)
-        SharedModelManager.manager._models_in_ram[horde_in_memory_name] = result, will_load_loras
+            load_start_time = time.time()
 
+            if file_type is not None:
+                with logfire.span("model.load_diffusion_model", file_type=file_type):
+                    model_options = {}
+                    if weight_dtype == "fp8_e4m3fn":
+                        model_options["dtype"] = torch.float8_e4m3fn
+                    elif weight_dtype == "fp8_e4m3fn_fast":
+                        model_options["dtype"] = torch.float8_e4m3fn
+                        model_options["fp8_optimizations"] = True
+                    elif weight_dtype == "fp8_e5m2":
+                        model_options["dtype"] = torch.float8_e5m2
+                    result = comfy.sd.load_diffusion_model(
+                        ckpt_path,
+                        model_options=model_options,
+                    )
+                    logger.debug(result)
+            else:
+                with logfire.span("model.load_checkpoint_guess_config"):
+                    result = comfy.sd.load_checkpoint_guess_config(
+                        ckpt_path,
+                        output_vae=True,
+                        output_clip=True,
+                        embedding_directory=folder_paths.get_folder_paths("embeddings"),
+                    )
+
+            load_duration_ms = (time.time() - load_start_time) * 1000
+            disk_load_histogram.record(load_duration_ms)
+            logfire.info(
+                "Model loaded from disk",
+                model=horde_model_name,
+                file_type=file_type,
+                load_duration_ms=load_duration_ms,
+            )
+            logger.debug(result)
+        SharedModelManager.manager._models_in_ram[horde_in_memory_name] = result, will_load_loras
 
         if seamless_tiling_enabled and file_type not in ["unet", "vae", "text_encoder"]:
             result[0].model.apply(make_circular)

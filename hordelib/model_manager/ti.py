@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from enum import auto
 from multiprocessing.synchronize import Lock as multiprocessing_lock
 
+import logfire
 import requests
 from fuzzywuzzy import fuzz
 from horde_model_reference import LEGACY_REFERENCE_FOLDER
@@ -30,6 +31,43 @@ class DOWNLOAD_SIZE_CHECK(StrEnum):
 
 
 TESTS_ONGOING = os.getenv("TESTS_ONGOING", "0") == "1"
+
+# Module-level metrics for TI operations
+ti_download_duration_histogram = logfire.metric_histogram(
+    "ti.download.duration_s",
+    unit="s",
+    description="Duration to download individual TI files",
+)
+
+ti_metadata_fetch_duration_histogram = logfire.metric_histogram(
+    "ti.metadata_fetch.duration_ms",
+    unit="ms",
+    description="Duration to fetch TI metadata from CivitAI/Hordeling API",
+)
+
+ti_download_retries_counter = logfire.metric_counter(
+    "ti.download.retries",
+    unit="1",
+    description="Number of download retry attempts",
+)
+
+ti_network_errors_counter = logfire.metric_counter(
+    "ti.network.errors",
+    unit="1",
+    description="Number of network errors encountered",
+)
+
+ti_queue_size_gauge = logfire.metric_gauge(
+    "ti.queue.size",
+    unit="1",
+    description="Current size of TI download queue",
+)
+
+ti_active_threads_gauge = logfire.metric_gauge(
+    "ti.threads.active",
+    unit="1",
+    description="Number of active download threads",
+)
 
 
 class TextualInversionModelManager(BaseModelManager):
@@ -148,20 +186,64 @@ class TextualInversionModelManager(BaseModelManager):
             )
             self._download_ti(ti)
 
+    @logfire.instrument("ti.fetch_metadata", extract_args=False)
     def _get_json(self, url):
+        import time
+
+        start_time = time.perf_counter()
+
+        logfire.info(
+            "ti.metadata_fetch_start",
+            url=url[:100] + "..." if len(url) > 100 else url,
+            url_length=len(url),
+        )
+
         retries = 0
         while retries <= self.MAX_RETRIES:
             response = None
             try:
-                response = requests.get(url, timeout=self.REQUEST_METADATA_TIMEOUT)
-                response.raise_for_status()
-                # Attempt to decode the response to JSON
-                return response.json()
+                with logfire.span(
+                    "ti.http_request",
+                    url=url[:100] + "..." if len(url) > 100 else url,
+                    attempt=retries + 1,
+                ):
+                    response = requests.get(url, timeout=self.REQUEST_METADATA_TIMEOUT)
+                    response.raise_for_status()
+                    # Attempt to decode the response to JSON
+                    result = response.json()
 
-            except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError):
+                    duration_ms = (time.perf_counter() - start_time) * 1000
+                    ti_metadata_fetch_duration_histogram.record(duration_ms)
+
+                    logfire.info(
+                        "ti.metadata_fetch_success",
+                        duration_ms=duration_ms,
+                        attempts=retries + 1,
+                        response_size=len(str(result)),
+                    )
+                    return result
+
+            except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
+                error_type = type(e).__name__
+                ti_network_errors_counter.add(1, {"error_type": error_type})
+
+                logfire.warn(
+                    "ti.metadata_fetch_error",
+                    error_type=error_type,
+                    error_msg=str(e),
+                    url=url[:100] + "..." if len(url) > 100 else url,
+                    attempt=retries + 1,
+                    status_code=response.status_code if response else None,
+                )
+
                 # CivitAI Errors when the model ID is too long
                 if response is not None:
                     if response.status_code in [401, 404]:
+                        logfire.error(
+                            "ti.metadata_fetch_fatal",
+                            status_code=response.status_code,
+                            reason="client_error",
+                        )
                         return None
                     if response.status_code == 500:
                         retries += 3
@@ -175,14 +257,32 @@ class TextualInversionModelManager(BaseModelManager):
 
                 retries += 1
                 self.total_retries_attempted += 1
+                ti_download_retries_counter.add(1, {"reason": error_type})
+
                 if retries <= self.MAX_RETRIES:
+                    logfire.debug(
+                        "ti.metadata_fetch_retry",
+                        retry_count=retries,
+                        max_retries=self.MAX_RETRIES,
+                        delay_s=self.RETRY_DELAY,
+                    )
                     time.sleep(self.RETRY_DELAY)
                 else:
                     # Max retries exceeded, give up
+                    logfire.error(
+                        "ti.metadata_fetch_failed",
+                        reason="max_retries_exceeded",
+                        total_attempts=retries,
+                    )
                     return None
 
             except Exception as e:
                 # Failed badly
+                logfire.error(
+                    "ti.metadata_fetch_exception",
+                    error_type=type(e).__name__,
+                    error_msg=str(e),
+                )
                 logger.error(f"url '{url}' download failed {e}")
                 return None
         return None
@@ -271,172 +371,348 @@ class TextualInversionModelManager(BaseModelManager):
                 ti["triggers"][i] = re.sub("<ti:(.*):.*>", "\\1", trigger)
         return ti
 
+    @logfire.instrument("ti.download_thread", extract_args=False)
     def _download_thread(self, thread_number):
         # We try to download the Textual Inversion. There are tens of thousands of these things, we aren't
         # picky if downloads fail, as they often will if civitai is the host, we just move on to
         # the next one
+        logfire.info("ti.thread_started", thread_number=thread_number)
         logger.debug(f"Started Download Thread {thread_number}")
+
         while True:
             # Endlessly look for files to download and download them
             if self._stop_all_threads:
+                logfire.info("ti.thread_stopped", thread_number=thread_number, reason="stop_requested")
                 logger.debug(f"Stopped Download Thread {thread_number}")
                 return
+
             try:
                 ti = self._download_queue.popleft()
                 self._download_threads[thread_number]["ti"] = ti
+                ti_queue_size_gauge.set(len(self._download_queue))
+
+                logfire.info(
+                    "ti.download_dequeued",
+                    thread_number=thread_number,
+                    ti_name=ti.get("orig_name", "unknown"),
+                    ti_id=ti.get("id", "unknown"),
+                    queue_remaining=len(self._download_queue),
+                )
             except IndexError:
-                # Nothing in the queue
+                # Nothing in the queue - idle
                 self._download_threads[thread_number]["ti"] = None
                 time.sleep(self.THREAD_WAIT_TIME)
                 continue
+
             # Download the ti
-            retries = 0
-            while retries <= self.MAX_RETRIES:
-                try:
-                    # Just before we download this file, check if we already have it
-                    filepath = os.path.join(self.model_folder_path, ti["filename"])
-                    hashpath = f"{os.path.splitext(filepath)[0]}.sha256"
-                    logger.debug(f"Retrieving TI metadata from Hordeling for ID: {ti['filename']}")
-                    hordeling_response = requests.get(f"{self.HORDELING_API}/{ti['id']}", timeout=5)
-                    if not hordeling_response.ok:
-                        if hordeling_response.status_code == 404:
-                            logger.debug(f"Textual Inversion: {ti['filename']} could not be found on AI Hordeling.")
-                            break
+            ti_filename = ti["filename"]
+            ti_size_kb = ti["size_kb"]
 
-                        if hordeling_response.status_code == 500:
-                            retries += 2
-                            logger.debug(
-                                "AI Hordeing reported an internal error when downloading metadata. "
-                                "Fewer retries will be attempted.",
-                            )
+            with logfire.span(
+                "ti.file_download",
+                thread_number=thread_number,
+                ti_name=ti.get("orig_name", "unknown"),
+                ti_filename=ti_filename,
+                size_kb=ti_size_kb,
+            ) as download_span:
+                import time as time_module
 
-                        hordeling_json = hordeling_response.json()
+                download_start = time_module.perf_counter()
+                download_success = False
+                retries = 0
+                while retries <= self.MAX_RETRIES:
+                    try:
+                        # Just before we download this file, check if we already have it
+                        filepath = os.path.join(self.model_folder_path, ti["filename"])
+                        hashpath = f"{os.path.splitext(filepath)[0]}.sha256"
 
-                        if "message" in hordeling_json:
-                            message = hordeling_json["message"]
-                            if isinstance(message, str):
-                                message = message.lower()
-                            else:
-                                logger.error(f"AI Hordeling reported an error when downloading metadata: {message}")
-                                message = ""
+                        logger.debug(f"Retrieving TI metadata from Hordeling for ID: {ti['filename']}")
 
-                            if "unexpected type" in message:
+                        with logfire.span(
+                            "ti.fetch_hordeling_metadata",
+                            ti_id=ti["id"],
+                            attempt=retries + 1,
+                        ) as hordeling_span:
+                            hordeling_start = time_module.perf_counter()
+                            hordeling_response = requests.get(f"{self.HORDELING_API}/{ti['id']}", timeout=5)
+                            hordeling_duration = time_module.perf_counter() - hordeling_start
+                            hordeling_span.set_attribute("duration_ms", hordeling_duration * 1000)
+
+                        if not hordeling_response.ok:
+                            if hordeling_response.status_code == 404:
+                                logfire.warn(
+                                    "ti.hordeling_not_found",
+                                    ti_filename=ti_filename,
+                                    ti_id=ti["id"],
+                                )
                                 logger.debug(
-                                    "AI Hordeling reported an unexpected type error when downloading metadata. "
-                                    "Ignoring this Textual Inversion.",
+                                    f"Textual Inversion: {ti['filename']} could not be found on AI Hordeling."
                                 )
                                 break
-                            if "hash" in message:
-                                logger.debug(f"Textual Inversion: {ti['filename']} hash mismatch reported.")
-                                break
 
-                        # We will retry
-                        logger.debug(
-                            "AI Hordeling reported error when downloading metadata "
-                            f"for Textual Inversion: {ti['filename']}: "
-                            f"{hordeling_json} "
-                            f"Retry {retries}/{self.MAX_RETRIES}",
-                        )
-                    else:
-                        hordeling_json = hordeling_response.json()
-                        if hordeling_json.get("sha256"):
-                            ti["sha256"] = hordeling_json["sha256"]
-                        if os.path.exists(filepath) and os.path.exists(hashpath):
-                            # Check the hash
-                            with open(hashpath) as infile:
-                                try:
-                                    hashdata = infile.read().split()[0]
-                                except (IndexError, OSError, PermissionError):
-                                    hashdata = ""
+                            if hordeling_response.status_code == 500:
+                                retries += 2
+                                ti_network_errors_counter.add(1, {"error_type": "hordeling_500"})
+                                logfire.warn(
+                                    "ti.hordeling_server_error",
+                                    status_code=500,
+                                    ti_filename=ti_filename,
+                                )
+                                logger.debug(
+                                    "AI Hordeing reported an internal error when downloading metadata. "
+                                    "Fewer retries will be attempted.",
+                                )
 
-                            if not ti.get("sha256") or hashdata.lower() == ti["sha256"].lower():
-                                # we already have this ti, consider it downloaded
-                                # the SHA256 might not exist when the ti has been selected in the curation list
-                                # Where we allow them to skip it
-                                if not ti.get("sha256"):
-                                    logger.debug(
-                                        f"Already have Textual Inversion: {ti['filename']}. "
-                                        "Bypassing SHA256 check as there's none stored",
-                                    )
+                            hordeling_json = hordeling_response.json()
+
+                            if "message" in hordeling_json:
+                                message = hordeling_json["message"]
+                                if isinstance(message, str):
+                                    message = message.lower()
                                 else:
-                                    logger.debug(f"Already have Textual Inversion: {ti['filename']}")
+                                    logger.error(
+                                        f"AI Hordeling reported an error when downloading metadata: {message}"
+                                    )
+                                    message = ""
+
+                                if "unexpected type" in message:
+                                    logger.debug(
+                                        "AI Hordeling reported an unexpected type error when downloading metadata. "
+                                        "Ignoring this Textual Inversion.",
+                                    )
+                                    break
+                                if "hash" in message:
+                                    logger.debug(f"Textual Inversion: {ti['filename']} hash mismatch reported.")
+                                    break
+
+                            # We will retry
+                            logger.debug(
+                                "AI Hordeling reported error when downloading metadata "
+                                f"for Textual Inversion: {ti['filename']}: "
+                                f"{hordeling_json} "
+                                f"Retry {retries}/{self.MAX_RETRIES}",
+                            )
+                        else:
+                            hordeling_json = hordeling_response.json()
+                            if hordeling_json.get("sha256"):
+                                ti["sha256"] = hordeling_json["sha256"]
+                            if os.path.exists(filepath) and os.path.exists(hashpath):
+                                # Check the hash
+                                with open(hashpath) as infile:
+                                    try:
+                                        hashdata = infile.read().split()[0]
+                                    except (IndexError, OSError, PermissionError):
+                                        hashdata = ""
+
+                                if not ti.get("sha256") or hashdata.lower() == ti["sha256"].lower():
+                                    # we already have this ti, consider it downloaded
+                                    # the SHA256 might not exist when the ti has been selected in the curation list
+                                    # Where we allow them to skip it
+                                    if not ti.get("sha256"):
+                                        logger.debug(
+                                            f"Already have Textual Inversion: {ti['filename']}. "
+                                            "Bypassing SHA256 check as there's none stored",
+                                        )
+                                    else:
+                                        logger.debug(f"Already have Textual Inversion: {ti['filename']}")
+
+                                    logfire.info(
+                                        "ti.already_downloaded",
+                                        ti_filename=ti_filename,
+                                        thread_number=thread_number,
+                                        bypassed_sha256=not ti.get("sha256"),
+                                    )
+
+                                    with self._mutex, self._file_lock:
+                                        # We store as lower to allow case-insensitive search
+                                        ti["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                        self._add_ti_to_reference(ti)
+                                        if self.is_default_cache_full():
+                                            self.stop_downloading = True
+                                        self.save_cached_reference_to_disk()
+                                    download_success = True
+                                    break
+
+                            logger.info(f"Starting download of Textual Inversion: {ti['filename']}")
+
+                            ti_url = hordeling_json["url"]
+                            if self._civitai_api_token and self.is_model_url_from_civitai(ti_url):
+                                ti_url += f"?token={self._civitai_api_token}"
+
+                            with logfire.span(
+                                "ti.http_download",
+                                url=ti_url[:100] + "..." if len(ti_url) > 100 else ti_url,
+                                attempt=retries + 1,
+                                size_kb=ti_size_kb,
+                            ) as http_span:
+                                http_start = time_module.perf_counter()
+                                response = requests.get(
+                                    ti_url,
+                                    timeout=self.REQUEST_DOWNLOAD_TIMEOUT,
+                                )
+                                response.raise_for_status()
+                                http_duration = time_module.perf_counter() - http_start
+
+                                http_span.set_attribute("http_duration_s", http_duration)
+                                download_speed = (ti_size_kb / 1024) / http_duration if http_duration > 0 else 0
+                                http_span.set_attribute("download_speed_mbps", download_speed)
+
+                            # Check the data hash
+                            with logfire.span("ti.verify_hash"):
+                                hash_object = hashlib.sha256()
+                                hash_object.update(response.content)
+                                sha256 = hash_object.hexdigest()
+
+                            if not ti.get("sha256") or sha256.lower() == ti["sha256"].lower():
+                                # wow, we actually got a valid file, save it
+                                with logfire.span("ti.save_file"):
+                                    with open(filepath, "wb") as outfile:
+                                        outfile.write(response.content)
+                                    # Save the hash file
+                                    with open(hashpath, "w") as outfile:
+                                        outfile.write(f"{sha256} *{ti['filename']}")
+
+                                download_duration = time_module.perf_counter() - download_start
+                                ti_download_duration_histogram.record(download_duration)
+
+                                logfire.info(
+                                    "ti.download_success",
+                                    ti_filename=ti_filename,
+                                    size_kb=ti_size_kb,
+                                    duration_s=download_duration,
+                                    download_speed_mbps=download_speed,
+                                    thread_number=thread_number,
+                                )
+
+                                # Shout about it
+                                logger.info(f"Downloaded Textual Inversion: {ti['filename']} ({ti['size_kb']} KB)")
+                                # Maybe we're done
                                 with self._mutex, self._file_lock:
                                     # We store as lower to allow case-insensitive search
+                                    ti["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     ti["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                                     self._add_ti_to_reference(ti)
-                                    if self.is_default_cache_full():
-                                        self.stop_downloading = True
+                                    if self.is_adhoc_cache_full():
+                                        with logfire.span("ti.cleanup_old_files"):
+                                            logfire.info("ti.cache_full_cleanup")
+                                            self.delete_oldest_ti()
                                     self.save_cached_reference_to_disk()
+                                download_success = True
                                 break
 
-                        logger.info(f"Starting download of Textual Inversion: {ti['filename']}")
+                            # We will retry
+                            logfire.warn(
+                                "ti.download_hash_mismatch",
+                                ti_filename=ti_filename,
+                                expected_hash=ti.get("sha256", "none")[:16],
+                                actual_hash=sha256[:16],
+                                attempt=retries + 1,
+                                max_retries=self.MAX_RETRIES,
+                            )
+                            logger.debug(
+                                f"Downloaded Textual Inversion file {ti['filename']} didn't match hash. "
+                                f"Retry {retries}/{self.MAX_RETRIES}",
+                            )
 
-                        ti_url = hordeling_json["url"]
-                        if self._civitai_api_token and self.is_model_url_from_civitai(ti_url):
-                            ti_url += f"?token={self._civitai_api_token}"
+                    except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
+                        error_type = type(e).__name__
+                        ti_network_errors_counter.add(1, {"error_type": error_type})
+                        ti_download_retries_counter.add(1, {"reason": error_type})
 
-                        response = requests.get(
-                            ti_url,
-                            timeout=self.REQUEST_DOWNLOAD_TIMEOUT,
+                        logfire.warn(
+                            "ti.download_network_error",
+                            error_type=error_type,
+                            error_msg=str(e),
+                            ti_filename=ti_filename,
+                            attempt=retries + 1,
+                            thread_number=thread_number,
                         )
-                        response.raise_for_status()
-                        # Check the data hash
-                        hash_object = hashlib.sha256()
-                        hash_object.update(response.content)
-                        sha256 = hash_object.hexdigest()
-                        if not ti.get("sha256") or sha256.lower() == ti["sha256"].lower():
-                            # wow, we actually got a valid file, save it
-                            with open(filepath, "wb") as outfile:
-                                outfile.write(response.content)
-                            # Save the hash file
-                            with open(hashpath, "w") as outfile:
-                                outfile.write(f"{sha256} *{ti['filename']}")
-
-                            # Shout about it
-                            logger.info(f"Downloaded Textual Inversion: {ti['filename']} ({ti['size_kb']} KB)")
-                            # Maybe we're done
-                            with self._mutex, self._file_lock:
-                                # We store as lower to allow case-insensitive search
-                                ti["last_used"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                ti["last_checked"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                self._add_ti_to_reference(ti)
-                                if self.is_adhoc_cache_full():
-                                    self.delete_oldest_ti()
-                                self.save_cached_reference_to_disk()
-                            break
-
                         # We will retry
+                        logger.debug(f"Error downloading {ti['filename']} {e}. Retry {retries}/{self.MAX_RETRIES}")
+
+                    except Exception as e:
+                        # Failed badly, ignore and retry
+                        ti_network_errors_counter.add(1, {"error_type": "fatal"})
+
+                        logfire.error(
+                            "ti.download_fatal_error",
+                            error_type=type(e).__name__,
+                            error_msg=str(e),
+                            ti_filename=ti_filename,
+                            attempt=retries + 1,
+                        )
                         logger.debug(
-                            f"Downloaded Textual Inversion file {ti['filename']} didn't match hash. "
-                            f"Retry {retries}/{self.MAX_RETRIES}",
+                            f"Fatal error downloading {ti['filename']} {e}. Retry {retries}/{self.MAX_RETRIES}"
                         )
 
-                except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as e:
-                    # We will retry
-                    logger.debug(f"Error downloading {ti['filename']} {e}. Retry {retries}/{self.MAX_RETRIES}")
+                    retries += 1
+                    self.total_retries_attempted += 1
 
-                except Exception as e:
-                    # Failed badly, ignore and retry
-                    logger.debug(f"Fatal error downloading {ti['filename']} {e}. Retry {retries}/{self.MAX_RETRIES}")
+                    if retries > self.MAX_RETRIES:
+                        logfire.error(
+                            "ti.download_max_retries",
+                            ti_filename=ti_filename,
+                            total_attempts=retries,
+                            thread_number=thread_number,
+                        )
+                        break  # fail
 
-                retries += 1
-                self.total_retries_attempted += 1
-                if retries > self.MAX_RETRIES:
-                    break  # fail
+                    time.sleep(self.RETRY_DELAY)
 
-                time.sleep(self.RETRY_DELAY)
+                # Set final span status
+                if download_success:
+                    download_span.set_attribute("success", True)
+                else:
+                    download_span.set_attribute("success", False)
+                    download_span.set_attribute("failed_after_attempts", retries)
 
+    @logfire.instrument("ti.queue_download", extract_args=False)
     def _download_ti(self, ti):
+        ti_name = ti.get("name", "unknown")
+        ti_id = ti.get("id", "unknown")
+
+        logfire.info(
+            "ti.queue_download_requested",
+            ti_name=ti_name,
+            ti_id=ti_id,
+        )
+
         with self._mutex, self._file_lock:
             # Start download threads if they aren't already started
-            while len(self._download_threads) < self.MAX_DOWNLOAD_THREADS:
-                thread_iter = len(self._download_threads)
-                thread = threading.Thread(target=self._download_thread, daemon=True, args=(thread_iter,))
-                self._download_threads[thread_iter] = {"thread": thread, "ti": None}
-                thread.start()
+            current_threads = len(self._download_threads)
+
+            if current_threads < self.MAX_DOWNLOAD_THREADS:
+                with logfire.span(
+                    "ti.spawn_download_threads",
+                    current_threads=current_threads,
+                    max_threads=self.MAX_DOWNLOAD_THREADS,
+                ):
+                    while len(self._download_threads) < self.MAX_DOWNLOAD_THREADS:
+                        thread_iter = len(self._download_threads)
+
+                        logfire.info(
+                            "ti.thread_spawned",
+                            thread_number=thread_iter,
+                            total_threads=len(self._download_threads) + 1,
+                        )
+
+                        thread = threading.Thread(target=self._download_thread, daemon=True, args=(thread_iter,))
+                        self._download_threads[thread_iter] = {"thread": thread, "ti": None}
+                        thread.start()
+
+                        ti_active_threads_gauge.set(len(self._download_threads))
 
             # Add this ti to the download queue
             self._download_queue.append(ti)
+            queue_size = len(self._download_queue)
+            ti_queue_size_gauge.set(queue_size)
+
+            logfire.info(
+                "ti.added_to_queue",
+                ti_name=ti_name,
+                queue_size=queue_size,
+                active_threads=len(self._download_threads),
+            )
 
     def _process_items(self):
         # i.e. given a bunch of TI item metadata, download them
@@ -809,35 +1085,70 @@ class TextualInversionModelManager(BaseModelManager):
             return None
         return datetime.strptime(ti["last_used"], "%Y-%m-%d %H:%M:%S")
 
+    @logfire.instrument("ti.fetch_adhoc", extract_args=True)
     def fetch_adhoc_ti(self, ti_name, timeout=15):
+        logfire.info(
+            "ti.adhoc_fetch_requested",
+            ti_name=str(ti_name)[:100],
+            timeout=timeout,
+        )
+
         if isinstance(ti_name, int) or ti_name.isdigit():
             url = f"https://civitai.com/api/v1/models/{ti_name}"
         else:
             url = f"{self.TI_API}&nsfw={str(self.nsfw).lower()}&query={ti_name}"
-        data = self._get_json(url)
+
+        with logfire.span("ti.adhoc_metadata_fetch", url=url[:100] + "..."):
+            data = self._get_json(url)
+
         # CivitAI down
         if not data:
+            logfire.warn("ti.adhoc_no_metadata", ti_name=str(ti_name)[:100])
             return None
+
         if "items" in data:
             if len(data["items"]) == 0:
+                logfire.info("ti.adhoc_no_results", ti_name=str(ti_name)[:100])
                 return None
             ti = self._parse_civitai_ti_data(data["items"][0], adhoc=True)
         else:
             ti = self._parse_civitai_ti_data(data, adhoc=True)
+
         # For example epi_noiseoffset doesn't have sha256 so we ignore it
         # This avoid us faulting
         if not ti:
+            logfire.warn("ti.adhoc_parse_failed", ti_name=str(ti_name)[:100])
             return None
+
         # We double-check that somehow our search missed it but CivitAI searches differently and found it
         fuzzy_find = self.fuzzy_find_ti_key(ti["id"])
         if fuzzy_find:
             logger.error(fuzzy_find)
+            logfire.info("ti.adhoc_already_exists", ti_name=fuzzy_find)
             return fuzzy_find
-        self._download_ti(ti)
-        # We need to wait a bit to make sure the threads pick up the download
-        time.sleep(self.THREAD_WAIT_TIME)
-        self.wait_for_downloads(timeout)
-        return ti["name"].lower()
+
+        with logfire.span("ti.adhoc_download_and_wait", ti_id=ti["id"], timeout=timeout) as wait_span:
+            self._download_ti(ti)
+            # We need to wait a bit to make sure the threads pick up the download
+            time.sleep(self.THREAD_WAIT_TIME)
+
+            import time as time_module
+
+            wait_start = time_module.perf_counter()
+
+            self.wait_for_downloads(timeout)
+
+            wait_duration = time_module.perf_counter() - wait_start
+            wait_span.set_attribute("wait_duration_s", wait_duration)
+            wait_span.set_attribute("timed_out", wait_duration >= timeout if timeout else False)
+
+        result = ti["name"].lower()
+        logfire.info(
+            "ti.adhoc_download_complete",
+            ti_name=result,
+            wait_duration_s=wait_duration,
+        )
+        return result
 
     def do_baselines_match(self, ti_name, model_details):
         self._check_for_refresh(ti_name)

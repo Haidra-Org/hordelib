@@ -4,6 +4,7 @@ from collections.abc import Callable
 from enum import Enum
 from time import perf_counter
 
+import logfire
 import regex
 from loguru import logger
 from pydantic import BaseModel
@@ -116,11 +117,20 @@ class OutputCollector(io.TextIOWrapper):
                 self.slow_message_count += 1
                 if self.slow_message_count == 5:
                     logger.warning("Suppressing further slow job warnings. Please investigate.")
-
+                    logfire.warn(
+                        "comfy.slow_job_warnings_suppressed",
+                        warning_count=self.slow_message_count,
+                    )
                     log_free_ram()
                 else:
                     rate_unit = "iterations per second" if is_iterations_per_second else "*seconds per iterations*"
                     logger.warning(f"Job Slowdown: Job is running at {iteration_rate} {rate_unit}.")
+                    logfire.warn(
+                        "comfy.slow_job_detected",
+                        rate=float(iteration_rate),
+                        rate_unit=rate_unit,
+                        warning_count=self.slow_message_count,
+                    )
 
             if found_current_step == 0:
                 log_free_ram()
@@ -135,20 +145,28 @@ class OutputCollector(io.TextIOWrapper):
                 logger.info(message)
 
             if self.comfyui_progress_callback:
-                self.comfyui_progress_callback(
-                    ComfyUIProgress(
-                        percent=int(matches.group(1)),
-                        current_step=found_current_step,
-                        total_steps=found_total_steps,
-                        rate=float(iteration_rate) if iteration_rate != "?" else -1.0,
-                        rate_unit=(
-                            ComfyUIProgressUnit.ITERATIONS_PER_SECOND
-                            if is_iterations_per_second
-                            else ComfyUIProgressUnit.SECONDS_PER_ITERATION
-                        ),
+                progress = ComfyUIProgress(
+                    percent=int(matches.group(1)),
+                    current_step=found_current_step,
+                    total_steps=found_total_steps,
+                    rate=float(iteration_rate) if iteration_rate != "?" else -1.0,
+                    rate_unit=(
+                        ComfyUIProgressUnit.ITERATIONS_PER_SECOND
+                        if is_iterations_per_second
+                        else ComfyUIProgressUnit.SECONDS_PER_ITERATION
                     ),
-                    message,
                 )
+
+                # Log progress parsing event
+                logfire.debug(
+                    "comfy.progress_parsed",
+                    percent=progress.percent,
+                    current_step=progress.current_step,
+                    total_steps=progress.total_steps,
+                    rate=progress.rate,
+                )
+
+                self.comfyui_progress_callback(progress, message)
 
         self.capture_deque.append(message)
 

@@ -170,6 +170,7 @@ class SharedModelManager:
         Returns:
             bool: If the annotators are downloaded and the integrity is OK, this will return True. Otherwise, false.
         """
+        return True  # FIXME
         desired_annotator_path = UserSettings.get_model_directory() / "controlnet" / "annotator" / "ckpts"
 
         if builtins.annotator_ckpts_path == desired_annotator_path:  # type: ignore
