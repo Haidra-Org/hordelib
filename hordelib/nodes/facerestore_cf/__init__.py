@@ -266,7 +266,6 @@ class CropFace:
             if out_images.shape[0] < next_idx + faces_found:
                 print(out_images.shape)
                 print((next_idx + faces_found, 512, 512, 3))
-                print("aaaaa")
                 out_images = np.resize(out_images, (next_idx + faces_found, 512, 512, 3))
                 print(out_images.shape)
             for j in range(faces_found):

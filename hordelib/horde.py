@@ -571,7 +571,6 @@ class HordeLib:
         for file_entry in model_files:
             if "file_type" in file_entry:
                 payload[file_entry["file_type"]] = file_entry["file_path"]
-                logger.debug(f"AAAAA {payload}")
 
         # Rather than specify a scheduler, only karras or not karras is specified
         if payload.get("karras", False):
@@ -900,7 +899,6 @@ class HordeLib:
         # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
         # We don't want to hardcode this into the pipeline.json as we export this directly from ComfyUI
         # and don't want to have to rememeber to re-add those keys
-        logger.debug(f"BBBBBBB: {pipeline_params}")
         if "model_loader_stage_c.ckpt_name" in pipeline_params:
             pipeline_params["model_loader_stage_c.file_type"] = "stable_cascade_stage_c"
         if "model_loader_stage_b.ckpt_name" in pipeline_params:
