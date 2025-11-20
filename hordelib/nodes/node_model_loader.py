@@ -134,7 +134,7 @@ class HordeCheckpointLoader:
             raise ValueError("No model file name provided.")
 
         with torch.no_grad():
-            if file_type is not None:
+            if file_type == "unet":
                 model_options = {}
                 if weight_dtype == "fp8_e4m3fn":
                     model_options["dtype"] = torch.float8_e4m3fn
@@ -167,7 +167,6 @@ class HordeCheckpointLoader:
                 make_regular_vae(result[2])
 
         log_free_ram()
-        logger.debug(result)
         return result
 
 

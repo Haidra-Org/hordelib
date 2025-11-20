@@ -788,9 +788,9 @@ class LoraModelManager(BaseModelManager):
             if lora_name in lora:
                 return lora
         for lora in self.model_reference:
-            if fuzz.ratio(lora_name, lora) > 80:
+            if fuzz.ratio(lora_name, lora) > 83:
                 return lora
-            if fuzz.ratio(lora_name, self.model_reference[lora]["orig_name"]) > 80:
+            if fuzz.ratio(lora_name, self.model_reference[lora]["orig_name"]) > 83:
                 return lora
         return None
 
