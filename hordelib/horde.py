@@ -899,14 +899,18 @@ class HordeLib:
         # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
         # We don't want to hardcode this into the pipeline.json as we export this directly from ComfyUI
         # and don't want to have to rememeber to re-add those keys
+        model_details = None
+        if SharedModelManager.manager.compvis:
+            model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
         if "model_loader_stage_c.ckpt_name" in pipeline_params:
             pipeline_params["model_loader_stage_c.file_type"] = "stable_cascade_stage_c"
         if "model_loader_stage_b.ckpt_name" in pipeline_params:
             pipeline_params["model_loader_stage_b.file_type"] = "stable_cascade_stage_b"
-        if pipeline_params["model_loader.horde_model_name"] == "Qwen-Image_fp8":
+        if model_details is not None and model_details["baseline"] == "qwen_image":
             pipeline_params["model_loader.file_type"] = "unet"
         else:
             pipeline_params["model_loader.file_type"] = None  # To allow normal SD pipelines to keep working
+        logger.debug(f'pipeline_params["model_loader.file_type"]: {pipeline_params["model_loader.file_type"]}')
         # Inject our model manager
         # pipeline_params["model_loader.model_manager"] = SharedModelManager
         pipeline_params["model_loader.will_load_loras"] = bool(payload.get("loras"))
