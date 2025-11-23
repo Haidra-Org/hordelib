@@ -631,6 +631,18 @@ class HordeLib:
         #             del payload["denoising_strength"]
         return payload, faults
 
+    def get_model_file_type(self, model_name: str) -> None | str:
+        """Get the model file type for the given model name.
+        This is used by the horde model loader node to
+        determine which model loading type to use (e.g. unet vs checkpoint)
+        """
+        model_details = None
+        if SharedModelManager.manager.compvis:
+            model_details = SharedModelManager.manager.compvis.get_model_reference_info(model_name)
+        if model_details is not None and model_details["baseline"] == "qwen_image":
+            return "unet"
+        return None  # To allow normal SD pipelines to keep working
+
     def _final_pipeline_adjustments(self, payload, pipeline_data) -> tuple[dict, list[GenMetadataEntry]]:
         payload = deepcopy(payload)
         faults: list[GenMetadataEntry] = []
@@ -906,10 +918,7 @@ class HordeLib:
             pipeline_params["model_loader_stage_c.file_type"] = "stable_cascade_stage_c"
         if "model_loader_stage_b.ckpt_name" in pipeline_params:
             pipeline_params["model_loader_stage_b.file_type"] = "stable_cascade_stage_b"
-        if model_details is not None and model_details["baseline"] == "qwen_image":
-            pipeline_params["model_loader.file_type"] = "unet"
-        else:
-            pipeline_params["model_loader.file_type"] = None  # To allow normal SD pipelines to keep working
+        pipeline_params["model_loader.file_type"] = self.get_model_file_type(payload["model_name"])
         logger.debug(f'pipeline_params["model_loader.file_type"]: {pipeline_params["model_loader.file_type"]}')
         # Inject our model manager
         # pipeline_params["model_loader.model_manager"] = SharedModelManager
