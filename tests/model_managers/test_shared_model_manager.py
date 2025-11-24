@@ -65,6 +65,7 @@ class TestSharedModelManager:
                 model_file_details = model_manager.get_model_config_files(model)
                 for file in model_file_details:
                     path = file.get("path")
+                    directory = file.get("directory", None)
                     if not isinstance(path, str):
                         continue
                     if not (".pt" in path or ".ckpt" in path or ".safetensors" in path):
@@ -73,6 +74,8 @@ class TestSharedModelManager:
                     if os.path.isabs(path):
                         model_manager.get_file_sha256_hash(path)
                     else:
+                        if directory is not None:
+                            path = f"{directory}/{path}"
                         model_manager.get_file_sha256_hash(f"{model_manager.model_folder_path}/{path}")
 
     def test_check_validate_all_available_models(

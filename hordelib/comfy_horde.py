@@ -1,5 +1,6 @@
 # comfy.py
 # Wrapper around comfy to allow usage by the horde worker.
+import asyncio
 import contextlib
 import copy
 import gc
@@ -17,6 +18,7 @@ import uuid
 import random
 import threading
 from pprint import pformat
+import loguru
 import requests
 import psutil
 from collections.abc import Callable
@@ -180,7 +182,11 @@ class InterceptHandler(logging.Handler):
 
         # Find caller from where originated the logged message.
         frame, depth = logging.currentframe(), 2
-        while frame and frame.f_code.co_filename == logging.__file__:
+        while frame and (
+            "loguru" in frame.f_code.co_filename
+            or frame.f_code.co_filename == logging.__file__
+            or frame.f_code.co_filename == __file__
+        ):
             frame = frame.f_back
             depth += 1
 
@@ -295,7 +301,12 @@ def do_comfy_import(
 
 
 # isort: on
-models_not_to_force_load: list = ["cascade", "sdxl", "flux"]  # other possible values could be `basemodel` or `sd1`
+models_not_to_force_load: list = [
+    "cascade",
+    "sdxl",
+    "flux",
+    "qwen_image",
+]  # other possible values could be `basemodel` or `sd1`
 """Models which should not be forced to load in the comfy model loading hijack.
 
 Possible values include `cascade`, `sdxl`, `basemodel`, `sd1` or any other comfyui classname
@@ -371,6 +382,8 @@ def _calculate_weight_hijack(*args, **kwargs):
 
     for p in patches:
         v = p[1]
+        if not isinstance(v, tuple):
+            continue
         patch_type = v[0]
         if patch_type != "diff":
             continue
@@ -395,9 +408,9 @@ def default_json_serializer_pil_image(obj):
     return obj
 
 
-def IsChangedCache_get_hijack(self, *args, **kwargs):
+async def IsChangedCache_get_hijack(self, *args, **kwargs):
     global _comfy_is_changed_cache_get
-    result = _comfy_is_changed_cache_get(self, *args, **kwargs)
+    result = await _comfy_is_changed_cache_get(self, *args, **kwargs)
 
     global _last_pipeline_settings_hash
 
@@ -424,6 +437,14 @@ def IsChangedCache_get_hijack(self, *args, **kwargs):
 def text_encoder_initial_device_hijack(*args, **kwargs):
     # This ensures clip models are loaded on the CPU first
     return torch.device("cpu")
+
+
+def clear_gc_and_torch_cache() -> None:
+    """Clear the garbage collector and the PyTorch cache."""
+    gc.collect()
+    from torch.cuda import empty_cache
+
+    empty_cache()
 
 
 def unload_all_models_vram():
@@ -454,6 +475,9 @@ def unload_all_models_vram():
 
     logger.debug(f"{len(SharedModelManager.manager._models_in_ram)} models cached in shared model manager")
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
+
+    clear_gc_and_torch_cache()
+    log_free_ram()
 
 
 def unload_all_models_ram():
@@ -495,6 +519,9 @@ def unload_all_models_ram():
     logger.debug(f"{len(SharedModelManager.manager._models_in_ram)} models cached in shared model manager")
     logger.debug(f"{len(_comfy_current_loaded_models)} models loaded in comfy")
 
+    clear_gc_and_torch_cache()
+    log_free_ram()
+
 
 def get_torch_device():
     return _comfy_get_torch_device()
@@ -530,6 +557,7 @@ class Comfy_Horde:
     # which our custom nodes don't allow.
     NODE_REPLACEMENTS = {
         "CheckpointLoaderSimple": "HordeCheckpointLoader",
+        "UNETLoader": "HordeCheckpointLoader",
         # "UpscaleModelLoader": "HordeUpscaleModelLoader",
         "SaveImage": "HordeImageOutput",
         "LoadImage": "HordeImageLoader",
@@ -572,7 +600,6 @@ class Comfy_Horde:
         self._callers = 0
         self._gc_timer = time.time()
         self._counter_mutex = threading.Lock()
-
         self.images = None
 
         # Set comfyui paths for checkpoints, loras, etc
@@ -609,6 +636,30 @@ class Comfy_Horde:
             [
                 _comfy_folder_names_and_paths["checkpoints"][0][0],
                 str(UserSettings.get_model_directory() / "compvis"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
+
+        _comfy_folder_names_and_paths["diffusion_models"] = (
+            [
+                _comfy_folder_names_and_paths["diffusion_models"][0][0],
+                str(UserSettings.get_model_directory() / "compvis"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
+
+        _comfy_folder_names_and_paths["vae"] = (
+            [
+                _comfy_folder_names_and_paths["vae"][0][0],
+                str(UserSettings.get_model_directory() / "vae"),
+            ],
+            _comfy_supported_pt_extensions,
+        )
+
+        _comfy_folder_names_and_paths["text_encoders"] = (
+            [
+                _comfy_folder_names_and_paths["text_encoders"][0][0],
+                str(UserSettings.get_model_directory() / "text_encoders"),
             ],
             _comfy_supported_pt_extensions,
         )
@@ -665,7 +716,7 @@ class Comfy_Horde:
 
     def _load_custom_nodes(self) -> None:
         """Force ComfyUI to load its normal custom nodes and the horde custom nodes."""
-        _comfy_nodes.init_extra_nodes(init_custom_nodes=True)
+        asyncio.run(_comfy_nodes.init_extra_nodes(init_custom_nodes=True))
 
     def _get_executor(self):
         """Return the ComfyUI PromptExecutor object."""
@@ -874,9 +925,10 @@ class Comfy_Horde:
     _comfyui_callback: typing.Callable[[str, dict, str], None] | None = None
 
     # This is the callback handler for comfy async events.
-    def send_sync(self, label: str, data: dict, _id: str) -> None:
+    def send_sync(self, label: str, data: dict, sid: str | None = None) -> None:
         # Get receive image outputs via this async mechanism
         output = data.get("output", None)
+        logger.debug([label, output])
         images_received = None
         if output is not None and "images" in output:
             images_received = output.get("images", None)
@@ -900,15 +952,16 @@ class Comfy_Horde:
                         logger.error(f"Received unexpected image output from comfyui: {key}:{value}")
             logger.debug("Received output image(s) from comfyui")
         else:
-            if self._comfyui_callback is not None:
-                self._comfyui_callback(label, data, _id)
+            if self._comfyui_callback is not None and sid is not None:
+                self._comfyui_callback(label, data, sid)
 
             if label == "execution_error":
-                logger.error(f"{label}, {data}, {_id}")
+                logger.error(f"{label}, {data}, {sid}")
                 # Reset images on error so that we receive expected None input and can raise an exception
                 self.images = None
             elif label != "executing":
-                logger.debug(f"{label}, {data}, {_id}")
+                pass
+                # logger.debug(f"{label}, {data}, {sid}")
             else:
                 node_name = data.get("node", "")
                 logger.debug(f"{label} comfyui node: {node_name}")
@@ -944,14 +997,14 @@ class Comfy_Horde:
         # pretty_pipeline = pformat(pipeline)
         # logger.warning(pretty_pipeline)
 
-        # The client_id parameter here is just so we receive comfy callbacks for debugging.
+        # The client_id parameter used to only be for debugging, but is now required for all requests.
         # We pretend we are a web client and want async callbacks.
         stdio = OutputCollector(comfyui_progress_callback=comfyui_progress_callback)
         with contextlib.redirect_stdout(stdio), contextlib.redirect_stderr(stdio):
             # validate_prompt from comfy returns [bool, str, list]
             # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
             self.client_id = str(uuid.uuid4())
-            valid = _comfy_validate_prompt(pipeline)
+            valid = asyncio.run(_comfy_validate_prompt(1, pipeline, None))
             import folder_paths
 
             if "embeddings" in folder_paths.filename_list_cache:

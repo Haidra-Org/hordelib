@@ -2,7 +2,6 @@
 --extra-index-url https://download.pytorch.org/whl/cu124
 horde_sdk>=0.15.0
 horde_model_reference>=0.9.1
-pydantic
 numpy==1.26.4
 torch>=2.4.1
 # xformers>=0.0.19
@@ -12,13 +11,13 @@ torchdiffeq
 torchsde
 einops
 open-clip-torch
-transformers>=4.28.1
+transformers>=4.37.2
 tokenizers>=0.13.3
 sentencepiece
 safetensors>=0.4.2
 pytorch_lightning
 pynvml
-aiohttp
+aiohttp>=3.11.8
 accelerate
 pyyaml
 pillow
@@ -52,4 +51,15 @@ kornia
 qrcode==7.4.2
 spandrel
 spandrel_extra_arches
+soundfile
 lpips
+av>=14.2.0
+pydantic~=2.0
+pydantic-settings~=2.0
+SQLAlchemy
+alembic
+tqdm
+yarl>=1.18.0
+comfyui-frontend-package==1.25.11
+comfyui-workflow-templates==0.1.75
+comfyui-embedded-docs==0.2.6
