@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.21.0](https://github.com/Haidra-Org/hordelib/compare/v2.20.12...v2.21.0)
+
+24 November 2025
+
+- Adds support for Qwen [`#408`](https://github.com/Haidra-Org/hordelib/pull/408) (Divided by Zer0)
+
 ## [v2.20.12](https://github.com/Haidra-Org/hordelib/compare/v2.20.11...v2.20.12)
 
 7 January 2025
