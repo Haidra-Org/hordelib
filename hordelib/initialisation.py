@@ -109,6 +109,9 @@ def initialise(
     sys.argv = sys_arg_bkp
 
     _is_initialised = True
+    # We need to remove comfyui path addition because it breaks
+    # module import, as it's not a proper module.
+    del sys.path[0]
 
 
 def is_initialised():
