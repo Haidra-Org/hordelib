@@ -639,7 +639,7 @@ class HordeLib:
         model_details = None
         if SharedModelManager.manager.compvis:
             model_details = SharedModelManager.manager.compvis.get_model_reference_info(model_name)
-        if model_details is not None and model_details["baseline"] == "qwen_image":
+        if model_details is not None and model_details["baseline"] in ["qwen_image", "z_image_turbo"]:
             return "unet"
         return None  # To allow normal SD pipelines to keep working
 
@@ -1218,8 +1218,10 @@ class HordeLib:
                 return "stable_cascade"
             if model_details.get("baseline") == "flux_1":
                 return "flux"
-            if model_details.get("baseline") == "qwen_image":
+            if model_details.get("baseline") in ["qwen_image"]:
                 return "qwen"
+            if model_details.get("baseline") in ["z_image_turbo"]:
+                return "zimage"
         if params.get("control_type"):
             if params.get("return_control_map", False):
                 return "controlnet_annotator"
