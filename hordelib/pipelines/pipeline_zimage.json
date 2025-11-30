@@ -8,7 +8,7 @@
       "scheduler": "simple",
       "denoise": 1,
       "model": [
-        "66",
+        "37",
         0
       ],
       "positive": [
