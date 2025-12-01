@@ -1,93 +1,33 @@
-import copy
-import functools
 import os
-from dataclasses import dataclass
 from enum import Enum
+import torch
+import copy
+from typing import Optional, List
+from dataclasses import dataclass
 
-import comfy.model_base
+import folder_paths
 import comfy.model_management
+import comfy.model_base
 import comfy.supported_models
 import comfy.supported_models_base
-import folder_paths
-import torch
-from comfy.conds import CONDRegular
 from comfy.model_patcher import ModelPatcher
+from folder_paths import get_folder_paths
 from comfy.utils import load_torch_file
 from comfy_extras.nodes_compositing import JoinImageWithAlpha
-from folder_paths import get_folder_paths
-
-from .lib_layerdiffusion.attention_sharing import AttentionSharingPatcher
-from .lib_layerdiffusion.enums import StableDiffusionVersion
-from .lib_layerdiffusion.models import TransparentVAEDecoder
+from comfy.conds import CONDRegular
 from .lib_layerdiffusion.utils import (
     load_file_from_url,
     to_lora_patch_dict,
 )
+from .lib_layerdiffusion.models import TransparentVAEDecoder
+from .lib_layerdiffusion.attention_sharing import AttentionSharingPatcher
+from .lib_layerdiffusion.enums import StableDiffusionVersion
 
 if "layer_model" in folder_paths.folder_names_and_paths:
     layer_model_root = get_folder_paths("layer_model")[0]
 else:
     layer_model_root = os.path.join(folder_paths.models_dir, "layer_model")
 load_layer_model_state_dict = load_torch_file
-
-
-# ------------ Start patching ComfyUI ------------
-def calculate_weight_adjust_channel(func):
-    """Patches ComfyUI's LoRA weight application to accept multi-channel inputs."""
-
-    @functools.wraps(func)
-    def calculate_weight(self: ModelPatcher, patches, weight: torch.Tensor, key: str) -> torch.Tensor:
-        weight = func(self, patches, weight, key)
-
-        for p in patches:
-            alpha = p[0]
-            v = p[1]
-
-            # The recursion call should be handled in the main func call.
-            if isinstance(v, list):
-                continue
-
-            if len(v) == 1:
-                patch_type = "diff"
-            elif len(v) == 2:
-                patch_type = v[0]
-                v = v[1]
-
-            if patch_type == "diff":
-                w1 = v[0]
-                if all(
-                    (
-                        alpha != 0.0,
-                        w1.shape != weight.shape,
-                        w1.ndim == weight.ndim == 4,
-                    ),
-                ):
-                    new_shape = [max(n, m) for n, m in zip(weight.shape, w1.shape, strict=False)]
-                    print(f"Merged with {key} channel changed from {weight.shape} to {new_shape}")
-                    new_diff = alpha * comfy.model_management.cast_to_device(w1, weight.device, weight.dtype)
-                    new_weight = torch.zeros(size=new_shape).to(weight)
-                    new_weight[
-                        : weight.shape[0],
-                        : weight.shape[1],
-                        : weight.shape[2],
-                        : weight.shape[3],
-                    ] = weight
-                    new_weight[
-                        : new_diff.shape[0],
-                        : new_diff.shape[1],
-                        : new_diff.shape[2],
-                        : new_diff.shape[3],
-                    ] += new_diff
-                    new_weight = new_weight.contiguous().clone()
-                    weight = new_weight
-        return weight
-
-    return calculate_weight
-
-
-ModelPatcher.calculate_weight = calculate_weight_adjust_channel(ModelPatcher.calculate_weight)
-
-# ------------ End patching ComfyUI ------------
 
 
 class LayeredDiffusionDecode:
@@ -141,11 +81,17 @@ class LayeredDiffusionDecode:
             file_name = "vae_transparent_decoder.safetensors"
 
         if not self.vae_transparent_decoder.get(sd_version):
-            model_path = load_file_from_url(url=url, model_dir=layer_model_root, file_name=file_name)
+            model_path = load_file_from_url(
+                url=url, model_dir=layer_model_root, file_name=file_name
+            )
             self.vae_transparent_decoder[sd_version] = TransparentVAEDecoder(
                 load_torch_file(model_path),
                 device=comfy.model_management.get_torch_device(),
-                dtype=(torch.float16 if comfy.model_management.should_use_fp16() else torch.float32),
+                dtype=(
+                    torch.float16
+                    if comfy.model_management.should_use_fp16()
+                    else torch.float32
+                ),
             )
         pixel = images.movedim(-1, 1)  # [B, H, W, C] => [B, C, H, W]
 
@@ -160,7 +106,7 @@ class LayeredDiffusionDecode:
                 self.vae_transparent_decoder[sd_version].decode_pixel(
                     pixel[start_idx : start_idx + sub_batch_size],
                     samples["samples"][start_idx : start_idx + sub_batch_size],
-                ),
+                )
             )
         pixel_with_alpha = torch.cat(decoded, dim=0)
 
@@ -183,7 +129,7 @@ class LayeredDiffusionDecodeRGBA(LayeredDiffusionDecode):
     def decode(self, samples, images, sd_version: str, sub_batch_size: int):
         image, mask = super().decode(samples, images, sd_version, sub_batch_size)
         alpha = 1.0 - mask
-        return JoinImageWithAlpha().join_image_with_alpha(image, alpha)
+        return JoinImageWithAlpha().execute(image, alpha)
 
 
 class LayeredDiffusionDecodeSplit(LayeredDiffusionDecodeRGBA):
@@ -230,17 +176,17 @@ class LayeredDiffusionDecodeSplit(LayeredDiffusionDecodeRGBA):
         sliced_samples = copy.copy(samples)
         sliced_samples["samples"] = sliced_samples["samples"][::frames]
         return tuple(
-
+            (
                 (
-                    super(LayeredDiffusionDecodeSplit, self).decode(sliced_samples, imgs, sd_version, sub_batch_size)[
-                        0
-                    ]
+                    super(LayeredDiffusionDecodeSplit, self).decode(
+                        sliced_samples, imgs, sd_version, sub_batch_size
+                    )[0]
                     if i == 0
                     else imgs
                 )
                 for i in range(frames)
                 for imgs in (images[i::frames],)
-
+            )
         ) + (None,) * (self.MAX_FRAMES - frames)
 
 
@@ -260,8 +206,8 @@ class LayeredDiffusionBase:
     model_url: str
     sd_version: StableDiffusionVersion
     attn_sharing: bool = False
-    injection_method: LayerMethod | None = None
-    cond_type: LayerType | None = None
+    injection_method: Optional[LayerMethod] = None
+    cond_type: Optional[LayerType] = None
     # Number of output images per run.
     frames: int = 1
 
@@ -309,8 +255,19 @@ class LayeredDiffusionBase:
             model_dir=layer_model_root,
             file_name=self.model_file_name,
         )
+        def pad_diff_weight(v):
+            if len(v) == 1:
+                return ("diff", [v[0], {"pad_weight": True}])
+            elif len(v) == 2 and v[0] == "diff":
+                return ("diff", [v[1][0], {"pad_weight": True}])
+            else:
+                return v
+
         layer_lora_state_dict = load_layer_model_state_dict(model_path)
-        layer_lora_patch_dict = to_lora_patch_dict(layer_lora_state_dict)
+        layer_lora_patch_dict = {
+            k: pad_diff_weight(v)
+            for k, v in to_lora_patch_dict(layer_lora_state_dict).items()
+        }
         work_model = model.clone()
         work_model.add_patches(layer_lora_patch_dict, weight)
         return (work_model,)
@@ -318,7 +275,7 @@ class LayeredDiffusionBase:
     def apply_layered_diffusion_attn_sharing(
         self,
         model: ModelPatcher,
-        control_img: torch.TensorType | None = None,
+        control_img: Optional[torch.TensorType] = None,
     ):
         """Patch model with attn sharing"""
         model_path = load_file_from_url(
@@ -328,7 +285,9 @@ class LayeredDiffusionBase:
         )
         layer_lora_state_dict = load_layer_model_state_dict(model_path)
         work_model = model.clone()
-        patcher = AttentionSharingPatcher(work_model, self.frames, use_control=control_img is not None)
+        patcher = AttentionSharingPatcher(
+            work_model, self.frames, use_control=control_img is not None
+        )
         patcher.load_state_dict(layer_lora_state_dict, strict=True)
         if control_img is not None:
             patcher.set_control(control_img)
@@ -341,7 +300,9 @@ def get_model_sd_version(model: ModelPatcher) -> StableDiffusionVersion:
     model_config: comfy.supported_models.supported_models_base.BASE = base.model_config
     if isinstance(model_config, comfy.supported_models.SDXL):
         return StableDiffusionVersion.SDXL
-    elif isinstance(model_config, (comfy.supported_models.SD15, comfy.supported_models.SD20)):
+    elif isinstance(
+        model_config, (comfy.supported_models.SD15, comfy.supported_models.SD20)
+    ):
         # SD15 and SD20 are compatible with each other.
         return StableDiffusionVersion.SD1x
     else:
@@ -437,9 +398,9 @@ class LayeredDiffusionJoint:
         self,
         model: ModelPatcher,
         config: str,
-        fg_cond: list[list[torch.TensorType]] | None = None,
-        bg_cond: list[list[torch.TensorType]] | None = None,
-        blended_cond: list[list[torch.TensorType]] | None = None,
+        fg_cond: Optional[List[List[torch.TensorType]]] = None,
+        bg_cond: Optional[List[List[torch.TensorType]]] = None,
+        blended_cond: Optional[List[List[torch.TensorType]]] = None,
     ):
         ld_model = [m for m in self.MODELS if m.config_string == config][0]
         assert get_model_sd_version(model) == ld_model.sd_version
@@ -509,7 +470,9 @@ class LayeredDiffusionCond:
         ld_model = [m for m in self.MODELS if m.config_string == config][0]
         assert get_model_sd_version(model) == ld_model.sd_version
         c_concat = model.model.latent_format.process_in(latent["samples"])
-        return ld_model.apply_layered_diffusion(model, weight) + ld_model.apply_c_concat(cond, uncond, c_concat)
+        return ld_model.apply_layered_diffusion(
+            model, weight
+        ) + ld_model.apply_c_concat(cond, uncond, c_concat)
 
 
 class LayeredDiffusionCondJoint:
@@ -559,13 +522,15 @@ class LayeredDiffusionCondJoint:
         model: ModelPatcher,
         image,
         config: str,
-        cond: list[list[torch.TensorType]] | None = None,
-        blended_cond: list[list[torch.TensorType]] | None = None,
+        cond: Optional[List[List[torch.TensorType]]] = None,
+        blended_cond: Optional[List[List[torch.TensorType]]] = None,
     ):
         ld_model = [m for m in self.MODELS if m.config_string == config][0]
         assert get_model_sd_version(model) == ld_model.sd_version
         assert ld_model.attn_sharing
-        work_model = ld_model.apply_layered_diffusion_attn_sharing(model, control_img=image.movedim(-1, 1))[0]
+        work_model = ld_model.apply_layered_diffusion_attn_sharing(
+            model, control_img=image.movedim(-1, 1)
+        )[0]
         work_model.model_options.setdefault("transformer_options", {})
         work_model.model_options["transformer_options"]["cond_overwrite"] = [
             cond[0][0] if cond is not None else None
@@ -631,9 +596,11 @@ class LayeredDiffusionDiff:
         ld_model = [m for m in self.MODELS if m.config_string == config][0]
         assert get_model_sd_version(model) == ld_model.sd_version
         c_concat = model.model.latent_format.process_in(
-            torch.cat([latent["samples"], blended_latent["samples"]], dim=1),
+            torch.cat([latent["samples"], blended_latent["samples"]], dim=1)
         )
-        return ld_model.apply_layered_diffusion(model, weight) + ld_model.apply_c_concat(cond, uncond, c_concat)
+        return ld_model.apply_layered_diffusion(
+            model, weight
+        ) + ld_model.apply_c_concat(cond, uncond, c_concat)
 
 
 NODE_CLASS_MAPPINGS = {

@@ -1,22 +1,21 @@
-import importlib.metadata
-
+import torch.nn as nn
+import torch
 import cv2
 import numpy as np
-import torch
-import torch.nn as nn
+
+from tqdm import tqdm
+from typing import Optional, Tuple
 from diffusers.configuration_utils import ConfigMixin, register_to_config
 from diffusers.models.modeling_utils import ModelMixin
+import importlib.metadata
 from packaging.version import parse
-from tqdm import tqdm
 
-diffusers_version = importlib.metadata.version("diffusers")
-
+diffusers_version = importlib.metadata.version('diffusers')
 
 def check_diffusers_version(min_version="0.25.0"):
     assert parse(diffusers_version) >= parse(
-        min_version,
+        min_version
     ), f"diffusers>={min_version} requirement not satisfied. Please install correct diffusers version."
-
 
 check_diffusers_version()
 
@@ -69,7 +68,7 @@ class UNet1024(ModelMixin, ConfigMixin):
         self,
         in_channels: int = 3,
         out_channels: int = 3,
-        down_block_types: tuple[str] = (
+        down_block_types: Tuple[str] = (
             "DownBlock2D",
             "DownBlock2D",
             "DownBlock2D",
@@ -78,7 +77,7 @@ class UNet1024(ModelMixin, ConfigMixin):
             "AttnDownBlock2D",
             "AttnDownBlock2D",
         ),
-        up_block_types: tuple[str] = (
+        up_block_types: Tuple[str] = (
             "AttnUpBlock2D",
             "AttnUpBlock2D",
             "AttnUpBlock2D",
@@ -87,7 +86,7 @@ class UNet1024(ModelMixin, ConfigMixin):
             "UpBlock2D",
             "UpBlock2D",
         ),
-        block_out_channels: tuple[int] = (32, 32, 64, 128, 256, 512, 512),
+        block_out_channels: Tuple[int] = (32, 32, 64, 128, 256, 512, 512),
         layers_per_block: int = 2,
         mid_block_scale_factor: float = 1,
         downsample_padding: int = 1,
@@ -95,15 +94,19 @@ class UNet1024(ModelMixin, ConfigMixin):
         upsample_type: str = "conv",
         dropout: float = 0.0,
         act_fn: str = "silu",
-        attention_head_dim: int | None = 8,
+        attention_head_dim: Optional[int] = 8,
         norm_num_groups: int = 4,
         norm_eps: float = 1e-5,
     ):
         super().__init__()
 
         # input
-        self.conv_in = nn.Conv2d(in_channels, block_out_channels[0], kernel_size=3, padding=(1, 1))
-        self.latent_conv_in = zero_module(nn.Conv2d(4, block_out_channels[2], kernel_size=1))
+        self.conv_in = nn.Conv2d(
+            in_channels, block_out_channels[0], kernel_size=3, padding=(1, 1)
+        )
+        self.latent_conv_in = zero_module(
+            nn.Conv2d(4, block_out_channels[2], kernel_size=1)
+        )
 
         self.down_blocks = nn.ModuleList([])
         self.mid_block = None
@@ -126,7 +129,11 @@ class UNet1024(ModelMixin, ConfigMixin):
                 resnet_eps=norm_eps,
                 resnet_act_fn=act_fn,
                 resnet_groups=norm_num_groups,
-                attention_head_dim=(attention_head_dim if attention_head_dim is not None else output_channel),
+                attention_head_dim=(
+                    attention_head_dim
+                    if attention_head_dim is not None
+                    else output_channel
+                ),
                 downsample_padding=downsample_padding,
                 resnet_time_scale_shift="default",
                 downsample_type=downsample_type,
@@ -143,7 +150,11 @@ class UNet1024(ModelMixin, ConfigMixin):
             resnet_act_fn=act_fn,
             output_scale_factor=mid_block_scale_factor,
             resnet_time_scale_shift="default",
-            attention_head_dim=(attention_head_dim if attention_head_dim is not None else block_out_channels[-1]),
+            attention_head_dim=(
+                attention_head_dim
+                if attention_head_dim is not None
+                else block_out_channels[-1]
+            ),
             resnet_groups=norm_num_groups,
             attn_groups=None,
             add_attention=True,
@@ -155,7 +166,9 @@ class UNet1024(ModelMixin, ConfigMixin):
         for i, up_block_type in enumerate(up_block_types):
             prev_output_channel = output_channel
             output_channel = reversed_block_out_channels[i]
-            input_channel = reversed_block_out_channels[min(i + 1, len(block_out_channels) - 1)]
+            input_channel = reversed_block_out_channels[
+                min(i + 1, len(block_out_channels) - 1)
+            ]
 
             is_final_block = i == len(block_out_channels) - 1
 
@@ -170,7 +183,11 @@ class UNet1024(ModelMixin, ConfigMixin):
                 resnet_eps=norm_eps,
                 resnet_act_fn=act_fn,
                 resnet_groups=norm_num_groups,
-                attention_head_dim=(attention_head_dim if attention_head_dim is not None else output_channel),
+                attention_head_dim=(
+                    attention_head_dim
+                    if attention_head_dim is not None
+                    else output_channel
+                ),
                 resnet_time_scale_shift="default",
                 upsample_type=upsample_type,
                 dropout=dropout,
@@ -179,9 +196,13 @@ class UNet1024(ModelMixin, ConfigMixin):
             prev_output_channel = output_channel
 
         # out
-        self.conv_norm_out = nn.GroupNorm(num_channels=block_out_channels[0], num_groups=norm_num_groups, eps=norm_eps)
+        self.conv_norm_out = nn.GroupNorm(
+            num_channels=block_out_channels[0], num_groups=norm_num_groups, eps=norm_eps
+        )
         self.conv_act = nn.SiLU()
-        self.conv_out = nn.Conv2d(block_out_channels[0], out_channels, kernel_size=3, padding=1)
+        self.conv_out = nn.Conv2d(
+            block_out_channels[0], out_channels, kernel_size=3, padding=1
+        )
 
     def forward(self, x, latent):
         sample_latent = self.latent_conv_in(latent)
@@ -200,7 +221,9 @@ class UNet1024(ModelMixin, ConfigMixin):
 
         for upsample_block in self.up_blocks:
             res_samples = down_block_res_samples[-len(upsample_block.resnets) :]
-            down_block_res_samples = down_block_res_samples[: -len(upsample_block.resnets)]
+            down_block_res_samples = down_block_res_samples[
+                : -len(upsample_block.resnets)
+            ]
             sample = upsample_block(sample, res_samples, emb)
 
         sample = self.conv_norm_out(sample)
@@ -276,11 +299,22 @@ class TransparentVAEDecoder:
             result += [eps]
 
         result = torch.stack(result, dim=0)
-        median = torch.median(result, dim=0).values
+        if self.load_device == torch.device("mps"):
+            '''
+            In case that apple silicon devices would crash when calling torch.median() on tensors
+            in gpu vram with dimensions higher than 4, we move it to cpu, call torch.median()
+            and then move the result back to gpu.
+            '''
+            median = torch.median(result.cpu(), dim=0).values
+            median = median.to(device=self.load_device, dtype=self.dtype)
+        else:
+            median = torch.median(result, dim=0).values
         return median
 
     @torch.no_grad()
-    def decode_pixel(self, pixel: torch.TensorType, latent: torch.TensorType) -> torch.TensorType:
+    def decode_pixel(
+        self, pixel: torch.TensorType, latent: torch.TensorType
+    ) -> torch.TensorType:
         # pixel.shape = [B, C=3, H, W]
         assert pixel.shape[1] == 3
         pixel_device = pixel.device
