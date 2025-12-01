@@ -74,6 +74,7 @@ _comfy_current_loaded_models: list = None  # type: ignore
 _comfy_nodes: types.ModuleType
 _comfy_PromptExecutor: typing.Any
 _comfy_validate_prompt: types.FunctionType
+_comfy_CacheType: typing.Any
 
 _comfy_folder_names_and_paths: dict[str, tuple[list[str], list[str] | set[str]]]
 _comfy_supported_pt_extensions: set[str]
@@ -205,7 +206,7 @@ def do_comfy_import(
 ) -> None:
     global _comfy_current_loaded_models
     global _comfy_load_models_gpu
-    global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt
+    global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt, _comfy_CacheType
     global _comfy_folder_names_and_paths, _comfy_supported_pt_extensions
     global _comfy_load_checkpoint_guess_config
     global _comfy_get_torch_device, _comfy_get_free_memory, _comfy_get_total_memory
@@ -238,6 +239,9 @@ def do_comfy_import(
         from execution import nodes as _comfy_nodes
         from execution import PromptExecutor as _comfy_PromptExecutor
         from execution import validate_prompt as _comfy_validate_prompt
+        from execution import CacheType as _comfy_CacheType
+
+        logger.debug(_comfy_CacheType)
 
         # from execution import recursive_output_delete_if_changed
         from execution import IsChangedCache
@@ -306,6 +310,7 @@ models_not_to_force_load: list = [
     "sdxl",
     "flux",
     "qwen_image",
+    "z_image_turbo",
 ]  # other possible values could be `basemodel` or `sd1`
 """Models which should not be forced to load in the comfy model loading hijack.
 
@@ -723,7 +728,8 @@ class Comfy_Horde:
         # This class (`Comfy_Horde`) uses duck typing to intercept calls intended for
         # ComfyUI's `PromptServer` class. In particular, it intercepts calls to
         # `PromptServer.send_sync`. See `Comfy_Horde.send_sync` for more details.
-        return _comfy_PromptExecutor(self)
+        # return _comfy_PromptExecutor(self)
+        return _comfy_PromptExecutor(self, cache_type=_comfy_CacheType.NONE, cache_args={"lru": 0, "ram": 0})
 
     def get_pipeline_data(self, pipeline_name):
         pipeline_data = copy.deepcopy(self.pipelines.get(pipeline_name, {}))
