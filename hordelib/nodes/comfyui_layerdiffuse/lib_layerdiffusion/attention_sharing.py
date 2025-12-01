@@ -1,11 +1,13 @@
 # Currently only sd15
 
 import functools
-
-import einops
 import torch
-from comfy import model_management, utils
+import einops
+
+from comfy import model_management
 from comfy.ldm.modules.attention import optimized_attention
+from comfy.model_patcher import ModelPatcher
+
 
 module_mapping_sd15 = {
     0: "input_blocks.1.1.transformer_blocks.0.attn1",
@@ -101,16 +103,20 @@ class AttentionSharingUnit(torch.nn.Module):
         hidden_size = k_out_channels
 
         self.to_q_lora = [
-            LoRALinearLayer(q_in_channels, q_out_channels, rank, module.to_q) for _ in range(self.frames)
+            LoRALinearLayer(q_in_channels, q_out_channels, rank, module.to_q)
+            for _ in range(self.frames)
         ]
         self.to_k_lora = [
-            LoRALinearLayer(k_in_channels, k_out_channels, rank, module.to_k) for _ in range(self.frames)
+            LoRALinearLayer(k_in_channels, k_out_channels, rank, module.to_k)
+            for _ in range(self.frames)
         ]
         self.to_v_lora = [
-            LoRALinearLayer(v_in_channels, v_out_channels, rank, module.to_v) for _ in range(self.frames)
+            LoRALinearLayer(v_in_channels, v_out_channels, rank, module.to_v)
+            for _ in range(self.frames)
         ]
         self.to_out_lora = [
-            LoRALinearLayer(o_in_channels, o_out_channels, rank, module.to_out[0]) for _ in range(self.frames)
+            LoRALinearLayer(o_in_channels, o_out_channels, rank, module.to_out[0])
+            for _ in range(self.frames)
         ]
 
         self.to_q_lora = torch.nn.ModuleList(self.to_q_lora)
@@ -118,12 +124,24 @@ class AttentionSharingUnit(torch.nn.Module):
         self.to_v_lora = torch.nn.ModuleList(self.to_v_lora)
         self.to_out_lora = torch.nn.ModuleList(self.to_out_lora)
 
-        self.temporal_i = torch.nn.Linear(in_features=hidden_size, out_features=hidden_size)
-        self.temporal_n = torch.nn.LayerNorm(hidden_size, elementwise_affine=True, eps=1e-6)
-        self.temporal_q = torch.nn.Linear(in_features=hidden_size, out_features=hidden_size)
-        self.temporal_k = torch.nn.Linear(in_features=hidden_size, out_features=hidden_size)
-        self.temporal_v = torch.nn.Linear(in_features=hidden_size, out_features=hidden_size)
-        self.temporal_o = torch.nn.Linear(in_features=hidden_size, out_features=hidden_size)
+        self.temporal_i = torch.nn.Linear(
+            in_features=hidden_size, out_features=hidden_size
+        )
+        self.temporal_n = torch.nn.LayerNorm(
+            hidden_size, elementwise_affine=True, eps=1e-6
+        )
+        self.temporal_q = torch.nn.Linear(
+            in_features=hidden_size, out_features=hidden_size
+        )
+        self.temporal_k = torch.nn.Linear(
+            in_features=hidden_size, out_features=hidden_size
+        )
+        self.temporal_v = torch.nn.Linear(
+            in_features=hidden_size, out_features=hidden_size
+        )
+        self.temporal_o = torch.nn.Linear(
+            in_features=hidden_size, out_features=hidden_size
+        )
 
         self.control_convs = None
 
@@ -143,23 +161,31 @@ class AttentionSharingUnit(torch.nn.Module):
     def forward(self, h, context=None, value=None):
         transformer_options = self.transformer_options
 
-        modified_hidden_states = einops.rearrange(h, "(b f) d c -> f b d c", f=self.frames)
+        modified_hidden_states = einops.rearrange(
+            h, "(b f) d c -> f b d c", f=self.frames
+        )
 
         if self.control_convs is not None:
             context_dim = int(modified_hidden_states.shape[2])
             control_outs = []
             for f in range(self.frames):
-                control_signal = self.control_signals[context_dim].to(modified_hidden_states)
+                control_signal = self.control_signals[context_dim].to(
+                    modified_hidden_states
+                )
                 control = self.control_convs[f](control_signal)
                 control = einops.rearrange(control, "b c h w -> b (h w) c")
                 control_outs.append(control)
             control_outs = torch.stack(control_outs, dim=0)
-            modified_hidden_states = modified_hidden_states + control_outs.to(modified_hidden_states)
+            modified_hidden_states = modified_hidden_states + control_outs.to(
+                modified_hidden_states
+            )
 
         if context is None:
             framed_context = modified_hidden_states
         else:
-            framed_context = einops.rearrange(context, "(b f) d c -> f b d c", f=self.frames)
+            framed_context = einops.rearrange(
+                context, "(b f) d c -> f b d c", f=self.frames
+            )
 
         framed_cond_mark = einops.rearrange(
             compute_cond_mark(
@@ -193,8 +219,12 @@ class AttentionSharingUnit(torch.nn.Module):
             attn_outs.append(o)
 
         attn_outs = torch.stack(attn_outs, dim=0)
-        modified_hidden_states = modified_hidden_states + attn_outs.to(modified_hidden_states)
-        modified_hidden_states = einops.rearrange(modified_hidden_states, "f b d c -> (b f) d c", f=self.frames)
+        modified_hidden_states = modified_hidden_states + attn_outs.to(
+            modified_hidden_states
+        )
+        modified_hidden_states = einops.rearrange(
+            modified_hidden_states, "f b d c -> (b f) d c", f=self.frames
+        )
 
         x = modified_hidden_states
         x = self.temporal_n(x)
@@ -227,7 +257,9 @@ class AttentionSharingUnit(torch.nn.Module):
 
         from comfy.ldm.modules.attention import BasicTransformerBlock
 
-        BasicTransformerBlock.forward = register_get_transformer_options(BasicTransformerBlock.forward)
+        BasicTransformerBlock.forward = register_get_transformer_options(
+            BasicTransformerBlock.forward
+        )
 
 
 AttentionSharingUnit.hijack_transformer_block()
@@ -294,17 +326,18 @@ class HookerLayers(torch.nn.Module):
 
 
 class AttentionSharingPatcher(torch.nn.Module):
-    def __init__(self, unet, frames=2, use_control=True, rank=256):
+    def __init__(self, unet: ModelPatcher, frames=2, use_control=True, rank=256):
         super().__init__()
-        # model_management.unload_model_clones(unet) # this is now handled implicitly in comfyui
 
         units = []
         for i in range(32):
-            real_key = module_mapping_sd15[i]
-            attn_module = utils.get_attr(unet.model.diffusion_model, real_key)
-            u = AttentionSharingUnit(attn_module, frames=frames, use_control=use_control, rank=rank)
+            key = "diffusion_model." + module_mapping_sd15[i]
+            attn_module = unet.get_model_object(key)
+            u = AttentionSharingUnit(
+                attn_module, frames=frames, use_control=use_control, rank=rank
+            )
             units.append(u)
-            unet.add_object_patch("diffusion_model." + real_key, u)
+            unet.add_object_patch(key, u)
 
         self.hookers = HookerLayers(units)
 
