@@ -729,7 +729,7 @@ class Comfy_Horde:
         # ComfyUI's `PromptServer` class. In particular, it intercepts calls to
         # `PromptServer.send_sync`. See `Comfy_Horde.send_sync` for more details.
         # return _comfy_PromptExecutor(self)
-        return _comfy_PromptExecutor(self, cache_type=_comfy_CacheType.NONE, cache_args={"lru": 0, "ram": 0})
+        return _comfy_PromptExecutor(self, cache_type=_comfy_CacheType.CLASSIC, cache_args={"lru": 0, "ram": 0})
 
     def get_pipeline_data(self, pipeline_name):
         pipeline_data = copy.deepcopy(self.pipelines.get(pipeline_name, {}))
