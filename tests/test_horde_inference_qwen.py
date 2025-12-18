@@ -8,6 +8,7 @@ from hordelib.horde import HordeLib
 
 class TestHordeInferenceQwen:
 
+    @pytest.mark.skip(reason="32GVRAM")
     @pytest.mark.default_qwen_model
     def test_qwen_image_fp8_text_to_image(
         self,
