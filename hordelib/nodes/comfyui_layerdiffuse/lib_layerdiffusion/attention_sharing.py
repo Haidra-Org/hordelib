@@ -187,14 +187,14 @@ class AttentionSharingUnit(torch.nn.Module):
                 context, "(b f) d c -> f b d c", f=self.frames
             )
 
-        # framed_cond_mark = einops.rearrange(
-        #     compute_cond_mark(
-        #         transformer_options["cond_or_uncond"],
-        #         transformer_options["sigmas"],
-        #     ),
-        #     "(b f) -> f b",
-        #     f=self.frames,
-        # ).to(modified_hidden_states)
+        framed_cond_mark = einops.rearrange(
+            compute_cond_mark(
+                transformer_options["cond_or_uncond"],
+                transformer_options["sigmas"],
+            ),
+            "(b f) -> f b",
+            f=self.frames,
+        ).to(modified_hidden_states)
 
         attn_outs = []
         for f in range(self.frames):
