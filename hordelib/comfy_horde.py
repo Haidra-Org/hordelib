@@ -241,8 +241,6 @@ def do_comfy_import(
         from execution import validate_prompt as _comfy_validate_prompt
         from execution import CacheType as _comfy_CacheType
 
-        logger.debug(_comfy_CacheType)
-
         # from execution import recursive_output_delete_if_changed
         from execution import IsChangedCache
 
