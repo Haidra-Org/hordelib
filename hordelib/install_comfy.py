@@ -82,7 +82,7 @@ class Installer:
         if not get_comfyui_path().exists():
             install_dir = get_comfyui_path().parent
             cls._run(
-                "git clone https://github.com/Haidra-Org/ComfyUI.git",
+                "git clone https://github.com/comfyanonymous/ComfyUI.git",
                 install_dir,
             )
             cls._run(f"git checkout {comfy_version}", str(get_comfyui_path()))

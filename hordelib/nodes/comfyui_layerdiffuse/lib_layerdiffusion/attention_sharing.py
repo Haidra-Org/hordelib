@@ -158,7 +158,7 @@ class AttentionSharingUnit(torch.nn.Module):
 
         self.control_signals = None
 
-    def forward(self, h, context=None, value=None):
+    def forward(self, h, context=None, value=None, **kwargs):
         transformer_options = self.transformer_options
 
         modified_hidden_states = einops.rearrange(
