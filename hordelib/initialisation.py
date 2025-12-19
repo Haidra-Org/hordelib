@@ -29,6 +29,7 @@ def initialise(
     disable_smart_memory: bool = False,
     do_not_load_model_mangers: bool = True,
     models_not_to_force_load: list[str] | None = None,
+    hijack_load_models_gpu: bool = False,
 ):
     """Initialise hordelib. This is required before using any other hordelib functions.
 
@@ -44,6 +45,8 @@ def initialise(
         models_not_to_force_load (list[str] | None, optional): A list of baselines that should not be force loaded.\
             **If this is `None`, the defaults are used.** If you wish to override the defaults, pass an empty list. \
             Defaults to None.
+        hijack_load_models_gpu (bool, optional): Whether to hijack comfy model loading to force full loads \
+            conditionally based on models_not_to_force_load. Defaults to False.
     """
     global _is_initialised
 
@@ -63,7 +66,7 @@ def initialise(
     if not RELEASE_VERSION and " " in str(get_hordelib_path()):
         # Our runtime patching can't handle this
         raise Exception(
-            "Do not run this project in developer mode from a path that " "contains spaces in directory names.",
+            "Do not run this project in developer mode from a path that contains spaces in directory names.",
         )
 
     # Ensure we have ComfyUI
@@ -82,6 +85,7 @@ def initialise(
         force_normal_vram_mode=force_normal_vram_mode,
         extra_comfyui_args=extra_comfyui_args,
         disable_smart_memory=disable_smart_memory,
+        hijack_load_models_gpu=hijack_load_models_gpu,
     )
     if models_not_to_force_load is not None:
         logger.debug(f"Overriding models_not_to_force_load with {models_not_to_force_load}")
