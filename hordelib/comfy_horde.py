@@ -203,7 +203,16 @@ def do_comfy_import(
     force_normal_vram_mode: bool = False,
     extra_comfyui_args: list[str] | None = None,
     disable_smart_memory: bool = False,
+    hijack_load_models_gpu: bool = False,
 ) -> None:
+    """Import comfy modules and hijack certain functions for horde use case.
+    Args:
+        force_normal_vram_mode: If true, forces comfy to use normal VRAM mode using the comfyui command line arg.
+        extra_comfyui_args: Extra command line arguments to pass to comfyui.
+        disable_smart_memory: If true, disables comfy smart memory management using the comfyui command line arg.
+        hijack_load_models_gpu: If true, hijacks comfy model loading to force full loads conditionally based on
+            model type (see _load_models_gpu_hijack).
+    """
     global _comfy_current_loaded_models
     global _comfy_load_models_gpu
     global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt, _comfy_CacheType
@@ -226,6 +235,8 @@ def do_comfy_import(
 
     if extra_comfyui_args is not None:
         sys.argv.extend(extra_comfyui_args)
+
+    logger.info(f"hijack_load_models_gpu is set to {hijack_load_models_gpu}")
 
     # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
     # that they should never call through this module into comfy directly. All calls into
@@ -258,7 +269,9 @@ def do_comfy_import(
         _comfy_load_models_gpu = load_models_gpu  # type: ignore
         import comfy.model_management
 
-        comfy.model_management.load_models_gpu = _load_models_gpu_hijack
+        if hijack_load_models_gpu:
+            comfy.model_management.load_models_gpu = _load_models_gpu_hijack  # type: ignore
+
         from comfy.model_management import get_torch_device as _comfy_get_torch_device
         from comfy.model_management import get_free_memory as _comfy_get_free_memory
         from comfy.model_management import get_total_memory as _comfy_get_total_memory
