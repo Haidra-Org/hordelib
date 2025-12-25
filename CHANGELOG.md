@@ -1,5 +1,11 @@
 ## hordelib Changelog
 
+## [v2.22.2](https://github.com/Haidra-Org/hordelib/compare/v2.22.1...v2.22.2)
+
+24 December 2025
+
+- fix: remove chinese chars from sample which seems to be breaking windows [`95059b1`](https://github.com/Haidra-Org/hordelib/commit/95059b1af5feb49a46fc54c7c18892bf92f45b32)  (db0)
+
 ## [v2.22.1](https://github.com/Haidra-Org/hordelib/compare/v2.22.0...v2.22.1)
 
 20 December 2025
