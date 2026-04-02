@@ -1,7 +1,7 @@
 name: Pull Request Tests
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
       - main
     types:
@@ -54,15 +54,3 @@ jobs:
         run: tox -e tests -- -k test_cuda
       - name: Run unit tests
         run: tox -e tests
-      - name: Create CI webpage of results
-        run: python -m examples.make_index
-      - name: Upload to S3
-        uses: shallwefootball/s3-upload-action@master
-        id: S3
-        with:
-          aws_key_id: ${{secrets.S3_BUILD_ARTIFACTS_ACCESS_KEY_ID}}
-          aws_secret_access_key: ${{secrets.S3_BUILD_ARTIFACTS_SECRET_ACCESS_KEY}}
-          aws_bucket: hordelib
-          source_dir: images/
-          endpoint: ${{secrets.S3_ENDPOINT}}
-          destination_dir: 'unstable/'
