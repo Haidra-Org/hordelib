@@ -1,61 +1,62 @@
 name: Main Tests
-
-on:
+'on':
   push:
     branches:
-      - main
+    - main
     paths:
-      - '**.py'
-      - '**.json'
-      - 'tox.ini'
-      - '.github/workflows/maintests.yml'
-      - '.github/workflows/prtests.yml'
-      - '.github/workflows/release.yml'
+    - '**.py'
+    - '**.json'
+    - tox.ini
+    - .github/workflows/maintests.yml
+    - .github/workflows/prtests.yml
+    - .github/workflows/release.yml
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Run pre-commit
-        uses: pre-commit/action@v3.0.0
-        with:
-          extra_args: --all-files
-
+    - uses: actions/checkout@v3
+    - name: Run pre-commit
+      uses: pre-commit/action@v3.0.0
+      with:
+        extra_args: --all-files
   build:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     env:
-      HORDELIB_CI_ONGOING: "1"
-      TESTS_ONGOING: "1"
+      HORDELIB_CI_ONGOING: '1'
+      TESTS_ONGOING: '1'
       CIVIT_API_TOKEN: ${{ secrets.CIVIT_API_TOKEN }}
     strategy:
       matrix:
-        python: ["3.10"]
-
+        python:
+        - '3.10'
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: ${{ matrix.python }}
-      - name: Install tox and any other packages
-        run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade tox
-      - name: Check build_helper.py horde-engine imports have no breaking dependency changes
-        run: tox -e test-build-helper
-      - name: Build unit test environment, confirm CUDA is available on host
-        run: tox -e tests -- -k test_cuda
-      - name: Run unit tests
-        run: tox -e tests
-      - name: Create CI webpage of results
-        run: python -m examples.make_index
-      - name: Upload to S3
-        uses: shallwefootball/s3-upload-action@master
-        id: S3
-        with:
-          aws_key_id: ${{secrets.S3_BUILD_ARTIFACTS_ACCESS_KEY_ID}}
-          aws_secret_access_key: ${{secrets.S3_BUILD_ARTIFACTS_SECRET_ACCESS_KEY}}
-          aws_bucket: hordelib
-          endpoint: ${{secrets.S3_ENDPOINT}}
-          source_dir: images/
-          destination_dir: ''
+    - uses: actions/checkout@v3
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python }}
+    - name: Install tox and any other packages
+      run: 'python -m pip install --upgrade pip
+
+        pip install --upgrade tox
+
+        '
+    - name: Check build_helper.py horde-engine imports have no breaking dependency
+        changes
+      run: tox -e test-build-helper
+    - name: Build unit test environment, confirm CUDA is available on host
+      run: tox -e tests -- -k test_cuda
+    - name: Run unit tests
+      run: tox -e tests
+    - name: Create CI webpage of results
+      run: python -m examples.make_index
+    - name: Upload to S3
+      uses: shallwefootball/s3-upload-action@master
+      id: S3
+      with:
+        aws_key_id: ${{secrets.S3_BUILD_ARTIFACTS_ACCESS_KEY_ID}}
+        aws_secret_access_key: ${{secrets.S3_BUILD_ARTIFACTS_SECRET_ACCESS_KEY}}
+        aws_bucket: hordelib
+        endpoint: ${{secrets.S3_ENDPOINT}}
+        source_dir: images/
+        destination_dir: ''
