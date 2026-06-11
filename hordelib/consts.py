@@ -6,13 +6,8 @@ from strenum import StrEnum
 
 from hordelib.config_path import get_hordelib_path
 
-COMFYUI_VERSION = "cf97b033ee80cf245b4592d42f89e6de67e409a4"
+COMFYUI_VERSION = "fb991e2c1e7476809d566a4620c2132e05a466dd"
 """The exact version of ComfyUI version to load."""
-
-REMOTE_PROXY = ""
-
-REMOTE_MODEL_DB = "https://raw.githubusercontent.com/db0/AI-Horde-image-model-reference/main/"
-"""The default base endpoint where to find model databases. See MODEL_DB_NAMES for valid database names."""
 
 RELEASE_VERSION = (get_hordelib_path() / "_version.py").exists()
 """A flag for if this is a pypi release or a git dev mode"""

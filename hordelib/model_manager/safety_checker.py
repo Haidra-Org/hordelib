@@ -8,6 +8,7 @@ class SafetyCheckerModelManager(BaseModelManager):  # FIXME # TODO?
         download_reference=False,
         **kwargs,
     ):
+        kwargs.pop("model_category_name", None)  # consumed by this subclass
         super().__init__(
             model_category_name=MODEL_CATEGORY_NAMES.safety_checker,
             download_reference=download_reference,

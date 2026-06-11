@@ -5,13 +5,12 @@ from multiprocessing.synchronize import Lock as multiprocessing_lock
 from pathlib import Path
 
 import torch
-from horde_model_reference import get_model_reference_file_path
-from horde_model_reference.model_reference_manager import ModelReferenceManager
+from horde_model_reference import ModelReferenceManager, PrefetchStrategy
+from horde_model_reference.model_reference_manager import DeferredPrefetchHandle
 from loguru import logger
 from typing_extensions import Self
 
 from hordelib.consts import MODEL_CATEGORY_NAMES
-from hordelib.model_manager.base import _temp_reference_lookup
 from hordelib.model_manager.hyper import (
     ALL_MODEL_MANAGER_TYPES,
     MODEL_MANAGERS_TYPE_LOOKUP,
@@ -24,36 +23,6 @@ from hordelib.preload import (
     validate_all_controlnet_annotators,
 )
 from hordelib.settings import UserSettings
-
-
-def do_migrations():
-    """This function should handle any moving of folders or other restructuring from previous versions."""
-
-    diffusers_dir = UserSettings.get_model_directory() / "diffusers"
-    sd_inpainting_v1_5_ckpt = diffusers_dir.joinpath("sd-v1-5-inpainting.ckpt").resolve()
-    sd_inpainting_v1_5_sha256 = diffusers_dir.joinpath("sd-v1-5-inpainting.sha256").resolve()
-    if diffusers_dir.exists() and sd_inpainting_v1_5_ckpt.exists():
-        logger.warning(
-            "stable_diffusion_inpainting found in diffusers folder and is being moved to compvis",
-        )
-
-        target_ckpt_path = UserSettings.get_model_directory() / "compvis" / "sd-v1-5-inpainting.ckpt"
-        target_sha_path = UserSettings.get_model_directory / "compvis" / "sd-v1-5-inpainting.sha256"
-
-        try:
-            sd_inpainting_v1_5_ckpt.rename(target_ckpt_path)
-            if sd_inpainting_v1_5_sha256.exists():
-                sd_inpainting_v1_5_sha256.rename(target_sha_path)
-        except OSError as e:
-            logger.error(
-                f"Failed to move {sd_inpainting_v1_5_ckpt} to {target_ckpt_path}. {e}",
-            )
-            logger.error("Please move this file manually and try again.")
-            return
-
-        logger.warning(
-            "stable_diffusion_inpainting successfully moved to compvis. The diffusers directory can now be deleted.",
-        )
 
 
 class SharedModelManager:
@@ -78,8 +47,6 @@ class SharedModelManager:
         managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = ALL_MODEL_MANAGER_TYPES,
         *,
         multiprocessing_lock: multiprocessing_lock | None = None,
-        download_legacy_references: bool = True,
-        overwrite_existing_references: bool = True,
     ):
         """Load the model managers specified.
 
@@ -90,67 +57,30 @@ class SharedModelManager:
             multiprocessing_lock (multiprocessing_lock | None, optional): If you are using multiprocessing, \
                 you should pass a lock here. \
                 Defaults to None.
-            download_legacy_references (bool, optional): If True, this will download all legacy model references. \
-                Defaults to True.
-            overwrite_existing_references (bool, optional): If True, this will overwrite any existing legacy model \
-                references that might be already downloaded. \
-                Defaults to True.
         """
         if cls.manager is None:
             cls.manager = ModelManager()
 
-        args_passed = locals().copy()  # XXX This is temporary
-        args_passed.pop("cls")  # XXX This is temporary
-
+        # ModelReferenceManager is a singleton; subsequent calls return the same instance.
+        # The prefetch strategy determines whether reference files are fetched eagerly or lazily.
         try:
             cls.model_reference_manager = ModelReferenceManager(
-                download_and_convert_legacy_dbs=download_legacy_references,
-                override_existing=overwrite_existing_references,
+                prefetch_strategy=PrefetchStrategy.DEFERRED,
             )
+            handle = cls.model_reference_manager.deferred_prefetch_handle
+
+            async def download_reference_files(handle: DeferredPrefetchHandle):
+                await handle
+
+            import asyncio
+
+            if handle is None:
+                raise RuntimeError("ModelReferenceManager's deferred_prefetch_handle is None. This should not happen.")
+            asyncio.run(download_reference_files(handle))
         except Exception:
             logger.exception("Failed to initialize model reference manager")
-            raise e
+            raise
 
-        references = {}
-        for reference in managers_to_load:
-            parsed_reference = None
-            if isinstance(reference, MODEL_CATEGORY_NAMES):
-                parsed_reference = reference
-            elif isinstance(reference, str):
-                try:
-                    MODEL_CATEGORY_NAMES(reference)
-                except ValueError:
-                    logger.warning("Invalid model category name: reference={}", reference)
-                    continue
-                parsed_reference = MODEL_CATEGORY_NAMES(reference)
-            elif isinstance(reference, type):
-                for k, v in MODEL_MANAGERS_TYPE_LOOKUP.items():
-                    if v == reference:
-                        try:
-                            MODEL_CATEGORY_NAMES(k)
-                        except ValueError:
-                            logger.warning("Invalid model category name: category={}", k)
-                            continue
-                        parsed_reference = MODEL_CATEGORY_NAMES(k)
-                        break
-
-            if parsed_reference is None:
-                logger.warning("Invalid model reference: reference={}", reference)
-                continue
-
-            if parsed_reference not in _temp_reference_lookup:
-                logger.debug("Model reference doesn't require a legacy download: reference={}", reference)
-                continue
-
-            references[parsed_reference] = get_model_reference_file_path(_temp_reference_lookup[parsed_reference])
-
-        for reference, path in references.items():
-            if path is None and not download_legacy_references:
-                logger.warning("Failed to download legacy reference: reference={}", reference)
-                continue
-            logger.debug("Legacy reference downloaded: reference={}", reference)
-
-        do_migrations()
         cls.manager.init_model_managers(
             managers_to_load,
             multiprocessing_lock=multiprocessing_lock,
@@ -194,8 +124,7 @@ class SharedModelManager:
 
         logger.debug(
             (
-                "WORKAROUND: Setting `builtins.annotator_ckpts_path` to: "
-                f"{builtins.annotator_ckpts_path}"  # type: ignore
+                f"WORKAROUND: Setting `builtins.annotator_ckpts_path` to: {builtins.annotator_ckpts_path}"  # type: ignore
             ),
         )
 

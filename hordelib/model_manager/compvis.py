@@ -15,6 +15,7 @@ class CompVisModelManager(BaseModelManager):
         **kwargs,
         # custom_path="models/custom",  # XXX Remove this and any others like it?
     ):
+        kwargs.pop("model_category_name", None)  # consumed by this subclass
         super().__init__(
             model_category_name=MODEL_CATEGORY_NAMES.compvis,
             download_reference=download_reference,

@@ -818,7 +818,7 @@ class Comfy_Horde:
 
         cache_args = {"lru": getattr(args, "cache_lru", 0), "ram": getattr(args, "cache_ram", 0)}
 
-        return _comfy_PromptExecutor(self, cache_type=cache_type, cache_args=cache_args)
+        return _comfy_PromptExecutor(self, cache_type=cache_type, cache_args={"lru": 0, "ram": 0})
 
     def get_pipeline_data(self, pipeline_name):
         pipeline_data = copy.deepcopy(self.pipelines.get(pipeline_name, {}))

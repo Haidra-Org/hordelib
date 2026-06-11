@@ -16,7 +16,7 @@ from pathlib import Path
 import logfire
 import requests
 from fuzzywuzzy import fuzz
-from horde_model_reference import LEGACY_REFERENCE_FOLDER
+from horde_model_reference import horde_model_reference_paths
 from loguru import logger
 from strenum import StrEnum
 from typing_extensions import override
@@ -173,7 +173,7 @@ class LoraModelManager(BaseModelManager):
         self._default_lora_ids: list = []
         self._adhoc_loras_cache: set | None = None
 
-        models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("lora.json").resolve()
+        models_db_path = horde_model_reference_paths.legacy_path.joinpath("lora.json").resolve()
 
         manager_logger.debug(
             "lora.base_init_invoked",

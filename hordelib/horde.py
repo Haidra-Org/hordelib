@@ -14,20 +14,21 @@ from copy import deepcopy
 from enum import Enum, auto
 from types import FunctionType
 
-from horde_model_reference.meta_consts import STABLE_DIFFUSION_BASELINE_CATEGORY, get_baseline_native_resolution
+import logfire
+from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE, get_baseline_native_resolution
+from horde_model_reference.model_reference_records import GenericModelRecord
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from horde_sdk.ai_horde_api.apimodels.base import (
     GenMetadataEntry,
 )
-from horde_sdk.ai_horde_api.consts import KNOWN_FACEFIXERS, KNOWN_UPSCALERS, METADATA_TYPE, METADATA_VALUE
-import logfire
+from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
+from horde_sdk.generation_parameters.alchemy.consts import KNOWN_FACEFIXERS, KNOWN_UPSCALERS
 from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.consts import MODEL_CATEGORY_NAMES
-from hordelib.model_manager.hyper import ALL_MODEL_MANAGER_TYPES
 from hordelib.nodes.comfy_qr.qr_nodes import QRByModuleSizeSplitFunctionPatterns
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
@@ -96,22 +97,22 @@ def _calc_upscale_sampler_steps(
     model_name = payload.get("model_name")
     baseline = None
     native_resolution = None
-    baseline_raw = None  # Store the raw baseline value for error reporting
     if model_name is not None:
-        baseline_raw = SharedModelManager.model_reference_manager.stable_diffusion.get_model_baseline(model_name)
-        baseline = baseline_raw
+        model_record = SharedModelManager.model_reference_manager.image_generation_models.get(model_name)
+        if model_record is not None:
+            baseline = model_record.baseline
     if baseline is not None:
         try:
-            baseline = STABLE_DIFFUSION_BASELINE_CATEGORY(baseline)
+            baseline = KNOWN_IMAGE_GENERATION_BASELINE(baseline)
         except ValueError as e:
             logger.warning(
-                f"Model {model_name} has an invalid baseline '{baseline_raw}' so we cannot calculate "
+                f"Model {model_name} has an invalid baseline '{baseline}' so we cannot calculate "
                 "hires fix upscale steps.",
             )
             logger.warning(
                 "Invalid model baseline for upscale calculation",
                 model_name=model_name,
-                baseline_raw=baseline_raw,
+                baseline=baseline,
                 error=str(e),
             )
             baseline = None
@@ -139,6 +140,15 @@ def _calc_upscale_sampler_steps(
         hires_fix_denoising_strength=hires_fix_denoising_strength,
         ddim_steps=ddim_steps,
     )
+
+
+def _model_prop(record: GenericModelRecord | dict | None, key: str, default: typing.Any = None) -> typing.Any:
+    """Read a property from either a pydantic ``GenericModelRecord`` or a legacy ``dict``."""
+    if record is None:
+        return default
+    if isinstance(record, GenericModelRecord):
+        return getattr(record, key, default)
+    return record.get(key, default)
 
 
 # Module-level metrics for inference performance tracking
@@ -538,7 +548,10 @@ class HordeLib:
             model_files = SharedModelManager.manager.compvis.get_model_filenames(model)
             found_model_on_disk = True
 
-            if SharedModelManager.manager.compvis.model_reference[model].get("inpainting") is True:
+            if _model_prop(
+                SharedModelManager.manager.compvis.model_reference.get(model),
+                "inpainting",
+            ) is True:
                 if payload.get("source_processing") not in ["inpainting", "outpainting"]:
                     logger.warning(
                         "Inpainting model detected, but source processing not set to inpainting or outpainting.",
@@ -633,13 +646,11 @@ class HordeLib:
         # Turn off hires fix if we're not generating a hires image, or if the params are just confused
         try:
             if "hires_fix" in payload:
-                if SharedModelManager.manager.compvis.model_reference[model].get(
-                    "baseline",
-                ) == "stable diffusion 1" and (payload["width"] <= 512 or payload["height"] <= 512):
+                model_record = SharedModelManager.manager.compvis.model_reference.get(model)
+                baseline = _model_prop(model_record, "baseline")
+                if baseline == "stable diffusion 1" and (payload["width"] <= 512 or payload["height"] <= 512):
                     payload["hires_fix"] = False
-                elif SharedModelManager.manager.compvis.model_reference[model].get(
-                    "baseline",
-                ) == "stable_diffusion_xl" and (payload["width"] <= 1024 or payload["height"] <= 1024):
+                elif baseline == "stable_diffusion_xl" and (payload["width"] <= 1024 or payload["height"] <= 1024):
                     payload["hires_fix"] = False
         except (TypeError, KeyError):
             payload["hires_fix"] = False
@@ -749,7 +760,7 @@ class HordeLib:
                             ti_id = SharedModelManager.manager.ti.get_ti_id(str(ti["name"]))
                             logger.info("ti.injecting", ti_id=ti_id, inject_target=ti_inject, strength=ti_strength)
                             if ti_inject == "prompt":
-                                payload["prompt"] = f'(embedding:{ti_id}:{ti_strength}),{payload["prompt"]}'
+                                payload["prompt"] = f"(embedding:{ti_id}:{ti_strength}),{payload['prompt']}"
                             elif ti_inject == "negprompt":
                                 # create negative prompt if empty
                                 if "negative_prompt" not in payload:
@@ -758,7 +769,7 @@ class HordeLib:
                                 had_leading_comma = payload["negative_prompt"].startswith(",")
 
                                 payload["negative_prompt"] = (
-                                    f'{payload["negative_prompt"]},(embedding:{ti_id}:{ti_strength})'
+                                    f"{payload['negative_prompt']},(embedding:{ti_id}:{ti_strength})"
                                 )
                                 if not had_leading_comma:
                                     payload["negative_prompt"] = payload["negative_prompt"].strip(",")
@@ -811,8 +822,7 @@ class HordeLib:
                         adhoc_lora = None
                     if not adhoc_lora:
                         logger.info(
-                            f"Adhoc lora requested{verstext} '{lora['name']} "
-                            "could not be found in CivitAI. Ignoring!",
+                            f"Adhoc lora requested{verstext} '{lora['name']} could not be found in CivitAI. Ignoring!",
                         )
                         faults.append(
                             GenMetadataEntry(
@@ -879,7 +889,7 @@ class HordeLib:
                     )
                 if trigger:
                     # We inject at the start, to avoid throwing it in a negative prompt
-                    payload["prompt"] = f'{trigger}, {payload["prompt"]}'
+                    payload["prompt"] = f"{trigger}, {payload['prompt']}"
                 # the fixed up and validated filename (Comfy expect the "name" key to be the filename)
                 lora["name"] = SharedModelManager.manager.lora.get_lora_filename(lora_name, is_version=is_version)
                 SharedModelManager.manager.lora._touch_lora(lora_name, is_version=is_version)
@@ -904,8 +914,8 @@ class HordeLib:
                         # Subsequent chained loras
                         pipeline_data[f"lora_{lora_index}"] = {
                             "inputs": {
-                                "model": [f"lora_{lora_index-1}", 0],
-                                "clip": [f"lora_{lora_index-1}", 1],
+                                "model": [f"lora_{lora_index - 1}", 0],
+                                "clip": [f"lora_{lora_index - 1}", 1],
                                 "lora_name": lora["name"],
                                 "strength_model": lora["model"],
                                 "strength_clip": lora["clip"],
@@ -924,12 +934,12 @@ class HordeLib:
                         self.generator.reconnect_input(
                             pipeline_data,
                             f"lora_{lora_index}.model",
-                            f"lora_{lora_index-1}.model",
+                            f"lora_{lora_index - 1}.model",
                         )
                         self.generator.reconnect_input(
                             pipeline_data,
                             f"lora_{lora_index}.clip",
-                            f"lora_{lora_index-1}.clip",
+                            f"lora_{lora_index - 1}.clip",
                         )
 
                     # The last LORA always connects to the sampler and clip text encoders (via the clip_skip)
@@ -937,7 +947,7 @@ class HordeLib:
                         model_details = SharedModelManager.manager.compvis.get_model_reference_info(
                             payload["model_name"]
                         )
-                        if model_details is not None and model_details["baseline"] == "flux_1":
+                        if model_details is not None and _model_prop(model_details, "baseline") == "flux_1":
                             self.generator.reconnect_input(pipeline_data, "cfg_guider.model", f"lora_{lora_index}")
                             self.generator.reconnect_input(
                                 pipeline_data, "basic_scheduler.model", f"lora_{lora_index}"
@@ -1005,7 +1015,7 @@ class HordeLib:
             original_height = pipeline_params.get("empty_latent_image.height")
 
             if original_width is None or original_height is None:
-                if model_details and model_details.get("baseline") == "stable diffusion 1":
+                if model_details and _model_prop(model_details, "baseline") == "stable diffusion 1":
                     logger.error("empty_latent_image.width or empty_latent_image.height not found. Using 512x512.")
                     original_width, original_height = (512, 512)
                 else:
@@ -1015,7 +1025,7 @@ class HordeLib:
             new_width, new_height = (None, None)
             baseline = None
             if model_details:
-                baseline = model_details.get("baseline")
+                baseline = _model_prop(model_details, "baseline")
             if baseline:
                 if baseline == "stable_cascade":
                     new_width, new_height = ImageUtils.get_first_pass_image_resolution_max(
@@ -1090,7 +1100,7 @@ class HordeLib:
         if pipeline_params.get("image_loader.image"):
             if SharedModelManager.manager.compvis:
                 model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
-                if isinstance(model_details, dict) and model_details.get("baseline") == "flux_1":
+                if _model_prop(model_details, "baseline") == "flux_1":
                     self.generator.reconnect_input(pipeline_data, "sampler_custom_advanced.latent_image", "vae_encode")
                 else:
                     self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
@@ -1133,7 +1143,7 @@ class HordeLib:
                         "strength": extra_image_strength,
                         "noise_augmentation": 0,
                         # Each conditioning ingests the conditioning before it like a chain
-                        "conditioning": [f"unclip_conditioning_{node_index-1}", 0],
+                        "conditioning": [f"unclip_conditioning_{node_index - 1}", 0],
                         "clip_vision_output": [f"clip_vision_encode_{node_index}", 0],
                     },
                     "class_type": "unCLIPConditioning",
@@ -1230,7 +1240,7 @@ class HordeLib:
                 pipeline_params["mask_composite.y"] = pipeline_params["qr_flattened_composite.y"]
                 if SharedModelManager.manager.compvis:
                     model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
-                    if model_details and model_details.get("baseline") == "stable diffusion 1":
+                    if model_details and _model_prop(model_details, "baseline") == "stable diffusion 1":
                         pipeline_params["controlnet_qr_model_loader.control_net_name"] = (
                             "control_v1p_sd15_qrcode_monster_v2.safetensors"
                         )
@@ -1247,14 +1257,14 @@ class HordeLib:
             if SharedModelManager.manager.compvis:
                 model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
                 # SD2, Cascade and SD3 not supported
-                if model_details and model_details.get("baseline") in ["stable diffusion 1", "stable_diffusion_xl"]:
+                if model_details and _model_prop(model_details, "baseline") in ["stable diffusion 1", "stable_diffusion_xl"]:
                     self.generator.reconnect_input(pipeline_data, "sampler.model", "layer_diffuse_apply")
                     self.generator.reconnect_input(pipeline_data, "layer_diffuse_apply.model", "model_loader")
                     self.generator.reconnect_input(pipeline_data, "output_image.images", "layer_diffuse_decode_rgba")
                     self.generator.reconnect_input(pipeline_data, "layer_diffuse_decode_rgba.images", "vae_decode")
                     if payload.get("hires_fix") is True:
                         self.generator.reconnect_input(pipeline_data, "upscale_sampler.model", "layer_diffuse_apply")
-                    if model_details.get("baseline") == "stable diffusion 1":
+                    if _model_prop(model_details, "baseline") == "stable diffusion 1":
                         pipeline_params["layer_diffuse_apply.config"] = "SD15, Attention Injection, attn_sharing"
                         pipeline_params["layer_diffuse_decode_rgba.sd_version"] = "SD15"
                     else:
@@ -1288,15 +1298,15 @@ class HordeLib:
             return "qr_code"
         if params.get("model_name"):
             model_details = SharedModelManager.manager.compvis.get_model_reference_info(params["model_name"])
-            if model_details.get("baseline") == "stable_cascade":
+            if _model_prop(model_details, "baseline") == "stable_cascade":
                 if params.get("source_processing") == "remix":
                     return "stable_cascade_remix"
                 if params.get("hires_fix", False):
                     return "stable_cascade_2pass"
                 return "stable_cascade"
-            if model_details.get("baseline") == "flux_1":
+            if _model_prop(model_details, "baseline") == "flux_1":
                 return "flux"
-            if model_details.get("baseline") == "qwen_image":
+            if _model_prop(model_details, "baseline") == "qwen_image":
                 logger.debug("Qwen model detected, using qwen pipeline: model_name={}", params["model_name"])
                 return "qwen"
         if params.get("control_type"):

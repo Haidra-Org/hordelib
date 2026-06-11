@@ -14,7 +14,7 @@ from multiprocessing.synchronize import Lock as multiprocessing_lock
 import logfire
 import requests
 from fuzzywuzzy import fuzz
-from horde_model_reference import LEGACY_REFERENCE_FOLDER
+from horde_model_reference import horde_model_reference_paths
 from loguru import logger
 from strenum import StrEnum
 from typing_extensions import override
@@ -114,7 +114,7 @@ class TextualInversionModelManager(BaseModelManager):
         self._index_orig_names = {}  # type: ignore # FIXME: add type
         self.total_retries_attempted = 0
 
-        models_db_path = LEGACY_REFERENCE_FOLDER.joinpath("ti.json").resolve()
+        models_db_path = horde_model_reference_paths.legacy_path.joinpath("ti.json").resolve()
         super().__init__(
             model_category_name=MODEL_CATEGORY_NAMES.ti,
             download_reference=download_reference,

@@ -1,3 +1,4 @@
+import atexit
 import contextlib
 import sys
 
@@ -146,6 +147,7 @@ class HordeLog:
         if setup_logging:
             cls.process_id = process_id
             cls.set_sinks()
+            atexit.register(cls.shutdown)
 
     @classmethod
     def set_sinks(cls) -> None:
@@ -175,17 +177,24 @@ class HordeLog:
                 verbosity_level = levels_lookup[level]
                 break
 
+        # Use __stdout__/__stderr__ (the OS-level streams) for the main process
+        # to avoid capturing pytest's temporary capture streams, which get closed
+        # at the end of the test session and cause "I/O operation on closed file"
+        # errors when background threads (e.g. OTel exporters) emit late log messages.
+        stderr_sink = sys.__stderr__ if cls.process_id is None else sys.stderr
+        stdout_sink = sys.__stdout__ if cls.process_id is None else sys.stdout
+
         config = {
             "handlers": [
                 {
-                    "sink": sys.stderr,
+                    "sink": stderr_sink,
                     "colorize": True,
                     "filter": cls.is_stderr_log,
                     "level": verbosity_level,
                     "format": _color_format,
                 },
                 {
-                    "sink": sys.stdout,
+                    "sink": stdout_sink,
                     "colorize": True,
                     "filter": cls.is_stdout_log,
                     "level": verbosity_level,
@@ -233,3 +242,15 @@ class HordeLog:
             logger.debug("Logger finished setting up for process: process_id={}", cls.process_id)
         else:
             logger.debug("Setting up logger for main process")
+
+    @classmethod
+    def shutdown(cls) -> None:
+        """Remove all loguru sinks that were added by this class.
+
+        Called automatically via atexit to prevent "I/O operation on closed file"
+        errors when background threads emit log messages during interpreter shutdown.
+        """
+        for sink in cls.sinks:
+            with contextlib.suppress(ValueError):
+                logger.remove(sink)
+        cls.sinks.clear()
