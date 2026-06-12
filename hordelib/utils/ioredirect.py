@@ -4,7 +4,6 @@ from collections.abc import Callable
 from enum import Enum
 from time import perf_counter
 
-import logfire
 import regex
 from loguru import logger
 from pydantic import BaseModel

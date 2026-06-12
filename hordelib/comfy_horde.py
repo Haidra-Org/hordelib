@@ -21,7 +21,6 @@ import threading
 from pprint import pformat
 import logfire
 import loguru
-import requests
 import psutil
 from collections.abc import Callable
 
@@ -31,6 +30,7 @@ from loguru import logger
 from hordelib.settings import UserSettings
 from hordelib.utils.ioredirect import ComfyUIProgress, OutputCollector
 from hordelib.config_path import get_hordelib_path
+from hordelib.execution import comfy_patches
 
 # Note It may not be abundantly clear with no context what is going on below, and I will attempt to clarify:
 #
@@ -70,7 +70,6 @@ from hordelib.config_path import get_hordelib_path
 # `hordelib.initialise()` to get a sense of what is going on there, and if you're still confused, ask a hordelib dev
 # who would be happy to share the burden of understanding.
 
-_comfy_load_models_gpu: types.FunctionType
 _comfy_current_loaded_models: list = None  # type: ignore
 
 _comfy_nodes: types.ModuleType
@@ -100,25 +99,12 @@ _comfy_cleanup_models: Callable
 _comfy_soft_empty_cache: Callable
 """Triggers comfyui and torch to empty their caches"""
 
-_comfy_is_changed_cache_get: Callable
-_comfy_model_patcher_load: Callable
-_comfy_load_calculate_weight: Callable
-_comfy_text_encoder_initial_device: Callable
-
 _comfy_interrupt_current_processing: types.FunctionType
-
-_canny: types.ModuleType
-_hed: types.ModuleType
-_leres: types.ModuleType
-_midas: types.ModuleType
-_mlsd: types.ModuleType
-_openpose: types.ModuleType
-_pidinet: types.ModuleType
-_uniformer: types.ModuleType
 
 
 # isort: off
 
+import inspect
 import logging
 
 
@@ -129,9 +115,9 @@ class InterceptHandler(logging.Handler):
     Logs which would otherwise go to stdlib logging are redirected through
     loguru.
 
-    This handler uses LogRecord's built-in source location information (pathname, lineno, funcName)
-    which Python's logging infrastructure has already computed. This is more accurate than frame
-    walking, especially for logs that occur during module imports or in other special contexts.
+    The handler walks the call stack (skipping stdlib logging internals and frozen importlib
+    frames) so loguru attributes each message to its original caller. The stdlib-computed
+    source location is additionally attached as bound context (``stdlib_*`` keys).
 
     Performance note: Profiling shows that the logging overhead is dominated by loguru's internal
     processing (~48%), LogRecord creation (~19%), and file operations (~17%). The handler's emit
@@ -181,12 +167,10 @@ class InterceptHandler(logging.Handler):
         """
         Emit a log record to loguru.
 
-        This method filters messages and forwards them to loguru using the source
-        location information that Python's logging infrastructure already computed.
-
-        This avoids the fragile frame-walking approach and fixes the issue where
-        logs showed as coming from importlib._bootstrap_external instead of the
-        actual source file.
+        This method filters messages and forwards them to loguru, walking the call stack so
+        loguru attributes the message to the original caller rather than this handler. Frozen
+        importlib frames are skipped too, so logs emitted during module import are attributed
+        to the importing module instead of ``importlib._bootstrap``.
 
         Args:
             record: The LogRecord containing message, level, and source location
@@ -204,14 +188,14 @@ class InterceptHandler(logging.Handler):
                 return
 
         # Get corresponding Loguru level if it exists
+        level: str | int
         try:
             level = logger.level(record.levelname).name
         except ValueError:
             level = record.levelno
 
-        # Use LogRecord's source location information
-        # This is what Python's logging infrastructure already computed for us
-        # and is more reliable than trying to walk frames ourselves
+        # Keep the stdlib-computed source location available as bound context regardless of
+        # what the frame walk below resolves to.
         logger_context = logger.bind(
             stdlib_pathname=record.pathname,
             stdlib_lineno=record.lineno,
@@ -219,9 +203,21 @@ class InterceptHandler(logging.Handler):
             stdlib_loggername=record.name,
         )
 
-        # Log with depth=0 to use the bound context
-        # We don't use frame walking because we're calling from within the handler
-        logger_context.opt(depth=0, exception=record.exc_info).log(level, message)
+        frame = inspect.currentframe()
+        depth = 0
+        while frame:
+            filename = frame.f_code.co_filename
+            module_name = frame.f_globals.get("__name__", "")
+            is_logging_internal = filename == logging.__file__
+            # The @logger.catch decorator on this method inserts loguru frames into the chain
+            is_loguru_internal = module_name == "loguru" or module_name.startswith("loguru.")
+            is_frozen_importlib = "importlib" in filename and "_bootstrap" in filename
+            if depth > 0 and not (is_logging_internal or is_loguru_internal or is_frozen_importlib):
+                break
+            frame = frame.f_back
+            depth += 1
+
+        logger_context.opt(depth=depth, exception=record.exc_info).log(level, message)
 
 
 intercept_handler = InterceptHandler()
@@ -235,16 +231,14 @@ def do_comfy_import(
     disable_smart_memory: bool = False,
 ) -> None:
     global _comfy_current_loaded_models
-    global _comfy_load_models_gpu
     global _comfy_execution
     global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt
     global _comfy_nodes_images
     global _comfy_folder_names_and_paths, _comfy_supported_pt_extensions
     global _comfy_load_checkpoint_guess_config
     global _comfy_get_torch_device, _comfy_get_free_memory, _comfy_get_total_memory
-    global _comfy_load_torch_file, _comfy_model_loading, _comfy_text_encoder_initial_device
+    global _comfy_load_torch_file, _comfy_model_loading
     global _comfy_free_memory, _comfy_cleanup_models, _comfy_soft_empty_cache
-    global _canny, _hed, _leres, _midas, _mlsd, _openpose, _pidinet, _uniformer
 
     global _comfy_interrupt_current_processing
 
@@ -253,8 +247,10 @@ def do_comfy_import(
         sys.argv.append("--disable-smart-memory")
 
     if force_normal_vram_mode:
-        logger.info("Forcing normal vram mode")
-        sys.argv.append("--normalvram")
+        # ComfyUI removed the `--normalvram` flag; normal VRAM mode is now the default
+        # (overridable only via --gpu-only/--highvram/--lowvram/--novram/--cpu), so there
+        # is nothing to force anymore.
+        logger.info("Normal vram mode requested (ComfyUI default; no flag needed)")
 
     if extra_comfyui_args is not None:
         sys.argv.extend(extra_comfyui_args)
@@ -278,21 +274,26 @@ def do_comfy_import(
         # from execution import recursive_output_delete_if_changed
         from execution import IsChangedCache
 
-        global _comfy_is_changed_cache_get
-        _comfy_is_changed_cache_get = IsChangedCache.get
-
-        IsChangedCache.get = IsChangedCache_get_hijack  # type: ignore
+        comfy_patches.register_execution_module(execution)
+        comfy_patches.capture_and_patch(
+            "is_changed_cache_get",
+            IsChangedCache,
+            "get",
+            comfy_patches.IsChangedCache_get_hijack,
+        )
 
         from folder_paths import folder_names_and_paths as _comfy_folder_names_and_paths
         from folder_paths import supported_pt_extensions as _comfy_supported_pt_extensions
         from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config
         from comfy.model_management import current_loaded_models as _comfy_current_loaded_models
-        from comfy.model_management import load_models_gpu
-
-        _comfy_load_models_gpu = load_models_gpu  # type: ignore
         import comfy.model_management
 
-        comfy.model_management.load_models_gpu = _load_models_gpu_hijack
+        comfy_patches.capture_and_patch(
+            "load_models_gpu",
+            comfy.model_management,
+            "load_models_gpu",
+            comfy_patches._load_models_gpu_hijack,
+        )
         from comfy.model_management import get_torch_device as _comfy_get_torch_device
         from comfy.model_management import get_free_memory as _comfy_get_free_memory
         from comfy.model_management import get_total_memory as _comfy_get_total_memory
@@ -300,41 +301,41 @@ def do_comfy_import(
         from comfy.model_management import cleanup_models as _comfy_cleanup_models
         from comfy.model_management import soft_empty_cache as _comfy_soft_empty_cache
         from comfy.model_management import interrupt_current_processing as _comfy_interrupt_current_processing
-        from comfy.model_management import text_encoder_initial_device as _comfy_text_encoder_initial_device
 
-        comfy.model_management.text_encoder_initial_device = text_encoder_initial_device_hijack  # type: ignore
+        comfy_patches.capture_and_patch(
+            "text_encoder_initial_device",
+            comfy.model_management,
+            "text_encoder_initial_device",
+            comfy_patches.text_encoder_initial_device_hijack,
+        )
 
         from comfy.utils import load_torch_file as _comfy_load_torch_file
         from comfy_extras.chainner_models import model_loading as _comfy_model_loading
 
         from comfy.model_patcher import ModelPatcher
 
-        global _comfy_model_patcher_load
-        _comfy_model_patcher_load = ModelPatcher.load
-        ModelPatcher.load = _model_patcher_load_hijack  # type: ignore
+        comfy_patches.capture_and_patch(
+            "model_patcher_load",
+            ModelPatcher,
+            "load",
+            comfy_patches._model_patcher_load_hijack,
+        )
 
-        global _comfy_load_calculate_weight
         import comfy.lora
-        from comfy.lora import calculate_weight as _comfy_load_calculate_weight
 
-        comfy.lora.calculate_weight = _calculate_weight_hijack  # type: ignore
+        comfy_patches.capture_and_patch(
+            "lora_calculate_weight",
+            comfy.lora,
+            "calculate_weight",
+            comfy_patches._calculate_weight_hijack,
+        )
 
         # Ensure comfy_extras nodes register themselves before pipelines run.
         # _comfy_nodes_images = importlib.import_module("comfy_extras.nodes_images")
         import comfy_extras.nodes_images as _comfy_nodes_images
 
-        # from hordelib.nodes.comfy_controlnet_preprocessors import (
-        #     canny as _canny,
-        #     hed as _hed,
-        #     leres as _leres,
-        #     midas as _midas,
-        #     mlsd as _mlsd,
-        #     openpose as _openpose,
-        #     pidinet as _pidinet,
-        #     uniformer as _uniformer,
-        # )
-
-        logger.warning("Skipping comfy controlnet preprocessors import for now")
+        # NOTE: The vendored comfy_controlnet_preprocessors package has been removed. ControlNet
+        # preprocessing is unavailable until the comfyui_controlnet_aux migration lands (refactor P3).
 
         logger.info("Comfy_Horde initialised")
 
@@ -351,146 +352,6 @@ def do_comfy_import(
 
 
 # isort: on
-models_not_to_force_load: list = [
-    "cascade",
-    "sdxl",
-    "flux",
-    "qwen_image",
-]  # other possible values could be `basemodel` or `sd1`
-"""Models which should not be forced to load in the comfy model loading hijack.
-
-Possible values include `cascade`, `sdxl`, `basemodel`, `sd1` or any other comfyui classname
-which can be passed to comfyui's `load_models_gpu` function (as a `ModelPatcher.model`).
-"""
-
-disable_force_loading: bool = False
-
-
-def _do_not_force_load_model_in_patcher(model_patcher):
-    model_name_lower = str(type(model_patcher.model)).lower()
-    if "clip" in model_name_lower:
-        return False
-
-    for model in models_not_to_force_load:
-        if model in model_name_lower:
-            return True
-
-    return False
-
-
-@logfire.instrument("comfy.load_models_gpu_hijack")
-def _load_models_gpu_hijack(*args, **kwargs):
-    """Intercepts the comfy load_models_gpu function to force full load.
-
-    ComfyUI is too conservative in its loading to GPU for the worker/horde use case where we can have
-    multiple ComfyUI instances running on the same GPU. This function forces a full load of the model
-    and the worker/horde-engine takes responsibility for managing the memory or the problems this may
-    cause.
-    """
-
-    found_model_to_skip = False
-    for model_patcher in args[0]:
-        found_model_to_skip = _do_not_force_load_model_in_patcher(model_patcher)
-        if found_model_to_skip:
-            break
-
-    global _comfy_current_loaded_models
-    if found_model_to_skip:
-        logger.debug("Not overriding model load")
-        logger.info("comfy.model_load_skipped", model_count=len(args[0]))
-        kwargs["memory_required"] = 1e30
-        _comfy_load_models_gpu(*args, **kwargs)
-        return
-
-    if "force_full_load" in kwargs:
-        kwargs.pop("force_full_load")
-
-    kwargs["force_full_load"] = True
-    logger.info("comfy.force_full_load", model_count=len(args[0]))
-    _comfy_load_models_gpu(*args, **kwargs)
-
-
-def _model_patcher_load_hijack(*args, **kwargs):
-    """Intercepts the comfy ModelPatcher.load function to force full load.
-
-    See _load_models_gpu_hijack for more information
-    """
-    global _comfy_model_patcher_load
-
-    model_patcher = args[0]
-    if _do_not_force_load_model_in_patcher(model_patcher):
-        logger.debug("Not overriding model load")
-        _comfy_model_patcher_load(*args, **kwargs)
-        return
-
-    if "full_load" in kwargs:
-        kwargs.pop("full_load")
-
-    kwargs["full_load"] = True
-    _comfy_model_patcher_load(*args, **kwargs)
-
-
-def _calculate_weight_hijack(*args, **kwargs):
-    global _comfy_load_calculate_weight
-    patches = args[0]
-
-    for p in patches:
-        v = p[1]
-        if not isinstance(v, tuple):
-            continue
-        patch_type = v[0]
-        if patch_type != "diff":
-            continue
-        if len(v) == 2 and isinstance(v[1], list):
-            for idx, val in enumerate(v[1]):
-                if val is None:
-                    v[1][idx] = {"pad_weight": False}
-                    # logger.debug(f"Setting pad_weight to False for {v[0]} on {p} in {patches}")
-                    break
-
-    return _comfy_load_calculate_weight(*args, **kwargs)
-
-
-_last_pipeline_settings_hash = ""
-
-import PIL.Image
-
-
-def default_json_serializer_pil_image(obj):
-    if isinstance(obj, PIL.Image.Image):
-        return str(hash(obj.__str__()))
-    return obj
-
-
-async def IsChangedCache_get_hijack(self, *args, **kwargs):
-    global _comfy_is_changed_cache_get
-    result = await _comfy_is_changed_cache_get(self, *args, **kwargs)
-
-    global _last_pipeline_settings_hash
-
-    prompt = self.dynprompt.original_prompt
-
-    pipeline_settings_hash = hashlib.md5(
-        json.dumps(prompt, default=default_json_serializer_pil_image).encode(),
-    ).hexdigest()
-
-    if pipeline_settings_hash != _last_pipeline_settings_hash:
-        _last_pipeline_settings_hash = pipeline_settings_hash
-        logger.debug("Pipeline settings changed: hash={}", pipeline_settings_hash)
-        logger.debug("Outputs cache size: count={}", len(self.outputs_cache.cache))
-        logger.debug("Outputs subcache size: count={}", len(self.outputs_cache.subcaches))
-
-        logger.debug("IsChangedCache dynprompt node IDs: ids={}", self.dynprompt.all_node_ids())
-
-    if result:
-        logger.debug("IsChangedCache.get: result={}", result)
-
-    return result
-
-
-def text_encoder_initial_device_hijack(*args, **kwargs):
-    # This ensures clip models are loaded on the CPU first
-    return torch.device("cpu")
 
 
 def clear_gc_and_torch_cache() -> None:
@@ -620,6 +481,23 @@ def log_free_ram():
 def interrupt_comfyui_processing():
     logger.warning("Interrupting comfyui processing")
     _comfy_interrupt_current_processing()
+
+
+def get_node_class(class_type: str) -> type:
+    """Return a registered ComfyUI node class by its class_type name.
+
+    Only valid after initialise() and after custom nodes have been loaded
+    (which happens when the first Comfy_Horde instance is constructed).
+    """
+    if _comfy_nodes is None:
+        raise RuntimeError("hordelib.initialise() must be called before looking up node classes.")
+    node_class = _comfy_nodes.NODE_CLASS_MAPPINGS.get(class_type)
+    if node_class is None:
+        raise RuntimeError(
+            f"ComfyUI node class '{class_type}' is not registered. "
+            "Custom nodes may not have been loaded yet (construct Comfy_Horde/HordeLib first).",
+        )
+    return node_class
 
 
 # Module-level metrics for ComfyUI pipeline performance tracking
@@ -808,17 +686,37 @@ class Comfy_Horde:
         # `PromptServer.send_sync`. See `Comfy_Horde.send_sync` for more details.
         from comfy.cli_args import args
 
+        cache_lru: int = getattr(args, "cache_lru", 0)
+        # `--cache-ram` is a list of 0-2 thresholds in GB (active, inactive) in current ComfyUI
+        cache_ram_arg: list[float] = getattr(args, "cache_ram", [])
+
+        # Unlike upstream (which defaults to RAM_PRESSURE), hordelib defaults to CLASSIC: the worker
+        # manages memory aggressively itself and re-runs near-identical pipelines back to back.
         cache_type = _comfy_execution.CacheType.CLASSIC
-        if getattr(args, "cache_lru", 0) and args.cache_lru > 0:
+        if cache_lru > 0:
             cache_type = _comfy_execution.CacheType.LRU
-        elif getattr(args, "cache_ram", 0) and args.cache_ram > 0:
-            cache_type = _comfy_execution.CacheType.RAM_PRESSURE
         elif getattr(args, "cache_none", False):
             cache_type = _comfy_execution.CacheType.NONE
+        elif cache_ram_arg:
+            cache_type = _comfy_execution.CacheType.RAM_PRESSURE
 
-        cache_args = {"lru": getattr(args, "cache_lru", 0), "ram": getattr(args, "cache_ram", 0)}
+        # Mirrors ComfyUI main.prompt_worker's cache_args construction
+        cache_ram = 0.0
+        cache_ram_inactive = 0.0
+        if cache_type == _comfy_execution.CacheType.RAM_PRESSURE:
+            import comfy.model_management
 
-        return _comfy_PromptExecutor(self, cache_type=cache_type, cache_args={"lru": 0, "ram": 0})
+            total_ram = comfy.model_management.total_ram
+            cache_ram = min(10.0, max(2.0, total_ram * 0.10 / 1024.0))
+            cache_ram_inactive = min(96.0, total_ram / 1024.0)
+            if len(cache_ram_arg) > 0:
+                cache_ram = cache_ram_arg[0]
+            if len(cache_ram_arg) > 1:
+                cache_ram_inactive = cache_ram_arg[1]
+
+        cache_args = {"lru": cache_lru, "ram": cache_ram, "ram_inactive": cache_ram_inactive}
+
+        return _comfy_PromptExecutor(self, cache_type=cache_type, cache_args=cache_args)
 
     def get_pipeline_data(self, pipeline_name):
         pipeline_data = copy.deepcopy(self.pipelines.get(pipeline_name, {}))
@@ -938,7 +836,7 @@ class Comfy_Horde:
                 self.pipelines[pipeline_name] = pipeline_data
                 logger.debug("Loaded inference pipeline: name={}", pipeline_name)
                 return True
-        except (OSError, ValueError) as e:
+        except (OSError, ValueError):
             logger.error("Invalid inference pipeline file: filename={}", filename)
             logger.exception("Failed to load pipeline")
             return None
@@ -1335,167 +1233,25 @@ class Comfy_Horde:
         )
 
         raise RuntimeError(
-            f"Pipeline '{pipeline_name}' failed to run - no images were produced. "
+            f"Pipeline failed to run ('{pipeline_name}') - no images were produced. "
             f"Model: {model_name}, Steps: {steps}, Resolution: {resolution}",
         )
 
 
-ANNOTATOR_MODEL_SHA_LOOKUP: dict[str, str] = {
-    "body_pose_model.pth": "25a948c16078b0f08e236bda51a385d855ef4c153598947c28c0d47ed94bb746",
-    "dpt_hybrid-midas-501f0c75.pt": "501f0c75b3bca7daec6b3682c5054c09b366765aef6fa3a09d03a5cb4b230853",
-    "hand_pose_model.pth": "b76b00d1750901abd07b9f9d8c98cc3385b8fe834a26d4b4f0aad439e75fc600",
-    "mlsd_large_512_fp32.pth": "5696f168eb2c30d4374bbfd45436f7415bb4d88da29bea97eea0101520fba082",
-    "network-bsds500.pth": "58a858782f5fa3e0ca3dc92e7a1a609add93987d77be3dfa54f8f8419d881a94",
-    "res101.pth": "1d696b2ef3e8336b057d0c15bc82d2fecef821bfebe5ef9d7671a5ec5dde520b",
-    "upernet_global_small.pth": "bebfa1264c10381e389d8065056baaadbdadee8ddc6e36770d1ec339dc84d970",
-}
-"""The annotator precomputed SHA hashes; the dict is in the form of `{"filename": "hash", ...}."""
+# Backwards-compatible re-exports: the monkeypatch machinery now lives in
+# hordelib.execution.comfy_patches.
+from hordelib.execution.comfy_patches import (
+    get_monkeypatch_names,
+    get_monkeypatch_state,
+    set_monkeypatch_state,
+    temporary_monkeypatch_state,
+)
 
 
-def download_all_controlnet_annotators() -> bool:
-    """Will start the download of all the models needed for the controlnet annotators."""
-    annotator_init_funcs = [
-        _canny.CannyDetector,
-        _hed.HEDdetector,
-        _midas.MidasDetector,
-        _mlsd.MLSDdetector,
-        _openpose.OpenposeDetector,
-        _uniformer.UniformerDetector,
-        _leres.download_model_if_not_existed,
-        _pidinet.download_if_not_existed,
-    ]
+def __getattr__(name: str):
+    # Forward reads of moved attributes so existing imports keep working for one release.
+    if name in ("models_not_to_force_load", "disable_force_loading"):
+        from hordelib.execution import comfy_patches
 
-    try:
-        logger.info(
-            "Downloading controlnet annotators if required",
-            annotator_count=len(annotator_init_funcs),
-        )
-        for i, annotator_init_func in enumerate(annotator_init_funcs):
-            # Give some basic progress indication
-            logger.info(
-                "Controlnet annotator download progress",
-                current=i + 1,
-                total=len(annotator_init_funcs),
-            )
-            annotator_init_func()
-        return True
-    except (OSError, requests.exceptions.RequestException):
-        logger.exception("Failed to download annotator")
-
-    return False
-
-
-class _MonkeyPatchBinding(typing.NamedTuple):
-    module: typing.Any
-    attr: str
-    patched: typing.Callable | None
-    original: typing.Callable | None
-
-
-def _ensure_comfy_initialised() -> None:
-    if _comfy_load_models_gpu is None:
-        raise RuntimeError("ComfyUI is not initialised. Call hordelib.initialise() before using monkeypatch helpers.")
-
-
-def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
-    _ensure_comfy_initialised()
-
-    import comfy.model_management as model_management
-    from comfy.model_patcher import ModelPatcher
-    import comfy.lora
-
-    bindings: dict[str, _MonkeyPatchBinding] = {
-        "load_models_gpu": _MonkeyPatchBinding(
-            model_management,
-            "load_models_gpu",
-            _load_models_gpu_hijack,
-            _comfy_load_models_gpu,
-        ),
-        "model_patcher_load": _MonkeyPatchBinding(
-            ModelPatcher,
-            "load",
-            _model_patcher_load_hijack,
-            _comfy_model_patcher_load,
-        ),
-        "lora_calculate_weight": _MonkeyPatchBinding(
-            comfy.lora,
-            "calculate_weight",
-            _calculate_weight_hijack,
-            _comfy_load_calculate_weight,
-        ),
-        "text_encoder_initial_device": _MonkeyPatchBinding(
-            model_management,
-            "text_encoder_initial_device",
-            text_encoder_initial_device_hijack,
-            _comfy_text_encoder_initial_device,
-        ),
-    }
-
-    if _comfy_execution is not None and _comfy_is_changed_cache_get is not None:
-        bindings["is_changed_cache_get"] = _MonkeyPatchBinding(
-            _comfy_execution.IsChangedCache,
-            "get",
-            IsChangedCache_get_hijack,
-            _comfy_is_changed_cache_get,
-        )
-
-    return {
-        name: binding
-        for name, binding in bindings.items()
-        if binding.original is not None and binding.patched is not None
-    }
-
-
-def get_monkeypatch_names() -> list[str]:
-    """Return the ordered list of known ComfyUI monkeypatch identifiers."""
-    return list(_build_monkeypatch_registry().keys())
-
-
-def get_monkeypatch_state() -> dict[str, bool]:
-    """Return which monkeypatches are currently active."""
-    registry = _build_monkeypatch_registry()
-    state: dict[str, bool] = {}
-    for name, binding in registry.items():
-        state[name] = getattr(binding.module, binding.attr) is binding.patched
-    return state
-
-
-def set_monkeypatch_state(
-    *,
-    enable: bool,
-    patch_names: typing.Iterable[str] | None = None,
-) -> None:
-    """Force a set of monkeypatches to be enabled or disabled."""
-    registry = _build_monkeypatch_registry()
-    target_names = list(patch_names) if patch_names is not None else list(registry.keys())
-    for name in target_names:
-        if name not in registry:
-            raise KeyError(f"Unknown monkeypatch '{name}'")
-        binding = registry[name]
-        setattr(binding.module, binding.attr, binding.patched if enable else binding.original)
-
-
-@contextlib.contextmanager
-def temporary_monkeypatch_state(
-    *,
-    enable: bool,
-    patch_names: typing.Iterable[str] | None = None,
-):
-    """Context manager to temporarily enable or disable specific monkeypatches."""
-    registry = _build_monkeypatch_registry()
-    target_names = list(patch_names) if patch_names is not None else list(registry.keys())
-
-    previous: dict[str, typing.Callable | None] = {}
-    for name in target_names:
-        if name not in registry:
-            raise KeyError(f"Unknown monkeypatch '{name}'")
-        binding = registry[name]
-        previous[name] = getattr(binding.module, binding.attr)
-
-    try:
-        set_monkeypatch_state(enable=enable, patch_names=target_names)
-        yield
-    finally:
-        for name in target_names:
-            binding = registry[name]
-            setattr(binding.module, binding.attr, previous[name])
+        return getattr(comfy_patches, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

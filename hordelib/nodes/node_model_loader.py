@@ -1,8 +1,8 @@
 # node_model_loader.py
 # Simple proof of concept custom node to load models.
 
-from pathlib import Path
 import time
+from pathlib import Path
 
 import comfy.model_management
 import comfy.sd
@@ -13,7 +13,6 @@ from loguru import logger
 
 from hordelib.comfy_horde import log_free_ram
 from hordelib.shared_model_manager import SharedModelManager
-
 
 # Module-level metrics for model loading performance
 cache_hits_counter = logfire.metric_counter(

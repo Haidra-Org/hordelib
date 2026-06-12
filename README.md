@@ -268,10 +268,12 @@ On the venv where you want to install th new version
 python -m pip install /path/to/hordelib/dist/horde_engine-*.whl
 ```
 
-### Updating the embedded version of ComfyUI
+### Updating ComfyUI or the external custom nodes
 
-- Change the value in `consts.py` to the desired ComfyUI version.
-- Run the test suite via `tox`
+- Change the relevant commit SHA in `hordelib/installation/manifest.json` (ComfyUI itself via
+  `comfyui_ref`; each external custom node via its `ref`). Full 40-character SHAs only.
+- The next `hordelib.initialise()` (or `python -m hordelib.installation`) updates the checkouts.
+- Run the test suite.
 
 
 

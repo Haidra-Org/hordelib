@@ -10,6 +10,7 @@ from contextlib import nullcontext
 from datetime import datetime, timedelta
 from enum import auto
 from multiprocessing.synchronize import Lock as multiprocessing_lock
+from typing import Any, override
 
 import logfire
 import requests
@@ -17,7 +18,6 @@ from fuzzywuzzy import fuzz
 from horde_model_reference import horde_model_reference_paths
 from loguru import logger
 from strenum import StrEnum
-from typing_extensions import override
 
 from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.model_manager.base import BaseModelManager
@@ -70,7 +70,7 @@ ti_active_threads_gauge = logfire.metric_gauge(
 )
 
 
-class TextualInversionModelManager(BaseModelManager):
+class TextualInversionModelManager(BaseModelManager[dict[str, Any]]):
     TI_API: str = "https://civitai.com/api/v1/models?types=TextualInversion&sort=Highest%20Rated&primaryFileOnly=true"
     HORDELING_API: str = "https://hordeling.aihorde.net/api/v1/embedding"
     MAX_RETRIES: int = 10 if not TESTS_ONGOING else 3
@@ -485,7 +485,8 @@ class TextualInversionModelManager(BaseModelManager):
                                 ti_network_errors_counter.add(1, {"error_type": "hordeling_500"})
                                 ti_logger.warning("ti.hordeling_server_error", status_code=500)
                                 ti_logger.debug(
-                                    "AI Hordeling reported an internal error when downloading metadata; fewer retries will be attempted."
+                                    "AI Hordeling reported an internal error when downloading metadata; "
+                                    "fewer retries will be attempted.",
                                 )
 
                             hordeling_json = hordeling_response.json()
@@ -503,7 +504,8 @@ class TextualInversionModelManager(BaseModelManager):
 
                                 if "unexpected type" in message:
                                     ti_logger.debug(
-                                        "AI Hordeling reported an unexpected type error when downloading metadata; ignoring this Textual Inversion.",
+                                        "AI Hordeling reported an unexpected type error when downloading "
+                                        "metadata; ignoring this Textual Inversion.",
                                     )
                                     break
                                 if "hash" in message:
@@ -1134,6 +1136,11 @@ class TextualInversionModelManager(BaseModelManager):
         )
 
         if isinstance(ti_name, int) or ti_name.isdigit():
+            # CivitAI responds with a 500 (rather than a 404) for IDs beyond its ID space,
+            # so reject obviously invalid IDs before making any network requests.
+            if int(ti_name) >= 2**32:
+                logger.info("ti.adhoc_invalid_id", ti_name=str(ti_name)[:100])
+                return None
             url = f"https://civitai.com/api/v1/models/{ti_name}"
         else:
             url = f"{self.TI_API}&nsfw={str(self.nsfw).lower()}&query={ti_name}"

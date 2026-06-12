@@ -1,5 +1,4 @@
 import hashlib
-import json
 import os
 import shutil
 import threading
@@ -8,7 +7,7 @@ import zipfile
 from abc import ABC
 from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any, cast
 from urllib import parse
 from uuid import uuid4
 
@@ -25,9 +24,6 @@ from hordelib.config_path import get_hordelib_path
 from hordelib.consts import CIVITAI_API_PATH, MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES
 from hordelib.settings import UserSettings
 
-if TYPE_CHECKING:
-    from horde_model_reference.model_reference_records import ImageGenerationModelRecord
-
 _temp_reference_lookup: dict[MODEL_CATEGORY_NAMES, MODEL_REFERENCE_CATEGORY] = {
     MODEL_CATEGORY_NAMES.codeformer: MODEL_REFERENCE_CATEGORY.codeformer,
     MODEL_CATEGORY_NAMES.compvis: MODEL_REFERENCE_CATEGORY.image_generation,
@@ -39,12 +35,18 @@ _temp_reference_lookup: dict[MODEL_CATEGORY_NAMES, MODEL_REFERENCE_CATEGORY] = {
 }
 
 
-class BaseModelManager(ABC):
+class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
+    """Abstract base for the per-category model managers.
+
+    ``RecordT`` is the model reference record type a manager operates on. Managers backed by
+    ``horde_model_reference`` use pydantic ``GenericModelRecord`` (or a subtype); the LoRA/TI
+    managers still operate on raw dicts until upstream ships records for those categories.
+    """
+
     model_folder_path: Path
     """The path to the directory to store this model type."""
-    model_reference: dict[str, GenericModelRecord | dict[str, Any]]
-    """Model reference data. Contains pydantic ``GenericModelRecord`` instances for categories managed
-    by ``horde_model_reference``, or raw ``dict`` for legacy/LoRA/TI categories."""
+    model_reference: dict[str, RecordT]
+    """Model reference data, keyed by horde model name."""
 
     available_models: list[str]
     """The models available for immediate use."""
@@ -77,14 +79,15 @@ class BaseModelManager(ABC):
         # Pop `model_category_name` from kwargs so subclasses can pass it both
         # explicitly to super() and via **kwargs without a duplicate-argument error.
         model_category_name: MODEL_CATEGORY_NAMES = kwargs.pop(
-            "model_category_name", MODEL_CATEGORY_NAMES.default_models
+            "model_category_name",
+            MODEL_CATEGORY_NAMES.default_models,
         )
 
         if len(kwargs) > 0:
             logger.debug("Unused kwargs: type={}, kwargs={}", type(self), kwargs)
 
         self._model_category_name = model_category_name
-        self.model_reference: dict[str, GenericModelRecord | dict[str, Any]] = {}
+        self.model_reference = {}
         self.available_models: list[str] = []
         self.tainted_models: list[str] = []
 
@@ -123,80 +126,42 @@ class BaseModelManager(ABC):
             logger.info("Model reference was already loaded.")
             logger.info("Reloading model reference...")
 
-        # Determine the horde_model_reference category for this manager, if any
-        model_ref_category = (
-            _temp_reference_lookup.get(self._model_category_name) if hasattr(self, "_model_category_name") else None
-        )
-
-        # Phase 1: try to load pydantic records via horde_model_reference
-        if model_ref_category is not None and ModelReferenceManager.has_instance():
-            try:
-                ref_manager = ModelReferenceManager.get_instance()
-                pydantic_records = ref_manager.get_model_reference_or_none(model_ref_category)
-                if pydantic_records is not None:
-                    self.model_reference = dict(pydantic_records)
-                    models_available = []
-                    for model_name, record in self.model_reference.items():
-                        if self.is_model_available(model_name):
-                            models_available.append(model_name)
-                    self.available_models = models_available
-                    logger.info(
-                        "Loaded {} available models for {} via horde_model_reference.",
-                        len(self.available_models),
-                        self.models_db_name,
-                    )
-                    return
-                logger.debug(
-                    "horde_model_reference returned no data for {}; falling back to JSON.",
-                    self.models_db_name,
-                )
-            except Exception:
-                logger.warning(
-                    "Failed to load model reference via horde_model_reference for {}; falling back to JSON.",
-                    self.models_db_name,
-                )
-
-        # Phase 2: fallback — load raw JSON for categories not (yet) managed by horde_model_reference
-        is_model_db_present = self.models_db_path.exists()
-
         if self.download_reference:
             raise NotImplementedError("Downloading model databases is no longer supported within hordelib.")
 
-        if not is_model_db_present:
-            if model_ref_category is not None:
-                logger.warning(
-                    "No model reference data available for {}: horde_model_reference returned nothing and "
-                    "legacy JSON {} does not exist. The model manager will have an empty reference.",
-                    self.models_db_name,
-                    self.models_db_path,
-                )
-            else:
-                raise NotImplementedError(
-                    f"Model database {self.models_db_path} not found and downloading is no longer supported."
-                )
-            self.model_reference = {}
-            self.available_models = []
-            return
-        for attempt in range(3):
-            try:
-                self.model_reference = json.loads((self.models_db_path).read_text())
-            except json.decoder.JSONDecodeError as e:
-                if attempt <= 2:
-                    logger.warning(
-                        f"Model database {self.models_db_path} is not valid JSON: {e}. Will retry: {attempt + 1}/3",
-                    )
-                    time.sleep(1)
-                    continue
-                logger.error("Model database is not valid JSON: path={}, error={}", self.models_db_path, e)
-                raise
+        model_ref_category = _temp_reference_lookup.get(self._model_category_name)
 
-        models_available = []
-        for model in self.model_reference:
-            if self.is_model_available(model):
-                models_available.append(model)
-        self.available_models = models_available
+        if model_ref_category is None:
+            # Categories without horde_model_reference data (LoRA, TI) must override this method.
+            raise NotImplementedError(
+                f"Model category {self._model_category_name} is not managed by horde_model_reference and "
+                f"{type(self).__name__} does not override load_model_database().",
+            )
+
+        if not ModelReferenceManager.has_instance():
+            raise RuntimeError(
+                "ModelReferenceManager has not been initialised. Call SharedModelManager.load_model_managers() "
+                "(or otherwise construct ModelReferenceManager) before creating model managers.",
+            )
+
+        ref_manager = ModelReferenceManager.get_instance()
+        pydantic_records = ref_manager.get_model_reference_or_none(model_ref_category)
+        if pydantic_records is None:
+            raise RuntimeError(
+                f"horde_model_reference returned no data for category {model_ref_category}. "
+                "The model reference may have failed to download; cannot continue with an empty reference.",
+            )
+
+        # horde_model_reference guarantees the record subtype per category (e.g. ImageGenerationModelRecord
+        # for image_generation), which is what each manager declares as its RecordT.
+        self.model_reference = cast(dict[str, RecordT], dict(pydantic_records))
+        self.available_models = [
+            model_name for model_name in self.model_reference if self.is_model_available(model_name)
+        ]
         logger.info(
-            f"Got {len(self.available_models)} available models for {self.models_db_name}.",
+            "Loaded {} available models for {} via horde_model_reference.",
+            len(self.available_models),
+            self.models_db_name,
         )
 
     def download_model_reference(self) -> dict:
@@ -210,20 +175,14 @@ class BaseModelManager(ABC):
         """
         return int(psutil.virtual_memory().available / (1024 * 1024))
 
-    def get_model_reference_info(self, model_name: str) -> GenericModelRecord | dict | None:
-        """Return the model reference entry for a given model name.
-
-        For categories managed by horde_model_reference this returns a pydantic
-        ``GenericModelRecord`` (or subtype).  For legacy categories (LoRA, TI)
-        it returns the raw ``dict``.
-
-        Args:
-            model_name: The name of the model to look up.
-
-        Returns:
-            The pydantic record, raw dict, or ``None`` if not found.
-        """
+    def get_model_reference_info(self, model_name: str) -> RecordT | None:
+        """Return the model reference entry for a given model name, or ``None`` if not found."""
         return self.model_reference.get(model_name, None)
+
+    def _get_generic_record(self, model_name: str) -> GenericModelRecord | None:
+        """Return the pydantic record for a model, or ``None`` if absent or not a pydantic record."""
+        record = self.model_reference.get(model_name)
+        return record if isinstance(record, GenericModelRecord) else None
 
     def get_model_filenames(self, model_name: str) -> list[dict]:  # TODO: Convert dict into class
         """Return the filenames of the model for a given model name.
@@ -237,50 +196,26 @@ class BaseModelManager(ABC):
         Raises:
             ValueError: If the model name is not in the model reference.
         """
-        record = self.model_reference.get(model_name)
+        record = self._get_generic_record(model_name)
         if record is None:
             raise ValueError(f"Model {model_name} not found in model reference")
 
-        # Branch: pydantic GenericModelRecord (horde_model_reference managed categories)
-        if isinstance(record, GenericModelRecord):
-            model_files: list[dict] = []
-            for download_entry in record.config.download:
-                file_name = download_entry.file_name
-                if file_name.endswith((".ckpt", ".safetensors", ".pt", ".pth", ".bin")):
-                    path_entry: dict[str, Any] = {"file_path": Path(file_name)}
-                    if download_entry.file_purpose:
-                        path_entry["file_type"] = download_entry.file_purpose
-                    if download_entry.sha256sum:
-                        path_entry["sha256sum"] = download_entry.sha256sum
-                    model_files.append(path_entry)
-            if len(model_files) == 0:
-                # If no weight files in download entries, use the primary file_name as file_path
-                if record.primary_download_url:
-                    primary_file = record.config.download[0].file_name
-                    model_files.append({"file_path": Path(primary_file)})
-            if len(model_files) == 0:
-                raise ValueError(f"Model {model_name} does not have a valid file entry")
-            return model_files
-
-        # Branch: legacy raw dict (LoRA, TI, and custom models)
-        model_file_entries: list[dict] = record.get("config", {}).get("files", [])
-        model_files = []
-        for model_file_entry in model_file_entries:
-            path_config_item = model_file_entry.get("path")
-            path_config_type = model_file_entry.get("file_type")
-            directory = model_file_entry.get("directory")
-            if path_config_item:
-                if path_config_item.endswith((".ckpt", ".safetensors", ".pt", ".pth", ".bin")):
-                    path_entry = {"file_path": Path(path_config_item)}
-                    if directory:
-                        path_entry["file_path"] = Path(f"{directory}/{path_config_item}")
-                    if path_config_type:
-                        path_entry["file_type"] = path_config_type
-                    if "sha256sum" in model_file_entry:
-                        path_entry["sha256sum"] = model_file_entry.get("sha256sum")
-                    if "md5sum" in model_file_entry:
-                        path_entry["md5sum"] = model_file_entry.get("md5sum")
-                    model_files.append(path_entry)
+        model_files: list[dict] = []
+        for download_entry in record.config.download:
+            file_name = download_entry.file_name
+            if file_name.endswith((".ckpt", ".safetensors", ".pt", ".pth", ".bin")):
+                path_entry: dict[str, Any] = {"file_path": Path(file_name)}
+                if download_entry.file_purpose:
+                    path_entry["file_type"] = download_entry.file_purpose
+                # horde_model_reference uses the literal "FIXME" as its placeholder for unknown checksums
+                if download_entry.sha256sum and download_entry.sha256sum != "FIXME":
+                    path_entry["sha256sum"] = download_entry.sha256sum
+                model_files.append(path_entry)
+        if len(model_files) == 0:
+            # If no weight files in download entries, use the primary file_name as file_path
+            if record.primary_download_url:
+                primary_file = record.config.download[0].file_name
+                model_files.append({"file_path": Path(primary_file)})
         if len(model_files) == 0:
             raise ValueError(f"Model {model_name} does not have a valid file entry")
         return model_files
@@ -294,23 +229,20 @@ class BaseModelManager(ABC):
         Returns:
             list[dict]: The config files for the model.
         """
-        record = self.model_reference.get(model_name)
+        record = self._get_generic_record(model_name)
         if record is None:
             return []
 
-        if isinstance(record, GenericModelRecord):
-            # Convert DownloadRecord entries to dict form for backward compatibility
-            return [
-                {
-                    "file_name": dl.file_name,
-                    "file_url": dl.file_url,
-                    "sha256sum": dl.sha256sum,
-                    "file_purpose": dl.file_purpose,
-                }
-                for dl in record.config.download
-            ]
-
-        return record.get("config", {}).get("files", [])
+        # Convert DownloadRecord entries to dict form for backward compatibility
+        return [
+            {
+                "file_name": dl.file_name,
+                "file_url": dl.file_url,
+                "sha256sum": dl.sha256sum,
+                "file_purpose": dl.file_purpose,
+            }
+            for dl in record.config.download
+        ]
 
     def get_model_download(self, model_name: str) -> list[dict]:
         """Return the download config for a given model name.
@@ -321,49 +253,28 @@ class BaseModelManager(ABC):
         Returns:
             list[dict]: The download config for the model.
         """
-        record = self.model_reference.get(model_name)
-        if record is None:
-            return []
-
-        if isinstance(record, GenericModelRecord):
-            return [
-                {
-                    "file_name": dl.file_name,
-                    "file_url": dl.file_url,
-                    "sha256sum": dl.sha256sum,
-                    "file_purpose": dl.file_purpose,
-                }
-                for dl in record.config.download
-            ]
-
-        return record.get("config", {}).get("download", [])
+        # The download entries and the config-file entries are one and the same in
+        # horde_model_reference records.
+        return self.get_model_config_files(model_name)
 
     def get_available_models(self) -> list[str]:
         """Return the available (downloaded and verified) models."""
         return self.available_models
 
     def get_available_models_by_types(self, model_types: Iterable[str] | None = None) -> list[str]:
-        """Return the available (downloaded and verified) models of a given type.
+        """Return the available (downloaded and verified) models.
 
         Args:
-            model_types (Iterable[str] | None, optional): The type of model to return. See the model
-            reference for valid values. Defaults to None.
+            model_types (Iterable[str] | None, optional): Legacy parameter, now ignored:
+            horde_model_reference records have no "type" field and every record in a
+            manager's reference is of that manager's category. Defaults to None.
 
         Returns:
-            list[str]: The available models of the given type.
+            list[str]: The available models.
         """
-        if not model_types:
-            model_types = ["ckpt"]
-        models_available = []
-        for model in self.model_reference:
-            record = self.model_reference[model]
-            if isinstance(record, GenericModelRecord):
-                # pydantic records don't have a "type" field; include all
-                if self.is_model_available(model):
-                    models_available.append(model)
-            elif record.get("type") in model_types and self.is_model_available(model):
-                models_available.append(model)
-        return models_available
+        if model_types:
+            logger.debug("get_available_models_by_types: model_types is deprecated and ignored: {}", model_types)
+        return [model for model in self.model_reference if self.is_model_available(model)]
 
     def count_available_models_by_types(self, model_types: Iterable[str] | None = None) -> int:
         """Return the number of available (downloaded and verified) models of a given type.
@@ -409,7 +320,8 @@ class BaseModelManager(ABC):
                     # The file must have been considered valid once, or we wouldn't have renamed
                     # it from the ".part" download. Likely there is an update, or a model database hash problem
                     logger.warning(
-                        "Likely updated, will attempt to re-download: file_path={}", file_entry["file_path"]
+                        "Likely updated, will attempt to re-download: file_path={}",
+                        file_entry["file_path"],
                     )
                     self.taint_model(model_name)
                 except OSError as e:
@@ -544,7 +456,10 @@ class BaseModelManager(ABC):
         # But currently not all models specify hashes
         # XXX this warning preexists me (@tazlin), probably should look into it
 
-        logger.debug("Model doesn't have a checksum, skipping validation: path={}", file_details["path"])
+        logger.debug(
+            "Model doesn't have a checksum, skipping validation: path={}",
+            file_details.get("file_path", file_details.get("path")),
+        )
 
         return True
 

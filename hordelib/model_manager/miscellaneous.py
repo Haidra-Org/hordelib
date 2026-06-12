@@ -1,8 +1,10 @@
+from horde_model_reference.model_reference_records import GenericModelRecord
+
 from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.model_manager.base import BaseModelManager
 
 
-class MiscellaneousModelManager(BaseModelManager):  # FIXME # TODO?
+class MiscellaneousModelManager(BaseModelManager[GenericModelRecord]):  # FIXME # TODO?
     def __init__(
         self,
         download_reference=False,

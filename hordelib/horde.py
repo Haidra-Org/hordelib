@@ -16,7 +16,7 @@ from types import FunctionType
 
 import logfire
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE, get_baseline_native_resolution
-from horde_model_reference.model_reference_records import GenericModelRecord
+from horde_model_reference.model_reference_records import ImageGenerationModelRecord
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from horde_sdk.ai_horde_api.apimodels.base import (
     GenMetadataEntry,
@@ -27,9 +27,10 @@ from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
 
-from hordelib.comfy_horde import Comfy_Horde
+from hordelib.comfy_horde import Comfy_Horde, get_node_class
 from hordelib.consts import MODEL_CATEGORY_NAMES
-from hordelib.nodes.comfy_qr.qr_nodes import QRByModuleSizeSplitFunctionPatterns
+from hordelib.execution.in_process import InProcessComfyBackend
+from hordelib.pipeline.patches import ResolvedLora, insert_lora_chain
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
 from hordelib.utils.image_utils import ImageUtils
@@ -83,6 +84,39 @@ class ResultingImageReturn:
         self.faults = faults
 
 
+def _get_compvis_record(model_name: str) -> ImageGenerationModelRecord | None:
+    """Return the image-generation record for a horde model name, or ``None`` if unknown.
+
+    Goes through the compvis manager (rather than the reference manager directly) so that
+    custom models from ``HORDELIB_CUSTOM_MODELS`` are included.
+    """
+    compvis = SharedModelManager.manager.compvis if SharedModelManager.manager is not None else None
+    if compvis is None:
+        return None
+    return compvis.get_model_reference_info(model_name)
+
+
+def _get_baseline(model_name: str) -> KNOWN_IMAGE_GENERATION_BASELINE | None:
+    """Return the normalized baseline for a horde model name, or ``None`` if unknown."""
+    record = _get_compvis_record(model_name)
+    if record is None:
+        return None
+    try:
+        return KNOWN_IMAGE_GENERATION_BASELINE(record.baseline)
+    except ValueError:
+        logger.warning("Model has an unrecognized baseline: model={}, baseline={}", model_name, record.baseline)
+        return None
+
+
+_FLUX_BASELINES = frozenset(
+    {
+        KNOWN_IMAGE_GENERATION_BASELINE.flux_1,
+        KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell,
+        KNOWN_IMAGE_GENERATION_BASELINE.flux_dev,
+    },
+)
+
+
 def _calc_upscale_sampler_steps(
     payload: dict,
 ) -> int:
@@ -95,29 +129,16 @@ def _calc_upscale_sampler_steps(
         int: The number of steps to use.
     """
     model_name = payload.get("model_name")
-    baseline = None
     native_resolution = None
     if model_name is not None:
-        model_record = SharedModelManager.model_reference_manager.image_generation_models.get(model_name)
-        if model_record is not None:
-            baseline = model_record.baseline
-    if baseline is not None:
-        try:
-            baseline = KNOWN_IMAGE_GENERATION_BASELINE(baseline)
-        except ValueError as e:
-            logger.warning(
-                f"Model {model_name} has an invalid baseline '{baseline}' so we cannot calculate "
-                "hires fix upscale steps.",
-            )
-            logger.warning(
-                "Invalid model baseline for upscale calculation",
-                model_name=model_name,
-                baseline=baseline,
-                error=str(e),
-            )
-            baseline = None
+        baseline = _get_baseline(model_name)
         if baseline is not None:
             native_resolution = get_baseline_native_resolution(baseline)
+        else:
+            logger.warning(
+                "Cannot determine baseline for upscale step calculation: model_name={}",
+                model_name,
+            )
 
     width: int | None = payload.get("width")
     height: int | None = payload.get("height")
@@ -140,15 +161,6 @@ def _calc_upscale_sampler_steps(
         hires_fix_denoising_strength=hires_fix_denoising_strength,
         ddim_steps=ddim_steps,
     )
-
-
-def _model_prop(record: GenericModelRecord | dict | None, key: str, default: typing.Any = None) -> typing.Any:
-    """Read a property from either a pydantic ``GenericModelRecord`` or a legacy ``dict``."""
-    if record is None:
-        return default
-    if isinstance(record, GenericModelRecord):
-        return getattr(record, key, default)
-    return record.get(key, default)
 
 
 # Module-level metrics for inference performance tracking
@@ -195,26 +207,19 @@ class HordeLib:
         "lcm": "lcm",
     }
 
-    # Horde names on the left, our node names on the right
-    # We use this to dynamically route the image through the
-    # right node by reconnect inputs.
+    # Horde control_type on the left, comfyui_controlnet_aux preprocessor on the right.
+    # The pipeline's AIO_Preprocessor node (titled "preprocessor") is parameterized with these.
     CONTROLNET_IMAGE_PREPROCESSOR_MAP = {
-        "canny": "canny",
-        "hed": "hed",
-        "depth": "depth",
-        "normal": "normal",
-        "openpose": "openpose",
-        "seg": "seg",
-        "scribble": "scribble",
-        "fakescribbles": "fakescribble",
-        "hough": "mlsd",  # horde backward compatibility
-        "mlsd": "mlsd",
-        # "<unused>": "MiDaS-DepthMapPreprocessor",
-        # "<unused>": "MediaPipe-HandPosePreprocessor",
-        # "<unused>": "MediaPipe-FaceMeshPreprocessor",
-        # "<unused>": "BinaryPreprocessor",
-        # "<unused>": "ColorPreprocessor",
-        # "<unused>": "PiDiNetPreprocessor",
+        "canny": "CannyEdgePreprocessor",
+        "hed": "HEDPreprocessor",
+        "depth": "LeReS-DepthMapPreprocessor",
+        "normal": "MiDaS-NormalMapPreprocessor",
+        "openpose": "OpenposePreprocessor",
+        "seg": "SemSegPreprocessor",
+        "scribble": "ScribblePreprocessor",
+        "fakescribbles": "FakeScribblePreprocessor",
+        "hough": "M-LSDPreprocessor",  # horde backward compatibility
+        "mlsd": "M-LSDPreprocessor",
     }
 
     CONTROLNET_MODEL_MAP = {
@@ -226,6 +231,7 @@ class HordeLib:
         "seg": "control_seg_fp16.safetensors",
         "scribble": "control_scribble_fp16.safetensors",
         "fakescribble": "control_scribble_fp16.safetensors",
+        "fakescribbles": "control_scribble_fp16.safetensors",
         "mlsd": "control_mlsd_fp16.safetensors",
         "hough": "control_mlsd_fp16.safetensors",
     }
@@ -413,6 +419,9 @@ class HordeLib:
                     aggressive_unloading if aggressive_unloading is not None else self.aggressive_unloading
                 ),
             )
+            # The execution bridge wraps the legacy Comfy_Horde; new code should talk to
+            # self.backend rather than self.generator (which will be removed in refactor P4).
+            self.backend = InProcessComfyBackend.from_comfy_horde(self.generator)
             self.__class__._initialised = True
 
     def _json_hack(self, obj):
@@ -548,10 +557,8 @@ class HordeLib:
             model_files = SharedModelManager.manager.compvis.get_model_filenames(model)
             found_model_on_disk = True
 
-            if _model_prop(
-                SharedModelManager.manager.compvis.model_reference.get(model),
-                "inpainting",
-            ) is True:
+            compvis_record = SharedModelManager.manager.compvis.model_reference.get(model)
+            if compvis_record is not None and compvis_record.inpainting is True:
                 if payload.get("source_processing") not in ["inpainting", "outpainting"]:
                     logger.warning(
                         "Inpainting model detected, but source processing not set to inpainting or outpainting.",
@@ -646,11 +653,14 @@ class HordeLib:
         # Turn off hires fix if we're not generating a hires image, or if the params are just confused
         try:
             if "hires_fix" in payload:
-                model_record = SharedModelManager.manager.compvis.model_reference.get(model)
-                baseline = _model_prop(model_record, "baseline")
-                if baseline == "stable diffusion 1" and (payload["width"] <= 512 or payload["height"] <= 512):
+                baseline = _get_baseline(model)
+                if baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1 and (
+                    payload["width"] <= 512 or payload["height"] <= 512
+                ):
                     payload["hires_fix"] = False
-                elif baseline == "stable_diffusion_xl" and (payload["width"] <= 1024 or payload["height"] <= 1024):
+                elif baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl and (
+                    payload["width"] <= 1024 or payload["height"] <= 1024
+                ):
                     payload["hires_fix"] = False
         except (TypeError, KeyError):
             payload["hires_fix"] = False
@@ -698,10 +708,6 @@ class HordeLib:
 
         # Remap sampler name, horde to comfy
         payload["sampler_name"] = HordeLib.SAMPLERS_MAP.get(payload["sampler_name"])
-
-        # Remap controlnet models, horde to comfy
-        if payload.get("control_type"):
-            payload["control_type"] = HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(payload.get("control_type"))
         if payload.get("tis") and SharedModelManager.manager.ti:
             # Remove any requested TIs that we don't have
             with logfire.span("ti.process_loop", ti_count=len(payload.get("tis"))):
@@ -724,7 +730,7 @@ class HordeLib:
                                 adhoc_ti = None
                             if not adhoc_ti:
                                 logger.info(
-                                    f"Adhoc TI requested '{ti['name']}' could not be found in CivitAI. Ignoring!"
+                                    f"Adhoc TI requested '{ti['name']}' could not be found in CivitAI. Ignoring!",
                                 )
                                 faults.append(
                                     GenMetadataEntry(
@@ -740,7 +746,7 @@ class HordeLib:
                             if SharedModelManager.manager.compvis is None:
                                 raise RuntimeError("Cannot use TIs without compvis loaded!")
                             model_details = SharedModelManager.manager.compvis.get_model_reference_info(
-                                payload["model"]
+                                payload["model"],
                             )
                             # If the ti and model do not match baseline, we ignore the TI
                             if not SharedModelManager.manager.ti.do_baselines_match(ti_name, model_details):
@@ -896,68 +902,18 @@ class HordeLib:
                 valid_loras.append(lora)
             payload["loras"] = valid_loras
             with logfire.span("lora.inject_nodes", node_count=len(valid_loras)):
-                for lora_index, lora in enumerate(payload.get("loras")):
-                    # Inject a lora node (first lora)
-                    if lora_index == 0:
-                        pipeline_data[f"lora_{lora_index}"] = {
-                            "inputs": {
-                                "model": ["model_loader", 0],
-                                "clip": ["model_loader", 1],
-                                "lora_name": lora["name"],
-                                "strength_model": lora["model"],
-                                "strength_clip": lora["clip"],
-                                # "model_manager": SharedModelManager,
-                            },
-                            "class_type": "HordeLoraLoader",
-                        }
-                    else:
-                        # Subsequent chained loras
-                        pipeline_data[f"lora_{lora_index}"] = {
-                            "inputs": {
-                                "model": [f"lora_{lora_index - 1}", 0],
-                                "clip": [f"lora_{lora_index - 1}", 1],
-                                "lora_name": lora["name"],
-                                "strength_model": lora["model"],
-                                "strength_clip": lora["clip"],
-                                # "model_manager": SharedModelManager,
-                            },
-                            "class_type": "HordeLoraLoader",
-                        }
-
-                for lora_index in range(len(payload.get("loras"))):
-                    # The first LORA always connects to the model loader
-                    if lora_index == 0:
-                        self.generator.reconnect_input(pipeline_data, "lora_0.model", "model_loader")
-                        self.generator.reconnect_input(pipeline_data, "lora_0.clip", "model_loader")
-                    else:
-                        # Other loras connect to the previous lora
-                        self.generator.reconnect_input(
-                            pipeline_data,
-                            f"lora_{lora_index}.model",
-                            f"lora_{lora_index - 1}.model",
+                insert_lora_chain(
+                    pipeline_data,
+                    [
+                        ResolvedLora(
+                            filename=lora["name"],
+                            strength_model=lora["model"],
+                            strength_clip=lora["clip"],
                         )
-                        self.generator.reconnect_input(
-                            pipeline_data,
-                            f"lora_{lora_index}.clip",
-                            f"lora_{lora_index - 1}.clip",
-                        )
-
-                    # The last LORA always connects to the sampler and clip text encoders (via the clip_skip)
-                    if lora_index == len(payload.get("loras")) - 1 and SharedModelManager.manager.compvis:
-                        model_details = SharedModelManager.manager.compvis.get_model_reference_info(
-                            payload["model_name"]
-                        )
-                        if model_details is not None and _model_prop(model_details, "baseline") == "flux_1":
-                            self.generator.reconnect_input(pipeline_data, "cfg_guider.model", f"lora_{lora_index}")
-                            self.generator.reconnect_input(
-                                pipeline_data, "basic_scheduler.model", f"lora_{lora_index}"
-                            )
-                        else:
-                            self.generator.reconnect_input(pipeline_data, "sampler.model", f"lora_{lora_index}")
-                            self.generator.reconnect_input(
-                                pipeline_data, "upscale_sampler.model", f"lora_{lora_index}"
-                            )
-                            self.generator.reconnect_input(pipeline_data, "clip_skip.clip", f"lora_{lora_index}")
+                        for lora in valid_loras
+                    ],
+                    flux=_get_baseline(payload["model_name"]) in _FLUX_BASELINES,
+                )
 
         # Translate the payload parameters into pipeline parameters
         pipeline_params = {}
@@ -989,7 +945,10 @@ class HordeLib:
             pipeline_params["model_loader_stage_c.file_type"] = "stable_cascade_stage_c"
         if "model_loader_stage_b.ckpt_name" in pipeline_params:
             pipeline_params["model_loader_stage_b.file_type"] = "stable_cascade_stage_b"
-        if pipeline_params["model_loader.horde_model_name"] == "Qwen-Image_fp8":
+        if (
+            _get_baseline(pipeline_params["model_loader.horde_model_name"])
+            == KNOWN_IMAGE_GENERATION_BASELINE.qwen_image
+        ):
             pipeline_params["model_loader.file_type"] = "unet"
         else:
             pipeline_params["model_loader.file_type"] = None  # To allow normal SD pipelines to keep working
@@ -1005,17 +964,13 @@ class HordeLib:
 
         # For hires fix, change the image sizes as we create an intermediate image first
         if payload.get("hires_fix", False):
-            model_details = (
-                SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
-                if SharedModelManager.manager.compvis
-                else None
-            )
+            baseline = _get_baseline(payload["model_name"])
 
             original_width = pipeline_params.get("empty_latent_image.width")
             original_height = pipeline_params.get("empty_latent_image.height")
 
             if original_width is None or original_height is None:
-                if model_details and _model_prop(model_details, "baseline") == "stable diffusion 1":
+                if baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
                     logger.error("empty_latent_image.width or empty_latent_image.height not found. Using 512x512.")
                     original_width, original_height = (512, 512)
                 else:
@@ -1023,21 +978,18 @@ class HordeLib:
                     original_width, original_height = (1024, 1024)
 
             new_width, new_height = (None, None)
-            baseline = None
-            if model_details:
-                baseline = _model_prop(model_details, "baseline")
-            if baseline:
-                if baseline == "stable_cascade":
+            if baseline is not None:
+                if baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade:
                     new_width, new_height = ImageUtils.get_first_pass_image_resolution_max(
                         original_width,
                         original_height,
                     )
-                elif baseline == "stable_diffusion_xl":
+                elif baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl:
                     new_width, new_height = ImageUtils.get_first_pass_image_resolution_sdxl(
                         original_width,
                         original_height,
                     )
-                else:  # fall through case; only `stable diffusion 1`` at time of writing
+                else:  # fall through case; only `stable_diffusion_1` at time of writing
                     new_width, new_height = ImageUtils.get_first_pass_image_resolution_min(
                         original_width,
                         original_height,
@@ -1058,38 +1010,37 @@ class HordeLib:
 
         if payload.get("control_type"):
             with logfire.span("controlnet.setup", control_type=payload.get("control_type")):
-                # Inject control net model manager
-                # pipeline_params["controlnet_model_loader.model_manager"] = SharedModelManager
-                model_name = self.CONTROLNET_MODEL_MAP.get(payload.get("control_type"))
+                control_type = payload["control_type"]
+                model_name = self.CONTROLNET_MODEL_MAP.get(control_type)
                 if not model_name:
-                    logger.error("Controlnet model not found: control_type={}", payload.get("control_type"))
+                    logger.error("Controlnet model not found: control_type={}", control_type)
                 pipeline_params["controlnet_model_loader.control_net_name"] = model_name
 
-                # Dynamically reconnect nodes in the pipeline to connect the correct pre-processor node
-                if payload.get("return_control_map"):
-                    # Connect annotator to output image directly if we need to return the control map
-                    self.generator.reconnect_input(
-                        pipeline_data,
-                        "output_image.images",
-                        payload["control_type"],
-                    )
-                elif payload.get("image_is_control"):
-                    # Connect source image directly to controlnet apply node
-                    self.generator.reconnect_input(
-                        pipeline_data,
-                        "controlnet_apply.image",
-                        "image_loader.image",
-                    )
+                aux_preprocessor = self.CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(control_type)
+                if not aux_preprocessor:
+                    logger.error("Controlnet preprocessor not found: control_type={}", control_type)
+
+                if payload.get("image_is_control"):
+                    # The source image already is the control map; "none" makes the
+                    # AIO_Preprocessor node pass it through unchanged.
+                    pipeline_params["preprocessor.preprocessor"] = "none"
                 else:
-                    # Connect annotator to controlnet apply node
-                    self.generator.reconnect_input(
-                        pipeline_data,
-                        "controlnet_apply.image",
-                        payload["control_type"],
-                    )
+                    pipeline_params["preprocessor.preprocessor"] = aux_preprocessor
+
+                # Run detection at the generation resolution (the aux node resamples internally)
+                pipeline_params["preprocessor.resolution"] = min(
+                    payload.get("width", 512),
+                    payload.get("height", 512),
+                )
+
+                if payload.get("return_control_map"):
+                    # Return the annotated control map itself rather than a generation
+                    self.generator.reconnect_input(pipeline_data, "output_image.images", "preprocessor")
+
                 logger.info(
                     "controlnet.configured",
                     model_name=model_name,
+                    preprocessor=pipeline_params["preprocessor.preprocessor"],
                     return_control_map=payload.get("return_control_map", False),
                     image_is_control=payload.get("image_is_control", False),
                 )
@@ -1099,8 +1050,7 @@ class HordeLib:
         # the source image instead of the latent noise generator
         if pipeline_params.get("image_loader.image"):
             if SharedModelManager.manager.compvis:
-                model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
-                if _model_prop(model_details, "baseline") == "flux_1":
+                if _get_baseline(payload["model_name"]) in _FLUX_BASELINES:
                     self.generator.reconnect_input(pipeline_data, "sampler_custom_advanced.latent_image", "vae_encode")
                 else:
                     self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
@@ -1200,7 +1150,8 @@ class HordeLib:
                 if not pipeline_params.get("function_layer_prompt.text"):
                     pipeline_params["function_layer_prompt.text"] = payload["prompt"]
                 try:
-                    test_qr = QRByModuleSizeSplitFunctionPatterns()
+                    # ComfyQR registers QRByModuleSizeSplitFunctionPatterns under this node id
+                    test_qr = get_node_class("comfy-qr-by-module-split")()
                     _, _, _, _, _, qr_size = test_qr.generate_qr(
                         protocol=pipeline_params.get("qr_code_split.protocol"),
                         text=pipeline_params["qr_code_split.text"],
@@ -1215,7 +1166,6 @@ class HordeLib:
                 except RuntimeError as err:
                     logger.error(err)
                     pipeline_params["qr_code_split.text"] = "This QR Code is too large for this image"
-                    test_qr = QRByModuleSizeSplitFunctionPatterns()
                     qr_size = 624
 
                 if not pipeline_params.get("qr_flattened_composite.x"):
@@ -1238,12 +1188,10 @@ class HordeLib:
                 pipeline_params["function_layer_composite.y"] = pipeline_params["qr_flattened_composite.y"]
                 pipeline_params["mask_composite.x"] = pipeline_params["qr_flattened_composite.x"]
                 pipeline_params["mask_composite.y"] = pipeline_params["qr_flattened_composite.y"]
-                if SharedModelManager.manager.compvis:
-                    model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
-                    if model_details and _model_prop(model_details, "baseline") == "stable diffusion 1":
-                        pipeline_params["controlnet_qr_model_loader.control_net_name"] = (
-                            "control_v1p_sd15_qrcode_monster_v2.safetensors"
-                        )
+                if _get_baseline(payload["model_name"]) == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
+                    pipeline_params["controlnet_qr_model_loader.control_net_name"] = (
+                        "control_v1p_sd15_qrcode_monster_v2.safetensors"
+                    )
                 logger.info(
                     "qr.configured",
                     qr_text=pipeline_params["qr_code_split.text"],
@@ -1254,87 +1202,49 @@ class HordeLib:
         if payload.get("transparent") is True:
             # A transparent gen is basically a fancy lora
             pipeline_params["model_loader.will_load_loras"] = True
-            if SharedModelManager.manager.compvis:
-                model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model_name"])
-                # SD2, Cascade and SD3 not supported
-                if model_details and _model_prop(model_details, "baseline") in ["stable diffusion 1", "stable_diffusion_xl"]:
-                    self.generator.reconnect_input(pipeline_data, "sampler.model", "layer_diffuse_apply")
-                    self.generator.reconnect_input(pipeline_data, "layer_diffuse_apply.model", "model_loader")
-                    self.generator.reconnect_input(pipeline_data, "output_image.images", "layer_diffuse_decode_rgba")
-                    self.generator.reconnect_input(pipeline_data, "layer_diffuse_decode_rgba.images", "vae_decode")
-                    if payload.get("hires_fix") is True:
-                        self.generator.reconnect_input(pipeline_data, "upscale_sampler.model", "layer_diffuse_apply")
-                    if _model_prop(model_details, "baseline") == "stable diffusion 1":
-                        pipeline_params["layer_diffuse_apply.config"] = "SD15, Attention Injection, attn_sharing"
-                        pipeline_params["layer_diffuse_decode_rgba.sd_version"] = "SD15"
-                    else:
-                        pipeline_params["layer_diffuse_apply.config"] = "SDXL, Conv Injection"
-                        pipeline_params["layer_diffuse_decode_rgba.sd_version"] = "SDXL"
+            baseline = _get_baseline(payload["model_name"])
+            # SD2, Cascade and SD3 not supported
+            if baseline in (
+                KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1,
+                KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl,
+            ):
+                self.generator.reconnect_input(pipeline_data, "sampler.model", "layer_diffuse_apply")
+                self.generator.reconnect_input(pipeline_data, "layer_diffuse_apply.model", "model_loader")
+                self.generator.reconnect_input(pipeline_data, "output_image.images", "layer_diffuse_decode_rgba")
+                self.generator.reconnect_input(pipeline_data, "layer_diffuse_decode_rgba.images", "vae_decode")
+                if payload.get("hires_fix") is True:
+                    self.generator.reconnect_input(pipeline_data, "upscale_sampler.model", "layer_diffuse_apply")
+                if baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
+                    pipeline_params["layer_diffuse_apply.config"] = "SD15, Attention Injection, attn_sharing"
+                    pipeline_params["layer_diffuse_decode_rgba.sd_version"] = "SD15"
+                else:
+                    pipeline_params["layer_diffuse_apply.config"] = "SDXL, Conv Injection"
+                    pipeline_params["layer_diffuse_decode_rgba.sd_version"] = "SDXL"
 
         return pipeline_params, faults
 
     def _get_appropriate_pipeline(self, params):
-        # Determine the correct pipeline based on the parameters we have
-        #
-        # The pipelines are:
-        #
-        #     stable_diffusion
-        #       stable_diffusion_hires_fix
-        #     stable_diffusion_img2img_mask
-        #     stable_diffusion_paint
-        #     controlnet
-        #       controlnet_hires_fix
-        #       controlnet_annotator
-        #     image_facefix
-        #     image_upscale
-        #     stable_cascade
-        #       stable_cascade_remix
-        #       stable_cascade_2pass
-        #     qr_code
-        #     qwen
+        """Select the pipeline for this (compatibility-hacked) payload via the pipeline registry.
 
-        # controlnet, controlnet_hires_fix controlnet_annotator
-        if params.get("workflow") == "qr_code":
-            return "qr_code"
-        if params.get("model_name"):
-            model_details = SharedModelManager.manager.compvis.get_model_reference_info(params["model_name"])
-            if _model_prop(model_details, "baseline") == "stable_cascade":
-                if params.get("source_processing") == "remix":
-                    return "stable_cascade_remix"
-                if params.get("hires_fix", False):
-                    return "stable_cascade_2pass"
-                return "stable_cascade"
-            if _model_prop(model_details, "baseline") == "flux_1":
-                return "flux"
-            if _model_prop(model_details, "baseline") == "qwen_image":
-                logger.debug("Qwen model detected, using qwen pipeline: model_name={}", params["model_name"])
-                return "qwen"
-        if params.get("control_type"):
-            if params.get("return_control_map", False):
-                return "controlnet_annotator"
+        See hordelib.pipeline.families.image for the registered pipelines and their predicates.
+        """
+        from hordelib.pipeline.context import ModelContext
+        from hordelib.pipeline.families.image import DEFAULT_REGISTRY
+        from hordelib.pipeline.payload import ImageGenPayload
 
-            if params.get("hires_fix"):
-                return "controlnet_hires_fix"
+        normalized = ImageGenPayload.from_horde_dict(params)
+        context = ModelContext(
+            horde_model_name=params.get("model_name", ""),
+            baseline=_get_baseline(params["model_name"]) if params.get("model_name") else None,
+        )
 
-            return "controlnet"
-
-        # stable_diffusion_paint, stable_diffusion_img2img_mask
-        if params.get("source_processing") == "img2img":
-            has_mask = params.get("source_mask") or (
-                params.get("source_image") and len(params.get("source_image", "").getbands()) == 4
-            )
-            if has_mask:
-                return "stable_diffusion_img2img_mask"
-        elif params.get("source_processing") == "inpainting":
-            return "stable_diffusion_paint"
-        elif params.get("source_processing") == "outpainting":
-            return "stable_diffusion_paint"
-
-        # stable_diffusion and stable_diffusion_hires_fix
-        if params.get("hires_fix", False):
-            return "stable_diffusion_hires_fix"
-
-        return "stable_diffusion"  # also includes img2img mode
+        template = DEFAULT_REGISTRY.select(normalized, context)
+        if template is None:
+            # The registry's lowest-priority predicate always matches; this is unreachable
+            # unless the registry is misconfigured.
+            logger.error("Pipeline registry selected nothing; falling back to stable_diffusion")
+            return "stable_diffusion"
+        return template.name
 
     def _process_results(
         self,
@@ -1596,7 +1506,9 @@ class HordeLib:
                             ),
                         )
                         logger.warning(
-                            "Failed to parse extra source image, ignoring: index={}, error={}", esi_index, err
+                            "Failed to parse extra source image, ignoring: index={}, error={}",
+                            esi_index,
+                            err,
                         )
                 sub_payload["extra_source_images"] = extra_source_images_sub
 
@@ -1775,7 +1687,9 @@ class HordeLib:
                         else:
                             post_processed.append(
                                 ResultingImageReturn(
-                                    image=final_image, rawpng=final_rawpng, faults=single_image_faults
+                                    image=final_image,
+                                    rawpng=final_rawpng,
+                                    faults=single_image_faults,
                                 ),
                             )
 

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 from enum import auto
 from multiprocessing.synchronize import Lock as multiprocessing_lock
 from pathlib import Path
+from typing import Any, override
 
 import logfire
 import requests
@@ -19,7 +20,6 @@ from fuzzywuzzy import fuzz
 from horde_model_reference import horde_model_reference_paths
 from loguru import logger
 from strenum import StrEnum
-from typing_extensions import override
 
 import hordelib.exceptions as he
 from hordelib.consts import MODEL_CATEGORY_NAMES
@@ -76,7 +76,7 @@ lora_active_threads_gauge = logfire.metric_gauge(
 )
 
 
-class LoraModelManager(BaseModelManager):
+class LoraModelManager(BaseModelManager[dict[str, Any]]):
     LORA_DEFAULTS = (
         "https://raw.githubusercontent.com/Haidra-Org/AI-Horde-image-model-reference/refs/heads/qwen/lora.json"
     )
@@ -805,7 +805,9 @@ class LoraModelManager(BaseModelManager):
             lora_filename = lora["versions"][version]["filename"]
             lora_size_mb = lora["versions"][version]["size_mb"]
             lora_logger = lora_logger.bind(
-                lora_version=version, lora_filename=lora_filename, lora_size_mb=lora_size_mb
+                lora_version=version,
+                lora_filename=lora_filename,
+                lora_size_mb=lora_size_mb,
             )
 
             with logfire.span(
@@ -883,7 +885,8 @@ class LoraModelManager(BaseModelManager):
 
                             http_span.set_attribute("http_duration_s", http_duration)
                             http_span.set_attribute(
-                                "download_speed_mbps", lora_size_mb / http_duration if http_duration > 0 else 0
+                                "download_speed_mbps",
+                                lora_size_mb / http_duration if http_duration > 0 else 0,
                             )
 
                             if "reason=download-auth" in response.url:
@@ -1343,7 +1346,7 @@ class LoraModelManager(BaseModelManager):
                             "Will not attempt to download it again at this time.",
                         )
                     return None
-                return self.model_reference[self.find_lora_key_by_version(model_name)]
+                return self.model_reference[lora_key]
             lora_name = self.fuzzy_find_lora_key(model_name)
             if not lora_name:
                 return None
@@ -1732,7 +1735,10 @@ class LoraModelManager(BaseModelManager):
                 lora = self.get_lora_metadata(url)
             except Exception as e:
                 logger.warning(
-                    "Could not refresh lora metadata: lora_name={}, error_type={}, error={}", lora_name, type(e), e
+                    "Could not refresh lora metadata: lora_name={}, error_type={}, error={}",
+                    lora_name,
+                    type(e),
+                    e,
                 )
                 return False
             latest_version = self.find_latest_version(lora)
@@ -1906,6 +1912,12 @@ class LoraModelManager(BaseModelManager):
             logger.warning("lora.adhoc_invalid_version", lora_name=str(lora_name)[:100])
             return None
         if isinstance(lora_name, int) or lora_name.isdigit():
+            # CivitAI responds with a 500 (rather than a 404) for IDs beyond its ID space,
+            # so reject obviously invalid IDs before making any network requests.
+            if int(lora_name) >= 2**32:
+                logger.debug("Rejecting impossible CivitAI ID without lookup: lora_name={}", lora_name)
+                logger.info("lora.adhoc_invalid_id", lora_name=str(lora_name)[:100])
+                return None
             if is_version:
                 url = f"https://civitai.com/api/v1/model-versions/{lora_name}"
             else:

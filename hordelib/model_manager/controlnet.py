@@ -1,5 +1,6 @@
 from collections.abc import Iterable
 
+from horde_model_reference.model_reference_records import GenericModelRecord
 from loguru import logger
 from strenum import StrEnum
 
@@ -18,7 +19,7 @@ CONTROLNET_BASELINE_APPENDS: dict[CONTROLNET_BASELINE_NAMES | str, str] = {
 }
 
 
-class ControlNetModelManager(BaseModelManager):
+class ControlNetModelManager(BaseModelManager[GenericModelRecord]):
     def __init__(
         self,
         download_reference=False,

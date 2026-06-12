@@ -91,7 +91,9 @@ def initialise(
     )
     if models_not_to_force_load is not None:
         logger.debug("Overriding models_not_to_force_load: models={}", models_not_to_force_load)
-        hordelib.comfy_horde.models_not_to_force_load = models_not_to_force_load.copy()
+        from hordelib.execution import comfy_patches
+
+        comfy_patches.models_not_to_force_load = models_not_to_force_load.copy()
 
     vram_on_start_free = hordelib.comfy_horde.get_torch_free_vram_mb()
     vram_total = hordelib.comfy_horde.get_torch_total_vram_mb()

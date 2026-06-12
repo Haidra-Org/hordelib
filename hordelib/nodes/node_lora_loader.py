@@ -88,12 +88,16 @@ class HordeLoraLoader:
 
                 with logfire.span("lora.apply_to_models"):
                     model_lora, clip_lora = comfy.sd.load_lora_for_models(
-                        model, clip, lora, strength_model, strength_clip
+                        model,
+                        clip,
+                        lora,
+                        strength_model,
+                        strength_clip,
                     )
                 log_free_ram()
                 logger.info("lora.loaded_successfully: lora_name={}", lora_name)
                 return (model_lora, clip_lora)
-        except Exception:
+        except Exception as e:
             logger.bind(lora_name=lora_name).exception("Error loading lora")
             logger.error("lora.load_exception: lora_name={}, error={}", lora_name, str(e))
             return (model, clip)

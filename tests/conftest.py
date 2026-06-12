@@ -179,7 +179,10 @@ def flux1_schnell_fp8_base_model_name(shared_model_manager: type[SharedModelMana
 
 @pytest.fixture(scope="session")
 def qwen_image_fp8_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
-    """The default qwen-iimage fp8 model name used for testing."""
+    """The default qwen-image fp8 model name used for testing."""
+    assert shared_model_manager.manager.compvis is not None
+    if _qwen_fp8_base_model_name not in shared_model_manager.manager.compvis.model_reference:
+        pytest.skip(f"{_qwen_fp8_base_model_name} is not (yet) in the horde model reference")
     return _qwen_fp8_base_model_name
 
 
@@ -218,6 +221,11 @@ def shared_model_manager(
     assert SharedModelManager.manager.compvis is not None
 
     for model_name in _all_model_names:
+        if model_name not in SharedModelManager.manager.compvis.model_reference:
+            # e.g. Qwen-Image_fp8 is not yet in the production model reference; tests
+            # depending on such models skip via their model-name fixtures.
+            print(f"WARNING: {model_name} not in the model reference, skipping download")
+            continue
         assert SharedModelManager.manager.compvis.download_model(model_name)
         assert SharedModelManager.manager.compvis.validate_model(model_name)
 
@@ -334,18 +342,18 @@ def test_loras_loaded(shared_model_manager: type[SharedModelManager]) -> dict[st
 
         # Check if already available - try both as ID and by fuzzy search
         if not is_name and shared_model_manager.manager.lora.is_model_available(lora_id_or_name):
-            print(f"    ✓ Already available")
+            print("    ✓ Already available")
             loaded_loras[description] = lora_id_or_name
             continue
 
         # Also check by fuzzy search for the name
         if shared_model_manager.manager.lora.fuzzy_find_lora_key(lora_id_or_name):
-            print(f"    ✓ Already available (found by name)")
+            print("    ✓ Already available (found by name)")
             loaded_loras[description] = lora_id_or_name
             continue
 
         # Download if not available
-        print(f"    → Downloading...")
+        print("    → Downloading...")
         name = shared_model_manager.manager.lora.fetch_adhoc_lora(lora_id_or_name, timeout=300)
 
         if name is None:
@@ -358,7 +366,7 @@ def test_loras_loaded(shared_model_manager: type[SharedModelManager]) -> dict[st
             print(f"    ✓ Downloaded successfully as '{name}'")
             loaded_loras[description] = name if is_name else lora_id_or_name
         else:
-            print(f"    ✗ Download completed but lora not available")
+            print("    ✗ Download completed but lora not available")
 
     print(f"\n  Loaded {len(loaded_loras)}/{len(test_loras)} test loras")
 
