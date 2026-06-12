@@ -1,5 +1,4 @@
 class ResolutionTestCase:
-
     def __init__(
         self,
         *,

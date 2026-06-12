@@ -12,8 +12,7 @@ class TestDynamicPrompt:
     def test_nested(self):
         seed = 4434453134
         instr = (
-            "the {dog|cat|big monkey|{frog|toad}} is "
-            "{near|{beside|{inside|on}}|around} the {house|building|garden}."
+            "the {dog|cat|big monkey|{frog|toad}} is {near|{beside|{inside|on}}|around} the {house|building|garden}."
         )
         expected = "the frog is on the building."
         result = DynamicPromptParser(seed).parse(instr)

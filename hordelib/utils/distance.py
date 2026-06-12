@@ -69,7 +69,7 @@ class CosineSimilarityResult:
     cosine_similarity: float
 
     def __str__(self) -> str:
-        return f"{self.cosine_similarity} ({self.result_code.name} " f"[-1.0, 1.0]: {self.result_code.value})"
+        return f"{self.cosine_similarity} ({self.result_code.name} [-1.0, 1.0]: {self.result_code.value})"
 
 
 class HistogramDistanceResultCode(float, Enum):

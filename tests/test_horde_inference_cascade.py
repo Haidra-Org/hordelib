@@ -12,7 +12,6 @@ from tests.testing_shared_functions import (
 
 
 class TestHordeInferenceCascade:
-
     @pytest.fixture(scope="function", autouse=True)
     def cleanup_models(self, hordelib_instance: HordeLib):
         yield

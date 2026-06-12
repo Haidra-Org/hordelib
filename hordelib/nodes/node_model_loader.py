@@ -3,6 +3,7 @@
 
 import time
 from pathlib import Path
+from typing import Any
 
 import comfy.model_management
 import comfy.sd
@@ -187,7 +188,7 @@ class HordeCheckpointLoader:
 
             if file_type in COMPONENT_FILE_TYPES:
                 with logfire.span("model.load_diffusion_model", file_type=file_type):
-                    model_options = {}
+                    model_options: dict[str, Any] = {}
                     if weight_dtype == "fp8_e4m3fn":
                         model_options["dtype"] = torch.float8_e4m3fn
                     elif weight_dtype == "fp8_e4m3fn_fast":

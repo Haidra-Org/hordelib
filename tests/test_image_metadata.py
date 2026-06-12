@@ -8,7 +8,6 @@ from hordelib.horde import HordeLib
 
 
 class TestHordeInferenceMetadata:
-
     @pytest.mark.default_sd15_model
     def test_text_to_image(
         self,

@@ -242,6 +242,7 @@ ignore=[
     "A002", # Argument `x` is shadowing a python builtin
     "A001", # Variable `x` is shadowing a python builtin
     "INP001", # ... is part of an implicit namespace package. Add an `__init__.py`.
+    "COM812", # The following rule may cause conflicts when used with the formatter: `COM812`. To avoid unexpected behavior, we recommend disabling this rule
 ]
 select = [
     "A",    # flake8-builtins

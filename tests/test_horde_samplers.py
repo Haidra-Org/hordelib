@@ -12,7 +12,6 @@ SLOW_SAMPLERS = ["k_dpmpp_2s_a", "k_heun", "k_dpm_2", "k_dpm_2_a"]  # "k_dpmpp_s
 
 
 class TestHordeSamplers:
-
     @pytest.mark.default_sd15_model
     def test_ddim_sampler(
         self,

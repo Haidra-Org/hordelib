@@ -168,8 +168,8 @@ def test_one_by_one(model_filename):
         print(f"{predicted} predicted, {actual} actual ({round(percentage_accuracy, 1)}%)")
 
     avg_perc = round(sum(perc) / len(perc), 1)
-    print(f"Average kudos calculation time {round((total_time*1000000)/len(perc))} micro-seconds")
-    print(f"Average actual job time in the dataset {round(total_job_time/len(perc), 2)} seconds")
+    print(f"Average kudos calculation time {round((total_time * 1000000) / len(perc))} micro-seconds")
+    print(f"Average actual job time in the dataset {round(total_job_time / len(perc), 2)} seconds")
     print(f"Average accuracy = {avg_perc}%")
 
 

@@ -1,8 +1,3 @@
-from collections.abc import Generator
-
-import pytest
-
-from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.shared_model_manager import SharedModelManager
 
 

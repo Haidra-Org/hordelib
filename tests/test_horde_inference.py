@@ -9,7 +9,6 @@ from .testing_shared_functions import check_list_inference_images_similarity, ch
 
 
 class TestHordeInference:
-
     @pytest.mark.default_sd15_model
     def test_text_to_image(
         self,

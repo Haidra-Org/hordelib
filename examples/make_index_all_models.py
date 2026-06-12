@@ -81,7 +81,7 @@ TEMPLATE = """
 def href(filename):
     return (
         f'<a href="{filename}"><figure><img class="thumbnail" src="{filename}">'
-        f'<figcaption>{filename.replace(".png", "")}</figcaption></figure></a>'
+        f"<figcaption>{filename.replace('.png', '')}</figcaption></figure></a>"
     )
 
 

@@ -9,7 +9,6 @@ from .testing_shared_functions import check_single_inference_image_similarity
 
 
 class TestHordeInferenceTransparent:
-
     @pytest.mark.default_sd15_model
     def test_layerdiffuse_sd15(
         self,

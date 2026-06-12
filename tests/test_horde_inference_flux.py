@@ -10,7 +10,6 @@ from .testing_shared_functions import check_list_inference_images_similarity, ch
 
 
 class TestHordeInferenceFlux:
-
     @pytest.mark.default_flux1_model
     def test_flux_schnell_fp8_text_to_image(
         self,
