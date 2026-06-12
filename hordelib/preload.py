@@ -20,8 +20,11 @@ _preload_completed = False
 def download_all_controlnet_annotators() -> bool:
     """Download (and verify by running) all controlnet annotators hordelib supports.
 
-    Requires ``hordelib.initialise()`` to have completed and custom nodes to be loaded
-    (i.e. a ``Comfy_Horde``/``HordeLib`` instance must have been constructed).
+    Requires ``hordelib.initialise()`` to have completed. A ``HordeLib`` instance is
+    constructed here if one does not already exist, since custom nodes (the
+    ``comfyui_controlnet_aux`` package that registers ``AIO_Preprocessor``) are only
+    loaded when the ``Comfy_Horde`` backend is built — ``initialise()`` alone does not
+    register them.
 
     Returns:
         bool: True if all annotators are available and runnable, False otherwise.
@@ -36,6 +39,12 @@ def download_all_controlnet_annotators() -> bool:
 
             from hordelib.comfy_horde import get_node_class
             from hordelib.horde import HordeLib
+
+            # Constructing the HordeLib singleton starts the ComfyUI backend, which loads
+            # the custom nodes that register AIO_Preprocessor. Idempotent: an existing
+            # instance is reused. Without this, a caller that only ran initialise() (e.g.
+            # the worker's download_models flow) would find AIO_Preprocessor unregistered.
+            HordeLib()
 
             aio_preprocessor_class = get_node_class("AIO_Preprocessor")
 

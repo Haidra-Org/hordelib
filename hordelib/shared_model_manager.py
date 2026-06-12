@@ -143,8 +143,8 @@ class SharedModelManager:
     def preload_annotators() -> bool:
         """Preload all controlnet annotators (the comfyui_controlnet_aux detector checkpoints).
 
-        Requires hordelib.initialise() to have completed and a HordeLib/Comfy_Horde instance to
-        exist (custom nodes must be loaded).
+        Requires hordelib.initialise() to have completed. A HordeLib instance is constructed
+        on demand if needed, so the custom nodes are guaranteed to be loaded.
 
         Returns:
             bool: True if the annotators downloaded (or were already present) and run correctly.
