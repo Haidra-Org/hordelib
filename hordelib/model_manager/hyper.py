@@ -167,6 +167,7 @@ class ModelManager:
         self,
         managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
         multiprocessing_lock: multiprocessing_lock | None = None,
+        lora_reference_backups: bool | None = None,
     ) -> None:
         for manager_to_load in managers_to_load:
             resolve_manager_to_load_type: type[BaseModelManager] | None = None
@@ -193,12 +194,14 @@ class ModelManager:
                     manager_type=resolve_manager_to_load_type.__name__,
                 )
                 continue
-            self.active_model_managers.append(
-                resolve_manager_to_load_type(
-                    multiprocessing_lock=multiprocessing_lock,
-                    civitai_api_token=os.getenv("CIVIT_API_TOKEN", None),
-                ),
-            )
+            manager_kwargs: dict = {
+                "multiprocessing_lock": multiprocessing_lock,
+                "civitai_api_token": os.getenv("CIVIT_API_TOKEN", None),
+            }
+            if resolve_manager_to_load_type is LoraModelManager and lora_reference_backups is not None:
+                manager_kwargs["reference_backups"] = lora_reference_backups
+
+            self.active_model_managers.append(resolve_manager_to_load_type(**manager_kwargs))
 
     def unload_model_managers(
         self,

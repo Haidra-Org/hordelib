@@ -1,8 +1,4 @@
-"""Clamp/coerce semantics of the typed payload models. No GPU required.
-
-``HordeLib._validate_data_structure`` is a thin wrapper over these models; its dict-shaped
-contract is covered by ``tests/test_payload_mapping.py``.
-"""
+"""Clamp/coerce semantics of the typed payload models. No GPU required."""
 
 import PIL.Image
 import pytest
@@ -103,8 +99,8 @@ class TestSubEntryDropping:
         assert payload.loras == []
 
 
-class TestValidateDataStructureWrapper:
-    """``HordeLib._validate_data_structure`` must keep its legacy dict-shaped contract."""
+class TestDictDumpContract:
+    """``model_dump`` keeps the dict shape that wire-format consumers rely on."""
 
     CASES = [
         {"cfg_scale": 1000.5, "width": 513, "sampler_name": "K_EULER_A"},
@@ -116,28 +112,17 @@ class TestValidateDataStructureWrapper:
     ]
 
     @pytest.mark.parametrize("case", CASES)
-    def test_wrapper_returns_dumped_model(self, case):
-        from hordelib.horde import HordeLib
-
-        wrapper_self = object.__new__(HordeLib)  # bypass the singleton machinery
-        result = HordeLib._validate_data_structure(wrapper_self, dict(case))
-        expected = ImageGenPayload.from_horde_dict(dict(case)).model_dump(warnings=False)
-
+    def test_dump_round_trips(self, case):
+        result = ImageGenPayload.from_horde_dict(dict(case)).model_dump(warnings=False)
         assert isinstance(result, dict)
-        for key in expected:
-            if key == "seed" and "seed" not in case:
-                continue  # randomized per call
-            assert result[key] == expected[key], f"Mismatch for {key}"
+        # The dump must be re-validatable (faulty values were already clamped/coerced)
+        revalidated = ImageGenPayload.from_horde_dict(dict(result)).model_dump(warnings=False)
+        assert revalidated == result
 
     def test_sub_entries_are_plain_dicts(self):
-        from hordelib.horde import HordeLib
-
-        wrapper_self = object.__new__(HordeLib)
-        result = HordeLib._validate_data_structure(
-            wrapper_self,
+        result = ImageGenPayload.from_horde_dict(
             {"loras": [{"name": "a_lora", "model": 0.5}], "tis": [{"name": "a_ti"}]},
-        )
-        # The legacy parameter-translation path mutates these entries in place
+        ).model_dump(warnings=False)
         assert result["loras"] == [
             {"name": "a_lora", "model": 0.5, "clip": 1.0, "inject_trigger": None, "is_version": None},
         ]

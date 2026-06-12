@@ -205,7 +205,7 @@ Save any new pipeline in `hordelib/pipeline_designs` using the naming convention
 
 Convert the JSON for the model (see _Converting ComfyUI pipelines_ below) and save the resulting JSON in `hordelib/pipelines` using the same filename as the previous JSON file.
 
-That is all. This can then be called from `hordelib` using the `run_image_pipeline()` method in `hordelib.comfy.Comfy()`
+That is all. Pipeline JSON files are loaded with `hordelib.pipeline.graph.ComfyGraph.from_file()` (which applies Horde node replacements and title renaming) and registered as templates in `hordelib/pipeline/families/`; a materialized graph is executed via the `ExecutionBackend.run_pipeline()` protocol (`hordelib/execution/`).
 
 ### Converting ComfyUI pipelines
 

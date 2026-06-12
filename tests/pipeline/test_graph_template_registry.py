@@ -88,7 +88,7 @@ class TestPipelineTemplate:
         payload = ImageGenPayload.from_horde_dict(
             {"ddim_steps": 21, "cfg_scale": 5.0, "width": 640, "prompt": "a test"},
         )
-        graph = self._template().materialize(payload)
+        graph = self._template().materialize(payload, ANY_CONTEXT)
         sampler_inputs = graph.node("sampler")["inputs"]
         assert sampler_inputs["steps"] == 21
         assert sampler_inputs["cfg"] == 5.0
@@ -98,7 +98,7 @@ class TestPipelineTemplate:
         assert graph.node("prompt")["inputs"]["text"] == "a test"
 
     def test_materialize_runs_patch_steps(self):
-        def add_marker(graph, payload):
+        def add_marker(graph, payload, context):
             graph.set_input("sampler.marker", payload.n_iter)
 
         template = PipelineTemplate(
@@ -107,7 +107,7 @@ class TestPipelineTemplate:
             bindings=(),
             patch_steps=(add_marker,),
         )
-        graph = template.materialize(ImageGenPayload.from_horde_dict({"n_iter": 3}))
+        graph = template.materialize(ImageGenPayload.from_horde_dict({"n_iter": 3}), ANY_CONTEXT)
         assert graph.node("sampler")["inputs"]["marker"] == 3
 
     def test_binding_requires_exactly_one_source(self):
@@ -119,8 +119,8 @@ class TestPipelineTemplate:
     def test_materialize_returns_fresh_graph(self):
         template = self._template()
         payload = ImageGenPayload.from_horde_dict({"ddim_steps": 11})
-        first = template.materialize(payload)
-        second = template.materialize(ImageGenPayload.from_horde_dict({"ddim_steps": 22}))
+        first = template.materialize(payload, ANY_CONTEXT)
+        second = template.materialize(ImageGenPayload.from_horde_dict({"ddim_steps": 22}), ANY_CONTEXT)
         assert first.node("sampler")["inputs"]["steps"] == 11
         assert second.node("sampler")["inputs"]["steps"] == 22
 

@@ -1,8 +1,8 @@
-from hordelib.horde import HordeLib
+from hordelib.pipeline.payload import ImageGenPayload
 
 
 class TestPayloadMapping:
-    def test_validate_payload_with_lora(self, hordelib_instance: HordeLib):
+    def test_validate_payload_with_lora(self):
         data = {
             "sampler_name": "k_lms",
             "cfg_scale": 5,
@@ -24,8 +24,7 @@ class TestPayloadMapping:
         }
 
         # Missing key
-        result = data.copy()
-        result = hordelib_instance._validate_data_structure(result)
+        result = ImageGenPayload.from_horde_dict(data.copy()).model_dump(warnings=False)
         assert "loras" in result, "Failed to fix missing lora attribute in payload"
 
         # Bad and good lora
@@ -37,8 +36,7 @@ class TestPayloadMapping:
                 "clip": 0.4,
             },
         ]
-        result = data.copy()
-        result = hordelib_instance._validate_data_structure(result)
+        result = ImageGenPayload.from_horde_dict(data.copy()).model_dump(warnings=False)
         assert "loras" in result, "Lost the lora attribute in our payload"
         assert isinstance(result["loras"], list), "Lora attribute is not a list"
         assert len(result["loras"]) == 1, "Unexpected number of loras in payload"

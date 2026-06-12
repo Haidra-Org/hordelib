@@ -29,13 +29,6 @@ class InProcessComfyBackend:
         self._aggressive_unloading = aggressive_unloading
         self._comfy: Any | None = None
 
-    @classmethod
-    def from_comfy_horde(cls, comfy_horde: Any) -> "InProcessComfyBackend":
-        """Wrap an existing ``Comfy_Horde`` instance (transitional, for HordeLib)."""
-        backend = cls()
-        backend._comfy = comfy_horde
-        return backend
-
     def start(self) -> None:
         import hordelib
 
@@ -72,24 +65,6 @@ class InProcessComfyBackend:
         assert self._comfy is not None
 
         results = self._comfy.run_image_pipeline(graph, {}, progress_callback)
-        return self._to_artifacts(results)
-
-    def run_named_pipeline(
-        self,
-        pipeline_name: str,
-        params: dict[str, Any],
-        *,
-        progress_callback: ProgressCallback | None = None,
-    ) -> list[OutputArtifact]:
-        """Transitional: run one of the packaged pipelines with dotted parameters.
-
-        This exists until the typed pipeline layer materializes full graphs itself
-        (refactor P4), at which point only :meth:`run_pipeline` remains.
-        """
-        self._ensure_started()
-        assert self._comfy is not None
-
-        results = self._comfy.run_image_pipeline(pipeline_name, params, progress_callback)
         return self._to_artifacts(results)
 
     @staticmethod

@@ -40,6 +40,52 @@ which can be passed to comfyui's `load_models_gpu` function (as a `ModelPatcher.
 
 disable_force_loading: bool = False
 
+BASELINE_FORCE_LOAD_CLASS_FRAGMENTS: dict = {}
+"""``KNOWN_IMAGE_GENERATION_BASELINE`` -> comfy model class-name fragment for the skip list.
+
+hordelib owns the knowledge of which comfy class implements which horde baseline; consumers
+(the worker) express force-load policy in baseline enum members and never ship raw fragments.
+Populated lazily to keep this module importable without horde_model_reference.
+"""
+
+
+def _baseline_fragments() -> dict:
+    if not BASELINE_FORCE_LOAD_CLASS_FRAGMENTS:
+        from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
+
+        BASELINE_FORCE_LOAD_CLASS_FRAGMENTS.update(
+            {
+                KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade: "cascade",
+                KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl: "sdxl",
+                KNOWN_IMAGE_GENERATION_BASELINE.flux_1: "flux",
+                KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell: "flux",
+                KNOWN_IMAGE_GENERATION_BASELINE.flux_dev: "flux",
+                KNOWN_IMAGE_GENERATION_BASELINE.qwen_image: "qwen_image",
+            },
+        )
+    return BASELINE_FORCE_LOAD_CLASS_FRAGMENTS
+
+
+def resolve_force_load_skip_entries(entries: list) -> list[str]:
+    """Translate a mixed list of baseline enum members and raw fragments to skip fragments.
+
+    Raw strings pass through unchanged (back-compat); baselines without a known comfy class
+    fragment are skipped with a warning.
+    """
+    fragments: list[str] = []
+    mapping = _baseline_fragments()
+    for entry in entries:
+        if isinstance(entry, str) and entry not in mapping:
+            fragments.append(entry)
+            continue
+        fragment = mapping.get(entry)
+        if fragment is None:
+            logger.warning("No comfy class fragment known for baseline; ignoring: baseline={}", entry)
+            continue
+        if fragment not in fragments:
+            fragments.append(fragment)
+    return fragments
+
 
 def capture_and_patch(name: str, module: typing.Any, attr: str, hijack: Callable) -> None:
     """Capture the original ``module.attr`` under ``name`` and install the hijack."""

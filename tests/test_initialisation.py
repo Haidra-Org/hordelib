@@ -10,7 +10,7 @@ def test_find_comfyui(init_horde):
 
 
 def test_instantiation(hordelib_instance: HordeLib):
-    assert isinstance(hordelib_instance.generator, Comfy_Horde)
+    assert isinstance(hordelib_instance.backend.comfy_horde, Comfy_Horde)
 
 
 def test_path():  # XXX

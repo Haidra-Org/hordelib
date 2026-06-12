@@ -38,7 +38,8 @@ def initialise(
         force_low_vram (bool, optional): Whether to forcibly disable ComfyUI's high/med vram modes. Defaults to False.
         extra_comfyui_args (list[str] | None, optional): Any additional CLI args for comfyui that should be used. \
             Defaults to None.
-        models_not_to_force_load (list[str] | None, optional): A list of baselines that should not be force loaded.\
+        models_not_to_force_load (list[str] | None, optional): Models that should not be force loaded, as \
+            ``KNOWN_IMAGE_GENERATION_BASELINE`` members (preferred) or raw comfy class-name fragments. \
             **If this is `None`, the defaults are used.** If you wish to override the defaults, pass an empty list. \
             Defaults to None.
     """
@@ -60,7 +61,7 @@ def initialise(
     if not RELEASE_VERSION and " " in str(get_hordelib_path()):
         # Our runtime patching can't handle this
         raise Exception(
-            "Do not run this project in developer mode from a path that " "contains spaces in directory names.",
+            "Do not run this project in developer mode from a path that contains spaces in directory names.",
         )
 
     # Ensure we have ComfyUI (and any manifest-pinned custom nodes)
@@ -93,7 +94,10 @@ def initialise(
         logger.debug("Overriding models_not_to_force_load: models={}", models_not_to_force_load)
         from hordelib.execution import comfy_patches
 
-        comfy_patches.models_not_to_force_load = models_not_to_force_load.copy()
+        # Entries may be horde baseline enum members (preferred) or raw comfy class fragments
+        comfy_patches.models_not_to_force_load = comfy_patches.resolve_force_load_skip_entries(
+            list(models_not_to_force_load),
+        )
 
     vram_on_start_free = hordelib.comfy_horde.get_torch_free_vram_mb()
     vram_total = hordelib.comfy_horde.get_torch_total_vram_mb()

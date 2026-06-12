@@ -95,18 +95,18 @@ class TestHordeTI:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        payload, _, _ = hordelib_instance._get_validated_payload_and_pipeline_data(data)
+        graph, _, _, _ = hordelib_instance._materialize_image_graph(dict(data))
+        basic_graph, _, _, _ = hordelib_instance._materialize_image_graph(dict(basic_ti_payload_data))
 
-        basic_payload, _, _ = hordelib_instance._get_validated_payload_and_pipeline_data(
-            basic_ti_payload_data,
-        )
+        prompt_text = graph.node("prompt")["inputs"]["text"]
+        negative_prompt_text = graph.node("negative_prompt")["inputs"]["text"]
 
-        assert payload["prompt.text"] == basic_payload["prompt.text"]
-        assert payload["negative_prompt.text"] == basic_payload["negative_prompt.text"]
+        assert prompt_text == basic_graph.node("prompt")["inputs"]["text"]
+        assert negative_prompt_text == basic_graph.node("negative_prompt")["inputs"]["text"]
 
-        assert "(embedding:7523:1.0)" in payload["prompt.text"]
-        assert "(embedding:7808:0.5)" in payload["negative_prompt.text"]
-        assert "(embedding:64870:1.0)" in payload["negative_prompt.text"]
+        assert "(embedding:7523:1.0)" in prompt_text
+        assert "(embedding:7808:0.5)" in negative_prompt_text
+        assert "(embedding:64870:1.0)" in negative_prompt_text
 
         pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None
@@ -153,11 +153,11 @@ class TestHordeTI:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        payload, _, _ = hordelib_instance._get_validated_payload_and_pipeline_data(data)
+        graph, _, _, _ = hordelib_instance._materialize_image_graph(dict(data))
 
-        assert "(embedding:7523:1.0)" in payload["prompt.text"]
-        assert "(embedding:7808:0.5)" in payload["negative_prompt.text"]
-        assert "(embedding:64870:1.0)" in payload["negative_prompt.text"]
+        assert "(embedding:7523:1.0)" in graph.node("prompt")["inputs"]["text"]
+        assert "(embedding:7808:0.5)" in graph.node("negative_prompt")["inputs"]["text"]
+        assert "(embedding:64870:1.0)" in graph.node("negative_prompt")["inputs"]["text"]
 
         pil_image = hordelib_instance.basic_inference_single_image(data).image
         assert pil_image is not None

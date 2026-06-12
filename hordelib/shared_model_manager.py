@@ -59,6 +59,7 @@ class SharedModelManager:
         managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = ALL_MODEL_MANAGER_TYPES,
         *,
         multiprocessing_lock: multiprocessing_lock | None = None,
+        lora_reference_backups: bool | None = None,
     ):
         """Load the model managers specified.
 
@@ -69,6 +70,9 @@ class SharedModelManager:
             multiprocessing_lock (multiprocessing_lock | None, optional): If you are using multiprocessing, \
                 you should pass a lock here. \
                 Defaults to None.
+            lora_reference_backups (bool | None, optional): Whether the LoRA manager writes backup \
+                copies when saving its reference to disk. Defaults to None (backups on when a \
+                multiprocessing lock is in use).
         """
         if cls.manager is None:
             cls.manager = ModelManager()
@@ -87,6 +91,7 @@ class SharedModelManager:
         cls.manager.init_model_managers(
             managers_to_load,
             multiprocessing_lock=multiprocessing_lock,
+            lora_reference_backups=lora_reference_backups,
         )
 
     @classmethod

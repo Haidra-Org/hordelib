@@ -52,6 +52,15 @@ class ComfyGraph:
         """Return a deep copy of this graph (templates hand out copies for mutation)."""
         return ComfyGraph(copy.deepcopy(self._graph))
 
+    @property
+    def raw(self) -> GraphDict:
+        """The underlying title-keyed graph dict (mutable view).
+
+        For patch steps that delegate to the pure dict-level functions in
+        :mod:`hordelib.pipeline.patches`; everything else should use the typed methods.
+        """
+        return self._graph
+
     def has_node(self, title: str) -> bool:
         return title in self._graph
 

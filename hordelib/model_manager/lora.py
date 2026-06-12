@@ -111,6 +111,7 @@ class LoraModelManager(BaseModelManager[dict[str, Any]]):
         download_wait=False,
         multiprocessing_lock: multiprocessing_lock | None = None,
         civitai_api_token: str | None = None,
+        reference_backups: bool | None = None,
     ):
         manager_logger = logger.bind(manager="lora")
         manager_logger.debug(
@@ -152,6 +153,12 @@ class LoraModelManager(BaseModelManager[dict[str, Any]]):
 
         if multiprocessing_lock:
             self._using_multiprocessing = True
+
+        if reference_backups is not None:
+            # Whether save_cached_reference_to_disk writes timestamped backup copies. Consumers
+            # that coordinate reference saves themselves (e.g. the worker, which only saves from
+            # one process) disable this instead of poking _using_multiprocessing.
+            self._using_multiprocessing = reference_backups
 
         self._file_lock = multiprocessing_lock or nullcontext()
 
@@ -250,7 +257,7 @@ class LoraModelManager(BaseModelManager[dict[str, Any]]):
                             )
                             continue
                         lora_key = Sanitizer.sanitise_model_name(lora["orig_name"]).lower().strip()
-                        lora_filename = f'{Sanitizer.sanitise_filename(lora["orig_name"])}_{lora["version_id"]}'
+                        lora_filename = f"{Sanitizer.sanitise_filename(lora['orig_name'])}_{lora['version_id']}"
                         version = {
                             "filename": f"{lora_filename}.safetensors",
                             "sha256": lora["sha256"],
@@ -681,7 +688,7 @@ class LoraModelManager(BaseModelManager[dict[str, Any]]):
         for file in version.get("files", {}):
             if file.get("primary", False) and file.get("name", "").endswith(".safetensors"):
                 sanitized_name = Sanitizer.sanitise_model_name(lora_name)
-                lora_filename = f'{Sanitizer.sanitise_filename(lora_name)[0:128]}_{version.get("id", 0)}'
+                lora_filename = f"{Sanitizer.sanitise_filename(lora_name)[0:128]}_{version.get('id', 0)}"
                 lora_key = sanitized_name.lower().strip()
                 lora["name"] = lora_key
                 lora["orig_name"] = lora_name
@@ -695,9 +702,9 @@ class LoraModelManager(BaseModelManager[dict[str, Any]]):
                 try:
                     lora["versions"][lora_version]["size_mb"] = round(file.get("sizeKB", 0) / 1024)
                 except TypeError:
-                    lora["versions"][lora_version][
-                        "size_mb"
-                    ] = 144  # guess common case of 144MB, it's not critical here
+                    lora["versions"][lora_version]["size_mb"] = (
+                        144  # guess common case of 144MB, it's not critical here
+                    )
                     parse_logger.debug(
                         "lora.parse_size_missing",
                         lora_name=lora.get("name"),
@@ -1683,7 +1690,7 @@ class LoraModelManager(BaseModelManager[dict[str, Any]]):
             logger.info(
                 f"Adhoc loras cache is full. Initiating cleanup of {self.amount_of_adhoc_loras_to_delete()}. "
                 "The current adhoc cache is at "
-                f"{round(self.calculate_adhoc_loras_cache() / 1024,1)}/{self.max_adhoc_disk}G",
+                f"{round(self.calculate_adhoc_loras_cache() / 1024, 1)}/{self.max_adhoc_disk}G",
             )
             for _lora_iter in range(self.amount_of_adhoc_loras_to_delete()):
                 self.delete_oldest_lora()
@@ -1905,7 +1912,7 @@ class LoraModelManager(BaseModelManager[dict[str, Any]]):
         )
 
         logger.debug(
-            f"fetch_adhoc_lora() called with lora_name={lora_name}, " f"timeout={timeout}, is_version={is_version},",
+            f"fetch_adhoc_lora() called with lora_name={lora_name}, timeout={timeout}, is_version={is_version},",
         )
         if is_version and not isinstance(lora_name, int) and not lora_name.isdigit():
             logger.debug("Lora version requested, but lora name is not an integer")

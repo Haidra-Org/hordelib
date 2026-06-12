@@ -4,48 +4,37 @@ from __future__ import annotations
 
 import base64
 import io
-import json
-import random
 import time
-import typing
 from collections.abc import Callable
-from copy import deepcopy
 from enum import Enum, auto
-from types import FunctionType
 
 import logfire
-from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE, get_baseline_native_resolution
-from horde_model_reference.model_reference_records import ImageGenerationModelRecord
 from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from horde_sdk.ai_horde_api.apimodels.base import (
     GenMetadataEntry,
 )
 from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
-from horde_sdk.generation_parameters.alchemy.consts import KNOWN_FACEFIXERS, KNOWN_UPSCALERS
+from horde_sdk.generation_parameters.alchemy.consts import KNOWN_FACEFIXERS
 from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
 
-from hordelib.comfy_horde import Comfy_Horde, get_node_class
-from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.execution.in_process import InProcessComfyBackend
 from hordelib.pipeline import constants as pipeline_constants
-from hordelib.pipeline.patches import (
-    RemixImage,
-    ResolvedLora,
-    apply_layerdiffuse,
-    configure_controlnet,
-    hires_fix_first_pass_resolution,
-    insert_lora_chain,
-    insert_remix_image_chain,
-    qr_layout_params,
-    qr_params_from_extra_texts,
-    rewire_cascade_img2img,
-    rewire_img2img,
-)
+from hordelib.pipeline.context import ModelContext
+from hordelib.pipeline.families.post_processing import POST_PROCESSING_REGISTRY
+from hordelib.pipeline.graph import ComfyGraph
 from hordelib.pipeline.payload import ImageGenPayload
-from hordelib.shared_model_manager import SharedModelManager
-from hordelib.utils.dynamicprompt import DynamicPromptParser
+from hordelib.pipeline.payload_pp import (
+    FacefixPayload,
+    PostProcessingPayload,
+    PostProcessorKind,
+    StripBackgroundPayload,
+    UpscalePayload,
+    classify_post_processor,
+    post_processing_payload_from_horde_dict,
+)
+from hordelib.pipeline.resolution import resolve_post_processing_model
 from hordelib.utils.image_utils import ImageUtils
 from hordelib.utils.ioredirect import ComfyUIProgress
 
@@ -97,85 +86,6 @@ class ResultingImageReturn:
         self.faults = faults
 
 
-def _get_compvis_record(model_name: str) -> ImageGenerationModelRecord | None:
-    """Return the image-generation record for a horde model name, or ``None`` if unknown.
-
-    Goes through the compvis manager (rather than the reference manager directly) so that
-    custom models from ``HORDELIB_CUSTOM_MODELS`` are included.
-    """
-    compvis = SharedModelManager.manager.compvis if SharedModelManager.manager is not None else None
-    if compvis is None:
-        return None
-    return compvis.get_model_reference_info(model_name)
-
-
-def _get_baseline(model_name: str) -> KNOWN_IMAGE_GENERATION_BASELINE | None:
-    """Return the normalized baseline for a horde model name, or ``None`` if unknown."""
-    record = _get_compvis_record(model_name)
-    if record is None:
-        return None
-    try:
-        return KNOWN_IMAGE_GENERATION_BASELINE(record.baseline)
-    except ValueError:
-        logger.warning("Model has an unrecognized baseline: model={}, baseline={}", model_name, record.baseline)
-        return None
-
-
-_FLUX_BASELINES = frozenset(
-    {
-        KNOWN_IMAGE_GENERATION_BASELINE.flux_1,
-        KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell,
-        KNOWN_IMAGE_GENERATION_BASELINE.flux_dev,
-    },
-)
-
-
-def _calc_upscale_sampler_steps(
-    payload: dict,
-) -> int:
-    """Use `ImageUtils.calc_upscale_sampler_steps(...)` to calculate the number of steps for the upscale sampler.
-
-    Args:
-        payload (dict): The payload to use for the calculation.
-
-    Returns:
-        int: The number of steps to use.
-    """
-    model_name = payload.get("model_name")
-    native_resolution = None
-    if model_name is not None:
-        baseline = _get_baseline(model_name)
-        if baseline is not None:
-            native_resolution = get_baseline_native_resolution(baseline)
-        else:
-            logger.warning(
-                "Cannot determine baseline for upscale step calculation: model_name={}",
-                model_name,
-            )
-
-    width: int | None = payload.get("width")
-    height: int | None = payload.get("height")
-    hires_fix_denoising_strength: float | None = payload.get("hires_fix_denoising_strength")
-    ddim_steps: int | None = payload.get("ddim_steps")
-
-    if width is None or height is None:
-        raise ValueError("Width and height must be set to calculate upscale sampler steps")
-
-    if hires_fix_denoising_strength is None:
-        raise ValueError("Hires fix denoising strength must be set to calculate upscale sampler steps")
-
-    if ddim_steps is None:
-        raise ValueError("DDIM steps must be set to calculate upscale sampler steps")
-
-    return ImageUtils.calc_upscale_sampler_steps(
-        model_native_resolution=native_resolution,
-        width=width,
-        height=height,
-        hires_fix_denoising_strength=hires_fix_denoising_strength,
-        ddim_steps=ddim_steps,
-    )
-
-
 # Module-level metrics for inference performance tracking
 inference_duration_histogram = logfire.metric_histogram(
     "horde.inference.duration_ms",
@@ -208,91 +118,6 @@ class HordeLib:
     SOURCE_IMAGE_PROCESSING_OPTIONS = pipeline_constants.SOURCE_IMAGE_PROCESSING_OPTIONS
     SCHEDULERS = pipeline_constants.SCHEDULERS
 
-    # pipeline parameter <- hordelib payload parameter mapping
-    PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING: dict[str, str | Callable] = {  # FIXME
-        "sampler.sampler_name": "sampler_name",
-        "sampler.cfg": "cfg_scale",
-        "sampler.denoise": "denoising_strength",
-        "sampler.seed": "seed",
-        "sampler.noise_seed": "seed",
-        "empty_latent_image.height": "height",
-        "empty_latent_image.width": "width",
-        "sampler.scheduler": "scheduler",
-        "clip_skip.stop_at_clip_layer": "clip_skip",
-        "prompt.text": "prompt",
-        "negative_prompt.text": "negative_prompt",
-        "sampler.steps": "ddim_steps",
-        "empty_latent_image.batch_size": "n_iter",
-        "repeat_image_batch.amount": "n_iter",
-        "model_loader.ckpt_name": "model",
-        "model_loader.model_name": "model",
-        "model_loader.horde_model_name": "model_name",
-        "model_loader.seamless_tiling_enabled": "tiling",
-        "image_loader.image": "source_image",
-        "loras": "loras",
-        "tis": "tis",
-        "upscale_sampler.denoise": "hires_fix_denoising_strength",
-        "upscale_sampler.seed": "seed",
-        "upscale_sampler.cfg": "cfg_scale",
-        "upscale_sampler.steps": _calc_upscale_sampler_steps,
-        "upscale_sampler.sampler_name": "sampler_name",
-        "controlnet_apply.strength": "control_strength",
-        "controlnet_model_loader.control_net_name": "control_type",
-        # Flux
-        "cfg_guider.cfg": "cfg_scale",
-        "random_noise.noise_seed": "seed",
-        "k_sampler_select.sampler_name": "sampler_name",
-        "basic_scheduler.denoise": "denoising_strength",
-        "basic_scheduler.steps": "ddim_steps",
-        # Stable Cascade
-        "stable_cascade_empty_latent_image.width": "width",
-        "stable_cascade_empty_latent_image.height": "height",
-        "stable_cascade_empty_latent_image.batch_size": "n_iter",
-        "sc_image_loader.image": "source_image",
-        "sc_image_loader_0.image": "source_image",
-        "sampler_stage_c.sampler_name": "sampler_name",
-        "sampler_stage_b.sampler_name": "sampler_name",
-        "sampler_stage_c.cfg": "cfg_scale",
-        "sampler_stage_c.denoise": "denoising_strength",
-        "sampler_stage_b.seed": "seed",
-        "sampler_stage_c.seed": "seed",
-        "sampler_stage_b.steps": "ddim_steps*0.33",
-        "sampler_stage_c.steps": "ddim_steps*0.67",
-        "model_loader_stage_c.ckpt_name": "stable_cascade_stage_c",
-        "model_loader_stage_c.model_name": "stable_cascade_stage_c",
-        "model_loader_stage_c.horde_model_name": "model_name",
-        "model_loader_stage_b.ckpt_name": "stable_cascade_stage_b",
-        "model_loader_stage_b.model_name": "stable_cascade_stage_b",
-        "model_loader_stage_b.horde_model_name": "model_name",
-        # Stable Cascade 2pass
-        "2pass_sampler_stage_c.sampler_name": "sampler_name",
-        "2pass_sampler_stage_c.steps": "ddim_steps*0.67",
-        "2pass_sampler_stage_c.denoise": "hires_fix_denoising_strength",
-        "2pass_sampler_stage_b.sampler_name": "sampler_name",
-        "2pass_sampler_stage_b.steps": "ddim_steps*0.33",
-        # QR Codes
-        "sampler_bg.sampler_name": "sampler_name",
-        "sampler_bg.cfg": "cfg_scale",
-        "sampler_bg.denoise": "denoising_strength",
-        "sampler_bg.seed": "seed",
-        "sampler_bg.steps": "ddim_steps",
-        "sampler_bg.noise_seed": "seed",
-        "sampler_fg.sampler_name": "sampler_name",
-        "sampler_fg.cfg": "cfg_scale",
-        "sampler_fg.denoise": "denoising_strength",
-        "sampler_fg.seed": "seed",
-        "sampler_fg.steps": "ddim_steps",
-        "sampler_fg.noise_seed": "seed",
-        "controlnet_bg.strength": "control_strength",
-        "solidmask_grey.width": "width",
-        "solidmask_grey.height": "height",
-        "solidmask_white.width": "width",
-        "solidmask_white.height": "height",
-        "solidmask_black.width": "width",
-        "solidmask_black.height": "height",
-        "qr_code_split.max_image_size": "width",
-    }
-
     _comfyui_callback: Callable[[str, dict, str], None] | None = None
 
     # We are a singleton
@@ -319,673 +144,55 @@ class HordeLib:
         # and follow the same pattern
     ):
         if not self._initialised:
-            self.generator = Comfy_Horde(
+            self.backend = InProcessComfyBackend(
                 comfyui_callback=comfyui_callback if comfyui_callback else self._comfyui_callback,
                 aggressive_unloading=(
                     aggressive_unloading if aggressive_unloading is not None else self.aggressive_unloading
                 ),
             )
-            # The execution bridge wraps the legacy Comfy_Horde; new code should talk to
-            # self.backend rather than self.generator (which will be removed in refactor P4).
-            self.backend = InProcessComfyBackend.from_comfy_horde(self.generator)
+            # Eager start preserves the historical timing: ComfyUI spins up when HordeLib
+            # is constructed, not on the first job.
+            self.backend.start()
             self.__class__._initialised = True
 
-    def _json_hack(self, obj):
-        # Helper to serialise json which contains non-serialisable types
-        if hasattr(obj, "__class__"):
-            return f"{obj.__class__.__name__} instance"
-        return f"Object of type {type(obj).__name__}"
+    @logfire.instrument("horde.materialize_graph", extract_args=False)
+    def _materialize_image_graph(
+        self,
+        payload: dict,
+    ) -> tuple[ComfyGraph, ImageGenPayload, ModelContext, list[GenMetadataEntry]]:
+        """The typed pipeline flow: resolve -> normalize -> validate -> select -> materialize.
 
-    def dump_json(self, adict):
-        logger.warning(json.dumps(adict, indent=4, default=self._json_hack))
-
-    def _validate_data_structure(self, data: dict) -> dict:
-        """Clamp/coerce a raw payload into the known schema, never raising for bad values.
-
-        Unknown keys are dropped, missing keys get defaults, out-of-range values are clamped
-        and invalid sub-entries (loras, tis, extra images/texts) are removed. The bounds live
-        on :class:`hordelib.pipeline.payload.ImageGenPayload`.
+        Returns the fully materialized graph, the typed payload, the resolved model context,
+        and any faults to attach to the results.
         """
-        # Sub-models (loras etc.) are dumped back to plain dicts because the legacy
-        # parameter-translation path still consumes (and mutates) dict entries.
-        return ImageGenPayload.from_horde_dict(data).model_dump(warnings=False)
-
-    def _apply_aihorde_compatibility_hacks(self, payload: dict) -> tuple[dict, list[GenMetadataEntry]]:
-        """For use by the AI Horde worker we require various counterintuitive hacks to the payload data.
-
-        We encapsulate all of this implicit witchcraft in one function, here.
-        """
-        faults: list[GenMetadataEntry] = []
-
-        if SharedModelManager.manager.compvis is None:
-            # Lazily load the compvis manager if it was not explicitly initialised yet.
-            try:
-                SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis])
-            except Exception as exc:
-                raise RuntimeError(
-                    "Cannot load compvis model manager required for AI Horde compatibility hacks!",
-                ) from exc
-
-        if SharedModelManager.manager.compvis is None:
-            raise RuntimeError("Cannot use AI Horde compatibility hacks without compvis loaded!")
-
-        payload = deepcopy(payload)
+        from hordelib.pipeline.families.image import DEFAULT_REGISTRY
+        from hordelib.pipeline.horde_compat import normalize_horde_payload, resize_sources_to_request
+        from hordelib.pipeline.resolution import resolve_image_generation, resolve_image_model
 
         model = payload.get("model")
-
         if model is None:
             raise RuntimeError("No model specified in payload")
 
-        # This is translated to "horde_model_name" later for compvis models and used as is for post processors
-        payload["model_name"] = model
+        context = resolve_image_model(str(model))
+        normalized, compat_faults = normalize_horde_payload(payload, context)
+        typed = ImageGenPayload.from_horde_dict(normalized)
+        typed = resize_sources_to_request(typed)
+        typed, context, resolution_faults = resolve_image_generation(typed, context)
 
-        found_model_in_ref = False
-        found_model_on_disk = False
-        model_files: list[dict] = [{}]
-
-        if model in SharedModelManager.manager.compvis.model_reference:
-            found_model_in_ref = True
-
-        if SharedModelManager.manager.compvis.is_model_available(model):
-            model_files = SharedModelManager.manager.compvis.get_model_filenames(model)
-            found_model_on_disk = True
-
-            compvis_record = SharedModelManager.manager.compvis.model_reference.get(model)
-            if compvis_record is not None and compvis_record.inpainting is True:
-                if payload.get("source_processing") not in ["inpainting", "outpainting"]:
-                    logger.warning(
-                        "Inpainting model detected, but source processing not set to inpainting or outpainting.",
-                    )
-
-                    payload["source_processing"] = "inpainting"
-
-                source_image = payload.get("source_image")
-                source_mask = payload.get("source_mask")
-
-                if source_image is None or not isinstance(source_image, Image.Image):
-                    logger.warning(
-                        "Inpainting model detected, but source image is not a valid image. Using a noise image.",
-                    )
-                    faults.append(
-                        GenMetadataEntry(
-                            type=METADATA_TYPE.source_image,
-                            value=METADATA_VALUE.parse_failed,
-                        ),
-                    )
-                    payload["source_image"] = ImageUtils.create_noise_image(
-                        payload["width"],
-                        payload["height"],
-                    )
-
-                source_image = payload.get("source_image")
-
-                if source_mask is None and (
-                    source_image is None
-                    or (isinstance(source_image, Image.Image) and not ImageUtils.has_alpha_channel(source_image))
-                ):
-                    logger.warning(
-                        "Inpainting model detected, but no source mask provided. Using an all white mask.",
-                    )
-                    faults.append(
-                        GenMetadataEntry(
-                            type=METADATA_TYPE.source_mask,
-                            value=METADATA_VALUE.parse_failed,
-                        ),
-                    )
-                    payload["source_mask"] = ImageUtils.create_white_image(
-                        source_image.width if source_image else payload["width"],
-                        source_image.height if source_image else payload["height"],
-                    )
-
-        else:
-            # The node may be a post processor, so we check the other model managers
-            post_processor_model_managers = SharedModelManager.manager.get_model_manager_instances(
-                [MODEL_CATEGORY_NAMES.codeformer, MODEL_CATEGORY_NAMES.esrgan, MODEL_CATEGORY_NAMES.gfpgan],
-            )
-
-            for post_processor_model_manager in post_processor_model_managers:
-                if model in post_processor_model_manager.model_reference:
-                    found_model_in_ref = True
-                if post_processor_model_manager.is_model_available(model):
-                    model_files = post_processor_model_manager.get_model_filenames(model)
-                    found_model_on_disk = True
-                    break
-
-        if not found_model_in_ref:
-            raise RuntimeError(f"Model {model} not found in model reference!")
-
-        if not found_model_on_disk:
-            raise RuntimeError(f"Model {model} not found on disk!")
-
-        if len(model_files) == 0 or (not isinstance(model_files[0], dict)) or "file_path" not in model_files[0]:
-            raise RuntimeError(f"Model {model} has no files in its reference entry!")
-
-        payload["model"] = model_files[0]["file_path"]
-        for file_entry in model_files:
-            if "file_type" in file_entry:
-                payload[file_entry["file_type"]] = file_entry["file_path"]
-                logger.debug("Payload after model file processing: payload={}", payload)
-
-        # Rather than specify a scheduler, only karras or not karras is specified
-        if payload.get("karras", False):
-            payload["scheduler"] = "karras"
-        else:
-            payload["scheduler"] = "normal"
-
-        prompt = payload.get("prompt")
-
-        # Negative and positive prompts are merged together
-        if prompt is not None:
-            if "###" in prompt:
-                split_prompts = prompt.split("###")
-                payload["prompt"] = split_prompts[0]
-                payload["negative_prompt"] = split_prompts[1]
-        elif prompt == "":
-            logger.warning("Empty prompt detected, this is likely to produce poor results")
-
-        # Turn off hires fix if we're not generating a hires image, or if the params are just confused
-        try:
-            if "hires_fix" in payload:
-                baseline = _get_baseline(model)
-                if baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1 and (
-                    payload["width"] <= 512 or payload["height"] <= 512
-                ):
-                    payload["hires_fix"] = False
-                elif baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl and (
-                    payload["width"] <= 1024 or payload["height"] <= 1024
-                ):
-                    payload["hires_fix"] = False
-        except (TypeError, KeyError):
-            payload["hires_fix"] = False
-
-        # Turn off hires fix if we're inpainting as the dimensions are from the source image
-        if "hires_fix" in payload and (
-            payload.get("source_processing") == "inpainting" or payload.get("source_processing") == "outpainting"
-        ):
-            payload["hires_fix"] = False
-
-        # Use denoising strength for both samplers if no second denoiser specified
-        # but not for txt2img where denoising will always generally be 1.0
-        if payload.get("hires_fix"):
-            if payload.get("source_processing") and payload.get("source_processing") != "txt2img":
-                if not payload.get("hires_fix_denoising_strength"):
-                    payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
-
-        if payload.get("workflow") == "qr_code":
-            if payload.get("source_processing") and payload.get("source_processing") != "txt2img":
-                if not payload.get("hires_fix_denoising_strength"):
-                    payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
-
-        # # Remap "denoising" to "controlnet strength", historical hack
-        # if payload.get("control_type"):
-        #     if payload.get("denoising_strength"):
-        #         if not payload.get("control_strength"):
-        #             payload["control_strength"] = payload["denoising_strength"]
-        #             del payload["denoising_strength"]
-        #         else:
-        #             del payload["denoising_strength"]
-        return payload, faults
-
-    @logfire.instrument("horde.adjust_pipeline")
-    def _final_pipeline_adjustments(self, payload, pipeline_data) -> tuple[dict, list[GenMetadataEntry]]:
-        payload = deepcopy(payload)
-        faults: list[GenMetadataEntry] = []
-
-        # Process dynamic prompts
-        if new_prompt := DynamicPromptParser(payload["seed"]).parse(payload.get("prompt", "")):
-            payload["prompt"] = new_prompt
-
-        # Clip skip inversion, comfy uses -1, -2, etc
-        if payload.get("clip_skip", 0) > 0:
-            payload["clip_skip"] = -payload["clip_skip"]
-
-        # Remap sampler name, horde to comfy
-        payload["sampler_name"] = HordeLib.SAMPLERS_MAP.get(payload["sampler_name"])
-        if payload.get("tis") and SharedModelManager.manager.ti:
-            # Remove any requested TIs that we don't have
-            with logfire.span("ti.process_loop", ti_count=len(payload.get("tis"))):
-                for ti in payload.get("tis"):
-                    ti_name_requested = str(ti["name"])
-                    with logfire.span("ti.process_single", ti_name=ti_name_requested):
-                        # Determine the actual ti filename
-                        if not SharedModelManager.manager.ti.is_local_model(ti_name_requested):
-                            try:
-                                adhoc_ti = SharedModelManager.manager.ti.fetch_adhoc_ti(ti_name_requested)
-                            except Exception:
-                                logger.bind(ti_name=ti["name"]).exception("Error fetching adhoc TI")
-                                faults.append(
-                                    GenMetadataEntry(
-                                        type=METADATA_TYPE.ti,
-                                        value=METADATA_VALUE.download_failed,
-                                        ref=ti["name"],
-                                    ),
-                                )
-                                adhoc_ti = None
-                            if not adhoc_ti:
-                                logger.info(
-                                    f"Adhoc TI requested '{ti['name']}' could not be found in CivitAI. Ignoring!",
-                                )
-                                faults.append(
-                                    GenMetadataEntry(
-                                        type=METADATA_TYPE.ti,
-                                        value=METADATA_VALUE.download_failed,
-                                        ref=ti["name"],
-                                    ),
-                                )
-                                continue
-                        ti_name = SharedModelManager.manager.ti.get_ti_name(ti_name_requested)
-                        if ti_name:
-                            logger.debug("Found valid TI: ti_name={}", ti_name)
-                            if SharedModelManager.manager.compvis is None:
-                                raise RuntimeError("Cannot use TIs without compvis loaded!")
-                            model_details = SharedModelManager.manager.compvis.get_model_reference_info(
-                                payload["model"],
-                            )
-                            # If the ti and model do not match baseline, we ignore the TI
-                            if not SharedModelManager.manager.ti.do_baselines_match(ti_name, model_details):
-                                logger.info("Skipped TI due to baseline mismatch: ti_name={}", ti_name)
-                                faults.append(
-                                    GenMetadataEntry(
-                                        type=METADATA_TYPE.ti,
-                                        value=METADATA_VALUE.baseline_mismatch,
-                                        ref=ti_name,
-                                    ),
-                                )
-                                continue
-                            ti_inject = ti.get("inject_ti")
-                            ti_strength = ti.get("strength", 1.0)
-                            if type(ti_strength) not in [float, int]:
-                                ti_strength = 1.0
-                            ti_id = SharedModelManager.manager.ti.get_ti_id(str(ti["name"]))
-                            logger.info("ti.injecting", ti_id=ti_id, inject_target=ti_inject, strength=ti_strength)
-                            if ti_inject == "prompt":
-                                payload["prompt"] = f"(embedding:{ti_id}:{ti_strength}),{payload['prompt']}"
-                            elif ti_inject == "negprompt":
-                                # create negative prompt if empty
-                                if "negative_prompt" not in payload:
-                                    payload["negative_prompt"] = ""
-
-                                had_leading_comma = payload["negative_prompt"].startswith(",")
-
-                                payload["negative_prompt"] = (
-                                    f"{payload['negative_prompt']},(embedding:{ti_id}:{ti_strength})"
-                                )
-                                if not had_leading_comma:
-                                    payload["negative_prompt"] = payload["negative_prompt"].strip(",")
-                            SharedModelManager.manager.ti.touch_ti(ti_name)
-        # Setup controlnet if required
-
-        # For LORAs we completely build the LORA section of the pipeline dynamically, as we have
-        # to handle n LORA models which form chained nodes in the pipeline.
-        # Note that we build this between several nodes, the model_loader, clip_skip and the sampler,
-        # plus the upscale sampler (used in hires fix) if there is one
-        if payload.get("loras") and SharedModelManager.manager.lora:
-            # Remove any requested LORAs that we don't have
-            valid_loras = []
-
-            # Prepare job context for LoRA downloads
-            job_context = {
-                "model": payload.get("model_loader.horde_model_name", "unknown"),
-                "resolution": (
-                    f"{payload.get('empty_latent_image.width', 'unknown')}"
-                    f"x{payload.get('empty_latent_image.height', 'unknown')}"
-                ),
-                "steps": payload.get("sampler.steps"),
-                "sampler": payload.get("sampler.sampler_name"),
-                "trigger_source": "adhoc_generation",
-            }
-
-            for lora in payload.get("loras"):
-                # Determine the actual lora filename
-                is_version: bool = lora.get("is_version", False)
-                verstext = ""
-                if is_version:
-                    verstext = " version"
-                if not SharedModelManager.manager.lora.is_lora_available(str(lora["name"]), is_version=is_version):
-                    logger.debug("Adhoc lora not yet downloaded, downloading: lora_name={}", lora["name"])
-                    try:
-                        adhoc_lora = SharedModelManager.manager.lora.fetch_adhoc_lora(
-                            str(lora["name"]),
-                            is_version=is_version,
-                            job_context=job_context,
-                        )
-                    except Exception:
-                        logger.bind(lora_name=lora["name"]).exception("Error fetching adhoc lora")
-                        faults.append(
-                            GenMetadataEntry(
-                                type=METADATA_TYPE.lora,
-                                value=METADATA_VALUE.download_failed,
-                                ref=lora["name"],
-                            ),
-                        )
-                        adhoc_lora = None
-                    if not adhoc_lora:
-                        logger.info(
-                            f"Adhoc lora requested{verstext} '{lora['name']} could not be found in CivitAI. Ignoring!",
-                        )
-                        faults.append(
-                            GenMetadataEntry(
-                                type=METADATA_TYPE.lora,
-                                value=METADATA_VALUE.download_failed,
-                                ref=lora["name"],
-                            ),
-                        )
-                        continue
-                # We store the actual lora name to search for the trigger
-                # If a version is requested, the lora name we need is the exact version
-                if is_version:
-                    lora_name = str(lora["name"])
-                else:
-                    lora_name = SharedModelManager.manager.lora.get_lora_name(str(lora["name"]))
-                if lora_name is None:
-                    logger.debug("Lora not found in reference DB, ignoring: lora_name={}", lora["name"])
-                    faults.append(
-                        GenMetadataEntry(
-                            type=METADATA_TYPE.lora,
-                            value=METADATA_VALUE.download_failed,
-                            ref=lora_name,
-                        ),
-                    )
-                    continue
-                logger.debug("Found valid lora: lora_name={}, version={}", lora_name, verstext)
-                if SharedModelManager.manager.compvis is None:
-                    raise RuntimeError("Cannot use LORAs without a compvis loaded!")
-                model_details = SharedModelManager.manager.compvis.get_model_reference_info(payload["model"])
-                # If the lora and model do not match baseline, we ignore the lora
-                if not SharedModelManager.manager.lora.do_baselines_match(
-                    lora_name,
-                    model_details,
-                    is_version=is_version,
-                ):
-                    logger.info(
-                        "Skipped lora due to baseline mismatch: lora_name={}, is_version={}",
-                        lora_name,
-                        verstext,
-                    )
-                    faults.append(
-                        GenMetadataEntry(
-                            type=METADATA_TYPE.lora,
-                            value=METADATA_VALUE.baseline_mismatch,
-                            ref=lora_name,
-                        ),
-                    )
-                    continue
-                trigger_inject = lora.get("inject_trigger")
-                trigger = None
-                if trigger_inject == "any":
-                    triggers = SharedModelManager.manager.lora.get_lora_triggers(lora_name, is_version=is_version)
-                    if triggers:
-                        trigger = random.choice(triggers)
-                elif trigger_inject == "all":
-                    triggers = SharedModelManager.manager.lora.get_lora_triggers(lora_name, is_version=is_version)
-                    if triggers:
-                        trigger = ", ".join(triggers)
-                elif trigger_inject is not None:
-                    trigger = SharedModelManager.manager.lora.find_lora_trigger(
-                        lora_name,
-                        trigger_inject,
-                        is_version,
-                    )
-                if trigger:
-                    # We inject at the start, to avoid throwing it in a negative prompt
-                    payload["prompt"] = f"{trigger}, {payload['prompt']}"
-                # the fixed up and validated filename (Comfy expect the "name" key to be the filename)
-                lora["name"] = SharedModelManager.manager.lora.get_lora_filename(lora_name, is_version=is_version)
-                SharedModelManager.manager.lora._touch_lora(lora_name, is_version=is_version)
-                valid_loras.append(lora)
-            payload["loras"] = valid_loras
-            with logfire.span("lora.inject_nodes", node_count=len(valid_loras)):
-                insert_lora_chain(
-                    pipeline_data,
-                    [
-                        ResolvedLora(
-                            filename=lora["name"],
-                            strength_model=lora["model"],
-                            strength_clip=lora["clip"],
-                        )
-                        for lora in valid_loras
-                    ],
-                    flux=_get_baseline(payload["model_name"]) in _FLUX_BASELINES,
-                )
-
-        # Translate the payload parameters into pipeline parameters
-        pipeline_params = {}
-        for newkey, key in HordeLib.PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING.items():
-            multiplier = None
-            # We allow a multiplier in the param, so that I can adjust easily the
-            # values for steps on things like stable cascade
-            if isinstance(key, FunctionType):
-                pipeline_params[newkey] = key(payload)
-            elif not isinstance(key, str):
-                logger.error("Invalid key in workflow: key={}", key)
-                raise RuntimeError(f"Invalid key {key}")
-            elif "*" in key:
-                key, multiplier = key.split("*", 1)
-
-            if key in payload:
-                if multiplier:
-                    pipeline_params[newkey] = round(payload.get(key) * float(multiplier))
-                else:
-                    pipeline_params[newkey] = payload.get(key)
-            elif not isinstance(key, FunctionType):
-                logger.error("Parameter not found in workflow: key={}", key)
-
-        # We inject these parameters to ensure the HordeCheckpointLoader knows what file to load, if necessary
-        # We don't want to hardcode this into the pipeline.json as we export this directly from ComfyUI
-        # and don't want to have to rememeber to re-add those keys
-        logger.debug("Pipeline params after processing: params={}", pipeline_params)
-        if "model_loader_stage_c.ckpt_name" in pipeline_params:
-            pipeline_params["model_loader_stage_c.file_type"] = "stable_cascade_stage_c"
-        if "model_loader_stage_b.ckpt_name" in pipeline_params:
-            pipeline_params["model_loader_stage_b.file_type"] = "stable_cascade_stage_b"
-        if (
-            _get_baseline(pipeline_params["model_loader.horde_model_name"])
-            == KNOWN_IMAGE_GENERATION_BASELINE.qwen_image
-        ):
-            pipeline_params["model_loader.file_type"] = "unet"
-        else:
-            pipeline_params["model_loader.file_type"] = None  # To allow normal SD pipelines to keep working
-        # Inject our model manager
-        # pipeline_params["model_loader.model_manager"] = SharedModelManager
-        pipeline_params["model_loader.will_load_loras"] = bool(payload.get("loras"))
-        pipeline_params["model_loader_stage_c.will_load_loras"] = False  # FIXME: Once we support loras
-        # Does this have to be required var in the modelloader?
-        pipeline_params["model_loader_stage_c.seamless_tiling_enabled"] = False
-        pipeline_params["model_loader_stage_b.will_load_loras"] = False  # FIXME: Once we support loras
-        # Does this have to be required var in the modelloader?
-        pipeline_params["model_loader_stage_b.seamless_tiling_enabled"] = False
-
-        # For hires fix, change the image sizes as we create an intermediate image first
-        if payload.get("hires_fix", False):
-            baseline = _get_baseline(payload["model_name"])
-
-            original_width = pipeline_params.get("empty_latent_image.width")
-            original_height = pipeline_params.get("empty_latent_image.height")
-
-            if original_width is None or original_height is None:
-                if baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
-                    logger.error("empty_latent_image.width or empty_latent_image.height not found. Using 512x512.")
-                    original_width, original_height = (512, 512)
-                else:
-                    logger.error("empty_latent_image.width or empty_latent_image.height not found. Using 1024x1024.")
-                    original_width, original_height = (1024, 1024)
-
-            pipeline_params.update(hires_fix_first_pass_resolution(baseline, original_width, original_height))
-
-        if payload.get("control_type"):
-            with logfire.span("controlnet.setup", control_type=payload.get("control_type")):
-                controlnet_params = configure_controlnet(
-                    pipeline_data,
-                    control_type=payload["control_type"],
-                    image_is_control=bool(payload.get("image_is_control")),
-                    return_control_map=bool(payload.get("return_control_map")),
-                    width=payload.get("width", 512),
-                    height=payload.get("height", 512),
-                )
-                pipeline_params.update(controlnet_params)
-
-                logger.info(
-                    "controlnet.configured",
-                    model_name=controlnet_params["controlnet_model_loader.control_net_name"],
-                    preprocessor=controlnet_params["preprocessor.preprocessor"],
-                    return_control_map=payload.get("return_control_map", False),
-                    image_is_control=payload.get("image_is_control", False),
-                )
-
-        # If we have a source image, use that rather than latent noise (i.e. img2img)
-        # We do this by reconnecting the nodes in the pipeline to make the input to the vae encoder
-        # the source image instead of the latent noise generator
-        if pipeline_params.get("image_loader.image"):
-            if SharedModelManager.manager.compvis:
-                rewire_img2img(pipeline_data, flux=_get_baseline(payload["model_name"]) in _FLUX_BASELINES)
-        if pipeline_params.get("sc_image_loader.image"):
-            rewire_cascade_img2img(pipeline_data)
-
-        # If we have a remix request, we check for extra images to add to the pipeline
-        if payload.get("source_processing") == "remix":
-            logger.debug([payload.get("source_image"), payload.get("extra_source_images")])
-            insert_remix_image_chain(
-                pipeline_data,
-                [
-                    RemixImage(image=extra["image"], strength=extra.get("strength", 1))
-                    for extra in payload.get("extra_source_images", [])
-                ],
-            )
-
-        # If we have a qr code request, we check for extra texts such as the generation url
-        if payload.get("workflow") == "qr_code":
-            with logfire.span("qr.setup", has_extra_texts=bool(payload.get("extra_texts"))):
-                original_width = pipeline_params.get("empty_latent_image.width", 512)
-                original_height = pipeline_params.get("empty_latent_image.height", 512)
-
-                pipeline_params.update(
-                    qr_params_from_extra_texts(
-                        payload.get("extra_texts"),
-                        prompt=payload["prompt"],
-                        width=original_width,
-                        height=original_height,
-                    ),
-                )
-                try:
-                    # ComfyQR registers QRByModuleSizeSplitFunctionPatterns under this node id
-                    test_qr = get_node_class("comfy-qr-by-module-split")()
-                    _, _, _, _, _, qr_size = test_qr.generate_qr(
-                        protocol=pipeline_params.get("qr_code_split.protocol"),
-                        text=pipeline_params["qr_code_split.text"],
-                        module_size=16,
-                        max_image_size=pipeline_params["qr_code_split.max_image_size"],
-                        fill_hexcolor="#FFFFFF",
-                        back_hexcolor="#000000",
-                        error_correction="High",
-                        border=1,
-                        module_drawer="Square",
-                    )
-                except RuntimeError as err:
-                    logger.error(err)
-                    pipeline_params["qr_code_split.text"] = "This QR Code is too large for this image"
-                    qr_size = 624
-
-                pipeline_params.update(
-                    qr_layout_params(
-                        width=original_width,
-                        height=original_height,
-                        qr_size=qr_size,
-                        # Explicit 0 offsets fall back to centered placement, as they always have
-                        x_offset=pipeline_params.get("qr_flattened_composite.x") or None,
-                        y_offset=pipeline_params.get("qr_flattened_composite.y") or None,
-                    ),
-                )
-                if _get_baseline(payload["model_name"]) == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
-                    pipeline_params["controlnet_qr_model_loader.control_net_name"] = (
-                        "control_v1p_sd15_qrcode_monster_v2.safetensors"
-                    )
-                logger.info(
-                    "qr.configured",
-                    qr_text=pipeline_params["qr_code_split.text"],
-                    qr_size=qr_size,
-                    x_offset=pipeline_params["qr_flattened_composite.x"],
-                    y_offset=pipeline_params["qr_flattened_composite.y"],
-                )
-        if payload.get("transparent") is True:
-            pipeline_params.update(
-                apply_layerdiffuse(
-                    pipeline_data,
-                    baseline=_get_baseline(payload["model_name"]),
-                    hires_fix=payload.get("hires_fix") is True,
-                ),
-            )
-
-        return pipeline_params, faults
-
-    def _get_appropriate_pipeline(self, params):
-        """Select the pipeline for this (compatibility-hacked) payload via the pipeline registry.
-
-        See hordelib.pipeline.families.image for the registered pipelines and their predicates.
-        """
-        from hordelib.pipeline.context import ModelContext
-        from hordelib.pipeline.families.image import DEFAULT_REGISTRY
-        from hordelib.pipeline.payload import ImageGenPayload
-
-        normalized = ImageGenPayload.from_horde_dict(params)
-        context = ModelContext(
-            horde_model_name=params.get("model_name", ""),
-            baseline=_get_baseline(params["model_name"]) if params.get("model_name") else None,
-        )
-
-        template = DEFAULT_REGISTRY.select(normalized, context)
+        template = DEFAULT_REGISTRY.select(typed, context)
         if template is None:
-            # The registry's lowest-priority predicate always matches; this is unreachable
-            # unless the registry is misconfigured.
-            logger.error("Pipeline registry selected nothing; falling back to stable_diffusion")
-            return "stable_diffusion"
-        return template.name
-
-    def _process_results(
-        self,
-        images: list[dict[str, typing.Any]],
-    ) -> list[tuple[Image.Image, io.BytesIO]]:
-        if images is None:
-            logger.error("No images returned from comfy pipeline!")
-            raise RuntimeError("No images returned from comfy pipeline!")
-
-        results: list[tuple[Image.Image, io.BytesIO]] = []
-
-        # Return image(s) or raw PNG byte stream
-        for image in images:
-            results.append(
-                (
-                    Image.open(image["imagedata"]),
-                    image["imagedata"],
-                ),
-            )
-        return results
-
-    @logfire.instrument("horde.validate_and_select_pipeline", extract_args=False)
-    def _get_validated_payload_and_pipeline_data(self, payload: dict) -> tuple[dict, dict, list[GenMetadataEntry]]:
-        # AIHorde hacks to payload
-        payload, compatibility_faults = self._apply_aihorde_compatibility_hacks(payload)
-
-        # Check payload types/values and normalise it's format
-        payload = self._validate_data_structure(payload)
-
-        # Resize the source image and mask to actual final width/height requested
-        ImageUtils.resize_sources_to_request(payload)
-
-        # Determine the correct pipeline to use
-        pipeline = self._get_appropriate_pipeline(payload)
-
-        # Final adjustments to the pipeline
-        pipeline_data = self.generator.get_pipeline_data(pipeline)
-        payload, finale_adjustment_faults = self._final_pipeline_adjustments(payload, pipeline_data)
+            # The registry has a priority-0 catch-all, so this is purely defensive
+            logger.warning("No pipeline matched payload; falling back to stable_diffusion")
+            template = DEFAULT_REGISTRY.get("stable_diffusion")
+            assert template is not None
 
         logger.info(
             "Pipeline validation complete",
-            pipeline=pipeline,
-            pipeline_node_count=len(pipeline_data) if pipeline_data else 0,
-            faults_count=len(compatibility_faults + finale_adjustment_faults),
+            pipeline=template.name,
+            faults_count=len(compat_faults) + len(resolution_faults),
         )
-
-        return payload, pipeline_data, compatibility_faults + finale_adjustment_faults
+        graph = template.materialize(typed, context)
+        return graph, typed, context, compat_faults + resolution_faults
 
     @logfire.instrument("horde.inference", extract_args=False)
     def _inference(
@@ -997,62 +204,49 @@ class HordeLib:
     ) -> list[ResultingImageReturn] | ResultingImageReturn:
         start_time = time.time()
 
-        payload, pipeline_data, faults = self._get_validated_payload_and_pipeline_data(payload)
+        graph, typed, context, faults = self._materialize_image_graph(payload)
 
-        # Run the pipeline
-
-        # Add prefix to loras to avoid name collisions with other models
-        loras_being_used = [f"lora-{x['name']}" for x in payload.get("loras", []) if x]
-        tis_being_used = [f"ti-{x['name']}" for x in payload.get("tis", []) if x]
-
-        # main model
-        main_model = f"{payload.get('model_loader.horde_model_name')}"
-        # controlnet model
-        controlnet_name = payload.get("controlnet_model_loader.control_net_name")
-
-        resolution = f"{payload.get('empty_latent_image.width')}x{payload.get('empty_latent_image.height')}"
-        steps = payload.get("sampler.steps")
-        sampler = payload.get("sampler.sampler_name")
-
-        # Log inference parameters as structured data
+        resolution = f"{typed.width}x{typed.height}"
         logger.info(
             "Starting inference",
-            model=main_model,
+            model=context.horde_model_name,
             resolution=resolution,
-            steps=steps,
-            sampler=sampler,
+            steps=typed.ddim_steps,
+            sampler=typed.sampler_name,
             single_image=single_image_expected,
-            loras_count=len(loras_being_used),
-            tis_count=len(tis_being_used),
-            has_controlnet=controlnet_name is not None,
+            loras_count=len(context.resolved_loras),
+            tis_count=len(typed.tis),
+            has_controlnet=typed.control_type is not None,
+        )
+        logger.info(
+            "Generating image: resolution={}, steps={}, model={}",
+            resolution,
+            typed.ddim_steps,
+            context.horde_model_name,
+        )
+        if typed.hires_fix:
+            logger.info("Using hiresfix: final_resolution={}", resolution)
+        if typed.control_type:
+            logger.info("Using controlnet: control_type={}", typed.control_type)
+        if context.resolved_loras:
+            logger.info("Using LORAs: count={}", len(context.resolved_loras))
+        if typed.tis:
+            logger.info("Using TIs: count={}", len(typed.tis))
+
+        artifacts = self.backend.run_pipeline(
+            graph.to_api_dict(),
+            progress_callback=comfyui_progress_callback,
         )
 
-        logger.info("Generating image: resolution={}, steps={}, model={}", resolution, steps, main_model)
-        if "latent_upscale.width" in payload:
-            hires_fix_final_resolution = (
-                f"{payload.get('latent_upscale.width')}x{payload.get('latent_upscale.height')}"
+        ret_results = []
+        for artifact in artifacts:
+            ret_results.append(
+                ResultingImageReturn(
+                    image=Image.open(artifact.data),
+                    rawpng=artifact.data,
+                    faults=faults,
+                ),
             )
-            logger.info("Using hiresfix: final_resolution={}", hires_fix_final_resolution)
-        if controlnet_name:
-            logger.info("Using controlnet: controlnet_name={}", controlnet_name)
-        if loras_being_used:
-            logger.info("Using LORAs: count={}", len(loras_being_used))
-        if tis_being_used:
-            logger.info("Using TIs: count={}", len(tis_being_used))
-
-        # Call the inference pipeline
-        # logger.debug(payload)
-        images = self.generator.run_image_pipeline(pipeline_data, payload, comfyui_progress_callback)
-
-        results = self._process_results(images)
-        ret_results = [
-            ResultingImageReturn(
-                image=image,
-                rawpng=rawpng,
-                faults=faults,
-            )
-            for image, rawpng in results
-        ]
 
         # Record inference duration metric
         duration_ms = (time.time() - start_time) * 1000
@@ -1060,7 +254,7 @@ class HordeLib:
         logger.info("Inference complete", duration_ms=duration_ms, image_count=len(ret_results))
 
         if single_image_expected:
-            if len(results) != 1:
+            if len(ret_results) != 1:
                 raise RuntimeError("Expected a single image but got multiple")
             return ret_results[0]
 
@@ -1300,30 +494,33 @@ class HordeLib:
                             except Exception:
                                 logger.exception("Progress callback failed")
 
-                        # Ensure facefixers always happen first
+                        # Facefixers sort last (legacy ordering; images_expected/ encodes it)
                         post_processing_requested = sorted(
                             post_processing_requested,
                             key=lambda x: 1 if x in KNOWN_FACEFIXERS.__members__ else 0,
                         )
 
                         for post_processing in post_processing_requested:
-                            import time
+                            if final_image is None:
+                                logger.error(
+                                    "No image available to post-process; aborting remaining operations",
+                                )
+                                break
 
                             pp_start = time.perf_counter()
-                            if (
-                                post_processing in KNOWN_UPSCALERS.__members__
-                                or post_processing in KNOWN_UPSCALERS._value2member_map_
-                            ):
+                            pp_kind = classify_post_processor(post_processing)
+
+                            if pp_kind is PostProcessorKind.upscaler:
                                 with logfire.span(
                                     "pp.upscale",
                                     model=post_processing,
                                     image_index=img_idx,
                                 ):
-                                    image_ret = self.image_upscale(
-                                        {
-                                            "model": post_processing,
-                                            "source_image": final_image,
-                                        },
+                                    image_ret = self.post_process(
+                                        UpscalePayload(
+                                            model=post_processing,
+                                            source_image=final_image,
+                                        ),
                                     )
                                     single_image_faults += image_ret.faults
                                     final_rawpng = image_ret.rawpng
@@ -1337,19 +534,21 @@ class HordeLib:
                                         fault_count=len(image_ret.faults),
                                     )
 
-                            elif post_processing in KNOWN_FACEFIXERS.__members__:
+                            elif pp_kind is PostProcessorKind.facefixer:
                                 with logfire.span(
                                     "pp.facefix",
                                     model=post_processing,
                                     strength=payload.get("facefixer_strength", 1.0),
                                     image_index=img_idx,
                                 ):
-                                    image_ret = self.image_facefix(
-                                        {
-                                            "model": post_processing,
-                                            "source_image": final_image,
-                                            "facefixer_strength": payload.get("facefixer_strength", 1.0),
-                                        },
+                                    # facefixer_strength is deliberately not forwarded: the
+                                    # legacy mapping never wired it to codeformer_fidelity, so
+                                    # honoring it would change existing job output.
+                                    image_ret = self.post_process(
+                                        FacefixPayload(
+                                            model=post_processing,
+                                            source_image=final_image,
+                                        ),
                                     )
                                     single_image_faults += image_ret.faults
                                     final_rawpng = image_ret.rawpng
@@ -1363,16 +562,25 @@ class HordeLib:
                                         fault_count=len(image_ret.faults),
                                     )
 
-                            elif post_processing == "strip_background":
+                            elif pp_kind is PostProcessorKind.strip_background:
                                 with logfire.span("pp.strip_background", image_index=img_idx):
                                     if final_image is not None:
-                                        final_image = ImageUtils.strip_background(final_image)
+                                        # The pre-strip rawpng is intentionally kept (legacy parity)
+                                        final_image = self.post_process(
+                                            StripBackgroundPayload(source_image=final_image),
+                                        ).image
                                     pp_duration = (time.perf_counter() - pp_start) * 1000
                                     post_process_duration_histogram.record(pp_duration)
                                     logger.info(
                                         "pp.strip_background_complete",
                                         duration_ms=pp_duration,
                                     )
+
+                            else:
+                                logger.warning(
+                                    "Unknown post-processor requested; skipping: name={}",
+                                    post_processing,
+                                )
 
                         if final_image is None:
                             # TODO: Allow to return a partially PP image?
@@ -1432,77 +640,97 @@ class HordeLib:
 
         raise RuntimeError(f"Expected at least one io.BytesIO. Got {result}.")
 
-    def image_upscale(self, payload) -> ResultingImageReturn:
-        logger.debug("image_upscale called")
+    def preload_model(
+        self,
+        horde_model_name: str,
+        *,
+        will_load_loras: bool,
+        seamless_tiling_enabled: bool,
+    ) -> None:
+        """Load a model into RAM ahead of inference (the worker's preload path).
 
+        Wraps the HordeCheckpointLoader preload dance so consumers don't need to touch
+        hordelib's ComfyUI node classes directly.
+        """
+        from hordelib.nodes.node_model_loader import HordeCheckpointLoader
+
+        HordeCheckpointLoader().load_checkpoint(
+            will_load_loras=will_load_loras,
+            seamless_tiling_enabled=seamless_tiling_enabled,
+            horde_model_name=horde_model_name,
+            preloading=True,
+        )
+
+    @logfire.instrument("horde.post_process", extract_args=False)
+    def post_process(self, payload: PostProcessingPayload | dict) -> ResultingImageReturn:
+        """Run a single post-processing operation (upscale, facefix, or strip-background).
+
+        This is the standalone post-processing entry point (the alchemy surface); the embedded
+        ``post_processing`` list inside :meth:`basic_inference` flows through here too. Legacy
+        dict payloads are accepted (see ``post_processing_payload_from_horde_dict``).
+        """
         from hordelib.comfy_horde import log_free_ram
 
-        log_free_ram()
+        if isinstance(payload, dict):
+            payload = post_processing_payload_from_horde_dict(payload)
 
-        # AIHorde hacks to payload
-        payload, compatibility_faults = self._apply_aihorde_compatibility_hacks(payload)
-        # Remember if we were passed width and height, we wouldn't normally be passed width and height
-        # because the upscale models upscale to a fixed multiple of image size. However, if we *are*
-        # passed a width and height we rescale the upscale output image to this size.
-        width = payload.get("height")
-        height = payload.get("width")
-        # Check payload types/values and normalise it's format
-        payload = self._validate_data_structure(payload)
-        # Final adjustments to the pipeline
-        pipeline_name = "image_upscale"
-        pipeline_data = self.generator.get_pipeline_data(pipeline_name)
-        payload, final_adjustment_faults = self._final_pipeline_adjustments(payload, pipeline_data)
-
-        # Run the pipeline
-
-        images = self.generator.run_image_pipeline(pipeline_data, payload)
-
-        # Allow arbitrary resizing by shrinking the image back down
-        if width or height:
+        if isinstance(payload, StripBackgroundPayload):
             return ResultingImageReturn(
-                ImageUtils.shrink_image(Image.open(images[0]["imagedata"]), width, height),
+                image=ImageUtils.strip_background(payload.source_image),
                 rawpng=None,
-                faults=final_adjustment_faults,
+                faults=[],
             )
-        result = self._process_results(images)
-        if len(result) != 1:
-            raise RuntimeError("Expected a single image but got multiple")
-
-        image, rawpng = result[0]
-        if not isinstance(image, Image.Image):
-            raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
 
         log_free_ram()
-        return ResultingImageReturn(image=image, rawpng=rawpng, faults=compatibility_faults + final_adjustment_faults)
 
-    def image_facefix(self, payload) -> ResultingImageReturn:
+        context = resolve_post_processing_model(payload.model)
+        template = POST_PROCESSING_REGISTRY.select(payload, context)
+        if template is None:
+            raise RuntimeError(f"No post-processing pipeline matched payload type {type(payload).__name__}")
+
+        graph = template.materialize(payload, context)
+        artifacts = self.backend.run_pipeline(graph.to_api_dict())
+        if len(artifacts) != 1:
+            raise RuntimeError("Expected a single image but got multiple")
+
+        rawpng = artifacts[0].data
+        image = Image.open(rawpng)
+
+        # Upscale models produce a fixed multiple of the input size; an explicit rescale request
+        # shrinks the result back down. Such results carry no raw PNG stream (legacy parity).
+        if isinstance(payload, UpscalePayload) and (payload.rescale_width or payload.rescale_height):
+            return ResultingImageReturn(
+                image=ImageUtils.shrink_image(image, payload.rescale_width, payload.rescale_height),
+                rawpng=None,
+                faults=[],
+            )
+
+        log_free_ram()
+        return ResultingImageReturn(image=image, rawpng=rawpng, faults=[])
+
+    def image_upscale(self, payload: dict) -> ResultingImageReturn:
+        """Upscale an image (legacy dict surface; prefer :meth:`post_process`)."""
+        logger.debug("image_upscale called")
+        return self.post_process(
+            UpscalePayload(
+                model=payload["model"],
+                source_image=payload["source_image"],
+                rescale_width=payload.get("width"),
+                rescale_height=payload.get("height"),
+            ),
+        )
+
+    def image_facefix(self, payload: dict) -> ResultingImageReturn:
+        """Fix faces in an image (legacy dict surface; prefer :meth:`post_process`).
+
+        ``facefixer_strength`` in the dict is ignored, as it always has been: the legacy
+        parameter mapping never wired it to the graph's ``codeformer_fidelity`` input. Typed
+        callers can set :attr:`FacefixPayload.fidelity` explicitly.
+        """
         logger.debug("image_facefix called")
-
-        from hordelib.comfy_horde import log_free_ram
-
-        log_free_ram()
-
-        # AIHorde hacks to payload
-        payload, compatibility_faults = self._apply_aihorde_compatibility_hacks(payload)
-        # Check payload types/values and normalise it's format
-        payload = self._validate_data_structure(payload)
-        # Final adjustments to the pipeline
-        pipeline_name = "image_facefix"
-        pipeline_data = self.generator.get_pipeline_data(pipeline_name)
-        payload, final_adjustment_faults = self._final_pipeline_adjustments(payload, pipeline_data)
-
-        # Run the pipeline
-
-        images = self.generator.run_image_pipeline(pipeline_data, payload)
-
-        results = self._process_results(images)
-        if len(results) != 1:
-            raise RuntimeError("Expected a single image but got multiple")
-
-        image, rawpng = results[0]
-        if not isinstance(image, Image.Image):
-            raise RuntimeError(f"Expected a PIL.Image.Image but got {type(image)}")
-
-        log_free_ram()
-
-        return ResultingImageReturn(image=image, rawpng=rawpng, faults=compatibility_faults + final_adjustment_faults)
+        return self.post_process(
+            FacefixPayload(
+                model=payload["model"],
+                source_image=payload["source_image"],
+            ),
+        )

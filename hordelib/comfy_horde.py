@@ -31,6 +31,7 @@ from hordelib.settings import UserSettings
 from hordelib.utils.ioredirect import ComfyUIProgress, OutputCollector
 from hordelib.config_path import get_hordelib_path
 from hordelib.execution import comfy_patches
+from hordelib.execution.graph_utils import GraphDict
 
 # Note It may not be abundantly clear with no context what is going on below, and I will attempt to clarify:
 #
@@ -556,7 +557,6 @@ class Comfy_Horde:
         """
         if _comfy_current_loaded_models is None:
             raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
-        self.pipelines = {}
         self._exit_time = 0
         self._callers = 0
         self._gc_timer = time.time()
@@ -565,9 +565,6 @@ class Comfy_Horde:
 
         # Set comfyui paths for checkpoints, loras, etc
         self._set_comfyui_paths()
-
-        # Load our pipelines
-        self._load_pipelines()
 
         # Load our custom nodes
         self._load_custom_nodes()
@@ -717,142 +714,6 @@ class Comfy_Horde:
         cache_args = {"lru": cache_lru, "ram": cache_ram, "ram_inactive": cache_ram_inactive}
 
         return _comfy_PromptExecutor(self, cache_type=cache_type, cache_args=cache_args)
-
-    def get_pipeline_data(self, pipeline_name):
-        pipeline_data = copy.deepcopy(self.pipelines.get(pipeline_name, {}))
-        if pipeline_data:
-            logger.info("Running pipeline: name={}", pipeline_name)
-        return pipeline_data
-
-    def _fix_pipeline_types(self, data: dict) -> dict:
-        """Replace comfyui standard node types with hordelib node types.
-
-        Args:
-            data (dict): The pipeline data.
-
-        Returns:
-            dict: The pipeline resulting from the replacement.
-        """
-        # We have a list of nodes and each node has a class type, which we may want to change
-        for nodename, node in data.items():
-            if ("class_type" in node) and (node["class_type"] in Comfy_Horde.NODE_REPLACEMENTS):
-                old_type = data[nodename]["class_type"]
-                new_type = Comfy_Horde.NODE_REPLACEMENTS[node["class_type"]]
-                logger.debug("Changed node type: node={}, old_type={}, new_type={}", nodename, old_type, new_type)
-                data[nodename]["class_type"] = new_type
-        # Now we've fixed up node types, check for any node input parameter rename needed
-        for nodename, node in data.items():
-            if ("class_type" in node) and (node["class_type"] in Comfy_Horde.NODE_PARAMETER_REPLACEMENTS):
-                for oldname, newname in Comfy_Horde.NODE_PARAMETER_REPLACEMENTS[node["class_type"]].items():
-                    if "inputs" in node and oldname in node["inputs"]:
-                        node["inputs"][newname] = node["inputs"][oldname]
-                        # del node["inputs"][oldname]
-                logger.debug("Renamed node input: node={}, old_name={}, new_name={}", nodename, oldname, newname)
-
-        return data
-
-    def _fix_node_names(self, data: dict) -> dict:
-        """Rename nodes to the "title" set in the design file.
-
-        Args:
-            data (dict): The pipeline data.
-            design (dict): The design data.
-
-        Returns:
-            dict: The pipeline resulting from the renaming.
-        """
-        # We have a list of nodes, attempt to rename them to the "title" set
-        # in the design file. These must be unique names.
-        newnodes = {}
-        renames = {}
-        for nodename, nodedata in data.items():
-            newname = nodename
-            if nodedata.get("_meta", {}).get("title"):
-                newname = nodedata["_meta"]["title"]
-            renames[nodename] = newname
-            newnodes[newname] = nodedata
-
-        # Now we've renamed the node names, change any references to them also
-        for node in newnodes.values():
-            if "inputs" in node:
-                for _, input in node["inputs"].items():
-                    if isinstance(input, list) and input and input[0] in renames:
-                        input[0] = renames[input[0]]
-        return newnodes
-
-    # We are passed a valid comfy pipeline and a design file from the comfyui web app.
-    # Why?
-    #
-    # 1. We replace some nodes with our own hordelib nodes, for example "CheckpointLoaderSimple"
-    #    with "HordeCheckpointLoader".
-    # 2. We replace unfriendly node names like "3" and "7" with friendly names taken from the
-    #    "title" attribute in the webui so we can have nicer parameter names when we call the
-    #    inference pipeline.
-    #
-    # Note that point 1 does not actually need a design file, and point 2 is not technically
-    # essential.
-    #
-    # Note also that the format of the design files from web app is expected to change at a fast
-    # pace. This is why the only thing that partially relies on that format, is in fact, optional.
-    def _patch_pipeline(self, data: dict) -> dict:
-        """Patch the pipeline data with the design data."""
-        # FIXME: This can now be done through the _meta.title key included with each API export.
-        # First replace comfyui standard types with hordelib node types
-        data = self._fix_pipeline_types(data)
-        # Now try to find better parameter names
-        return self._fix_node_names(data)
-
-    def _load_pipeline(self, filename: str) -> bool | None:
-        """
-        Load a single inference pipeline from a file.
-
-        Args:
-            filename (str): The path to the pipeline file.
-
-        Returns:
-            bool | None: True if the pipeline was loaded successfully, False if it was not, None if there was an error.
-        """
-        # Check if the file exists
-        if not os.path.exists(filename):
-            logger.error("No such inference pipeline file: filename={}", filename)
-            return None
-
-        try:
-            # Open the pipeline file with UTF-8 encoding to handle non-ASCII characters
-            with open(filename, encoding="utf-8") as jsonfile:
-                # Extract the pipeline name from the filename
-                pipeline_name_regex_matches = re.match(r".*pipeline_(.*)\.json", filename)
-                if pipeline_name_regex_matches is None:
-                    logger.error("Regex parsing failed for pipeline file: filename={}", filename)
-                    return None
-
-                pipeline_name = pipeline_name_regex_matches[1]
-                # Load the pipeline data from the file
-                pipeline_data = json.loads(jsonfile.read())
-                # Check if there is a design file for this pipeline
-                logger.debug("Patching pipeline: name={}", pipeline_name)
-                pipeline_data = self._patch_pipeline(pipeline_data)
-                # Add the pipeline data to the pipelines dictionary
-                self.pipelines[pipeline_name] = pipeline_data
-                logger.debug("Loaded inference pipeline: name={}", pipeline_name)
-                return True
-        except (OSError, ValueError):
-            logger.error("Invalid inference pipeline file: filename={}", filename)
-            logger.exception("Failed to load pipeline")
-            return None
-
-    def _load_pipelines(self) -> int:
-        """Load all of the inference pipelines from the pipelines directory matching `pipeline_*.json`.
-
-        Returns:
-            int: The number of pipelines loaded.
-        """
-        files = glob.glob(self._this_dir("pipeline_*.json", subdir="pipelines"))
-        loaded_count = 0
-        for file in files:
-            if self._load_pipeline(file):
-                loaded_count += 1
-        return loaded_count
 
     def _set(self, dct, **kwargs) -> None:
         """Set the named parameter to the named value in the pipeline template.
@@ -1025,15 +886,15 @@ class Comfy_Horde:
                 if node_name == "vae_decode":
                     logger.info("Decoding image from VAE. This may take a while for large images.")
 
-    # Execute the named pipeline and pass the pipeline the parameter provided.
+    # Execute a fully materialized graph, applying any remaining dotted params.
     # For the horde we assume the pipeline returns an array of images.
     @logfire.instrument("comfy.execute_graph", extract_args=False)
     def _run_pipeline(
         self,
-        pipeline: dict,
-        params: dict,
+        pipeline: GraphDict,
+        params: dict[str, typing.Any],
         comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
-    ) -> list[dict] | None:
+    ) -> list[dict[str, typing.Any]] | None:
         start_time = time.time()
 
         if _comfy_current_loaded_models is None:
@@ -1166,8 +1027,8 @@ class Comfy_Horde:
     @logfire.instrument("comfy.run_pipeline", extract_args=False)
     def run_image_pipeline(
         self,
-        pipeline,
-        params: dict,
+        pipeline: GraphDict,
+        params: dict[str, typing.Any],
         comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
     ) -> list[dict[str, typing.Any]]:
         # From the horde point of view, let us assume the output we are interested in
@@ -1179,21 +1040,15 @@ class Comfy_Horde:
         #   },
         # ]
         # See node_image_output.py
-
-        # We may be passed a pipeline name or a pipeline data structure
-        if isinstance(pipeline, str):
-            # Grab pipeline data structure
-            pipeline_data = self.get_pipeline_data(pipeline)
-            # Sanity
-            if not pipeline_data:
-                logger.error("Unknown inference pipeline", pipeline_name=pipeline)
-                raise ValueError("Unknown inference pipeline")
-        else:
-            pipeline_data = pipeline
+        if not isinstance(pipeline, dict):
+            raise TypeError(
+                f"run_image_pipeline expects a materialized graph dict, got {type(pipeline).__name__!r}. "
+                "Named pipelines were removed; materialize a graph via the pipeline registry or "
+                "hordelib.pipeline.graph.ComfyGraph instead.",
+            )
 
         logger.info(
             "Pipeline starting",
-            pipeline_name=pipeline if isinstance(pipeline, str) else "custom",
             params_keys=list(params.keys()),
         )
 
@@ -1203,16 +1058,14 @@ class Comfy_Horde:
             if idle_time > 1 and UserSettings.enable_idle_time_warning.active:
                 logger.warning("No job ran recently", idle_seconds=round(idle_time, 3))
 
-        result = self._run_pipeline(pipeline_data, params, comfyui_progress_callback)
+        result = self._run_pipeline(pipeline, params, comfyui_progress_callback)
 
         if result:
             return result
 
         # Pipeline failed - provide detailed error context
-        pipeline_name = pipeline if isinstance(pipeline, str) else "custom"
         logger.error(
             "Pipeline execution failed - no images produced",
-            pipeline_name=pipeline_name,
             result_is_none=result is None,
             result_type=type(result).__name__ if result is not None else "None",
             params_provided=list(params.keys()),
@@ -1226,14 +1079,13 @@ class Comfy_Horde:
 
         logger.error(
             "Pipeline failed to produce images",
-            pipeline_name=pipeline_name,
             model_name=model_name,
             steps=steps,
             resolution=resolution,
         )
 
         raise RuntimeError(
-            f"Pipeline failed to run ('{pipeline_name}') - no images were produced. "
+            f"Pipeline failed to run - no images were produced. "
             f"Model: {model_name}, Steps: {steps}, Resolution: {resolution}",
         )
 
