@@ -6,12 +6,9 @@ import sys
 
 from loguru import logger
 
-from hordelib import install_comfy
-from hordelib.config_path import get_hordelib_path, set_system_path
-from hordelib.consts import (
-    COMFYUI_VERSION,
-    RELEASE_VERSION,
-)
+from hordelib.config_path import get_comfyui_path, get_hordelib_path, set_system_path
+from hordelib.consts import RELEASE_VERSION
+from hordelib.installation import EnvironmentInstaller, load_packaged_manifest
 from hordelib.utils.logger import HordeLog
 
 _is_initialised = False
@@ -66,12 +63,21 @@ def initialise(
             "Do not run this project in developer mode from a path that " "contains spaces in directory names.",
         )
 
-    # Ensure we have ComfyUI
+    # Ensure we have ComfyUI (and any manifest-pinned custom nodes)
     logger.debug("Clearing command line args in sys.argv before ComfyUI load")
     sys_arg_bkp = sys.argv.copy()
     sys.argv = sys.argv[:1]
-    installer = install_comfy.Installer()
-    installer.install(COMFYUI_VERSION)
+    EnvironmentInstaller(load_packaged_manifest()).ensure(get_comfyui_path())
+
+    # Tell comfyui_controlnet_aux where to store its annotator checkpoints before its package
+    # is imported (which happens when ComfyUI loads custom nodes).
+    from hordelib.settings import UserSettings
+
+    os.environ.setdefault(
+        "AUX_ANNOTATOR_CKPTS_PATH",
+        str(UserSettings.get_model_directory() / "controlnet" / "annotators"),
+    )
+    os.environ.setdefault("AUX_USE_SYMLINKS", "False")
 
     # Modify python path to include comfyui
     set_system_path()

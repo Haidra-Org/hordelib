@@ -2,9 +2,9 @@ import os
 import re
 from collections import deque
 from pathlib import Path
+from typing import Self
 
 import psutil
-from typing_extensions import Self
 
 from hordelib import is_initialised
 from hordelib.utils.switch import Switch

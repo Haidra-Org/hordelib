@@ -1,4 +1,5 @@
 import importlib
+import os
 import sys
 from pathlib import Path
 
@@ -10,11 +11,22 @@ def get_hordelib_path() -> Path:
 
 
 def get_comfyui_path() -> Path:
-    """Returns the path to ComfyUI that hordelib installs and manages."""
+    """Returns the path to the ComfyUI checkout that hordelib installs and manages.
+
+    Resolution order:
+    1. ``HORDELIB_COMFYUI_ROOT`` environment variable, if set.
+    2. Release installs (wheel with ``_version.py``): ``$AIWORKER_CACHE_HOME/comfyui_env/ComfyUI``
+       (installed on first ``initialise()`` from the packaged manifest).
+    3. Development checkouts: ``ComfyUI/`` in the repository root.
+    """
+    env_root = os.getenv("HORDELIB_COMFYUI_ROOT")
+    if env_root:
+        return Path(env_root).resolve()
+
     hordelib_path = get_hordelib_path()
     if (hordelib_path / "_version.py").exists():
-        # Packaged version
-        return hordelib_path / "_comfyui"
+        cache_home = os.getenv("AIWORKER_CACHE_HOME", "./models")
+        return (Path(cache_home) / "comfyui_env" / "ComfyUI").resolve()
 
     # Development version
     return hordelib_path.parent / "ComfyUI"

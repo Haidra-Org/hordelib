@@ -140,8 +140,11 @@ class AttentionSharingUnit(torch.nn.Module):
 
         self.control_signals = None
 
-    def forward(self, h, context=None, value=None):
-        transformer_options = self.transformer_options
+    def forward(self, h, context=None, value=None, transformer_options=None):
+        # Newer ComfyUI passes transformer_options directly to attention overrides; older
+        # versions relied on the BasicTransformerBlock hijack capturing it as a class attribute.
+        if transformer_options is None:
+            transformer_options = self.transformer_options
 
         modified_hidden_states = einops.rearrange(h, "(b f) d c -> f b d c", f=self.frames)
 

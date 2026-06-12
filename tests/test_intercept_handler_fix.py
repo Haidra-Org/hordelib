@@ -156,7 +156,7 @@ def test_exception_handling():
 
     assert len(captured_exceptions) == 1, "Exception should be captured"
     exc_info = captured_exceptions[0]
-    assert exc_info.type == ValueError
+    assert exc_info.type is ValueError
     assert "Test exception" in str(exc_info.value)
 
     # Cleanup

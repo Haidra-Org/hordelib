@@ -16,10 +16,6 @@ def _format_with_extras(record, *, color: bool) -> str:
         # Use the original source location from the LogRecord
         import os
 
-        name = extras.get("stdlib_loggername", "unknown")
-        function = extras.get("stdlib_funcname", "unknown")
-        line = extras.get("stdlib_lineno", 0)
-
         # Extract just the filename from the full path for readability
         pathname = extras.get("stdlib_pathname", "")
         filename = os.path.basename(pathname) if pathname else "unknown"
@@ -33,8 +29,10 @@ def _format_with_extras(record, *, color: bool) -> str:
                 "<level>{message}</level>"
             )
         else:
-            base = "{{time:YYYY-MM-DD HH:mm:ss.SSS}} | {{level: <8}} | {{extra[stdlib_loggername]}}:{filename}:{{extra[stdlib_funcname]}}:{{extra[stdlib_lineno]}} - {{message}}".format(
-                filename=filename,
+            base = (
+                "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {extra[stdlib_loggername]}:"
+                + filename
+                + ":{extra[stdlib_funcname]}:{extra[stdlib_lineno]} - {message}"
             )
     else:
         # Normal loguru log - use loguru's own source tracking

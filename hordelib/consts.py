@@ -5,9 +5,10 @@ from enum import Enum, auto
 from strenum import StrEnum
 
 from hordelib.config_path import get_hordelib_path
+from hordelib.installation.manifest import load_packaged_manifest
 
-COMFYUI_VERSION = "fb991e2c1e7476809d566a4620c2132e05a466dd"
-"""The exact version of ComfyUI version to load."""
+COMFYUI_VERSION = load_packaged_manifest().comfyui_ref
+"""The exact ComfyUI commit to load, as pinned by hordelib/installation/manifest.json."""
 
 RELEASE_VERSION = (get_hordelib_path() / "_version.py").exists()
 """A flag for if this is a pypi release or a git dev mode"""

@@ -1,54 +1,64 @@
-import glob
-from pathlib import Path
+"""Preloading of auxiliary models (controlnet annotators).
+
+ControlNet preprocessing is provided by the ``comfyui_controlnet_aux`` custom node package
+(pinned via ``hordelib/installation/manifest.json``). Its detectors download their checkpoint
+files from the HuggingFace hub on first use, into the directory named by the
+``AUX_ANNOTATOR_CKPTS_PATH`` environment variable (set during ``hordelib.initialise()``).
+
+Preloading simply exercises each supported preprocessor once on a tiny image, which triggers
+(and therefore verifies) the downloads ahead of any real generation.
+"""
+
+import threading
 
 from loguru import logger
 
-from hordelib.comfy_horde import ANNOTATOR_MODEL_SHA_LOOKUP, download_all_controlnet_annotators
-from hordelib.model_manager.base import BaseModelManager
+_preload_mutex = threading.Lock()
+_preload_completed = False
 
 
-def validate_all_controlnet_annotators(annotatorPath: Path) -> int:
-    # See if the file `.controlnet_annotators` exists
-    if annotatorPath.joinpath(".controlnet_annotators").exists():
-        return len(ANNOTATOR_MODEL_SHA_LOOKUP)
+def download_all_controlnet_annotators() -> bool:
+    """Download (and verify by running) all controlnet annotators hordelib supports.
 
-    annotatorPath.mkdir(parents=True, exist_ok=True)
+    Requires ``hordelib.initialise()`` to have completed and custom nodes to be loaded
+    (i.e. a ``Comfy_Horde``/``HordeLib`` instance must have been constructed).
 
-    validated_file_num = 0
-    annotators = glob.glob("*.pt*", root_dir=annotatorPath)
-    for annotator in annotators:
-        annotator_full_path = annotatorPath.joinpath(annotator)
+    Returns:
+        bool: True if all annotators are available and runnable, False otherwise.
+    """
+    global _preload_completed
+    with _preload_mutex:
+        if _preload_completed:
+            return True
 
-        if annotator not in ANNOTATOR_MODEL_SHA_LOOKUP:
-            logger.warning(
-                f"Annotator file {annotator} is not in the model database. Ignoring...",
-            )
-            logger.warning("Annotator file location: path={}", annotator_full_path)
-            validated_file_num += 1
-            continue
+        try:
+            import torch
 
-        hash = BaseModelManager.get_file_sha256_hash(annotator_full_path)
-        if hash != ANNOTATOR_MODEL_SHA_LOOKUP[annotator]:
-            try:
-                annotator_full_path.unlink()
-                logger.error(
-                    f"Deleted annotator file {annotator} as it was corrupt.",
+            from hordelib.comfy_horde import get_node_class
+            from hordelib.horde import HordeLib
+
+            aio_preprocessor_class = get_node_class("AIO_Preprocessor")
+
+            preprocessors = sorted(set(HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.values()))
+            # A tiny gray test card; enough for every detector to run its model once
+            test_image = torch.full((1, 64, 64, 3), 0.5)
+
+            for i, preprocessor in enumerate(preprocessors):
+                logger.info(
+                    "Preloading controlnet annotator",
+                    preprocessor=preprocessor,
+                    current=i + 1,
+                    total=len(preprocessors),
                 )
-            except OSError:
-                logger.error(
-                    "Annotator file is corrupt. Please delete it and try again: annotator={}",
-                    annotator,
-                )
-                logger.error("File location: path={}", annotator_full_path)
-            return validated_file_num
+                aio_preprocessor_class().execute(preprocessor, test_image, resolution=64)
 
-    # Create a file called `.controlnet_annotators` to indicate that all annotators are valid
-    annotatorPath.joinpath(".controlnet_annotators").touch()
-
-    return validated_file_num
+            _preload_completed = True
+            return True
+        except Exception as e:
+            logger.exception("Failed to preload controlnet annotators: error={}", e)
+            return False
 
 
 __all__ = [
     "download_all_controlnet_annotators",
-    "validate_all_controlnet_annotators",
 ]

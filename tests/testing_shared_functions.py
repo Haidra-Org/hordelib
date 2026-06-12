@@ -3,13 +3,12 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
-from typing import TypeAlias
 
 import PIL.Image
 import pytest
 from loguru import logger
 
-FilePathOrPILImage: TypeAlias = str | Path | PIL.Image.Image
+type FilePathOrPILImage = str | Path | PIL.Image.Image
 
 from hordelib.utils.distance import (
     CosineSimilarityResult,

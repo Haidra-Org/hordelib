@@ -1,4 +1,5 @@
-# type: ignore - Monkeypatching is inherently unsafe
+# mypy: ignore-errors
+# Monkeypatching is inherently type-unsafe
 """
 Deep ComfyUI internals instrumentation for Logfire.
 
@@ -70,7 +71,6 @@ def instrument_comfy_internals():
         instrumented_count += _instrument_model_management()
         instrumented_count += _instrument_sampling()
         instrumented_count += _instrument_vae_operations()
-        instrumented_count += _instrument_model_patching()
 
         logger.info("comfy.instrumentation.applied", functions_instrumented=instrumented_count)
     except Exception as e:

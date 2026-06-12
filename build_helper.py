@@ -9,8 +9,6 @@ import subprocess
 # know that build_helper.py can be and is run without a full hordelib installation.
 # Accordingly, any imports that ultimately resolve as a result of the following imports
 # must be included in release.yml. The section at the time of writing is `🛠 Install pypa/build`.
-from hordelib import install_comfy
-from hordelib.consts import COMFYUI_VERSION
 
 
 def run(command):
@@ -57,35 +55,29 @@ def patch_toml(unpatch=False):
         outfile.writelines(newfile)
 
 
-def static_package_comfyui(unpatch=False):
-    if unpatch:
-        if os.path.exists("hordelib/_version.py"):
-            os.remove("hordelib/_version.py")
+def cleanup_version_file(unpatch=False):
+    # ComfyUI is no longer statically bundled into wheels: release installs fetch the
+    # manifest-pinned ComfyUI on first initialise() (see hordelib/installation/).
+    if unpatch and os.path.exists("hordelib/_version.py"):
+        os.remove("hordelib/_version.py")
 
-        if os.path.exists("hordelib/_comfyui"):
-            try:
-                shutil.rmtree("hordelib/_comfyui")
-            except PermissionError:
-                print("Can't delete `hordelib/_comfyUI/` please delete it manually and try again")
-                exit(1)
-
-    else:
-        installer = install_comfy.Installer()
-        installer.install(COMFYUI_VERSION)
-
-        if not os.path.exists("ComfyUI"):
-            raise Exception("ComfyUI not found")
-        shutil.copytree("ComfyUI", "hordelib/_comfyui")
+    # Clean up any stale static bundle left behind by older build versions
+    if os.path.exists("hordelib/_comfyui"):
+        try:
+            shutil.rmtree("hordelib/_comfyui")
+        except PermissionError:
+            print("Can't delete `hordelib/_comfyui/` please delete it manually and try again")
+            exit(1)
 
 
 def unpatch():
-    static_package_comfyui(True)
+    cleanup_version_file(True)
     patch_requirements(True)
     patch_toml(True)
 
 
 def patch():
-    static_package_comfyui()
+    cleanup_version_file()
     patch_requirements()
     patch_toml()
 
@@ -94,17 +86,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--fix", action="store_true", help="Cleanup after the build")
     args = parser.parse_args()
-    undo = args.fix
-
-    if os.path.exists("hordelib/_comfyui"):
-        # cleanup before the new build
-        unpatch()
 
     if not args.fix:
-        static_package_comfyui()
-        patch_requirements()
-        patch_toml()
+        patch()
     else:
-        static_package_comfyui(True)
-        patch_requirements(True)
-        patch_toml(True)
+        unpatch()

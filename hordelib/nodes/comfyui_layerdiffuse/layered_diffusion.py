@@ -12,8 +12,8 @@ import folder_paths
 import torch
 from comfy.conds import CONDRegular
 from comfy.model_patcher import ModelPatcher
-from comfy.utils import load_torch_file
-from comfy_extras.nodes_compositing import JoinImageWithAlpha
+from comfy.utils import load_torch_file, repeat_to_batch_size
+from comfy_extras.nodes_compositing import resize_mask
 from folder_paths import get_folder_paths
 
 from .lib_layerdiffusion.attention_sharing import AttentionSharingPatcher
@@ -183,7 +183,14 @@ class LayeredDiffusionDecodeRGBA(LayeredDiffusionDecode):
     def decode(self, samples, images, sd_version: str, sub_batch_size: int):
         image, mask = super().decode(samples, images, sd_version, sub_batch_size)
         alpha = 1.0 - mask
-        return JoinImageWithAlpha().join_image_with_alpha(image, alpha)
+        # Inlined from ComfyUI's JoinImageWithAlpha: the node moved to the V3 schema
+        # (classmethod execute returning io.NodeOutput), so calling it as a plain method
+        # is no longer possible.
+        batch_size = max(len(image), len(alpha))
+        alpha = 1.0 - resize_mask(alpha.to(image), image.shape[1:])
+        alpha = repeat_to_batch_size(alpha, batch_size)
+        image = repeat_to_batch_size(image, batch_size)
+        return (torch.cat((image[..., :3], alpha.unsqueeze(-1)), dim=-1),)
 
 
 class LayeredDiffusionDecodeSplit(LayeredDiffusionDecodeRGBA):

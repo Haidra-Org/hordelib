@@ -1,0 +1,19 @@
+{
+    "schema_version": 1,
+    "comfyui_repo": "https://github.com/comfyanonymous/ComfyUI.git",
+    "comfyui_ref": "fb991e2c1e7476809d566a4620c2132e05a466dd",
+    "custom_nodes": [
+        {
+            "name": "comfyui_controlnet_aux",
+            "repo_url": "https://github.com/Fannovel16/comfyui_controlnet_aux",
+            "ref": "e8b689a513c3e6b63edc44066560ca5919c0576e",
+            "registry_id": "comfyui_controlnet_aux"
+        },
+        {
+            "name": "ComfyQR",
+            "repo_url": "https://github.com/coreyryanhanson/ComfyQR",
+            "ref": "e31449c99a6ba8c5c567646659e0a75e4056259f",
+            "registry_id": "comfyqr"
+        }
+    ]
+}

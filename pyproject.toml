@@ -48,6 +48,7 @@ dependencies = [
     "logfire[system-metrics]==4.14.2",
     "loguru>=0.7.3",
     "lpips>=0.1.4",
+    "matplotlib>=3.10.9",
     "numpy>=1.25.0",
     "omegaconf>=2.3.0",
     "open-clip-torch>=2.32.0",
@@ -86,6 +87,7 @@ dependencies = [
     "transformers>=4.50.3",
     "typing-extensions>=4.15.0",
     "unidecode>=1.4.0",
+    "yapf>=0.43.0",
     "yarl>=1.18.0",
 ]
 #dynamic=["version", "dependencies"]
@@ -140,6 +142,9 @@ url = "https://download.pytorch.org/whl/cpu"
 explicit = true
 
 
+
+[project.scripts]
+horde-engine-install = "hordelib.installation.__main__:main"
 
 [project.urls]
 "Homepage" = "https://github.com/Haidra-Org/hordelib"
