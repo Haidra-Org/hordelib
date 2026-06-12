@@ -6,7 +6,6 @@ import base64
 import io
 import json
 import random
-import sys
 import time
 import typing
 from collections.abc import Callable
@@ -30,7 +29,21 @@ from pydantic import BaseModel
 from hordelib.comfy_horde import Comfy_Horde, get_node_class
 from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.execution.in_process import InProcessComfyBackend
-from hordelib.pipeline.patches import ResolvedLora, insert_lora_chain
+from hordelib.pipeline import constants as pipeline_constants
+from hordelib.pipeline.patches import (
+    RemixImage,
+    ResolvedLora,
+    apply_layerdiffuse,
+    configure_controlnet,
+    hires_fix_first_pass_resolution,
+    insert_lora_chain,
+    insert_remix_image_chain,
+    qr_layout_params,
+    qr_params_from_extra_texts,
+    rewire_cascade_img2img,
+    rewire_img2img,
+)
+from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.dynamicprompt import DynamicPromptParser
 from hordelib.utils.image_utils import ImageUtils
@@ -187,120 +200,13 @@ class HordeLib:
     _instance: HordeLib | None = None
     _initialised = False
 
-    # Horde to comfy sampler mapping
-    SAMPLERS_MAP = {
-        "k_euler": "euler",
-        "k_euler_a": "euler_ancestral",
-        "k_heun": "heun",
-        "k_dpm_2": "dpm_2",
-        "k_dpm_2_a": "dpm_2_ancestral",
-        "k_lms": "lms",
-        "k_dpm_fast": "dpm_fast",
-        "k_dpm_adaptive": "dpm_adaptive",
-        "k_dpmpp_2s_a": "dpmpp_2s_ancestral",
-        "k_dpmpp_sde": "dpmpp_sde",
-        "k_dpmpp_2m": "dpmpp_2m",
-        "ddim": "ddim",
-        "uni_pc": "uni_pc",
-        "uni_pc_bh2": "uni_pc_bh2",
-        "plms": "euler",
-        "lcm": "lcm",
-    }
-
-    # Horde control_type on the left, comfyui_controlnet_aux preprocessor on the right.
-    # The pipeline's AIO_Preprocessor node (titled "preprocessor") is parameterized with these.
-    CONTROLNET_IMAGE_PREPROCESSOR_MAP = {
-        "canny": "CannyEdgePreprocessor",
-        "hed": "HEDPreprocessor",
-        "depth": "LeReS-DepthMapPreprocessor",
-        "normal": "MiDaS-NormalMapPreprocessor",
-        "openpose": "OpenposePreprocessor",
-        "seg": "SemSegPreprocessor",
-        "scribble": "ScribblePreprocessor",
-        "fakescribbles": "FakeScribblePreprocessor",
-        "hough": "M-LSDPreprocessor",  # horde backward compatibility
-        "mlsd": "M-LSDPreprocessor",
-    }
-
-    CONTROLNET_MODEL_MAP = {
-        "canny": "diff_control_sd15_canny_fp16.safetensors",
-        "hed": "diff_control_sd15_hed_fp16.safetensors",
-        "depth": "diff_control_sd15_depth_fp16.safetensors",
-        "normal": "control_normal_fp16.safetensors",
-        "openpose": "control_openpose_fp16.safetensors",
-        "seg": "control_seg_fp16.safetensors",
-        "scribble": "control_scribble_fp16.safetensors",
-        "fakescribble": "control_scribble_fp16.safetensors",
-        "fakescribbles": "control_scribble_fp16.safetensors",
-        "mlsd": "control_mlsd_fp16.safetensors",
-        "hough": "control_mlsd_fp16.safetensors",
-    }
-
-    SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting", "remix"]
-
-    SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform", "sgm_uniform", "exponential"]
-
-    # Describe a valid payload, it's types and bounds. All incoming payload data is validated against,
-    # and normalised to, this schema.
-    PAYLOAD_SCHEMA = {
-        "sampler_name": {"datatype": str, "values": list(SAMPLERS_MAP.keys()), "default": "k_euler"},
-        "cfg_scale": {"datatype": float, "min": 1, "max": 100, "default": 8.0},
-        "denoising_strength": {"datatype": float, "min": 0.01, "max": 1.0, "default": 1.0},
-        "control_strength": {"datatype": float, "min": 0.01, "max": 3.0, "default": 1.0},
-        "seed": {"datatype": int, "default": random.randint(0, sys.maxsize)},
-        "width": {"datatype": int, "min": 64, "max": 8192, "default": 512, "divisible": 64},
-        "height": {"datatype": int, "min": 64, "max": 8192, "default": 512, "divisible": 64},
-        "hires_fix": {"datatype": bool, "default": False},
-        "clip_skip": {"datatype": int, "min": 1, "max": 20, "default": 1},
-        "control_type": {"datatype": str, "values": list(CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys()), "default": None},
-        "image_is_control": {"datatype": bool, "default": False},
-        "return_control_map": {"datatype": bool, "default": False},
-        "prompt": {"datatype": str, "default": ""},
-        "negative_prompt": {"datatype": str, "default": ""},
-        "loras": {"datatype": list, "default": []},
-        "tis": {"datatype": list, "default": []},
-        "ddim_steps": {"datatype": int, "min": 1, "max": 500, "default": 30},
-        "n_iter": {"datatype": int, "min": 1, "max": 100, "default": 1},
-        "model": {"datatype": str, "default": "stable_diffusion"},
-        "source_mask": {"datatype": Image.Image, "default": None},
-        "source_image": {"datatype": Image.Image, "default": None},
-        "source_processing": {"datatype": str, "values": SOURCE_IMAGE_PROCESSING_OPTIONS, "default": None},
-        "hires_fix_denoising_strength": {"datatype": float, "min": 0.01, "max": 1.0, "default": 0.65},
-        "scheduler": {"datatype": str, "values": SCHEDULERS, "default": "normal"},
-        "tiling": {"datatype": bool, "default": False},
-        "model_name": {"datatype": str, "default": "stable_diffusion"},  # Used internally by hordelib
-        "stable_cascade_stage_b": {"datatype": str, "default": None},  # Stable Cascade
-        "stable_cascade_stage_c": {"datatype": str, "default": None},  # Stable Cascade
-        "extra_source_images": {"datatype": list, "default": []},  # Stable Cascade Remix
-        "extra_texts": {"datatype": list, "default": []},  # QR Codes (for now)
-        "weight_dtype": {"datatype": list, "default": []},  # For Qwen
-        "workflow": {"datatype": str, "default": "auto_detect"},
-        "transparent": {"datatype": bool, "default": False},
-    }
-
-    EXTRA_IMAGES_SCHEMA = {
-        "image": {"datatype": Image.Image, "default": None},
-        "strength": {"datatype": float, "min": 0.0, "max": 5.0, "default": 1.0},
-    }
-
-    EXTRA_TEXTS_SCHEMA = {
-        "text": {"datatype": str, "default": ""},
-        "reference": {"datatype": str, "default": None},
-    }
-
-    LORA_SCHEMA = {
-        "name": {"datatype": str, "default": ""},
-        "model": {"datatype": float, "min": -10.0, "max": 10.0, "default": 1.0},
-        "clip": {"datatype": float, "min": -10.0, "max": 10.0, "default": 1.0},
-        "inject_trigger": {"datatype": str},
-        "is_version": {"datatype": bool},
-    }
-
-    TIS_SCHEMA = {
-        "name": {"datatype": str, "default": ""},
-        "inject_ti": {"datatype": str},
-        "strength": {"datatype": float, "min": -10, "max": 10.0, "default": 1.0},
-    }
+    # Payload vocabularies; the canonical copies live in hordelib.pipeline.constants and the
+    # payload bounds/clamping live in hordelib.pipeline.payload.ImageGenPayload.
+    SAMPLERS_MAP = pipeline_constants.SAMPLERS_MAP
+    CONTROLNET_IMAGE_PREPROCESSOR_MAP = pipeline_constants.CONTROLNET_IMAGE_PREPROCESSOR_MAP
+    CONTROLNET_MODEL_MAP = pipeline_constants.CONTROLNET_MODEL_MAP
+    SOURCE_IMAGE_PROCESSING_OPTIONS = pipeline_constants.SOURCE_IMAGE_PROCESSING_OPTIONS
+    SCHEDULERS = pipeline_constants.SCHEDULERS
 
     # pipeline parameter <- hordelib payload parameter mapping
     PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING: dict[str, str | Callable] = {  # FIXME
@@ -433,89 +339,16 @@ class HordeLib:
     def dump_json(self, adict):
         logger.warning(json.dumps(adict, indent=4, default=self._json_hack))
 
-    def _validate(self, value, datatype, min=None, max=None, default=None, values=None, divisible=None):
-        """Check the given value against the given constraints. Return the fixed value."""
+    def _validate_data_structure(self, data: dict) -> dict:
+        """Clamp/coerce a raw payload into the known schema, never raising for bad values.
 
-        # First, if we are passed no value at all, use the default
-        if value is None:
-            return default
-
-        # We have a value, check the type
-        if not isinstance(value, datatype):
-            # try to coerce the type
-            try:
-                value = datatype(value)
-            except (ValueError, TypeError):
-                # epic fail, use the default
-                return default
-
-        # If the value must be divisible by some amount, assert that
-        if divisible:
-            if value % divisible != 0:
-                value = ((value + (divisible - 1)) // divisible) * divisible
-
-        # If we have a minimum, assert it
-        if min is not None and value < min:
-            value = min
-
-        # If we have a maximum, assert it
-        if max and value > max:
-            value = max
-
-        # If we have a list of allowed values, make sure the value is permitted
-        if values:
-            if isinstance(value, str):
-                if value.lower() not in values:
-                    # not an allowed value, use the default
-                    return default
-                value = value.lower()
-            else:
-                if value not in values:
-                    # not an allowed value, use the default
-                    return default
-
-        return value
-
-    def _validate_data_structure(self, data, schema_definition=PAYLOAD_SCHEMA):
-        """Validate a data structure, assert parameters fall within the allowed bounds."""
-        data = deepcopy(data)
-
-        # Remove anything from the payload that isn't in our schema
-        for key in data.copy().keys():
-            if key.lower() not in schema_definition.keys():
-                del data[key]
-
-        # Build a valid schema payload, create attributes that don't exist using default values
-        for key, schema in schema_definition.items():
-            data[key.lower()] = self._validate(data.get(key.lower()), **schema)
-
-        # Do the same for loras, if we have loras in this data structure
-        if data.get("loras"):
-            for i, lora in enumerate(data.get("loras")):
-                data["loras"][i] = self._validate_data_structure(lora, HordeLib.LORA_SCHEMA)
-            # Remove invalid loras
-            data["loras"] = [x for x in data["loras"] if x.get("name")]
-
-        # Do the same for tis, if we have tis in this data structure
-        if data.get("tis"):
-            for i, ti in enumerate(data.get("tis")):
-                data["tis"][i] = self._validate_data_structure(ti, HordeLib.TIS_SCHEMA)
-            # Remove invalid tis
-            data["tis"] = [x for x in data["tis"] if x.get("name")]
-
-        # Do the same for extra images, if we have them in this data structure
-        if data.get("extra_source_images"):
-            for i, img in enumerate(data.get("extra_source_images")):
-                data["extra_source_images"][i] = self._validate_data_structure(img, HordeLib.EXTRA_IMAGES_SCHEMA)
-            data["extra_source_images"] = [x for x in data["extra_source_images"] if x.get("image")]
-
-        # Do the same for extra texts, if we have them in this data structure
-        if data.get("extra_texts"):
-            for i, img in enumerate(data.get("extra_texts")):
-                data["extra_texts"][i] = self._validate_data_structure(img, HordeLib.EXTRA_TEXTS_SCHEMA)
-            data["extra_texts"] = [x for x in data["extra_texts"] if x.get("text")]
-
-        return data
+        Unknown keys are dropped, missing keys get defaults, out-of-range values are clamped
+        and invalid sub-entries (loras, tis, extra images/texts) are removed. The bounds live
+        on :class:`hordelib.pipeline.payload.ImageGenPayload`.
+        """
+        # Sub-models (loras etc.) are dumped back to plain dicts because the legacy
+        # parameter-translation path still consumes (and mutates) dict entries.
+        return ImageGenPayload.from_horde_dict(data).model_dump(warnings=False)
 
     def _apply_aihorde_compatibility_hacks(self, payload: dict) -> tuple[dict, list[GenMetadataEntry]]:
         """For use by the AI Horde worker we require various counterintuitive hacks to the payload data.
@@ -977,70 +810,24 @@ class HordeLib:
                     logger.error("empty_latent_image.width or empty_latent_image.height not found. Using 1024x1024.")
                     original_width, original_height = (1024, 1024)
 
-            new_width, new_height = (None, None)
-            if baseline is not None:
-                if baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade:
-                    new_width, new_height = ImageUtils.get_first_pass_image_resolution_max(
-                        original_width,
-                        original_height,
-                    )
-                elif baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl:
-                    new_width, new_height = ImageUtils.get_first_pass_image_resolution_sdxl(
-                        original_width,
-                        original_height,
-                    )
-                else:  # fall through case; only `stable_diffusion_1` at time of writing
-                    new_width, new_height = ImageUtils.get_first_pass_image_resolution_min(
-                        original_width,
-                        original_height,
-                    )
-
-            # This is the *target* resolution
-            pipeline_params["latent_upscale.width"] = original_width
-            pipeline_params["latent_upscale.height"] = original_height
-
-            if new_width and new_height:
-                # This is the *first pass* resolution
-                pipeline_params["empty_latent_image.width"] = new_width
-                pipeline_params["empty_latent_image.height"] = new_height
-            else:
-                logger.error("Could not determine new image size for hires fix. Using 1024x1024.")
-                pipeline_params["empty_latent_image.width"] = 1024
-                pipeline_params["empty_latent_image.height"] = 1024
+            pipeline_params.update(hires_fix_first_pass_resolution(baseline, original_width, original_height))
 
         if payload.get("control_type"):
             with logfire.span("controlnet.setup", control_type=payload.get("control_type")):
-                control_type = payload["control_type"]
-                model_name = self.CONTROLNET_MODEL_MAP.get(control_type)
-                if not model_name:
-                    logger.error("Controlnet model not found: control_type={}", control_type)
-                pipeline_params["controlnet_model_loader.control_net_name"] = model_name
-
-                aux_preprocessor = self.CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(control_type)
-                if not aux_preprocessor:
-                    logger.error("Controlnet preprocessor not found: control_type={}", control_type)
-
-                if payload.get("image_is_control"):
-                    # The source image already is the control map; "none" makes the
-                    # AIO_Preprocessor node pass it through unchanged.
-                    pipeline_params["preprocessor.preprocessor"] = "none"
-                else:
-                    pipeline_params["preprocessor.preprocessor"] = aux_preprocessor
-
-                # Run detection at the generation resolution (the aux node resamples internally)
-                pipeline_params["preprocessor.resolution"] = min(
-                    payload.get("width", 512),
-                    payload.get("height", 512),
+                controlnet_params = configure_controlnet(
+                    pipeline_data,
+                    control_type=payload["control_type"],
+                    image_is_control=bool(payload.get("image_is_control")),
+                    return_control_map=bool(payload.get("return_control_map")),
+                    width=payload.get("width", 512),
+                    height=payload.get("height", 512),
                 )
-
-                if payload.get("return_control_map"):
-                    # Return the annotated control map itself rather than a generation
-                    self.generator.reconnect_input(pipeline_data, "output_image.images", "preprocessor")
+                pipeline_params.update(controlnet_params)
 
                 logger.info(
                     "controlnet.configured",
-                    model_name=model_name,
-                    preprocessor=pipeline_params["preprocessor.preprocessor"],
+                    model_name=controlnet_params["controlnet_model_loader.control_net_name"],
+                    preprocessor=controlnet_params["preprocessor.preprocessor"],
                     return_control_map=payload.get("return_control_map", False),
                     image_is_control=payload.get("image_is_control", False),
                 )
@@ -1050,105 +837,35 @@ class HordeLib:
         # the source image instead of the latent noise generator
         if pipeline_params.get("image_loader.image"):
             if SharedModelManager.manager.compvis:
-                if _get_baseline(payload["model_name"]) in _FLUX_BASELINES:
-                    self.generator.reconnect_input(pipeline_data, "sampler_custom_advanced.latent_image", "vae_encode")
-                else:
-                    self.generator.reconnect_input(pipeline_data, "sampler.latent_image", "vae_encode")
+                rewire_img2img(pipeline_data, flux=_get_baseline(payload["model_name"]) in _FLUX_BASELINES)
         if pipeline_params.get("sc_image_loader.image"):
-            self.generator.reconnect_input(
-                pipeline_data,
-                "sampler_stage_c.latent_image",
-                "stablecascade_stagec_vaeencode",
-            )
-            self.generator.reconnect_input(
-                pipeline_data,
-                "sampler_stage_b.latent_image",
-                "stablecascade_stagec_vaeencode",
-            )
+            rewire_cascade_img2img(pipeline_data)
 
         # If we have a remix request, we check for extra images to add to the pipeline
         if payload.get("source_processing") == "remix":
             logger.debug([payload.get("source_image"), payload.get("extra_source_images")])
-            for image_index in range(len(payload.get("extra_source_images", []))):
-                # The first image is always taken from the source_image param
-                # That will sit on the 0 spot.
-                # Therefore we want the extra images to start iterating from 1
-                extra_image = payload["extra_source_images"][image_index]["image"]
-                extra_image_strength = payload["extra_source_images"][image_index].get("strength", 1)
-                node_index = image_index + 1
-                pipeline_data[f"sc_image_loader_{node_index}"] = {
-                    "inputs": {"image": extra_image, "upload": "image"},
-                    "class_type": "HordeImageLoader",
-                }
-                pipeline_data[f"clip_vision_encode_{node_index}"] = {
-                    "inputs": {
-                        "clip_vision": ["model_loader_stage_c", 3],
-                        "image": [f"sc_image_loader_{node_index}", 0],
-                        "crop": "center",
-                    },
-                    "class_type": "CLIPVisionEncode",
-                }
-                pipeline_data[f"unclip_conditioning_{node_index}"] = {
-                    "inputs": {
-                        "strength": extra_image_strength,
-                        "noise_augmentation": 0,
-                        # Each conditioning ingests the conditioning before it like a chain
-                        "conditioning": [f"unclip_conditioning_{node_index - 1}", 0],
-                        "clip_vision_output": [f"clip_vision_encode_{node_index}", 0],
-                    },
-                    "class_type": "unCLIPConditioning",
-                }
-
-                # The last extra image always connects to the stage_c sampler positive prompt
-                if image_index == len(payload.get("extra_source_images")) - 1:
-                    self.generator.reconnect_input(
-                        pipeline_data,
-                        "sampler_stage_c.positive",
-                        f"unclip_conditioning_{node_index}",
-                    )
+            insert_remix_image_chain(
+                pipeline_data,
+                [
+                    RemixImage(image=extra["image"], strength=extra.get("strength", 1))
+                    for extra in payload.get("extra_source_images", [])
+                ],
+            )
 
         # If we have a qr code request, we check for extra texts such as the generation url
         if payload.get("workflow") == "qr_code":
             with logfire.span("qr.setup", has_extra_texts=bool(payload.get("extra_texts"))):
                 original_width = pipeline_params.get("empty_latent_image.width", 512)
                 original_height = pipeline_params.get("empty_latent_image.height", 512)
-                pipeline_params["qr_code_split.max_image_size"] = max(original_width, original_height)
-                pipeline_params["qr_code_split.text"] = "https://haidra.net"
-                for text in payload.get("extra_texts"):
-                    if text["reference"] in ["qr_code", "qr_text"]:
-                        pipeline_params["qr_code_split.text"] = text["text"]
-                    if text["reference"] == "protocol" and text["text"].lower() in ["https", "http"]:
-                        pipeline_params["qr_code_split.protocol"] = text["text"].capitalize()
-                    if text["reference"] == "module_drawer" and text["text"].lower() in [
-                        "square",
-                        "gapped square",
-                        "circle",
-                        "rounded",
-                        "vertical bars",
-                        "horizontal bars",
-                    ]:
-                        pipeline_params["qr_code_split.module_drawer"] = text["text"].capitalize()
-                    if text["reference"] == "function_layer_prompt":
-                        pipeline_params["function_layer_prompt.text"] = text["text"]
-                    if text["reference"] == "x_offset" and text["text"].lstrip("-").isdigit():
-                        x_offset = int(text["text"])
-                        if x_offset < 0:
-                            x_offset = 10
-                        pipeline_params["qr_flattened_composite.x"] = x_offset
-                    if text["reference"] == "y_offset" and text["text"].lstrip("-").isdigit():
-                        y_offset = int(text["text"])
-                        if y_offset < 0:
-                            y_offset = 10
-                        pipeline_params["qr_flattened_composite.y"] = y_offset
-                    if text["reference"] == "qr_border" and text["text"].lstrip("-").isdigit():
-                        border = int(text["text"])
-                        if border < 0:
-                            border = 10
-                        pipeline_params["qr_code_split.border"] = border
-                if not pipeline_params.get("qr_code_split.protocol"):
-                    pipeline_params["qr_code_split.protocol"] = "None"
-                if not pipeline_params.get("function_layer_prompt.text"):
-                    pipeline_params["function_layer_prompt.text"] = payload["prompt"]
+
+                pipeline_params.update(
+                    qr_params_from_extra_texts(
+                        payload.get("extra_texts"),
+                        prompt=payload["prompt"],
+                        width=original_width,
+                        height=original_height,
+                    ),
+                )
                 try:
                     # ComfyQR registers QRByModuleSizeSplitFunctionPatterns under this node id
                     test_qr = get_node_class("comfy-qr-by-module-split")()
@@ -1168,26 +885,16 @@ class HordeLib:
                     pipeline_params["qr_code_split.text"] = "This QR Code is too large for this image"
                     qr_size = 624
 
-                if not pipeline_params.get("qr_flattened_composite.x"):
-                    x_offset = int((original_width / 2) - qr_size / 2)
-                    # I don't know why but through trial and error I've discovered that the QR codes
-                    # are more legible when they're placed in an offset which is a multiple of 64
-                    x_offset = x_offset - (x_offset % 64) if x_offset % 64 != 0 else x_offset
-                    pipeline_params["qr_flattened_composite.x"] = x_offset
-                if pipeline_params.get("qr_flattened_composite.x", 0) > int((original_width) - qr_size):
-                    pipeline_params["qr_flattened_composite.x"] = int((original_width) - qr_size) - 10
-                if not pipeline_params.get("qr_flattened_composite.y"):
-                    y_offset = int((original_height / 2) - qr_size / 2)
-                    y_offset = y_offset - (y_offset % 64) if y_offset % 64 != 0 else y_offset
-                    pipeline_params["qr_flattened_composite.y"] = y_offset
-                if pipeline_params.get("qr_flattened_composite.y", 0) > int((original_height) - qr_size):
-                    pipeline_params["qr_flattened_composite.y"] = int((original_height) - qr_size) - 10
-                pipeline_params["module_layer_composite.x"] = pipeline_params["qr_flattened_composite.x"]
-                pipeline_params["module_layer_composite.y"] = pipeline_params["qr_flattened_composite.y"]
-                pipeline_params["function_layer_composite.x"] = pipeline_params["qr_flattened_composite.x"]
-                pipeline_params["function_layer_composite.y"] = pipeline_params["qr_flattened_composite.y"]
-                pipeline_params["mask_composite.x"] = pipeline_params["qr_flattened_composite.x"]
-                pipeline_params["mask_composite.y"] = pipeline_params["qr_flattened_composite.y"]
+                pipeline_params.update(
+                    qr_layout_params(
+                        width=original_width,
+                        height=original_height,
+                        qr_size=qr_size,
+                        # Explicit 0 offsets fall back to centered placement, as they always have
+                        x_offset=pipeline_params.get("qr_flattened_composite.x") or None,
+                        y_offset=pipeline_params.get("qr_flattened_composite.y") or None,
+                    ),
+                )
                 if _get_baseline(payload["model_name"]) == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
                     pipeline_params["controlnet_qr_model_loader.control_net_name"] = (
                         "control_v1p_sd15_qrcode_monster_v2.safetensors"
@@ -1200,26 +907,13 @@ class HordeLib:
                     y_offset=pipeline_params["qr_flattened_composite.y"],
                 )
         if payload.get("transparent") is True:
-            # A transparent gen is basically a fancy lora
-            pipeline_params["model_loader.will_load_loras"] = True
-            baseline = _get_baseline(payload["model_name"])
-            # SD2, Cascade and SD3 not supported
-            if baseline in (
-                KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1,
-                KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl,
-            ):
-                self.generator.reconnect_input(pipeline_data, "sampler.model", "layer_diffuse_apply")
-                self.generator.reconnect_input(pipeline_data, "layer_diffuse_apply.model", "model_loader")
-                self.generator.reconnect_input(pipeline_data, "output_image.images", "layer_diffuse_decode_rgba")
-                self.generator.reconnect_input(pipeline_data, "layer_diffuse_decode_rgba.images", "vae_decode")
-                if payload.get("hires_fix") is True:
-                    self.generator.reconnect_input(pipeline_data, "upscale_sampler.model", "layer_diffuse_apply")
-                if baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
-                    pipeline_params["layer_diffuse_apply.config"] = "SD15, Attention Injection, attn_sharing"
-                    pipeline_params["layer_diffuse_decode_rgba.sd_version"] = "SD15"
-                else:
-                    pipeline_params["layer_diffuse_apply.config"] = "SDXL, Conv Injection"
-                    pipeline_params["layer_diffuse_decode_rgba.sd_version"] = "SDXL"
+            pipeline_params.update(
+                apply_layerdiffuse(
+                    pipeline_data,
+                    baseline=_get_baseline(payload["model_name"]),
+                    hires_fix=payload.get("hires_fix") is True,
+                ),
+            )
 
         return pipeline_params, faults
 

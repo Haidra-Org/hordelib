@@ -55,6 +55,15 @@ def register_execution_module(execution_module: typing.Any) -> None:
 
 
 def _do_not_force_load_model_in_patcher(model_patcher) -> bool:
+    import comfy.model_base
+
+    # Only the big diffusion models are ever skipped. VAEs/CLIP/controlnets must always be
+    # force-loaded: the name match below is against the full class path, and e.g. the cascade
+    # stage-C VAE (comfy.ldm.cascade.stage_c_coder) would otherwise match "cascade" and be left
+    # partially on CPU, crashing encode with a CUDA/CPU device mismatch.
+    if not isinstance(model_patcher.model, comfy.model_base.BaseModel):
+        return False
+
     model_name_lower = str(type(model_patcher.model)).lower()
     if "clip" in model_name_lower:
         return False

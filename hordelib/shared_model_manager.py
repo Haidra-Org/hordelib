@@ -80,9 +80,9 @@ class SharedModelManager:
                 prefetch_strategy=PrefetchStrategy.DEFERRED,
             )
             _await_prefetch(cls.model_reference_manager)
-        except Exception:
+        except Exception as e:
             logger.exception("Failed to initialize model reference manager")
-            raise
+            raise RuntimeError("Failed to initialize model reference manager") from e
 
         cls.manager.init_model_managers(
             managers_to_load,

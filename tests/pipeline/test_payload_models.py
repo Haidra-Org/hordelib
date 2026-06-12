@@ -1,5 +1,8 @@
-"""Clamp/coerce semantics of the typed payload models, including parity with the legacy
-HordeLib._validate_data_structure. No GPU required."""
+"""Clamp/coerce semantics of the typed payload models. No GPU required.
+
+``HordeLib._validate_data_structure`` is a thin wrapper over these models; its dict-shaped
+contract is covered by ``tests/test_payload_mapping.py``.
+"""
 
 import PIL.Image
 import pytest
@@ -100,8 +103,8 @@ class TestSubEntryDropping:
         assert payload.loras == []
 
 
-class TestLegacyParity:
-    """The pydantic models must agree with the legacy validator for overlapping fields."""
+class TestValidateDataStructureWrapper:
+    """``HordeLib._validate_data_structure`` must keep its legacy dict-shaped contract."""
 
     CASES = [
         {"cfg_scale": 1000.5, "width": 513, "sampler_name": "K_EULER_A"},
@@ -113,14 +116,29 @@ class TestLegacyParity:
     ]
 
     @pytest.mark.parametrize("case", CASES)
-    def test_parity_with_legacy_validator(self, case):
+    def test_wrapper_returns_dumped_model(self, case):
         from hordelib.horde import HordeLib
 
-        legacy_self = object.__new__(HordeLib)  # bypass the singleton machinery
-        legacy = HordeLib._validate_data_structure(legacy_self, dict(case))
-        modern = ImageGenPayload.from_horde_dict(dict(case))
+        wrapper_self = object.__new__(HordeLib)  # bypass the singleton machinery
+        result = HordeLib._validate_data_structure(wrapper_self, dict(case))
+        expected = ImageGenPayload.from_horde_dict(dict(case)).model_dump(warnings=False)
 
-        for key in case:
-            if key not in ImageGenPayload.model_fields:
-                continue
-            assert getattr(modern, key) == legacy[key.lower()], f"Mismatch for {key}"
+        assert isinstance(result, dict)
+        for key in expected:
+            if key == "seed" and "seed" not in case:
+                continue  # randomized per call
+            assert result[key] == expected[key], f"Mismatch for {key}"
+
+    def test_sub_entries_are_plain_dicts(self):
+        from hordelib.horde import HordeLib
+
+        wrapper_self = object.__new__(HordeLib)
+        result = HordeLib._validate_data_structure(
+            wrapper_self,
+            {"loras": [{"name": "a_lora", "model": 0.5}], "tis": [{"name": "a_ti"}]},
+        )
+        # The legacy parameter-translation path mutates these entries in place
+        assert result["loras"] == [
+            {"name": "a_lora", "model": 0.5, "clip": 1.0, "inject_trigger": None, "is_version": None},
+        ]
+        assert result["tis"] == [{"name": "a_ti", "inject_ti": None, "strength": 1.0}]

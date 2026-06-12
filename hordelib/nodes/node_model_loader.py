@@ -37,6 +37,15 @@ disk_load_histogram = logfire.metric_histogram(
 # Don't let the name fool you, this class is trying to load all the files that will be necessary
 # for a given comfyUI workflow. That includes loras, etc.
 # TODO: Rename to HordeWorkflowModelsLoader ;)
+COMPONENT_FILE_TYPES = {"unet", "vae", "text_encoder"}
+"""file_type values loaded as bare components via ``comfy.sd.load_diffusion_model``.
+
+Any other file_type (e.g. the stable cascade stages) only selects which file of a
+multi-file model entry to load — the file itself is still a full checkpoint and goes
+through ``load_checkpoint_guess_config``.
+"""
+
+
 class HordeCheckpointLoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -115,7 +124,7 @@ class HordeCheckpointLoader:
 
         # Check if the model was previously loaded and if so, not loaded with Loras
         if same_loaded_model and not same_loaded_model[1]:
-            if file_type in ["unet", "vae", "text_encoder"]:
+            if file_type in COMPONENT_FILE_TYPES:
                 logger.debug("Model file was previously loaded, returning it: file_type={}", file_type)
                 log_free_ram()
                 return same_loaded_model[0]
@@ -176,7 +185,7 @@ class HordeCheckpointLoader:
         with torch.no_grad():
             load_start_time = time.time()
 
-            if file_type is not None:
+            if file_type in COMPONENT_FILE_TYPES:
                 with logfire.span("model.load_diffusion_model", file_type=file_type):
                     model_options = {}
                     if weight_dtype == "fp8_e4m3fn":
@@ -212,7 +221,7 @@ class HordeCheckpointLoader:
         SharedModelManager.manager._models_in_ram[horde_in_memory_name] = result, will_load_loras
 
         # Apply tiling settings - handle both checkpoint format (tuple) and component format (single object)
-        if file_type in ["unet", "vae", "text_encoder"]:
+        if file_type in COMPONENT_FILE_TYPES:
             # For individual components, result is already the model patcher/loader
             # No tiling to apply here as these are handled differently
             pass
