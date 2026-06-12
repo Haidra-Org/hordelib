@@ -76,10 +76,10 @@ def test_blessed_lora_manager_surface() -> None:
 
     for method in (
         "load_model_database",
-        "reset_adhoc_loras",
+        "reset_adhoc_cache",
         "fetch_adhoc_lora",
         "wait_for_downloads",
-        "save_cached_reference_to_disk",
+        "save_reference_to_disk",
         "is_model_available",
         "download_model",
     ):

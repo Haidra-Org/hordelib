@@ -272,6 +272,12 @@ def _resolve_loras(
             payload.prompt = f"{trigger}, {payload.prompt}"
 
         filename = lora_manager.get_lora_filename(lora_name, is_version=is_version)
+        if filename is None:
+            logger.debug("Lora has no downloaded file, ignoring: lora_name={}", lora_name)
+            faults.append(
+                GenMetadataEntry(type=METADATA_TYPE.lora, value=METADATA_VALUE.download_failed, ref=lora_name),
+            )
+            continue
         lora_manager._touch_lora(lora_name, is_version=is_version)
 
         valid_specs.append(lora)

@@ -148,7 +148,12 @@ class TestModelManagerLora:
         assert lora_model_manager.find_latest_version(lora_dict) == "26975"
         assert lora_key == "gag - rpg potions  |  lora xl"
         assert lora_model_manager.is_model_available("22591")
-        assert isinstance(lora_model_manager.get_model_reference_info("26975", is_version=True), dict)
+        from hordelib.model_manager.civitai_records import HordeLoraModelRecord
+
+        assert isinstance(
+            lora_model_manager.get_model_reference_info("26975", is_version=True),
+            HordeLoraModelRecord,
+        )
         assert lora_model_manager.get_lora_name("22591") == "GAG - RPG Potions  |  lora xl".lower()
         assert lora_model_manager.get_lora_filename("22591") == "GAG-RPGPotionsLoRaXL_26975.safetensors"
         # We test that grabbing the generic lora name afterwards will actually get the latest version

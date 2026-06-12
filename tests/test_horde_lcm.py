@@ -12,7 +12,7 @@ class TestHordeLCM:
     @pytest.fixture(autouse=True, scope="class")
     def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
         assert shared_model_manager.manager.lora
-        shared_model_manager.manager.lora.download_default_loras()
+        shared_model_manager.manager.lora.download_default_models()
         shared_model_manager.manager.lora.wait_for_downloads()
         yield
 

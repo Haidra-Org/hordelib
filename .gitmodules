@@ -1,0 +1,3 @@
+[submodule "docs/haidra-assets"]
+	path = docs/haidra-assets
+	url = https://github.com/Haidra-Org/haidra-assets.git

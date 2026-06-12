@@ -42,7 +42,7 @@ dependencies = [
     "filelock",
     "fuzzywuzzy>=0.18.0",
     "gitpython>=3.1.45",
-    "horde-model-reference==3.0.0",
+    "horde-model-reference>=4.0.0,<5.0.0",
     "horde-sdk>=0.20.1",
     "kornia>=0.7.1",
     "logfire[system-metrics]==4.14.2",

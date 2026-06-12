@@ -40,7 +40,6 @@ def _await_prefetch(ref_manager: ModelReferenceManager) -> None:
 class SharedModelManager:
     _instance: Self = None  # type: ignore
     manager: ModelManager
-    model_reference_manager: ModelReferenceManager
     cuda_available: bool
 
     def __new__(cls, do_not_load_model_mangers: bool = True):
@@ -56,7 +55,9 @@ class SharedModelManager:
     @classmethod
     def load_model_managers(
         cls,
-        managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = ALL_MODEL_MANAGER_TYPES,
+        managers_to_load: Iterable[
+            str | MODEL_CATEGORY_NAMES | type[BaseModelManager]
+        ] = ALL_MODEL_MANAGER_TYPES,
         *,
         multiprocessing_lock: multiprocessing_lock | None = None,
         lora_reference_backups: bool | None = None,
@@ -80,10 +81,11 @@ class SharedModelManager:
         # ModelReferenceManager is a singleton; subsequent calls return the same instance.
         # The prefetch strategy determines whether reference files are fetched eagerly or lazily.
         try:
-            cls.model_reference_manager = ModelReferenceManager(
-                prefetch_strategy=PrefetchStrategy.DEFERRED,
-            )
-            _await_prefetch(cls.model_reference_manager)
+            if not ModelReferenceManager.has_instance():
+                cls.model_reference_manager = ModelReferenceManager(
+                    prefetch_strategy=PrefetchStrategy.DEFERRED,
+                )
+                _await_prefetch(cls.model_reference_manager)
         except Exception as e:
             logger.exception("Failed to initialize model reference manager")
             raise RuntimeError("Failed to initialize model reference manager") from e
@@ -94,10 +96,46 @@ class SharedModelManager:
             lora_reference_backups=lora_reference_backups,
         )
 
+        cls._register_civitai_provider()
+
+    @classmethod
+    def _register_civitai_provider(cls) -> None:
+        """Expose the loaded LoRA/TI managers through the reference manager's ``"civitai"`` source.
+
+        Registering a :class:`~hordelib.model_manager.civitai_provider.CivitaiModelProvider` lets
+        consumers read LoRA/TI records via ``model_reference_manager.query(category, source="civitai")``
+        alongside every other category, instead of reaching into the managers directly. Skipped when
+        neither manager was loaded.
+        """
+        from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY
+
+        from hordelib.model_manager.civitai_provider import (
+            CivitaiModelProvider,
+            SupportsCurrentRecords,
+        )
+
+        managers_by_category: dict[
+            MODEL_REFERENCE_CATEGORY, SupportsCurrentRecords
+        ] = {}
+        if cls.manager.lora is not None:
+            managers_by_category[MODEL_REFERENCE_CATEGORY.lora] = cls.manager.lora
+        if cls.manager.ti is not None:
+            managers_by_category[MODEL_REFERENCE_CATEGORY.ti] = cls.manager.ti
+
+        if not managers_by_category:
+            return
+
+        ModelReferenceManager.get_instance().register_provider(
+            CivitaiModelProvider(managers_by_category),
+            replace=True,
+        )
+
     @classmethod
     def unload_model_managers(
         cls,
-        managers_to_unload: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
+        managers_to_unload: Iterable[
+            str | MODEL_CATEGORY_NAMES | type[BaseModelManager]
+        ],
     ):
         cls.manager.unload_model_managers(managers_to_unload)
 
