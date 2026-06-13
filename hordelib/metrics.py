@@ -74,6 +74,9 @@ class JobPhaseMetrics(BaseModel):
     events when composing a per-job record."""
     vram_used_high_water_mb: int | None = None
     ram_used_high_water_mb: int | None = None
+    phase_seconds: dict[str, float] = {}
+    """Total seconds spent in named non-sampling GPU phases this job (e.g. ``vae_decode``,
+    ``vae_encode``). Lets an embedder see where time goes between sampling runs."""
 
 
 class MetricsCollector:
@@ -91,6 +94,7 @@ class MetricsCollector:
         self._download_events: list[DownloadEvent] = []
         self._vram_used_high_water_mb: int | None = None
         self._ram_used_high_water_mb: int | None = None
+        self._phase_seconds: dict[str, float] = {}
         self._reset_sampling_locked()
 
     def _reset_sampling_locked(self) -> None:
@@ -110,6 +114,13 @@ class MetricsCollector:
         """Record one finished ad-hoc download attempt (success or terminal failure)."""
         with self._lock:
             self._download_events.append(event)
+
+    def record_phase(self, name: str, duration_seconds: float) -> None:
+        """Accumulate time spent in a named non-sampling phase for the current job."""
+        if duration_seconds <= 0:
+            return
+        with self._lock:
+            self._phase_seconds[name] = self._phase_seconds.get(name, 0.0) + duration_seconds
 
     def record_sampling_step(self, step: int, total: int, timestamp: float | None = None) -> None:
         """Record one absolute progress sample from the sampler.
@@ -174,10 +185,12 @@ class MetricsCollector:
                 sampling=self._sampling_stats_locked(),
                 vram_used_high_water_mb=self._vram_used_high_water_mb,
                 ram_used_high_water_mb=self._ram_used_high_water_mb,
+                phase_seconds=dict(self._phase_seconds),
             )
             self._model_loads = []
             self._vram_used_high_water_mb = None
             self._ram_used_high_water_mb = None
+            self._phase_seconds = {}
             self._reset_sampling_locked()
             return snapshot
 

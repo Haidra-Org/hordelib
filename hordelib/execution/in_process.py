@@ -51,6 +51,27 @@ class InProcessComfyBackend:
 
             install_native_progress_hook()
 
+            # Hold a host-injected cross-process lease around the sampling loop so multiple
+            # inference processes pipeline (one samples while others stage) instead of idling
+            # the GPU in lockstep. A no-op until the host sets a lease.
+            from hordelib.execution.sampling_lease import install_sampling_lease_hook
+
+            install_sampling_lease_hook()
+
+            # Record RAM->VRAM and VAE phase durations into the metrics collector regardless
+            # of whether logfire is active, so the host can see where non-sampling time goes.
+            from hordelib.execution.phase_timing import install_phase_timing_hooks
+
+            install_phase_timing_hooks()
+
+            # When the host has opted into high-memory mode (aggressive_unloading off), keep
+            # models resident in VRAM so back-to-back jobs skip the per-job RAM->VRAM reload
+            # that otherwise dominates non-sampling time. Gated by the host's VRAM assertion.
+            if not self._aggressive_unloading:
+                from hordelib.comfy_horde import pin_models_in_vram
+
+                pin_models_in_vram()
+
     @property
     def comfy_horde(self) -> Any:
         """The underlying Comfy_Horde instance (transitional escape hatch)."""

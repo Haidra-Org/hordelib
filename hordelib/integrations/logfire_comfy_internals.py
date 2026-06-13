@@ -12,8 +12,6 @@ import time
 import logfire
 from loguru import logger
 
-from hordelib.metrics import ModelLoadEvent, get_metrics_collector
-
 # load_models_gpu is called on every sampling pass and is usually a fast no-op when the
 # models are already resident; only transfers slower than this are real RAM->VRAM moves
 # worth recording as per-job model-load events (the logfire histogram still sees all calls).
@@ -147,15 +145,9 @@ def _instrument_model_management() -> int:
                     duration_seconds = time.perf_counter() - start_time
                     comfy_model_load_histogram.record(duration_seconds * 1000)
 
-                    if duration_seconds >= _GPU_LOAD_RECORD_THRESHOLD_SECONDS:
-                        get_metrics_collector().record_model_load(
-                            ModelLoadEvent(
-                                model_name=_describe_loaded_models(args, kwargs),
-                                phase="ram_to_vram",
-                                duration_seconds=duration_seconds,
-                                timestamp=time.time(),
-                            ),
-                        )
+                    # The collector recording for RAM->VRAM lives in the always-on
+                    # phase-timing hook (hordelib.execution.phase_timing) so it happens
+                    # exactly once whether or not logfire instrumentation is applied.
 
                     return result
 

@@ -363,6 +363,28 @@ def clear_gc_and_torch_cache() -> None:
     empty_cache()
 
 
+def pin_models_in_vram() -> bool:
+    """Keep loaded models resident in VRAM (ComfyUI HIGH_VRAM mode).
+
+    By default ComfyUI runs NORMAL_VRAM, which offloads the model to system RAM between
+    jobs (to make room for the VAE etc.) and transfers it back to VRAM on the next job — a
+    per-job RAM->VRAM cost that dominates non-sampling time on small jobs. HIGH_VRAM keeps
+    everything resident so back-to-back jobs skip that reload.
+
+    Only safe when the model(s) comfortably fit in VRAM, so the worker gates this behind
+    ``high_memory_mode``. Returns True if the mode was set.
+    """
+    try:
+        from comfy import model_management as mm
+
+        mm.vram_state = mm.VRAMState.HIGH_VRAM
+        logger.info("Pinned ComfyUI to HIGH_VRAM: models stay resident across jobs (no per-job RAM->VRAM reload)")
+        return True
+    except Exception as e:
+        logger.warning(f"Could not pin models in VRAM: {e}")
+        return False
+
+
 def unload_all_models_vram():
     global _comfy_current_loaded_models
 
@@ -896,6 +918,11 @@ class Comfy_Horde:
         comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
     ) -> list[dict[str, typing.Any]] | None:
         start_time = time.time()
+        _t0 = time.perf_counter()
+        _validate_seconds = 0.0
+        _execute_seconds = 0.0
+        _t_pre_execute = _t0
+        _t_post_execute = _t0
 
         if _comfy_current_loaded_models is None:
             raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
@@ -956,7 +983,9 @@ class Comfy_Horde:
 
             # validate_prompt from comfy returns [bool, str, list]
             # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
+            _t_validate = time.perf_counter()
             valid = asyncio.run(_comfy_validate_prompt(1, pipeline, None))
+            _validate_seconds = time.perf_counter() - _t_validate
 
             # Log validation results with structured data
             validation_status = valid[0] if len(valid) > 0 else None
@@ -994,6 +1023,7 @@ class Comfy_Horde:
             if "embeddings" in folder_paths.filename_list_cache:
                 del folder_paths.filename_list_cache["embeddings"]
 
+            _t_pre_execute = time.perf_counter()
             try:
                 with logger.catch(reraise=True):
                     inference.execute(pipeline, self.client_id, {"client_id": self.client_id}, valid[2])
@@ -1001,6 +1031,8 @@ class Comfy_Horde:
                 logger.exception("Exception during comfy execute")
                 logger.error("ComfyUI execution failed", error=str(exc))
             finally:
+                _t_post_execute = time.perf_counter()
+                _execute_seconds = _t_post_execute - _t_pre_execute
                 if use_native_progress:
                     set_run_progress_callback(None)
                 if self.aggressive_unloading:
@@ -1011,6 +1043,23 @@ class Comfy_Horde:
                         _comfy_soft_empty_cache()
 
         stdio.replay()
+
+        # Per-job phase attribution (additive instrumentation; must never break a run). "setup"
+        # is everything before graph execution (prompt set, executor build, validate); "validate"
+        # is the asyncio validate_prompt subset of setup; "execute" is the graph run (sampling +
+        # VAE + CLIP encode live inside it and are recorded separately); "finalize" is stdout
+        # replay and teardown. The worker-side result hand-off shows up as the inference window
+        # minus the sum of these.
+        try:
+            from hordelib.metrics import get_metrics_collector
+
+            _mc = get_metrics_collector()
+            _mc.record_phase("pipeline_setup", _t_pre_execute - _t0)
+            _mc.record_phase("pipeline_validate", _validate_seconds)
+            _mc.record_phase("pipeline_execute", _execute_seconds)
+            _mc.record_phase("pipeline_finalize", time.perf_counter() - _t_post_execute)
+        except Exception:  # noqa: BLE001 - instrumentation must never break a run
+            pass
 
         # Record pipeline duration
         duration_ms = (time.time() - start_time) * 1000

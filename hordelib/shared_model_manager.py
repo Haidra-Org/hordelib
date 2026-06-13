@@ -40,6 +40,7 @@ def _await_prefetch(ref_manager: ModelReferenceManager) -> None:
 class SharedModelManager:
     _instance: Self = None  # type: ignore
     manager: ModelManager
+    model_reference_manager: ModelReferenceManager
     cuda_available: bool
 
     def __new__(cls, do_not_load_model_mangers: bool = True):
@@ -55,9 +56,7 @@ class SharedModelManager:
     @classmethod
     def load_model_managers(
         cls,
-        managers_to_load: Iterable[
-            str | MODEL_CATEGORY_NAMES | type[BaseModelManager]
-        ] = ALL_MODEL_MANAGER_TYPES,
+        managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = ALL_MODEL_MANAGER_TYPES,
         *,
         multiprocessing_lock: multiprocessing_lock | None = None,
         lora_reference_backups: bool | None = None,
@@ -90,6 +89,11 @@ class SharedModelManager:
             logger.exception("Failed to initialize model reference manager")
             raise RuntimeError("Failed to initialize model reference manager") from e
 
+        # Register the pending/beta provider before constructing managers: each manager
+        # loads its database in __init__, and beta_source_for only selects the provider
+        # when it is already registered.
+        cls._register_pending_provider()
+
         cls.manager.init_model_managers(
             managers_to_load,
             multiprocessing_lock=multiprocessing_lock,
@@ -97,6 +101,21 @@ class SharedModelManager:
         )
 
         cls._register_civitai_provider()
+
+    @classmethod
+    def _register_pending_provider(cls) -> None:
+        """Register the PRIMARY's pending-queue (beta) models under the ``"pending"`` source.
+
+        Beta is opt-in via ``HORDELIB_BETA_MODEL_CATEGORIES`` / ``HORDELIB_BETA_MODELS_API_KEY``;
+        when not configured this is a no-op. See :mod:`hordelib.beta_models`.
+        """
+        from hordelib.beta_models import build_pending_provider
+
+        provider = build_pending_provider()
+        if provider is None:
+            return
+
+        ModelReferenceManager.get_instance().register_provider(provider, replace=True)
 
     @classmethod
     def _register_civitai_provider(cls) -> None:
@@ -114,9 +133,7 @@ class SharedModelManager:
             SupportsCurrentRecords,
         )
 
-        managers_by_category: dict[
-            MODEL_REFERENCE_CATEGORY, SupportsCurrentRecords
-        ] = {}
+        managers_by_category: dict[MODEL_REFERENCE_CATEGORY, SupportsCurrentRecords] = {}
         if cls.manager.lora is not None:
             managers_by_category[MODEL_REFERENCE_CATEGORY.lora] = cls.manager.lora
         if cls.manager.ti is not None:
@@ -133,9 +150,7 @@ class SharedModelManager:
     @classmethod
     def unload_model_managers(
         cls,
-        managers_to_unload: Iterable[
-            str | MODEL_CATEGORY_NAMES | type[BaseModelManager]
-        ],
+        managers_to_unload: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
     ):
         cls.manager.unload_model_managers(managers_to_unload)
 

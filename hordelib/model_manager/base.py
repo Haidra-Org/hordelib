@@ -20,6 +20,7 @@ from horde_model_reference.model_reference_records import GenericModelRecord
 from loguru import logger
 from tqdm import tqdm
 
+from hordelib.beta_models import beta_source_for
 from hordelib.config_path import get_hordelib_path
 from hordelib.consts import CIVITAI_API_PATH, MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES
 from hordelib.settings import UserSettings
@@ -145,7 +146,10 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
             )
 
         ref_manager = ModelReferenceManager.get_instance()
-        pydantic_records = ref_manager.get_model_reference_or_none(model_ref_category)
+        pydantic_records = ref_manager.get_model_reference_or_none(
+            model_ref_category,
+            source=beta_source_for(model_ref_category, ref_manager),
+        )
         if pydantic_records is None:
             raise RuntimeError(
                 f"horde_model_reference returned no data for category {model_ref_category}. "

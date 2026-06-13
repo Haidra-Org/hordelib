@@ -14,6 +14,11 @@ from hordelib.execution.interface import (
     ProgressCallback,
     VRAMStats,
 )
+from hordelib.execution.sampling_lease import (
+    SamplingLease,
+    install_sampling_lease_hook,
+    set_gpu_sampling_lease,
+)
 from hordelib.feature_impact import (
     FEATURE_KIND,
     BaselineBurden,
@@ -85,6 +90,7 @@ __all__ = [
     "ProgressReport",
     "ProgressState",
     "ResultingImageReturn",
+    "SamplingLease",
     "SamplingStats",
     "SharedModelManager",
     "StripBackgroundPayload",
@@ -99,6 +105,8 @@ __all__ = [
     "get_torch_free_vram_mb",
     "get_torch_total_vram_mb",
     "initialise",
+    "install_sampling_lease_hook",
     "is_initialised",
     "log_free_ram",
+    "set_gpu_sampling_lease",
 ]
