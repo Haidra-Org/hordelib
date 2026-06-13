@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
 
 [project]
 name = "horde-engine"
@@ -20,8 +20,7 @@ classifiers = [
     "Development Status :: 5 - Production/Stable",
 ]
 
-# Don't specify dynamic deps for tox, only for build
-dynamic=["version"]
+dynamic = ["version"]
 dependencies = [
     "accelerate>=1.11.0",
     "addict>=2.4.0",
@@ -90,7 +89,6 @@ dependencies = [
     "yapf>=0.43.0",
     "yarl>=1.18.0",
 ]
-#dynamic=["version", "dependencies"]
 
 
 [project.optional-dependencies]
@@ -149,38 +147,51 @@ horde-engine-install = "hordelib.installation.__main__:main"
 [project.urls]
 "Homepage" = "https://github.com/Haidra-Org/hordelib"
 "Bug Tracker" = "https://github.com/Haidra-Org/hordelib/issues"
-"Changelog" = "https://github.com/Haidra-Org/hordelib/blob/releases/CHANGELOG.md"
+"Changelog" = "https://github.com/Haidra-Org/hordelib/releases"
 
-[tool.setuptools]
-license-files = ["LICENSE", "CHANGELOG*"]
+[project.entry-points.pyinstaller40]
+hook-dirs = "hordelib.__pyinstaller:get_hook_dirs"
+tests = "hordelib.__pyinstaller:get_PyInstaller_tests"
 
-[tool.setuptools_scm]
-# Don't create a _version file in development mode
-# We uncomment this automatically at build time.
-#write_to = "hordelib/_version.py"
+[tool.hatch.version]
+source = "vcs"
 
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
+[tool.hatch.version.raw-options]
+# Never emit a PEP 440 local version (+gHASH/.dDATE): PyPI rejects local versions and
+# trusted publishing builds straight from the tagged commit, so a clean tag => clean version.
+local_scheme = "no-local-version"
 
-[tool.setuptools.package-dir]
-hordelib = "hordelib"
+[tool.hatch.build]
+# Hatchling excludes by .gitignore *pattern*, unlike setuptools-scm which used `git ls-files`.
+# The vendored facerestore node ships git-TRACKED source under directories named `models/`,
+# which the repo's broad `models/` ignore rule (meant for runtime model caches) shadows.
+# Force those tracked files back into both the sdist and the wheel.
+artifacts = ["hordelib/nodes/**/models/**"]
 
+[tool.hatch.build.hooks.vcs]
+# Written into built wheels so `hordelib._version.__version__` resolves. This file is NOT the
+# release sentinel: RELEASE_VERSION / get_comfyui_path() key off the source tree instead
+# (see hordelib/config_path.py), so an editable install writing this file stays "dev mode".
+version-file = "hordelib/_version.py"
 
-[options.index-client]
-extra-index-urls = ["https://download.pytorch.org/whl/cu128"]
+[tool.hatch.build.targets.wheel]
+packages = ["hordelib"]
+
+[tool.hatch.build.targets.sdist]
+# Lean but self-sufficient: the package plus the metadata needed to build a wheel from the sdist.
+only-include = ["hordelib", "README.md", "LICENSE"]
 
 [dependency-groups]
 dev = [
     "black>=25.9.0",
-    "build>=1.3.0",
     "coverage>=7.11.1",
     "mypy>=1.18.2",
     "pre-commit>=4.3.0",
     "prometheus-client>=0.23.1",
     "pytest>=8.4.2",
     "pytest-cov>=7.0.0",
+    "pytest-sugar>=1.0.0",
     "ruff>=0.14.4",
-    "tox>=4.32.0",
     "types-colorama>=0.4.15.20250801",
     "types-docutils>=0.22.2.20251006",
     "types-pillow>=10.2.0.20240822",
@@ -218,13 +229,36 @@ markers = [
     "patch_harness: instrumentation-only tests for ComfyUI monkeypatch impact",
 ]
 
+# Migrated from tox.ini when tox was dropped in favour of `uv run`. coverage.py reads these
+# from pyproject.toml automatically (pytest-cov picks them up; no --cov-config needed).
+[tool.coverage.run]
+omit = [
+    "ComfyUI/*",
+    "*/nodes/*",
+    "*/config.py",
+    "*/config-3.py",
+]
+disable_warnings = ["couldnt-parse"]
+
+[tool.coverage.paths]
+source = ["hordelib/"]
+
+[tool.coverage.report]
+omit = [
+    "ComfyUI/*",
+    "*/nodes/*",
+    "*/config.py",
+    "*/config-3.py",
+]
+ignore_errors = true
+skip_empty = true
+
 [tool.black]
 line-length = 119
 # Exclude ComfyUI and any packages we have installed in nodes/
 exclude = '''
 /(
     ComfyUI
-  | \.tox
   | comfyui_layerdiffuse
   | facerestore_cf
   | build

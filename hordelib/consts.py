@@ -4,13 +4,13 @@ from enum import Enum, auto
 
 from strenum import StrEnum
 
-from hordelib.config_path import get_hordelib_path
+from hordelib.config_path import is_release_install
 from hordelib.installation.manifest import load_packaged_manifest
 
 COMFYUI_VERSION = load_packaged_manifest().comfyui_ref
 """The exact ComfyUI commit to load, as pinned by hordelib/installation/manifest.json."""
 
-RELEASE_VERSION = (get_hordelib_path() / "_version.py").exists()
+RELEASE_VERSION = is_release_install()
 """A flag for if this is a pypi release or a git dev mode"""
 
 CIVITAI_API_PATH = "civitai.com/api"

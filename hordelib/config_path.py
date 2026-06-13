@@ -10,12 +10,24 @@ def get_hordelib_path() -> Path:
     return current_file_path.parent
 
 
+def is_release_install() -> bool:
+    """Whether hordelib is running from an installed wheel rather than a source checkout.
+
+    A built wheel unpacks ``hordelib/`` into site-packages with no repository scaffolding
+    beside it; a source checkout -- including ``pip install -e`` -- keeps the package directly
+    under the repo root next to ``pyproject.toml``. We key off that marker rather than the
+    presence of a generated ``_version.py`` so the build backend can write the version file
+    unconditionally without an editable install then masquerading as a release.
+    """
+    return not (get_hordelib_path().parent / "pyproject.toml").exists()
+
+
 def get_comfyui_path() -> Path:
     """Returns the path to the ComfyUI checkout that hordelib installs and manages.
 
     Resolution order:
     1. ``HORDELIB_COMFYUI_ROOT`` environment variable, if set.
-    2. Release installs (wheel with ``_version.py``): ``$AIWORKER_CACHE_HOME/comfyui_env/ComfyUI``
+    2. Release installs (wheel): ``$AIWORKER_CACHE_HOME/comfyui_env/ComfyUI``
        (installed on first ``initialise()`` from the packaged manifest).
     3. Development checkouts: ``ComfyUI/`` in the repository root.
     """
@@ -24,7 +36,7 @@ def get_comfyui_path() -> Path:
         return Path(env_root).resolve()
 
     hordelib_path = get_hordelib_path()
-    if (hordelib_path / "_version.py").exists():
+    if is_release_install():
         cache_home = os.getenv("AIWORKER_CACHE_HOME", "./models")
         return (Path(cache_home) / "comfyui_env" / "ComfyUI").resolve()
 

@@ -7,7 +7,8 @@ on:
     paths:
       - '**.py'
       - '**.json'
-      - 'tox.ini'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/maintests.yml'
       - '.github/workflows/prtests.yml'
       - '.github/workflows/release.yml'
@@ -15,7 +16,7 @@ jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Run pre-commit
         uses: pre-commit/action@v3.0.0
         with:
@@ -27,28 +28,25 @@ jobs:
       HORDELIB_CI_ONGOING: "1"
       TESTS_ONGOING: "1"
       CIVIT_API_TOKEN: ${{ secrets.CIVIT_API_TOKEN }}
-    strategy:
-      matrix:
-        python: ["3.10"]
 
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Python
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v5
         with:
-          python-version: ${{ matrix.python }}
-      - name: Install tox and any other packages
-        run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade tox
-      - name: Check build_helper.py horde-engine imports have no breaking dependency changes
-        run: tox -e test-build-helper
-      - name: Build unit test environment, confirm CUDA is available on host
-        run: tox -e tests -- -k test_cuda
+          python-version: "3.12"
+      # One sync builds the single test venv with the CUDA build of torch; every later
+      # step uses --no-sync so it can never re-resolve and drop the cu128 extra.
+      - name: Sync test environment (CUDA torch)
+        run: uv sync --extra cu128
+      - name: Confirm CUDA is available on host
+        run: uv run --no-sync pytest -x -k test_cuda tests
       - name: Run unit tests
-        run: tox -e tests
+        run: |
+          uv run --no-sync pytest -x tests/meta -k test_no_initialise_comfy_horde
+          uv run --no-sync pytest -x tests --cov --ignore=tests/meta --durations=20
       - name: Create CI webpage of results
-        run: python -m examples.make_index
+        run: uv run --no-sync python -m examples.make_index
       - name: Upload to S3
         uses: shallwefootball/s3-upload-action@master
         id: S3
