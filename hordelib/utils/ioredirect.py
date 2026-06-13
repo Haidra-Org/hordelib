@@ -3,6 +3,7 @@ from collections import deque
 from collections.abc import Callable
 from enum import Enum
 from time import perf_counter
+from typing import Literal
 
 import regex
 from loguru import logger
@@ -31,6 +32,8 @@ class ComfyUIProgress(BaseModel):
     total_steps: int
     rate: float
     rate_unit: ComfyUIProgressUnit
+    source: Literal["native", "tqdm"] = "tqdm"
+    """Whether this report came from ComfyUI's progress hook or from parsing tqdm output."""
 
     def __str__(self):
         return f"{self.percent}%: {self.current_step}/{self.total_steps} ({self.rate} {self.rate_unit})"

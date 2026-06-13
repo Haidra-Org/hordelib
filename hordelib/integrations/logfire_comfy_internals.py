@@ -12,6 +12,13 @@ import time
 import logfire
 from loguru import logger
 
+from hordelib.metrics import ModelLoadEvent, get_metrics_collector
+
+# load_models_gpu is called on every sampling pass and is usually a fast no-op when the
+# models are already resident; only transfers slower than this are real RAM->VRAM moves
+# worth recording as per-job model-load events (the logfire histogram still sees all calls).
+_GPU_LOAD_RECORD_THRESHOLD_SECONDS = 0.05
+
 # Module-level metrics
 comfy_node_execution_histogram = logfire.metric_histogram(
     "comfy.node.execution_duration_ms",
@@ -110,6 +117,16 @@ def _instrument_execution_flow() -> int:
     return count
 
 
+def _describe_loaded_models(args, kwargs) -> str:
+    """Best-effort summary of which models a load_models_gpu call moved to the GPU."""
+    models = kwargs.get("models", args[0] if args else None)
+    try:
+        names = {type(getattr(m, "model", m)).__name__ for m in models}
+        return ",".join(sorted(names)) if names else "unknown"
+    except Exception:
+        return "unknown"
+
+
 def _instrument_model_management() -> int:
     """Instrument model_management.py functions."""
     count = 0
@@ -127,8 +144,18 @@ def _instrument_model_management() -> int:
                 with logfire.span("comfy.internal.load_models_gpu"):
                     result = _original_load_models_gpu(*args, **kwargs)
 
-                    duration_ms = (time.perf_counter() - start_time) * 1000
-                    comfy_model_load_histogram.record(duration_ms)
+                    duration_seconds = time.perf_counter() - start_time
+                    comfy_model_load_histogram.record(duration_seconds * 1000)
+
+                    if duration_seconds >= _GPU_LOAD_RECORD_THRESHOLD_SECONDS:
+                        get_metrics_collector().record_model_load(
+                            ModelLoadEvent(
+                                model_name=_describe_loaded_models(args, kwargs),
+                                phase="ram_to_vram",
+                                duration_seconds=duration_seconds,
+                                timestamp=time.time(),
+                            ),
+                        )
 
                     return result
 

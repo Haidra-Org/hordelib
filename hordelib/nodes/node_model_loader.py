@@ -13,6 +13,7 @@ import torch
 from loguru import logger
 
 from hordelib.comfy_horde import log_free_ram
+from hordelib.metrics import ModelLoadEvent, get_metrics_collector
 from hordelib.shared_model_manager import SharedModelManager
 
 # Module-level metrics for model loading performance
@@ -212,6 +213,14 @@ class HordeCheckpointLoader:
 
             load_duration_ms = (time.time() - load_start_time) * 1000
             disk_load_histogram.record(load_duration_ms)
+            get_metrics_collector().record_model_load(
+                ModelLoadEvent(
+                    model_name=horde_in_memory_name,
+                    phase="disk_to_ram",
+                    duration_seconds=load_duration_ms / 1000,
+                    timestamp=time.time(),
+                ),
+            )
             logger.info(
                 "Model loaded from disk: model={}, file_type={}, load_duration_ms={:.2f}",
                 horde_model_name,

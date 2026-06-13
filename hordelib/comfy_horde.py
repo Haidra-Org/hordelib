@@ -929,9 +929,20 @@ class Comfy_Horde:
         # pretty_pipeline = pformat(pipeline)
         # logger.warning(pretty_pipeline)
 
+        # Progress goes through ComfyUI's native hook when installed (one stream, no tqdm
+        # parsing); the OutputCollector then only captures/replays log output. Without the
+        # hook, the collector's tqdm parser remains the progress source.
+        from hordelib.execution.progress_hook import is_native_hook_installed, set_run_progress_callback
+
+        use_native_progress = is_native_hook_installed()
+        if use_native_progress:
+            set_run_progress_callback(comfyui_progress_callback)
+
         # The client_id parameter used to only be for debugging, but is now required for all requests.
         # We pretend we are a web client and want async callbacks.
-        stdio = OutputCollector(comfyui_progress_callback=comfyui_progress_callback)
+        stdio = OutputCollector(
+            comfyui_progress_callback=None if use_native_progress else comfyui_progress_callback,
+        )
         with contextlib.redirect_stdout(stdio), contextlib.redirect_stderr(stdio):
             # Log pipeline structure before validation for debugging
             pipeline_node_types = {
@@ -990,6 +1001,8 @@ class Comfy_Horde:
                 logger.exception("Exception during comfy execute")
                 logger.error("ComfyUI execution failed", error=str(exc))
             finally:
+                if use_native_progress:
+                    set_run_progress_callback(None)
                 if self.aggressive_unloading:
                     global _comfy_cleanup_models
                     logger.debug("Cleaning up models")

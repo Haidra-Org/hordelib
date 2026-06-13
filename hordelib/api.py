@@ -14,11 +14,31 @@ from hordelib.execution.interface import (
     ProgressCallback,
     VRAMStats,
 )
+from hordelib.feature_impact import (
+    FEATURE_KIND,
+    BaselineBurden,
+    BurdenEstimate,
+    CalibrationSample,
+    DownloadTrigger,
+    FeatureImpact,
+    FeatureImpactRegistry,
+    estimate_job_burden,
+    get_baseline_burden,
+    get_feature_impact_registry,
+)
 from hordelib.horde import (
     HordeLib,
     ProgressReport,
     ProgressState,
     ResultingImageReturn,
+)
+from hordelib.metrics import (
+    DownloadEvent,
+    JobPhaseMetrics,
+    MetricsCollector,
+    ModelLoadEvent,
+    SamplingStats,
+    get_metrics_collector,
 )
 from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.pipeline.payload_pp import (
@@ -40,13 +60,24 @@ from hordelib.utils.torch_memory import (
 )
 
 __all__ = [
+    "FEATURE_KIND",
+    "BaselineBurden",
+    "BurdenEstimate",
+    "CalibrationSample",
     "ComfyUIProgress",
     "ComfyUIProgressUnit",
+    "DownloadEvent",
+    "DownloadTrigger",
+    "FeatureImpact",
+    "FeatureImpactRegistry",
     "ExecutionBackend",
     "FacefixPayload",
     "HordeLib",
     "HordeLog",
     "ImageGenPayload",
+    "JobPhaseMetrics",
+    "MetricsCollector",
+    "ModelLoadEvent",
     "OutputArtifact",
     "PostProcessingPayload",
     "PostProcessorKind",
@@ -54,12 +85,17 @@ __all__ = [
     "ProgressReport",
     "ProgressState",
     "ResultingImageReturn",
+    "SamplingStats",
     "SharedModelManager",
     "StripBackgroundPayload",
     "UpscalePayload",
     "VRAMStats",
     "classify_post_processor",
+    "estimate_job_burden",
+    "get_baseline_burden",
+    "get_feature_impact_registry",
     "get_free_ram_mb",
+    "get_metrics_collector",
     "get_torch_free_vram_mb",
     "get_torch_total_vram_mb",
     "initialise",

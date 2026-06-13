@@ -69,6 +69,16 @@ def test_consumer_called_signatures() -> None:
         name for name in dir(api.ExecutionBackend) if not name.startswith("_")
     }
 
+    # The in-process metrics surface the worker reads after each job
+    assert {
+        "record_model_load",
+        "record_download",
+        "record_sampling_step",
+        "record_memory_sample",
+        "snapshot_and_reset_job",
+        "drain_download_events",
+    } <= {name for name in dir(api.MetricsCollector) if not name.startswith("_")}
+
 
 def test_blessed_lora_manager_surface() -> None:
     """Manager methods the worker calls directly; blessed as public in HL-2."""

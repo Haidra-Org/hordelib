@@ -519,6 +519,9 @@ class TestHordeInference:
                 assert progress_report.hordelib_progress_state == ProgressState.progress
                 assert progress_report.comfyui_progress.current_step >= 0
                 assert progress_report.comfyui_progress.total_steps > 0
+                # The in-process backend installs ComfyUI's native progress hook, so
+                # reports must come from it rather than the tqdm-parsing fallback.
+                assert progress_report.comfyui_progress.source == "native"
 
         image_results = hordelib_instance.basic_inference(data, progress_callback=callback_function)
 

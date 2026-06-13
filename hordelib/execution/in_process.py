@@ -45,6 +45,12 @@ class InProcessComfyBackend:
                 aggressive_unloading=self._aggressive_unloading,
             )
 
+            # Must happen before any pipeline runs: comfy's ProgressBar captures the
+            # global hook at construction time.
+            from hordelib.execution.progress_hook import install_native_progress_hook
+
+            install_native_progress_hook()
+
     @property
     def comfy_horde(self) -> Any:
         """The underlying Comfy_Horde instance (transitional escape hatch)."""

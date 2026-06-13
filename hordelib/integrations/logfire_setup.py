@@ -26,6 +26,12 @@ except ImportError:
 import aiohttp as aiohttp  # Ensure aiohttp is imported for instrumentation
 import requests as requests  # Ensure requests is imported for instrumentation
 
+HORDELIB_EXTERNAL_LOGFIRE_ENV_VAR = "HORDELIB_EXTERNAL_LOGFIRE"
+"""When set to "1", the embedding application owns logfire/loguru configuration and
+`initialize_logfire` becomes a no-op (spans/metrics still flow to the host's setup)."""
+
+_logfire_initialized = False
+
 
 def scrub_sensitive_data(match: ScrubMatch) -> str | None:
     """Custom scrubbing callback for fine-grained control of sensitive data.
@@ -85,7 +91,24 @@ def initialize_logfire() -> None:
             Only used when LOGFIRE_TOKEN is not set.
 
         OTEL_EXPORTER_OTLP_PROTOCOL: Protocol (default: http/protobuf)
+
+        HORDELIB_EXTERNAL_LOGFIRE: Set to "1" when a host application (e.g. a worker)
+            configures logfire and loguru itself. Makes this function a no-op so hordelib
+            never re-configures logfire or replaces the host's loguru handlers.
     """
+    global _logfire_initialized
+
+    # Re-running configure/instrument clobbers the host's handlers and triggers
+    # "Attempting to instrument while already instrumented" warnings.
+    if _logfire_initialized:
+        return
+
+    if os.getenv(HORDELIB_EXTERNAL_LOGFIRE_ENV_VAR) == "1":
+        _logfire_initialized = True
+        return
+
+    _logfire_initialized = True
+
     # Check if we should use Logfire cloud platform or local OTLP endpoints
     logfire_token = os.getenv("LOGFIRE_TOKEN")
     use_logfire_cloud = logfire_token is not None

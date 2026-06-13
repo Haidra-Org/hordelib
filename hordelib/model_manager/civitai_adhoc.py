@@ -44,6 +44,7 @@ from horde_model_reference.model_reference_records import GenericModelRecord
 from loguru import logger
 
 from hordelib.consts import MODEL_CATEGORY_NAMES
+from hordelib.metrics import DownloadCategory, DownloadEvent, get_metrics_collector
 from hordelib.model_manager.base import BaseModelManager
 
 TESTS_ONGOING = os.getenv("TESTS_ONGOING", "0") == "1"
@@ -454,11 +455,39 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
 
             self._process_download(queued, thread_logger)
 
+    def _record_download_event(
+        self,
+        record: RecordT,
+        *,
+        success: bool,
+        size_bytes: int,
+        duration_seconds: float,
+        retries: int,
+    ) -> None:
+        """Feed one finished download attempt into the in-process metrics collector."""
+        megabytes = size_bytes / (1024 * 1024)
+        category: DownloadCategory = (
+            "lora" if self.METRIC_PREFIX == "lora" else "ti" if self.METRIC_PREFIX == "ti" else "other"
+        )
+        get_metrics_collector().record_download(
+            DownloadEvent(
+                name=record.name,
+                category=category,
+                size_bytes=size_bytes,
+                duration_seconds=duration_seconds,
+                megabytes_per_second=(megabytes / duration_seconds) if duration_seconds > 0 and success else 0.0,
+                retries=retries,
+                success=success,
+                timestamp=time.time(),
+            ),
+        )
+
     def _process_download(self, queued: _QueuedDownload, thread_logger) -> None:
         """Download a single queued record's weight file, retrying transient failures."""
         record = queued.record
         download_logger = thread_logger.bind(model_name=record.name)
 
+        overall_start = time.perf_counter()
         retries = 0
         while retries <= self.MAX_RETRIES:
             try:
@@ -484,6 +513,13 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 response.raise_for_status()
                 if "reason=download-auth" in response.url:
                     download_logger.error("adhoc.download_auth_redirect", response_url=response.url)
+                    self._record_download_event(
+                        record,
+                        success=False,
+                        size_bytes=0,
+                        duration_seconds=time.perf_counter() - overall_start,
+                        retries=retries,
+                    )
                     return
 
                 sha256 = hashlib.sha256(response.content).hexdigest()
@@ -497,6 +533,13 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                     retries += 1
                     self.total_retries_attempted += 1
                     if retries > self.MAX_RETRIES:
+                        self._record_download_event(
+                            record,
+                            success=False,
+                            size_bytes=0,
+                            duration_seconds=time.perf_counter() - overall_start,
+                            retries=retries,
+                        )
                         return
                     time.sleep(self.RETRY_DELAY)
                     continue
@@ -508,6 +551,13 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
 
                 self._commit_download(record, target, downloaded=True)
                 self._metric_download_duration.record(time.perf_counter() - download_start)
+                self._record_download_event(
+                    record,
+                    success=True,
+                    size_bytes=len(response.content),
+                    duration_seconds=time.perf_counter() - download_start,
+                    retries=retries,
+                )
                 self._evict_adhoc_over_limit()
                 self.save_reference_to_disk()
                 download_logger.info("adhoc.download_success", filename=target.filename)
@@ -521,6 +571,13 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 status_code = getattr(getattr(net_error, "response", None), "status_code", None)
                 download_logger.warning("adhoc.download_network_error", error_type=error_type, status_code=status_code)
                 if isinstance(net_error, requests.HTTPError) and status_code in (401, 403):
+                    self._record_download_event(
+                        record,
+                        success=False,
+                        size_bytes=0,
+                        duration_seconds=time.perf_counter() - overall_start,
+                        retries=retries,
+                    )
                     return
             except Exception as fatal_error:
                 self._metric_network_errors.add(1, {"error_type": "fatal"})
@@ -530,6 +587,13 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
             self.total_retries_attempted += 1
             if retries > self.MAX_RETRIES:
                 download_logger.error("adhoc.download_max_retries")
+                self._record_download_event(
+                    record,
+                    success=False,
+                    size_bytes=0,
+                    duration_seconds=time.perf_counter() - overall_start,
+                    retries=retries,
+                )
                 return
             time.sleep(self.RETRY_DELAY)
 
