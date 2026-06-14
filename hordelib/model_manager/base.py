@@ -1,30 +1,23 @@
-import hashlib
-import os
-import shutil
 import threading
-import time
-import zipfile
 from abc import ABC
 from collections.abc import Callable, Iterable
 from pathlib import Path
 from typing import Any, cast
 from urllib import parse
-from uuid import uuid4
 
-import git
 import psutil
-import requests
 from horde_model_reference import (
     MODEL_REFERENCE_CATEGORY,
     category_folder,
     component_relative_path,
+    download_engine,
+    file_paths_for,
     get_category_descriptor,
     horde_model_reference_paths,
 )
 from horde_model_reference.model_reference_manager import ModelReferenceManager
 from horde_model_reference.model_reference_records import GenericModelRecord
 from loguru import logger
-from tqdm import tqdm
 
 from hordelib.beta_models import beta_source_for
 from hordelib.config_path import get_hordelib_path
@@ -42,6 +35,8 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
 
     model_folder_path: Path
     """The path to the directory to store this model type."""
+    _weights_root: Path
+    """The model-weights root under which the category folders live (the parent of model_folder_path)."""
     model_reference: dict[str, RecordT]
     """Model reference data, keyed by horde model name."""
 
@@ -93,7 +88,8 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
         folder_name = category_folder(model_category)
         if folder_name is None:
             raise ValueError(f"Model category {model_category} has no on-disk weights folder")
-        self.model_folder_path = UserSettings.get_model_directory() / folder_name
+        self._weights_root = UserSettings.get_model_directory()
+        self.model_folder_path = self._weights_root / folder_name
 
         if models_db_path is None:
             if not get_category_descriptor(model_category).managed_download_elsewhere:
@@ -346,78 +342,17 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
 
     @staticmethod
     def get_file_md5sum_hash(file_name: str | Path) -> str | None:
-        # XXX There *must* be a library for this.
-        # Bail out if the source file doesn't exist
-
-        file_name = Path(file_name)
-        if not file_name.exists() or not file_name.is_file():
-            return None
-
-        # Check if we have a cached md5 hash for the source file
-        # and use that unless our source file is newer than our hash
-        md5_file = Path(f"{file_name.parent / file_name.stem}.md5")
-        source_timestamp = file_name.stat().st_mtime
-        hash_timestamp = md5_file.stat().st_mtime if os.path.isfile(md5_file) else 0
-        if hash_timestamp > source_timestamp:
-            # Use our cached hash
-            with open(md5_file) as handle:
-                return handle.read().split()[0]
-
-        # Calculate the hash of the source file
-        with open(file_name, "rb") as file_to_check:
-            file_hash = hashlib.md5()
-            while True:
-                chunk = file_to_check.read(2**20)  # Changed just because it broke pylint
-                if not chunk:
-                    break
-                file_hash.update(chunk)
-        md5_hash = file_hash.hexdigest()
-
-        # Cache this md5 hash we just calculated. Use md5sum format files
-        # so we can also use OS tools to manipulate these md5 files
-        try:
-            with open(md5_file, "w") as handle:
-                handle.write(f"{md5_hash} *{file_name.name}")
-        except (OSError, PermissionError):
-            logger.debug("Could not write to md5sum file, ignoring")
-
-        return md5_hash
+        """Return the md5 of *file_name* (or None if missing), via the hmr engine's sidecar cache."""
+        return download_engine.md5_of(Path(file_name))
 
     @staticmethod
-    def get_file_sha256_hash(file_name):
-        # XXX There *must* be a library for this.
-        if not os.path.isfile(file_name):
-            raise FileNotFoundError(f"No file {file_name}")
+    def get_file_sha256_hash(file_name: str | Path) -> str:
+        """Return the sha256 of *file_name*, via the hmr engine's mtime-keyed sidecar cache.
 
-        # Check if we have a cached sha256 hash for the source file
-        # and use that unless our source file is newer than our hash
-        sha256_file = f"{os.path.splitext(file_name)[0]}.sha256"
-        source_timestamp = os.path.getmtime(file_name)
-        hash_timestamp = os.path.getmtime(sha256_file) if os.path.isfile(sha256_file) else 0
-        if hash_timestamp > source_timestamp:
-            # Use our cached hash
-            with open(sha256_file) as handle:
-                return handle.read().split()[0]
-        logger.info("Calculating sha256sum. This may take a while: file_name={}", file_name)
-        # Calculate the hash of the source file
-        with open(file_name, "rb") as file_to_check:
-            file_hash = hashlib.sha256()
-            while True:
-                chunk = file_to_check.read(2**20)
-                if not chunk:
-                    break
-                file_hash.update(chunk)
-        sha256_hash = file_hash.hexdigest()
-
-        # Cache this sha256 hash we just calculated. Use sha256sum format files
-        # so we can also use OS tools to manipulate these md5 files
-        try:
-            with open(sha256_file, "w") as handle:
-                handle.write(f"{sha256_hash} *{os.path.basename(sha256_file)}")
-        except (OSError, PermissionError):
-            logger.debug("Could not write to sha256sum file, ignoring")
-
-        return sha256_hash
+        Raises:
+            FileNotFoundError: If *file_name* is not an existing file.
+        """
+        return download_engine.sha256_of(Path(file_name))
 
     def validate_file(self, file_details: dict) -> bool:
         # FIXME This isn't enough or isn't being called at the right times
@@ -495,124 +430,45 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
         filename: str,
         callback: Callable[[int, int], None] | None = None,
     ) -> bool:
+        """Download *url* to *filename* (relative to this manager's folder) via the hmr engine.
+
+        A thin wrapper over :func:`horde_model_reference.download_engine.download_file`, retained for
+        callers that fetch a single explicit file. The model-level entry point is :meth:`download_model`.
         """
-        :param url: URL of the file to download. URL is from the model's download list.
-        :param file_path: Path of the model's file. File is from the model's files list.
-        Downloads a file
+        destination = self.model_folder_path / filename
+        outcome = download_engine.download_file(url, destination, progress_callback=callback)
+        return outcome.success
+
+    def _civitai_token_for(self, record: GenericModelRecord) -> str | None:
+        """Return the CivitAI token only when *record*'s URLs are CivitAI-hosted, else None.
+
+        The hmr engine appends the token to every URL it fetches; restricting it to CivitAI hosts
+        preserves the prior behaviour of never leaking the token to other download hosts.
         """
-        final_pathname = f"{self.model_folder_path}/{filename}"
-        partial_pathname = f"{self.model_folder_path}/{filename}.part"
-        filename = os.path.basename(filename)
-        os.makedirs(os.path.dirname(final_pathname), exist_ok=True)
+        if not self._civitai_api_token:
+            return None
+        if any(self.is_model_url_from_civitai(download.file_url) for download in record.config.download):
+            return self._civitai_api_token
+        return None
 
-        # Number of download attempts this time through
-        retries = 5
+    def _delete_on_disk_files(self, record: GenericModelRecord) -> None:
+        """Remove *record*'s on-disk weight files and their checksum/partial sidecars.
 
-        # Determine the remote file size
-        headreq = requests.head(url, allow_redirects=True)
-        if headreq.ok:
-            remote_file_size = int(headreq.headers.get("Content-length", 0))
-        else:
-            remote_file_size = 0
-
-        while retries:
-            if os.path.exists(partial_pathname):
-                # If file exists, find the size and append to it
-                partial_size = os.path.getsize(partial_pathname)
-                logger.info("Resuming download of file: filename={}", filename)
-            else:
-                # If file doesn't exist, start from beginning
-                logger.info("Starting download of file: filename={}", filename)
-                partial_size = 0
-
-            # Add the 'Range' header to start downloading from where we left off
-            headers = {}
-            if partial_size:
-                headers = {"Range": f"bytes={partial_size}-"}
-
-            try:
-                response = requests.get(url, stream=True, headers=headers, allow_redirects=True, timeout=20)
-
-                # If the response was 416 (invalid range) check if we already downloaded all the data?
-                if response.status_code == 416:
-                    response = requests.get(url, stream=True, allow_redirects=True)
-                    remote_file_size = int(response.headers.get("Content-length", 0))
-                    if partial_size == remote_file_size:
-                        # Successful download, swap the files
-                        self.progress()
-                        logger.info("Successfully downloaded the file: filename={}", filename)
-                        if os.path.exists(final_pathname):
-                            os.remove(final_pathname)
-                        # Move the downloaded data into it's final location
-                        os.rename(partial_pathname, final_pathname)
-                        return True
-
-                if response.ok:
-                    remote_file_size = int(response.headers.get("Content-length", 0))
-
-                # If we requested a resumed download but the server didnt respond 206, that's a problem,
-                # the server didn't support resuming downloads
-                if partial_size and response.status_code != 206:
-                    if partial_size == remote_file_size:
-                        pass  # already downloaded
-                    else:
-                        logger.warning(
-                            f"Server did not support resuming download, "
-                            f"restarting download {response.status_code}: {partial_size} != {remote_file_size}",
-                        )
-                        # try again without resuming, i.e. delete the partial download
-                        if os.path.exists(final_pathname):
-                            os.remove(final_pathname)
-                        continue
-
-                # Handle non-2XX status codes
-                if not response.ok:
-                    response.raise_for_status()
-
-                # Write the content to file in chunks
-                with (
-                    open(partial_pathname, "ab") as f,
-                    tqdm(
-                        # all optional kwargs
-                        unit="B",
-                        initial=partial_size,
-                        unit_scale=True,
-                        unit_divisor=1024,
-                        miniters=1,
-                        desc=filename,
-                        total=remote_file_size + partial_size,
-                        # disable=UserSettings.download_progress_callback is not None,
-                    ) as pbar,
-                ):
-                    downloaded = partial_size
-                    for chunk in response.iter_content(chunk_size=1024 * 1024 * 16):
-                        response.raise_for_status()
-                        if chunk:
-                            downloaded += len(chunk)
-                            f.write(chunk)
-                            pbar.update(len(chunk))
-                            self.progress(filename, downloaded, remote_file_size + partial_size)
-                            if callback:
-                                callback(downloaded, remote_file_size + partial_size)
-                # Successful download, swap the files
-                logger.info("Successfully downloaded the file: filename={}", filename)
-                self.progress()
-                if os.path.exists(final_pathname):
-                    os.remove(final_pathname)
-                # Move the downloaded data into it's final location
-                os.rename(partial_pathname, final_pathname)
-                return True
-
-            except requests.RequestException:
-                logger.info("Download of file failed: filename={}", filename)
-                retries -= 1
-                if retries:
-                    logger.info("Attempting download of file again")
-                    time.sleep(2)
-                else:
-                    self.progress()
-                    return False
-        return False
+        Used when a model is tainted: the hmr engine skips files already present, so a corrupt or stale
+        copy must be cleared before it will re-fetch.
+        """
+        for file_path in file_paths_for(record, self._weights_root):
+            companions = (
+                file_path,
+                file_path.with_suffix(".sha256"),
+                file_path.with_suffix(".md5"),
+                Path(f"{file_path}.part"),
+            )
+            for companion in companions:
+                try:
+                    companion.unlink(missing_ok=True)
+                except OSError as delete_error:
+                    logger.warning("Could not delete tainted file: path={}, error={}", companion, delete_error)
 
     def download_model(
         self,
@@ -620,172 +476,65 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
         *,
         callback: Callable[[int, int], None] | None = None,
     ) -> bool | None:
-        """
-        :param model_name: Name of the model
-        Checks if the model is available, downloads the model if it is not available.
-        After download, validates the model.
-        Returns True if the model is available, False otherwise.
+        """Ensure *model_name*'s declared files are present, fetching any that are missing.
 
-        Supported download types:
-        - http(s) (url)
-        - git (repo url)
+        Downloading and checksum verification are delegated to the horde_model_reference engine; this
+        method handles discovery concerns (already-available short-circuit, tainted re-download) and
+        post-download validation.
 
-        Other:
-        - write content to file
-        - symlink file
-        - delete file
-        - unzip file
+        Args:
+            model_name: The reference key of the model to download.
+            callback: Optional ``(downloaded_bytes, total_bytes)`` progress callback, per file.
+
+        Returns:
+            True if the model is present and validated, False on download/validation failure, and None
+            when the category is managed elsewhere (LoRA/TI) or the model has no reference record.
         """
-        # XXX this function is wacky in its premise and needs to be reworked
+        if get_category_descriptor(self._model_category).managed_download_elsewhere:
+            # LoRA/TI are fetched on demand by the CivitAI ad-hoc engine, not the hmr download engine.
+            logger.debug("download_model is a no-op for externally-managed category: {}", self._model_category)
+            return None
+
         is_model_tainted = model_name in self.tainted_models
         if not is_model_tainted and model_name in self.available_models:
             logger.debug("Model is already available: model={}", model_name)
             return True
-        download = self.get_model_download(model_name)
-        files = self.get_model_config_files(model_name)
-        if self.is_model_available(model_name):
+
+        record = self._get_generic_record(model_name)
+        if record is None:
+            logger.error("Cannot download model without a reference record: model={}", model_name)
+            return False
+
+        if not is_model_tainted and self.is_model_available(model_name):
             logger.debug("Model is already downloaded: model={}", model_name)
             return True
-        for i in range(len(download)):
-            # Resolve the on-disk file path from the download/config entry.
-            # With horde_model_reference pydantic records the dict has "file_name" (not "file_path"/"path").
-            if "file_path" in download[i] and download[i]["file_path"]:
-                file_path = f"{download[i]['file_path']}/{download[i]['file_name']}"
-            elif "file_name" in download[i]:
-                # Route vae/text_encoders components to their sibling ComfyUI folder so they land
-                # where the loaders look (and where older hordelib versions already placed them).
-                file_path = str(component_relative_path(download[i]["file_name"], download[i].get("file_purpose")))
-            elif i < len(files) and "path" in files[i]:
-                file_path = files[i]["path"]
-            else:
-                logger.error("Cannot determine file path for model download: model={}", model_name)
-                return False
-            download_url = None
-            download_name = None
-            download_path = None
 
-            if "file_url" in download[i]:
-                download_url = download[i]["file_url"]
-                if self._civitai_api_token and self.is_model_url_from_civitai(download_url):
-                    if "?" not in download_url:
-                        download_url += f"?token={self._civitai_api_token}"
-                    else:
-                        download_url += f"&token={self._civitai_api_token}"
-            if "file_name" in download[i]:
-                download_name = download[i]["file_name"]
-            if "file_path" in download[i]:
-                download_path = download[i]["file_path"]
+        if is_model_tainted:
+            logger.debug("Model is tainted; clearing on-disk files before re-download: model={}", model_name)
+            self._delete_on_disk_files(record)
 
-            if "manual" in download[i]:
-                logger.warning(
-                    f"The model {model_name} requires manual download from {download_url}. "
-                    f"Please place it in {download_path}/{download_name} then press ENTER to continue...",
-                )
-                input("")
-                continue
-            # TODO: simplify
-            if "file_content" in download[i]:
-                file_content = download[i]["file_content"]
-                logger.info("Writing file content: content={}, path={}", file_content, file_path)
-                if not download_path or not download_name:
-                    raise RuntimeError(
-                        f"download_path and download_name are required for file_content download type for "
-                        f"{model_name}",
-                    )
-                os.makedirs(
-                    os.path.join(self.model_folder_path, download_path),
-                    exist_ok=True,
-                )
-                with open(
-                    os.path.join(self.model_folder_path, os.path.join(download_path, download_name)),
-                    "w",
-                ) as f:
-                    f.write(file_content)
-            elif "symlink" in download[i]:
-                logger.info("Creating symlink: file_path={}, target={}", file_path, download[i]["symlink"])
-                symlink = download[i]["symlink"]
-                if not download_path or not download_name:
-                    raise RuntimeError(
-                        f"download_path and download_name are required for symlink download type for {model_name}",
-                    )
-                os.makedirs(
-                    os.path.join(self.model_folder_path, download_path),
-                    exist_ok=True,
-                )
-                os.symlink(
-                    symlink,
-                    os.path.join(
-                        self.model_folder_path,
-                        os.path.join(download_path, download_name),
-                    ),
-                )
-            elif "git" in download[i]:
-                logger.info("Git clone: url={}, path={}", download_url, file_path)
-                os.makedirs(
-                    os.path.join(self.model_folder_path, file_path),
-                    exist_ok=True,
-                )
-                git.Git(os.path.join(self.model_folder_path, file_path)).clone(
-                    download_url,
-                )
-            elif "unzip" in download[i]:
-                zip_path = f"{self.model_folder_path}/{download_name}.zip"
-                temp_path = f"{self.model_folder_path}/{str(uuid4())}/"
-                os.makedirs(temp_path, exist_ok=True)
-                if not download_url or not download_path:
-                    raise RuntimeError(
-                        f"download_url and download_path are required for unzip download type for {model_name}",
-                    )
-                download_succeeded = self.download_file(download_url, zip_path)
-                if not download_succeeded:
-                    return False
-
-                logger.info("Unzipping: zip_path={}", zip_path)
-                with zipfile.ZipFile(zip_path, "r") as zip_ref:
-                    zip_ref.extractall(temp_path)
-
-                logger.info("Moving unzipped content: from={}, to={}", temp_path, download_path)
-                shutil.move(
-                    temp_path,
-                    os.path.join(self.model_folder_path, download_path),
-                )
-
-                logger.info("Deleting zip file: zip_path={}", zip_path)
-                os.remove(zip_path)
-
-                logger.info("Deleting temp directory: temp_path={}", temp_path)
-                shutil.rmtree(temp_path)
-            else:
-                if not self.is_file_available(file_path) or is_model_tainted:
-                    logger.debug("Downloading: url={}, path={}", download_url, self.model_folder_path / file_path)
-                    if is_model_tainted:
-                        logger.debug("Model is tainted: model={}", model_name)
-
-                    if not download_url:
-                        logger.error(
-                            f"download_url is required for download type for {model_name}",
-                        )
-                        return False
-
-                    download_succeeded = self.download_file(download_url, file_path, callback=callback)
-                    if not download_succeeded:
-                        return False
+        download_succeeded = download_engine.download_record_files(
+            record,
+            self._weights_root,
+            progress_callback=callback,
+            auth_query_token=self._civitai_token_for(record),
+        )
+        if not download_succeeded:
+            return False
         return self.validate_model(model_name)
 
     def download_all_models(
         self,
         callback: Callable[[int, int], None] | None = None,
     ) -> bool:
-        """
-        Downloads all models
-        """
-        # FIXME this has no fall back and always returns true
+        """Download every not-yet-available model in this manager's reference (best effort)."""
+        if get_category_descriptor(self._model_category).managed_download_elsewhere:
+            # The CivitAI ad-hoc engine fetches LoRA/TI on demand; there is no "download everything".
+            return True
         for model in self.model_reference:
             if not self.is_model_available(model):
                 logger.info("Downloading model: model={}", model)
                 self.download_model(model, callback=callback)
-            # else:
-            #   logger.debug(f"{model} is already downloaded.")
             else:
                 self.validate_model(model)
         return True
