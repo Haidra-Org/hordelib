@@ -197,11 +197,17 @@ class HordeCheckpointLoader:
                         model_options["fp8_optimizations"] = True
                     elif weight_dtype == "fp8_e5m2":
                         model_options["dtype"] = torch.float8_e5m2
-                    result = comfy.sd.load_diffusion_model(
+                    loaded_component = comfy.sd.load_diffusion_model(
                         ckpt_path,
                         model_options=model_options,
                     )
-                    logger.debug(result)
+                    logger.debug(loaded_component)
+                    # HordeCheckpointLoader declares (MODEL, CLIP, VAE) outputs, but a component
+                    # load produces a single model object. Pad to the declared arity: ComfyUI calls
+                    # len() on the returned value to map node outputs (a bare ModelPatcher raises
+                    # "object of type 'ModelPatcher' has no len()"), and component pipelines (e.g.
+                    # qwen) wire CLIP/VAE from their own loader nodes, so None here is correct.
+                    result = (loaded_component, None, None)
             else:
                 with logfire.span("model.load_checkpoint_guess_config"):
                     result = comfy.sd.load_checkpoint_guess_config(

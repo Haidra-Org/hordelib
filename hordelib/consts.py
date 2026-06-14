@@ -1,6 +1,7 @@
 # consts.py
 
 from enum import Enum, auto
+from pathlib import Path
 
 from strenum import StrEnum
 
@@ -83,3 +84,38 @@ MODEL_FOLDER_NAMES = {
     MODEL_CATEGORY_NAMES.miscellaneous: MODEL_CATEGORY_NAMES.miscellaneous,
 }
 """The folder name on disk where the models are stored in AIWORKER_CACHE_HOME."""
+
+
+COMPONENT_PURPOSE_FOLDERS: dict[str, str] = {
+    "vae": "vae",
+    "text_encoders": "text_encoders",
+    "text_encoder": "text_encoders",
+}
+"""Multi-file model components whose ``file_purpose`` routes them to a sibling ComfyUI folder.
+
+A model such as Qwen-Image ships its unet, VAE and text-encoder as separate files. ComfyUI's
+component loaders look for the VAE in ``<models>/vae`` and the text-encoder in
+``<models>/text_encoders`` (see the ``folder_names_and_paths`` setup in ``hordelib.comfy_horde``),
+not in the owning manager's own folder (e.g. ``<models>/compvis``). Keys are
+``DownloadRecord.file_purpose`` values; values are the destination folder names. Anything not
+listed here (e.g. ``unet``/checkpoints) stays in the manager's folder.
+
+This mirrors the pre-refactor legacy layout (the old records used an explicit ``"../vae"``
+directory redirect), so component files fetched by older hordelib versions are found in place and
+are never needlessly re-downloaded.
+"""
+
+
+def component_relative_path(file_name: str, file_purpose: str | None) -> Path:
+    """Return a download/validation path for *file_name*, relative to the manager's model folder.
+
+    Components with a recognised ``file_purpose`` (see :data:`COMPONENT_PURPOSE_FOLDERS`) are
+    redirected to the matching sibling folder via a ``../<folder>`` prefix so ComfyUI's component
+    loaders find them; every other file stays in the manager's own folder. The ``..``-relative
+    form resolves correctly for any manager folder that lives directly under the models directory.
+    """
+    if file_purpose:
+        folder = COMPONENT_PURPOSE_FOLDERS.get(file_purpose)
+        if folder:
+            return Path("..") / folder / file_name
+    return Path(file_name)

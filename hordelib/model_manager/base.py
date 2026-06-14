@@ -22,7 +22,13 @@ from tqdm import tqdm
 
 from hordelib.beta_models import beta_source_for
 from hordelib.config_path import get_hordelib_path
-from hordelib.consts import CIVITAI_API_PATH, MODEL_CATEGORY_NAMES, MODEL_DB_NAMES, MODEL_FOLDER_NAMES
+from hordelib.consts import (
+    CIVITAI_API_PATH,
+    MODEL_CATEGORY_NAMES,
+    MODEL_DB_NAMES,
+    MODEL_FOLDER_NAMES,
+    component_relative_path,
+)
 from hordelib.settings import UserSettings
 
 _temp_reference_lookup: dict[MODEL_CATEGORY_NAMES, MODEL_REFERENCE_CATEGORY] = {
@@ -208,7 +214,11 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
         for download_entry in record.config.download:
             file_name = download_entry.file_name
             if file_name.endswith((".ckpt", ".safetensors", ".pt", ".pth", ".bin")):
-                path_entry: dict[str, Any] = {"file_path": Path(file_name)}
+                # Multi-file components (vae/text_encoders) are redirected to their sibling
+                # ComfyUI folder; everything else stays in this manager's folder.
+                path_entry: dict[str, Any] = {
+                    "file_path": component_relative_path(file_name, download_entry.file_purpose),
+                }
                 if download_entry.file_purpose:
                     path_entry["file_type"] = download_entry.file_purpose
                 # horde_model_reference uses the literal "FIXME" as its placeholder for unknown checksums
@@ -654,7 +664,9 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
             if "file_path" in download[i] and download[i]["file_path"]:
                 file_path = f"{download[i]['file_path']}/{download[i]['file_name']}"
             elif "file_name" in download[i]:
-                file_path = download[i]["file_name"]
+                # Route vae/text_encoders components to their sibling ComfyUI folder so they land
+                # where the loaders look (and where older hordelib versions already placed them).
+                file_path = str(component_relative_path(download[i]["file_name"], download[i].get("file_purpose")))
             elif i < len(files) and "path" in files[i]:
                 file_path = files[i]["path"]
             else:

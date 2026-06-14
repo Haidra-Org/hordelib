@@ -295,6 +295,9 @@ def do_comfy_import(
             "load_models_gpu",
             comfy_patches._load_models_gpu_hijack,
         )
+        # Fail fast if the comfy model_base class names the force-load hijack relies on have
+        # drifted from this ComfyUI version, rather than silently force-loading an oversized model.
+        comfy_patches.assert_force_load_class_names_exist()
         from comfy.model_management import get_torch_device as _comfy_get_torch_device
         from comfy.model_management import get_free_memory as _comfy_get_free_memory
         from comfy.model_management import get_total_memory as _comfy_get_total_memory

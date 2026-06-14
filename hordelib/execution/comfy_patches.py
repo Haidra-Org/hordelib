@@ -26,65 +26,136 @@ _originals: dict[str, Callable] = {}
 _comfy_execution_module: typing.Any = None
 """ComfyUI's ``execution`` module, registered during do_comfy_import()."""
 
-models_not_to_force_load: list = [
-    "cascade",
-    "sdxl",
-    "flux",
-    "qwen_image",
-]  # other possible values could be `basemodel` or `sd1`
-"""Models which should not be forced to load in the comfy model loading hijack.
+FORCE_LOAD_SKIP_CLASS_NAMES: tuple[str, ...] = (
+    "StableCascade_C",
+    "StableCascade_B",
+    "SDXL",
+    "SDXLRefiner",
+    "Flux",
+    "QwenImage",
+)
+"""The comfy ``model_base`` class names hordelib must keep in lockstep with ComfyUI.
 
-Possible values include `cascade`, `sdxl`, `basemodel`, `sd1` or any other comfyui classname
-which can be passed to comfyui's `load_models_gpu` function (as a `ModelPatcher.model`).
+This is the single source of truth for the force-load skip policy: the default
+:data:`models_not_to_force_load` is derived from it, and :data:`BASELINE_FORCE_LOAD_CLASS_NAMES`
+may only reference names listed here. ComfyUI has no notion of horde baselines, so this mapping
+cannot be derived from comfy and must be hand-maintained — :func:`assert_force_load_class_names_exist`
+fails fast at startup if any name here has drifted from ``comfy.model_base`` (a silent miss would
+let an oversized model be force-loaded and OOM/segfault).
+"""
+
+models_not_to_force_load: list = list(FORCE_LOAD_SKIP_CLASS_NAMES)
+"""comfy ``model_base`` class names whose models must NOT be force-loaded onto the GPU (default).
+
+Entries are matched by **class identity** (``isinstance`` against the resolved
+``comfy.model_base`` class), not by substring, so naming quirks — e.g. the comfy class
+``QwenImage`` versus the baseline value ``qwen_image`` — cannot silently break the match the
+way the old ``str(type(model)).lower()`` substring test did. Consumers may override this via
+``initialise(models_not_to_force_load=...)``; any entry that does not resolve to a real
+``comfy.model_base`` class falls back to a lowercase substring match for backwards compatibility
+with older raw-string configs.
 """
 
 disable_force_loading: bool = False
 
-BASELINE_FORCE_LOAD_CLASS_FRAGMENTS: dict = {}
-"""``KNOWN_IMAGE_GENERATION_BASELINE`` -> comfy model class-name fragment for the skip list.
+FORCE_LOAD_VRAM_SAFETY_FRACTION: float = 0.95
+"""Force a full GPU load only when the model(s) fit within this fraction of free VRAM.
+
+Defense-in-depth that does not depend on ``models_not_to_force_load``: a model larger than the
+available VRAM (e.g. a 20GB unet on a 16GB GPU) is never force-loaded, because ComfyUI's
+force_full_load path crashes (segfaults) rather than falling back to offloading when the
+weights cannot fit.
+"""
+
+BASELINE_FORCE_LOAD_CLASS_NAMES: dict = {}
+"""``KNOWN_IMAGE_GENERATION_BASELINE`` -> comfy ``model_base`` class names for the skip list.
 
 hordelib owns the knowledge of which comfy class implements which horde baseline; consumers
-(the worker) express force-load policy in baseline enum members and never ship raw fragments.
+(the worker) express force-load policy in baseline enum members and never ship raw class names.
 Populated lazily to keep this module importable without horde_model_reference.
 """
 
 
-def _baseline_fragments() -> dict:
-    if not BASELINE_FORCE_LOAD_CLASS_FRAGMENTS:
+def _baseline_class_names() -> dict:
+    if not BASELINE_FORCE_LOAD_CLASS_NAMES:
         from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 
-        BASELINE_FORCE_LOAD_CLASS_FRAGMENTS.update(
+        BASELINE_FORCE_LOAD_CLASS_NAMES.update(
             {
-                KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade: "cascade",
-                KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl: "sdxl",
-                KNOWN_IMAGE_GENERATION_BASELINE.flux_1: "flux",
-                KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell: "flux",
-                KNOWN_IMAGE_GENERATION_BASELINE.flux_dev: "flux",
-                KNOWN_IMAGE_GENERATION_BASELINE.qwen_image: "qwen_image",
+                KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade: ("StableCascade_C", "StableCascade_B"),
+                KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl: ("SDXL", "SDXLRefiner"),
+                KNOWN_IMAGE_GENERATION_BASELINE.flux_1: ("Flux",),
+                KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell: ("Flux",),
+                KNOWN_IMAGE_GENERATION_BASELINE.flux_dev: ("Flux",),
+                KNOWN_IMAGE_GENERATION_BASELINE.qwen_image: ("QwenImage",),
             },
         )
-    return BASELINE_FORCE_LOAD_CLASS_FRAGMENTS
+    return BASELINE_FORCE_LOAD_CLASS_NAMES
 
 
 def resolve_force_load_skip_entries(entries: list) -> list[str]:
-    """Translate a mixed list of baseline enum members and raw fragments to skip fragments.
+    """Translate a mixed list of baseline enum members and raw strings to comfy class names.
 
-    Raw strings pass through unchanged (back-compat); baselines without a known comfy class
-    fragment are skipped with a warning.
+    Raw strings pass through unchanged (back-compat: a comfy class name or a legacy lowercase
+    fragment); baselines are mapped to their comfy ``model_base`` class names. Baselines with
+    no known comfy class are skipped with a warning.
     """
-    fragments: list[str] = []
-    mapping = _baseline_fragments()
+    names: list[str] = []
+    mapping = _baseline_class_names()
     for entry in entries:
         if isinstance(entry, str) and entry not in mapping:
-            fragments.append(entry)
+            if entry not in names:
+                names.append(entry)
             continue
-        fragment = mapping.get(entry)
-        if fragment is None:
-            logger.warning("No comfy class fragment known for baseline; ignoring: baseline={}", entry)
+        class_names = mapping.get(entry)
+        if class_names is None:
+            logger.warning("No comfy class known for baseline; ignoring: baseline={}", entry)
             continue
-        if fragment not in fragments:
-            fragments.append(fragment)
-    return fragments
+        for class_name in class_names:
+            if class_name not in names:
+                names.append(class_name)
+    return names
+
+
+def assert_force_load_class_names_exist() -> None:
+    """Fail fast when a comfy class name hordelib hard-codes has drifted from ComfyUI.
+
+    The force-load skip policy names the ``comfy.model_base`` classes hordelib refuses to
+    force-load. Because ComfyUI has no notion of horde baselines this list can't be derived and
+    must be hand-maintained, so it can silently rot when ComfyUI renames/removes a class — and a
+    silent miss is dangerous (the model gets force-loaded and OOM/segfaults). This is the tripwire:
+    it raises a clear, actionable error if any referenced name is missing, and also verifies the
+    two declarations (:data:`FORCE_LOAD_SKIP_CLASS_NAMES` and :data:`BASELINE_FORCE_LOAD_CLASS_NAMES`)
+    agree with each other. Called once when the load_models_gpu hijack is installed.
+    """
+    import comfy.model_base
+
+    baseline_names = {name for class_names in _baseline_class_names().values() for name in class_names}
+
+    # Internal consistency: the baseline map and the flat default must reference the same classes,
+    # so neither can be updated without the other.
+    only_in_baseline = baseline_names - set(FORCE_LOAD_SKIP_CLASS_NAMES)
+    only_in_flat = set(FORCE_LOAD_SKIP_CLASS_NAMES) - baseline_names
+    if only_in_baseline or only_in_flat:
+        raise RuntimeError(
+            "hordelib force-load class-name declarations disagree: "
+            f"only in BASELINE_FORCE_LOAD_CLASS_NAMES={sorted(only_in_baseline)}, "
+            f"only in FORCE_LOAD_SKIP_CLASS_NAMES={sorted(only_in_flat)}. "
+            "Keep both in hordelib/execution/comfy_patches.py in sync.",
+        )
+
+    referenced = set(FORCE_LOAD_SKIP_CLASS_NAMES) | baseline_names
+    missing = sorted(name for name in referenced if not isinstance(getattr(comfy.model_base, name, None), type))
+    if missing:
+        available = sorted(
+            name for name in dir(comfy.model_base) if isinstance(getattr(comfy.model_base, name, None), type)
+        )
+        raise RuntimeError(
+            f"hordelib's force-load skip list references comfy.model_base classes that no longer exist: {missing}. "
+            "ComfyUI's model classes have changed; update FORCE_LOAD_SKIP_CLASS_NAMES / "
+            f"BASELINE_FORCE_LOAD_CLASS_NAMES in hordelib/execution/comfy_patches.py. "
+            f"Available comfy.model_base classes: {available}",
+        )
 
 
 def capture_and_patch(name: str, module: typing.Any, attr: str, hijack: Callable) -> None:
@@ -100,25 +171,75 @@ def register_execution_module(execution_module: typing.Any) -> None:
     _comfy_execution_module = execution_module
 
 
+def _resolve_skip_classes_and_fragments() -> tuple[tuple[type, ...], list[str]]:
+    """Resolve ``models_not_to_force_load`` entries into comfy classes + legacy fragments.
+
+    Entries naming a real ``comfy.model_base`` class are matched by identity; any that do not
+    resolve are kept as lowercase substring fragments for backwards compatibility with older
+    raw-string configs.
+    """
+    import comfy.model_base
+
+    classes: list[type] = []
+    fragments: list[str] = []
+    for entry in models_not_to_force_load:
+        candidate = getattr(comfy.model_base, entry, None) if isinstance(entry, str) else None
+        if isinstance(candidate, type):
+            classes.append(candidate)
+        elif isinstance(entry, str):
+            fragments.append(entry.lower())
+    return tuple(classes), fragments
+
+
 def _do_not_force_load_model_in_patcher(model_patcher) -> bool:
     import comfy.model_base
 
-    # Only the big diffusion models are ever skipped. VAEs/CLIP/controlnets must always be
-    # force-loaded: the name match below is against the full class path, and e.g. the cascade
-    # stage-C VAE (comfy.ldm.cascade.stage_c_coder) would otherwise match "cascade" and be left
-    # partially on CPU, crashing encode with a CUDA/CPU device mismatch.
-    if not isinstance(model_patcher.model, comfy.model_base.BaseModel):
+    # Only the big diffusion (BaseModel) models are ever skipped; VAEs/CLIP/controlnets must
+    # always be force-loaded. Matching is by class identity so e.g. the cascade stage-C coder
+    # (comfy.ldm.cascade.stage_c_coder, not a StableCascade BaseModel) can't be mistaken for the
+    # cascade diffusion model and left partially on CPU (which crashes encode on a device mismatch).
+    model = model_patcher.model
+    if not isinstance(model, comfy.model_base.BaseModel):
         return False
 
-    model_name_lower = str(type(model_patcher.model)).lower()
-    if "clip" in model_name_lower:
-        return False
-
-    for model in models_not_to_force_load:
-        if model in model_name_lower:
+    skip_classes, legacy_fragments = _resolve_skip_classes_and_fragments()
+    if skip_classes and isinstance(model, skip_classes):
+        return True
+    if legacy_fragments:
+        class_name_lower = type(model).__name__.lower()
+        if any(fragment in class_name_lower for fragment in legacy_fragments):
             return True
-
     return False
+
+
+def _force_full_load_would_overflow_vram(models) -> bool:
+    """Return True when force-fully loading *models* would not fit in currently-free VRAM.
+
+    ComfyUI's ``force_full_load`` path crashes (segfault) when asked to load weights larger than
+    the free VRAM instead of erroring or offloading, so we preempt that here. Fails open
+    (returns False) when the device isn't CUDA or sizes can't be determined, preserving the
+    force-load default.
+    """
+    try:
+        import comfy.model_management as model_management
+
+        device = model_management.get_torch_device()
+        if getattr(device, "type", None) != "cuda":
+            return False
+        free_memory = model_management.get_free_memory(device)
+        required = sum(model_patcher.model_size() for model_patcher in models)
+    except Exception as exc:
+        logger.debug("Could not estimate force-load VRAM fit; proceeding to force load: error={}", exc)
+        return False
+
+    overflow = required > free_memory * FORCE_LOAD_VRAM_SAFETY_FRACTION
+    if overflow:
+        logger.info(
+            "Skipping force-full-load; model would not fit in free VRAM: required_mb={:.0f}, free_mb={:.0f}",
+            required / 2**20,
+            free_memory / 2**20,
+        )
+    return overflow
 
 
 @logfire.instrument("comfy.load_models_gpu_hijack")
@@ -131,24 +252,22 @@ def _load_models_gpu_hijack(*args, **kwargs):
     cause.
     """
 
-    found_model_to_skip = False
-    for model_patcher in args[0]:
-        found_model_to_skip = _do_not_force_load_model_in_patcher(model_patcher)
-        if found_model_to_skip:
-            break
+    models = args[0]
+    skip_force_load = any(_do_not_force_load_model_in_patcher(model_patcher) for model_patcher in models)
+    if not skip_force_load and _force_full_load_would_overflow_vram(models):
+        skip_force_load = True
 
-    if found_model_to_skip:
+    if skip_force_load:
         logger.debug("Not overriding model load")
-        logger.info("comfy.model_load_skipped", model_count=len(args[0]))
+        logger.info("comfy.model_load_skipped", model_count=len(models))
         kwargs["memory_required"] = 1e30
+        kwargs.pop("force_full_load", None)
         _originals["load_models_gpu"](*args, **kwargs)
         return
 
-    if "force_full_load" in kwargs:
-        kwargs.pop("force_full_load")
-
+    kwargs.pop("force_full_load", None)
     kwargs["force_full_load"] = True
-    logger.info("comfy.force_full_load", model_count=len(args[0]))
+    logger.info("comfy.force_full_load", model_count=len(models))
     _originals["load_models_gpu"](*args, **kwargs)
 
 
