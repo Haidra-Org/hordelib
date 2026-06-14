@@ -42,6 +42,10 @@ jobs:
         uses: astral-sh/setup-uv@v5
         with:
           python-version: "3.12"
+      # Fail fast if uv.lock drifts from pyproject.toml. A plain `uv sync` would silently
+      # re-resolve and hide the drift; downstream/frozen installs would then break.
+      - name: Verify uv.lock is in sync with pyproject.toml
+        run: uv lock --check
       # One sync builds the single test venv with the CUDA build of torch; every later
       # step uses --no-sync so it can never re-resolve and drop the cu128 extra.
       - name: Sync test environment (CUDA torch)
