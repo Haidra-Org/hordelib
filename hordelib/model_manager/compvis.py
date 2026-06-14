@@ -16,7 +16,6 @@ from horde_model_reference.model_reference_records import (
 )
 from loguru import logger
 
-from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.model_manager.base import BaseModelManager
 
 
@@ -63,9 +62,9 @@ class CompVisModelManager(BaseModelManager[ImageGenerationModelRecord]):
         download_reference=False,
         **kwargs,
     ):
-        kwargs.pop("model_category_name", None)  # consumed by this subclass
+        kwargs.pop("model_category", None)  # consumed by this subclass
         super().__init__(
-            model_category_name=MODEL_CATEGORY_NAMES.compvis,
+            model_category=MODEL_REFERENCE_CATEGORY.image_generation,
             download_reference=download_reference,
             **kwargs,
         )

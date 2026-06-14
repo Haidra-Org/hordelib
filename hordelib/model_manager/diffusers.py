@@ -1,4 +1,5 @@
-from hordelib.consts import MODEL_CATEGORY_NAMES
+from horde_model_reference import MODEL_REFERENCE_CATEGORY
+
 from hordelib.model_manager.base import BaseModelManager
 
 
@@ -11,7 +12,7 @@ class DiffusersModelManager(BaseModelManager):
         raise NotImplementedError("Diffusers are not yet supported")
 
         super().__init__(
-            model_category_name=MODEL_CATEGORY_NAMES.diffusers,
+            model_category=MODEL_REFERENCE_CATEGORY.image_generation,
             download_reference=download_reference,
             **kwargs,
         )

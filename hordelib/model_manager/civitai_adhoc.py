@@ -43,7 +43,6 @@ from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY
 from horde_model_reference.model_reference_records import GenericModelRecord
 from loguru import logger
 
-from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.metrics import DownloadCategory, DownloadEvent, get_metrics_collector
 from hordelib.model_manager.base import BaseModelManager
 
@@ -174,7 +173,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     def __init__(
         self,
         *,
-        model_category_name: MODEL_CATEGORY_NAMES,
+        model_category: MODEL_REFERENCE_CATEGORY,
         models_db_path: str | Path,
         civitai_api_token: str | None = None,
         download_reference: bool = False,
@@ -186,7 +185,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         """Create an ad-hoc CivitAI model manager.
 
         Args:
-            model_category_name: The hordelib category enum for this manager.
+            model_category: The canonical category this manager handles.
             models_db_path: Path to the JSON file persisting this manager's reference cache.
             civitai_api_token: Optional CivitAI API token, appended to CivitAI download URLs.
             download_reference: Unused for ad-hoc managers (the reference is built from downloads);
@@ -226,7 +225,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         self._init_metrics()
 
         super().__init__(
-            model_category_name=model_category_name,
+            model_category=model_category,
             download_reference=download_reference,
             models_db_path=models_db_path,
             civitai_api_token=civitai_api_token,

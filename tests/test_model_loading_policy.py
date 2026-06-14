@@ -15,9 +15,9 @@ import types
 from pathlib import Path
 
 import pytest
+from horde_model_reference import component_relative_path
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 
-from hordelib.consts import component_relative_path
 from hordelib.execution import comfy_patches
 
 

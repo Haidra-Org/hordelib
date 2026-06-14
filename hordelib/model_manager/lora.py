@@ -24,7 +24,6 @@ from horde_model_reference.model_reference_records import DownloadRecord
 from loguru import logger
 
 import hordelib.exceptions as he
-from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.model_manager.civitai_adhoc import (
     TESTS_ONGOING,
     CacheEntry,
@@ -96,7 +95,7 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
 
         models_db_path = horde_model_reference_paths.legacy_path.joinpath("lora.json").resolve()
         super().__init__(
-            model_category_name=MODEL_CATEGORY_NAMES.lora,
+            model_category=MODEL_REFERENCE_CATEGORY.lora,
             models_db_path=models_db_path,
             civitai_api_token=civitai_api_token,
             download_reference=download_reference,

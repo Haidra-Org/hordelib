@@ -14,7 +14,13 @@ from uuid import uuid4
 import git
 import psutil
 import requests
-from horde_model_reference import MODEL_REFERENCE_CATEGORY, horde_model_reference_paths
+from horde_model_reference import (
+    MODEL_REFERENCE_CATEGORY,
+    category_folder,
+    component_relative_path,
+    get_category_descriptor,
+    horde_model_reference_paths,
+)
 from horde_model_reference.model_reference_manager import ModelReferenceManager
 from horde_model_reference.model_reference_records import GenericModelRecord
 from loguru import logger
@@ -22,24 +28,8 @@ from tqdm import tqdm
 
 from hordelib.beta_models import beta_source_for
 from hordelib.config_path import get_hordelib_path
-from hordelib.consts import (
-    CIVITAI_API_PATH,
-    MODEL_CATEGORY_NAMES,
-    MODEL_DB_NAMES,
-    MODEL_FOLDER_NAMES,
-    component_relative_path,
-)
+from hordelib.consts import CIVITAI_API_PATH
 from hordelib.settings import UserSettings
-
-_temp_reference_lookup: dict[MODEL_CATEGORY_NAMES, MODEL_REFERENCE_CATEGORY] = {
-    MODEL_CATEGORY_NAMES.codeformer: MODEL_REFERENCE_CATEGORY.codeformer,
-    MODEL_CATEGORY_NAMES.compvis: MODEL_REFERENCE_CATEGORY.image_generation,
-    MODEL_CATEGORY_NAMES.controlnet: MODEL_REFERENCE_CATEGORY.controlnet,
-    MODEL_CATEGORY_NAMES.esrgan: MODEL_REFERENCE_CATEGORY.esrgan,
-    MODEL_CATEGORY_NAMES.gfpgan: MODEL_REFERENCE_CATEGORY.gfpgan,
-    MODEL_CATEGORY_NAMES.safety_checker: MODEL_REFERENCE_CATEGORY.safety_checker,
-    MODEL_CATEGORY_NAMES.miscellaneous: MODEL_REFERENCE_CATEGORY.miscellaneous,
-}
 
 
 class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
@@ -66,6 +56,7 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
     def __init__(
         self,
         *,
+        model_category: MODEL_REFERENCE_CATEGORY,
         civitai_api_token: str | None = None,
         download_reference: bool = False,
         models_db_path: str | Path | None = None,
@@ -74,50 +65,49 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
         """Create a new instance of this model manager.
 
         Args:
+            model_category (MODEL_REFERENCE_CATEGORY): The canonical category this manager handles. Determines
+                the on-disk folder and reference data via horde_model_reference.
             civitai_api_token (str | None): Optional API token for Civitai. Required to access certain models
             and improves rate limits. Defaults to None.
             download_reference (bool): Whether to download the model reference on init. Defaults to False.
             models_db_path (str | Path | None): Path to a specific model database JSON file. If None,
                 resolved via horde_model_reference paths.
-            **kwargs: May include ``model_category_name`` (MODEL_CATEGORY_NAMES) to specify the model category,
-                ``multiprocessing_lock``, and other backend-specific arguments.
+            **kwargs: May include ``multiprocessing_lock`` and other backend-specific arguments.
+
+        Raises:
+            ValueError: If *model_category* has no on-disk weights folder, or no database path resolves.
         """
-
-        # Pop `model_category_name` from kwargs so subclasses can pass it both
-        # explicitly to super() and via **kwargs without a duplicate-argument error.
-        model_category_name: MODEL_CATEGORY_NAMES = kwargs.pop(
-            "model_category_name",
-            MODEL_CATEGORY_NAMES.default_models,
-        )
-
         if len(kwargs) > 0:
             logger.debug("Unused kwargs: type={}, kwargs={}", type(self), kwargs)
 
-        self._model_category_name = model_category_name
+        self._model_category = model_category
         self.model_reference = {}
         self.available_models: list[str] = []
         self.tainted_models: list[str] = []
 
-        self.models_db_name = MODEL_DB_NAMES[model_category_name]
+        self.models_db_name = str(model_category)
         self.download_reference = download_reference
         self._civitai_api_token = parse.quote_plus(civitai_api_token) if civitai_api_token else None
 
         # Set the on-disk folder where model weight files are stored
-        self.model_folder_path = UserSettings.get_model_directory() / MODEL_FOLDER_NAMES[model_category_name]
+        folder_name = category_folder(model_category)
+        if folder_name is None:
+            raise ValueError(f"Model category {model_category} has no on-disk weights folder")
+        self.model_folder_path = UserSettings.get_model_directory() / folder_name
 
         if models_db_path is None:
-            # Resolve the model database path via horde_model_reference when possible
-            if model_category_name in _temp_reference_lookup:
-                ref_category = _temp_reference_lookup[model_category_name]
+            if not get_category_descriptor(model_category).managed_download_elsewhere:
+                # Canonical categories are served by horde_model_reference.
                 models_db_path = horde_model_reference_paths.get_model_reference_filename(
-                    ref_category,
+                    model_category,
                     base_path=horde_model_reference_paths.legacy_path,
                 )
             else:
+                # LoRA/TI are managed by the CivitAI ad-hoc engine and persist their own cache.
                 models_db_path = get_hordelib_path() / "model_database" / f"{self.models_db_name}.json"
 
         if models_db_path is None:
-            raise ValueError(f"Model database path not found for {model_category_name}")
+            raise ValueError(f"Model database path not found for {model_category}")
 
         logger.debug("Model database path: path={}", models_db_path)
         self.models_db_path = Path(models_db_path)
@@ -136,12 +126,10 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
         if self.download_reference:
             raise NotImplementedError("Downloading model databases is no longer supported within hordelib.")
 
-        model_ref_category = _temp_reference_lookup.get(self._model_category_name)
-
-        if model_ref_category is None:
-            # Categories without horde_model_reference data (LoRA, TI) must override this method.
+        if get_category_descriptor(self._model_category).managed_download_elsewhere:
+            # Categories managed outside horde_model_reference (LoRA, TI) must override this method.
             raise NotImplementedError(
-                f"Model category {self._model_category_name} is not managed by horde_model_reference and "
+                f"Model category {self._model_category} is managed outside horde_model_reference and "
                 f"{type(self).__name__} does not override load_model_database().",
             )
 
@@ -153,12 +141,12 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
 
         ref_manager = ModelReferenceManager.get_instance()
         pydantic_records = ref_manager.get_model_reference_or_none(
-            model_ref_category,
-            source=beta_source_for(model_ref_category, ref_manager),
+            self._model_category,
+            source=beta_source_for(self._model_category, ref_manager),
         )
         if pydantic_records is None:
             raise RuntimeError(
-                f"horde_model_reference returned no data for category {model_ref_category}. "
+                f"horde_model_reference returned no data for category {self._model_category}. "
                 "The model reference may have failed to download; cannot continue with an empty reference.",
             )
 

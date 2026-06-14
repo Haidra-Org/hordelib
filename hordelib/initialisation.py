@@ -15,7 +15,7 @@ _is_initialised = False
 
 
 def initialise(
-    # model_managers_to_load: dict[MODEL_CATEGORY_NAMES, bool] = DEFAULT_MODEL_MANAGERS,
+    # model_managers_to_load: dict[MODEL_REFERENCE_CATEGORY, bool] = ...,
     *,
     setup_logging: bool | None = True,
     clear_logs=False,

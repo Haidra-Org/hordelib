@@ -5,10 +5,9 @@ from multiprocessing.synchronize import Lock as multiprocessing_lock
 from typing import Self
 
 import torch
-from horde_model_reference import ModelReferenceManager, PrefetchStrategy
+from horde_model_reference import MODEL_REFERENCE_CATEGORY, ModelReferenceManager, PrefetchStrategy
 from loguru import logger
 
-from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.model_manager.hyper import (
     ALL_MODEL_MANAGER_TYPES,
     BaseModelManager,
@@ -56,7 +55,7 @@ class SharedModelManager:
     @classmethod
     def load_model_managers(
         cls,
-        managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] = ALL_MODEL_MANAGER_TYPES,
+        managers_to_load: Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]] = ALL_MODEL_MANAGER_TYPES,
         *,
         multiprocessing_lock: multiprocessing_lock | None = None,
         lora_reference_backups: bool | None = None,
@@ -64,7 +63,7 @@ class SharedModelManager:
         """Load the model managers specified.
 
         Args:
-            managers_to_load (Iterable[str  |  MODEL_CATEGORY_NAMES  |  type[BaseModelManager]], optional): \
+            managers_to_load (Iterable[str  |  MODEL_REFERENCE_CATEGORY  |  type[BaseModelManager]], optional): \
                 The model managers to load. \
                 Defaults to ALL_MODEL_MANAGER_TYPES.
             multiprocessing_lock (multiprocessing_lock | None, optional): If you are using multiprocessing, \
@@ -150,7 +149,7 @@ class SharedModelManager:
     @classmethod
     def unload_model_managers(
         cls,
-        managers_to_unload: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
+        managers_to_unload: Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]],
     ):
         cls.manager.unload_model_managers(managers_to_unload)
 

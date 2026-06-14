@@ -6,9 +6,8 @@ from collections.abc import Callable, Iterable
 from multiprocessing.synchronize import Lock as multiprocessing_lock
 
 import torch
+from horde_model_reference import MODEL_REFERENCE_CATEGORY
 from loguru import logger
-
-from hordelib.consts import MODEL_CATEGORY_NAMES
 
 # from hordelib.model_manager.diffusers import DiffusersModelManager
 from hordelib.model_manager.base import BaseModelManager
@@ -22,17 +21,16 @@ from hordelib.model_manager.miscellaneous import MiscellaneousModelManager
 from hordelib.model_manager.safety_checker import SafetyCheckerModelManager
 from hordelib.model_manager.ti import TextualInversionModelManager
 
-MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_CATEGORY_NAMES | str, type[BaseModelManager]] = {
-    MODEL_CATEGORY_NAMES.codeformer: CodeFormerModelManager,
-    MODEL_CATEGORY_NAMES.compvis: CompVisModelManager,
-    MODEL_CATEGORY_NAMES.controlnet: ControlNetModelManager,
-    # MODEL_CATEGORY_NAMES.diffusers: DiffusersModelManager,
-    MODEL_CATEGORY_NAMES.esrgan: EsrganModelManager,
-    MODEL_CATEGORY_NAMES.gfpgan: GfpganModelManager,
-    MODEL_CATEGORY_NAMES.safety_checker: SafetyCheckerModelManager,
-    MODEL_CATEGORY_NAMES.lora: LoraModelManager,
-    MODEL_CATEGORY_NAMES.ti: TextualInversionModelManager,
-    MODEL_CATEGORY_NAMES.miscellaneous: MiscellaneousModelManager,
+MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_REFERENCE_CATEGORY | str, type[BaseModelManager]] = {
+    MODEL_REFERENCE_CATEGORY.codeformer: CodeFormerModelManager,
+    MODEL_REFERENCE_CATEGORY.image_generation: CompVisModelManager,
+    MODEL_REFERENCE_CATEGORY.controlnet: ControlNetModelManager,
+    MODEL_REFERENCE_CATEGORY.esrgan: EsrganModelManager,
+    MODEL_REFERENCE_CATEGORY.gfpgan: GfpganModelManager,
+    MODEL_REFERENCE_CATEGORY.safety_checker: SafetyCheckerModelManager,
+    MODEL_REFERENCE_CATEGORY.lora: LoraModelManager,
+    MODEL_REFERENCE_CATEGORY.ti: TextualInversionModelManager,
+    MODEL_REFERENCE_CATEGORY.miscellaneous: MiscellaneousModelManager,
 }
 """A lookup table for the `BaseModelManager` types."""
 
@@ -114,8 +112,8 @@ class ModelManager:
 
     def get_available_models(
         self,
-        mm_include: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
-        mm_exclude: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_include: Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]] | None = None,
+        mm_exclude: Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]] | None = None,
     ) -> list[str]:
         """All models for which information exists, and for which a download attempt could be made."""
         all_available_models: list[str] = []
@@ -165,7 +163,7 @@ class ModelManager:
 
     def init_model_managers(
         self,
-        managers_to_load: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
+        managers_to_load: Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]],
         multiprocessing_lock: multiprocessing_lock | None = None,
         lora_reference_backups: bool | None = None,
     ) -> None:
@@ -205,7 +203,7 @@ class ModelManager:
 
     def unload_model_managers(
         self,
-        managers_to_unload: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]],
+        managers_to_unload: Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]],
     ):
         for manager_to_unload in managers_to_unload:
             resolved_manager_to_unload_type: type[BaseModelManager] | None = None
@@ -319,26 +317,26 @@ class ModelManager:
 
     def get_available_models_by_types(
         self,
-        mm_include: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
-        mm_exclude: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_include: Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]] | None = None,
+        mm_exclude: Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]] | None = None,
     ) -> list[str]:
         return self.get_available_models(mm_include, mm_exclude)
 
     def get_model_manager_instance(
         self,
-        mm_type: str | MODEL_CATEGORY_NAMES | type[BaseModelManager],
+        mm_type: str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager],
     ) -> BaseModelManager | None:
         found_manager = self.get_model_manager_instances([mm_type])
         return found_manager[0] if len(found_manager) > 0 else None
 
     def get_model_manager_instances(
         self,
-        mm_types: Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]] | None = None,
+        mm_types: Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]] | None = None,
     ) -> list[BaseModelManager]:
         """Returns a set of model managers based on the input Iterable of model manager types.
 
         Args:
-            mm_types (Iterable[str | MODEL_CATEGORY_NAMES | type[BaseModelManager]], optional): The Iterable of
+            mm_types (Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]], optional): The Iterable of
             model manager types to resolve. Defaults to None.
 
         Returns:

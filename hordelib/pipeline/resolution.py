@@ -30,14 +30,15 @@ def resolve_post_processing_model(model_name: str) -> PostProcessingContext:
         RuntimeError: If the model is not in any post-processor model reference, or could not
             be made available on disk.
     """
-    from hordelib.consts import MODEL_CATEGORY_NAMES
+    from horde_model_reference import MODEL_REFERENCE_CATEGORY
+
     from hordelib.shared_model_manager import SharedModelManager
 
     if SharedModelManager.manager is None:
         raise RuntimeError("SharedModelManager must be loaded before resolving post-processing models")
 
     managers = SharedModelManager.manager.get_model_manager_instances(
-        [MODEL_CATEGORY_NAMES.codeformer, MODEL_CATEGORY_NAMES.esrgan, MODEL_CATEGORY_NAMES.gfpgan],
+        [MODEL_REFERENCE_CATEGORY.codeformer, MODEL_REFERENCE_CATEGORY.esrgan, MODEL_REFERENCE_CATEGORY.gfpgan],
     )
 
     found_in_reference = False
@@ -66,12 +67,13 @@ def resolve_post_processing_model(model_name: str) -> PostProcessingContext:
 
 def _compvis_manager():
     """Return the loaded compvis manager, lazily loading it like the legacy compat hacks."""
-    from hordelib.consts import MODEL_CATEGORY_NAMES
+    from horde_model_reference import MODEL_REFERENCE_CATEGORY
+
     from hordelib.shared_model_manager import SharedModelManager
 
     if SharedModelManager.manager is None or SharedModelManager.manager.compvis is None:
         try:
-            SharedModelManager.load_model_managers([MODEL_CATEGORY_NAMES.compvis])
+            SharedModelManager.load_model_managers([MODEL_REFERENCE_CATEGORY.image_generation])
         except Exception as exc:
             raise RuntimeError("Cannot load the compvis model manager required for image generation!") from exc
 

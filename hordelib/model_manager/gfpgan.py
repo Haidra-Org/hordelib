@@ -1,6 +1,6 @@
+from horde_model_reference import MODEL_REFERENCE_CATEGORY
 from horde_model_reference.model_reference_records import GenericModelRecord
 
-from hordelib.consts import MODEL_CATEGORY_NAMES
 from hordelib.model_manager.base import BaseModelManager
 
 
@@ -10,9 +10,9 @@ class GfpganModelManager(BaseModelManager[GenericModelRecord]):
         download_reference=False,
         **kwargs,
     ):
-        kwargs.pop("model_category_name", None)  # consumed by this subclass
+        kwargs.pop("model_category", None)  # consumed by this subclass
         super().__init__(
-            model_category_name=MODEL_CATEGORY_NAMES.gfpgan,
+            model_category=MODEL_REFERENCE_CATEGORY.gfpgan,
             download_reference=download_reference,
             **kwargs,
         )

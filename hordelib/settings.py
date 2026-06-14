@@ -1,10 +1,10 @@
 import os
 import re
-from collections import deque
 from pathlib import Path
 from typing import Self
 
 import psutil
+from horde_model_reference import resolve_weights_root
 
 from hordelib import is_initialised
 from hordelib.utils.switch import Switch
@@ -118,25 +118,12 @@ class UserSettings:
         if cls._model_directory and basedir == cls._basedir:
             return cls._model_directory
 
-        # Recursively walk the directory tree, breadth first or this will take forever
-        queue = deque([basedir])
-        while queue:
-            dirpath = queue.popleft()
-            try:
-                dirnames = next(os.walk(dirpath))[1]
-            except StopIteration:
-                continue
-            # Simple heuristic identification of our target directory
-            if "compvis" in dirnames and "clip" in dirnames:
-                basedir = dirpath
-                break
-            # Enqueue all subdirectories
-            for dirname in dirnames:
-                queue.append(os.path.join(dirpath, dirname))
-
-        cls._model_directory = Path(basedir)
+        # The weights-root search (AIWORKER_CACHE_HOME + the compvis/clip marker) is owned by
+        # horde_model_reference so the worker and hordelib agree on where weights live.
+        resolved = resolve_weights_root(basedir)
+        cls._model_directory = resolved
         cls._basedir = basedir
-        return Path(basedir)
+        return resolved
 
     # Disable the use of xformers
     disable_xformers = Switch()
