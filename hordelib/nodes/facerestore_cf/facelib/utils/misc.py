@@ -6,6 +6,7 @@ import cv2
 import folder_paths
 import torch
 from torch.hub import download_url_to_file, get_dir
+from hordelib.settings import UserSettings
 from hordelib.shared_model_manager import SharedModelManager
 
 # from hordelib.nodes.facerestore.basicsr.utils.download_util import download_file_from_google_drive
@@ -88,8 +89,24 @@ def img2tensor(imgs, bgr2rgb=True, float32=True):
 
 
 def load_file_from_url(url, model_dir=None, progress=True, file_name=None):
-    """Ref:https://github.com/1adrianb/face-alignment/blob/master/face_alignment/utils.py"""
-    return str(SharedModelManager.manager.gfpgan.model_folder_path / file_name)
+    """Resolve the on-disk path for a face-detection weight (retinaface/yolov5/parsing).
+
+    These detection weights live in the ``gfpgan`` category folder. Historically this read
+    the folder off the live gfpgan manager, which assumes that manager is active even for a
+    CodeFormers-only face-fix run; when it was not, this raised an opaque
+    ``AttributeError: 'NoneType' object has no attribute 'model_folder_path'``. The folder is
+    a pure function of the weights root, so fall back to resolving it directly when the gfpgan
+    manager has not been loaded.
+
+    Ref: https://github.com/1adrianb/face-alignment/blob/master/face_alignment/utils.py
+    """
+    manager = SharedModelManager.manager
+    gfpgan_manager = manager.gfpgan if manager is not None else None
+    if gfpgan_manager is not None:
+        gfpgan_folder = gfpgan_manager.model_folder_path
+    else:
+        gfpgan_folder = UserSettings.get_model_directory() / "gfpgan"
+    return str(gfpgan_folder / file_name)
 
 
 def scandir(dir_path, suffix=None, recursive=False, full_path=False):

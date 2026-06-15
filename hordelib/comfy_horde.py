@@ -892,16 +892,19 @@ class Comfy_Horde:
                     image_count=len(self.images) if self.images else 0,
                 )
             elif label == "execution_cached":
-                # Log when execution is fully cached
+                # Comfy emits execution_cached with an empty node list when nothing was
+                # actually cached, so only treat a non-empty list as noteworthy.
+                cached_nodes = data.get("nodes", [])
                 logger.info(
                     "ComfyUI execution fully cached",
                     client_id=sid,
-                    cached_nodes=data.get("nodes", []),
+                    cached_nodes=cached_nodes,
                 )
-                logger.warning(
-                    "All nodes were cached - this may indicate a problem if new images were expected",
-                    cached_nodes=data.get("nodes", []),
-                )
+                if cached_nodes:
+                    logger.warning(
+                        "All nodes were cached - this may indicate a problem if new images were expected",
+                        cached_nodes=cached_nodes,
+                    )
             elif label != "executing":
                 pass
                 # logger.debug(f"{label}, {data}, {sid}")

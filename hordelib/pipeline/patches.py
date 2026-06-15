@@ -273,7 +273,9 @@ def hires_fix_first_pass_resolution(
         params["empty_latent_image.width"] = new_width
         params["empty_latent_image.height"] = new_height
     else:
-        logger.error("Could not determine new image size for hires fix. Using 1024x1024.")
+        # Reached when the model's baseline is unknown (e.g. a custom model not in the
+        # reference). The 1024x1024 first pass is a deliberate fallback, not an error.
+        logger.warning("Could not determine new image size for hires fix. Using 1024x1024.")
         params["empty_latent_image.width"] = 1024
         params["empty_latent_image.height"] = 1024
 
