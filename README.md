@@ -20,9 +20,13 @@ Community: [AI Horde Discord](https://discord.gg/3DxrhksKzn).
 
 ## Quick start
 
-1. Install PyTorch for your CUDA version, then `horde-engine`:
+1. Install `horde-engine` together with a PyTorch build for your hardware (see
+   [Choosing a PyTorch build](#choosing-a-pytorch-build)). For NVIDIA:
    ```
-   pip install --extra-index-url https://download.pytorch.org/whl/cu128 horde-engine
+   # CUDA 13+ driver -> torch 2.12.0 (the default line):
+   pip install --extra-index-url https://download.pytorch.org/whl/cu130 horde-engine
+   # CUDA 12.x driver -> the newest CUDA 12.8 build is torch 2.11.0:
+   pip install --extra-index-url https://download.pytorch.org/whl/cu128 horde-engine "torch==2.11.0"
    ```
 
 2. Set `AIWORKER_CACHE_HOME` to a model directory (see [Model directory layout](#model-directory-layout)).
@@ -65,7 +69,10 @@ sudo mount -o remount,size=16G /tmp
 ### From PyPI
 
 ```
-pip install --extra-index-url https://download.pytorch.org/whl/cu128 horde-engine
+# CUDA 13+ driver -> torch 2.12.0 (the default line):
+pip install --extra-index-url https://download.pytorch.org/whl/cu130 horde-engine
+# CUDA 12.x driver -> the newest CUDA 12.8 build is torch 2.11.0:
+pip install --extra-index-url https://download.pytorch.org/whl/cu128 horde-engine "torch==2.11.0"
 ```
 
 ### From source (development)
@@ -73,8 +80,43 @@ pip install --extra-index-url https://download.pytorch.org/whl/cu128 horde-engin
 ```bash
 git clone https://github.com/Haidra-Org/hordelib.git
 cd hordelib
-uv sync --extra cu128      # torch backend: cu128 | rocm | cpu
+uv sync   # installs the latest torch (2.12.0, the CUDA 12.6 build) -- see "Choosing a PyTorch build"
 ```
+
+### Choosing a PyTorch build
+
+`horde-engine` does not pin `torch`: it declares `torchvision`/`torchaudio` as version *ranges*, and
+torchvision pins the exact matching torch in its metadata, so installing the library pulls the latest
+supported torch (**2.12.0** -> torchvision 0.27.0 / torchaudio 2.11.0; torchaudio has no 2.12 release).
+You only pick the *build* (which CUDA/ROCm wheels) for your hardware.
+
+For development, `uv sync` installs the **CUDA 12.6** build of torch 2.12.0 (the index hordelib routes
+to in `[tool.uv.sources]`). It runs on any CUDA 12.6+ driver and, via NVIDIA driver
+backward-compatibility, on CUDA 13 drivers too -- the broadest single build. To use a different build,
+override it ad-hoc after syncing:
+
+```bash
+uv sync
+# then, only if you want a build other than the cu126 default:
+UV_TORCH_BACKEND=auto uv pip install torch torchvision torchaudio                # auto-detect your GPU
+uv pip install torch --extra-index-url https://download.pytorch.org/whl/cu130    # exact CUDA 13 build
+```
+
+With `pip`, select the index with `--extra-index-url`:
+
+| Hardware | index | Notes |
+|---|---|---|
+| NVIDIA, CUDA 13+ driver | `cu130` | torch 2.12.0; a 13.0 build covers any 13.x driver (incl. 13.2). |
+| NVIDIA, CUDA 13.2 (exact) | `cu132` | torch 2.12.0; `cu130` also runs on a 13.2 driver. |
+| NVIDIA, CUDA 12.6+ driver | `cu126` | torch 2.12.0; the only CUDA-12 build of 2.12.0. |
+| NVIDIA, CUDA 12.x, older torch | `cu128` | No 2.12.0 wheel; caps at torch **2.11.0** (add `"torch==2.11.0"`). |
+| AMD (Linux only) | `rocm6.4` | torch **2.9.1 only** (see note below). |
+| No GPU | `cpu` | ~100x slower; testing only. |
+
+> **ROCm:** only torch 2.9.1 (ROCm 6.4) is currently installable. PyTorch publishes torch 2.10-2.12 on
+> rocm7.x but not the matching `pytorch-triton-rocm` (3.6.0/3.7.0) those wheels hard-depend on, so they
+> cannot be resolved yet. Install it ad-hoc: `uv pip install torch==2.9.1 torchvision torchaudio
+> pytorch-triton-rocm --extra-index-url https://download.pytorch.org/whl/rocm6.4`.
 
 ---
 
@@ -143,12 +185,11 @@ Requirements: `git`, [`uv`](https://docs.astral.sh/uv/), `AIWORKER_CACHE_HOME` s
 
 ### Build, lint, test
 
-The whole toolchain lives in one `uv`-managed `.venv`. Sync it once with the CUDA build of
-torch, then drive tools with `uv run --no-sync` (a plain `uv run` would re-resolve and drop the
-`cu128` extra, uninstalling torch):
+The whole toolchain lives in one `uv`-managed `.venv`. Sync it once (installs the CUDA 12.6 build of
+torch 2.12.0 via `[tool.uv.sources]`), then drive tools with `uv run --no-sync`:
 
 ```bash
-uv sync --extra cu128            # one-time, and after dependency changes
+uv sync                          # one-time, and after dependency changes
 
 # Full test suite. The import guard runs first in a clean process (it asserts no ComfyUI
 # import happens before initialise()), then the rest of the suite runs:

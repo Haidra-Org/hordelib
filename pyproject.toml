@@ -78,10 +78,15 @@ dependencies = [
     "strenum>=0.4.15",
     "timm==0.9.16",
     "tokenizers>=0.13.3",
-    "torchaudio==2.9.1",
+    # Ranges, not exact pins, so a consumer (e.g. the worker) can select any supported torch line
+    # (2.9.1 through 2.12.0). torchvision pins the exact matching torch in its own metadata, so whichever
+    # torch the consumer installs resolves the right pair (torch 2.9.1 -> torchvision 0.24.1; 2.12.0 ->
+    # 0.27.0). torchaudio has no 2.12.0 release, so the 2.12 line pairs with torchaudio 2.11.0 (it does
+    # not pin torch, so this resolves cleanly).
+    "torchaudio>=2.9.0,<2.13",
     "torchdiffeq>=0.2.5",
     "torchsde",
-    "torchvision==0.24.1",
+    "torchvision>=0.24.0,<0.28",
     "tqdm",
     "transformers>=4.50.3",
     "typing-extensions>=4.15.0",
@@ -91,47 +96,64 @@ dependencies = [
 ]
 
 
+# --- PyTorch build selection -------------------------------------------------------------------
+#
+# horde-engine does NOT pin a torch *version*: torchvision/torchaudio are declared as ranges (see
+# [project.dependencies]) and torchvision pins the exact matching torch in its own metadata, so an
+# install always resolves the latest torch those ranges allow (today: torch 2.12.0 -> torchvision
+# 0.27.0 / torchaudio 2.11.0). To move to a newer torch line, bump only those two ranges; nothing here
+# changes.
+#
+# You choose the *build* (which CUDA/CPU wheels) for your hardware with one thin extra per build -- the
+# extra only routes torch to the matching wheel index (see [tool.uv.sources]); the version is whatever
+# the ranges resolve:
+#   uv sync --extra cu130   NVIDIA, CUDA 13.x driver (a 13.0 build also covers a 13.2 driver)
+#   uv sync --extra cu132   NVIDIA, exact CUDA 13.2 build
+#   uv sync --extra cu126   NVIDIA, CUDA 12.6+ driver (the only CUDA-12 build of torch 2.12.0; also runs
+#                           on CUDA 13 drivers via NVIDIA driver backward-compatibility)
+#   uv sync --extra cpu     no GPU (~100x slower; testing only)
+# ROCm has no current lockable build (PyTorch has not published the pytorch-triton-rocm that torch
+# 2.10-2.12 rocm7.x wheels need); install it ad-hoc, e.g. `uv pip install torch==2.9.1 torchvision
+# torchaudio pytorch-triton-rocm --extra-index-url https://download.pytorch.org/whl/rocm6.4`.
+# Exactly one extra may be active at a time (see [tool.uv] conflicts).
 [project.optional-dependencies]
-cu128 = [
-    "torch==2.9.1",
-]
-rocm = [
-    "torch==2.9.1",
-    "pytorch-triton-rocm>=3.5.1 ; sys_platform == 'linux'",
-]
-cpu = [
-    "torch==2.9.1",
-]
+cu126 = ["torch"]
+cu130 = ["torch"]
+cu132 = ["torch"]
+cpu = ["torch"]
 
 [tool.uv]
 python-preference = "managed"
 conflicts = [
     [
-        {extra = "cu128"},
-        {extra = "rocm"},
-        {extra = "directml"},
+        {extra = "cu126"},
+        {extra = "cu130"},
+        {extra = "cu132"},
         {extra = "cpu"},
     ],
 ]
 
 [tool.uv.sources]
 torch = [
-    {index = "pytorch-cu128", extra = "cu128"},
-    {index = "pytorch-rocm", extra = "rocm"},
+    {index = "pytorch-cu126", extra = "cu126"},
+    {index = "pytorch-cu130", extra = "cu130"},
+    {index = "pytorch-cu132", extra = "cu132"},
     {index = "pytorch-cpu", extra = "cpu"},
-]
-pytorch-triton-rocm = [
-    {index = "pytorch-rocm", extra = "rocm"},
 ]
 
 [[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
 explicit = true
 
 [[tool.uv.index]]
-name = "pytorch-rocm"
-url = "https://download.pytorch.org/whl/rocm6.4"
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
 explicit = true
 
 [[tool.uv.index]]
