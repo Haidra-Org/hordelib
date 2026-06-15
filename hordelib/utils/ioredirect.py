@@ -144,7 +144,7 @@ class OutputCollector(io.TextIOWrapper):
                 or found_current_step % 10 == 0
                 or found_current_step == found_total_steps
             ):
-                logger.info(message)
+                logger.info("{}", message)
 
             if self.comfyui_progress_callback:
                 progress = ComfyUIProgress(
@@ -189,4 +189,6 @@ class OutputCollector(io.TextIOWrapper):
     def replay(self):
         logger.debug("Replaying output. Seconds in parentheses is the elapsed time spent in ComfyUI. ")
         while len(self.capture_deque):
-            logger.debug(self.capture_deque.popleft())
+            # Captured ComfyUI text is arbitrary; pass it as an argument, never as the format
+            # template, so braces/markup in it can't reach loguru's formatter or colorizer.
+            logger.debug("{}", self.capture_deque.popleft())

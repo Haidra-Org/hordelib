@@ -225,6 +225,14 @@ intercept_handler = InterceptHandler()
 # ComfyUI uses stdlib logging, so we need to intercept it.
 logging.basicConfig(handlers=[intercept_handler], level=0, force=True)
 
+# Some comfy stdlib loggers emit DEBUG records on the per-forward-pass hot path (e.g.
+# comfy_kitchen.dispatch logs a "Backend ... selected" line on every RoPE application,
+# thousands per job). Raise their level so the records are never created, keeping them out
+# of every sink at near-zero cost. Add further per-op loggers here if they surface.
+_NOISY_COMFY_LOGGERS = ("comfy_kitchen.dispatch",)
+for _noisy_logger_name in _NOISY_COMFY_LOGGERS:
+    logging.getLogger(_noisy_logger_name).setLevel(logging.INFO)
+
 
 def do_comfy_import(
     force_normal_vram_mode: bool = False,

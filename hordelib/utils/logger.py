@@ -5,6 +5,21 @@ import sys
 from loguru import logger
 
 
+def _escape_for_format(text: str, *, color: bool) -> str:
+    """Neutralise characters loguru would otherwise parse inside a format template.
+
+    Anything spliced directly into the returned format string (rather than referenced via a
+    ``{...}`` field) is parsed by loguru: ``{``/``}`` as format fields and, when the sink
+    colorizes, ``<...>`` as color markup. Escaping keeps repr'd extras literal, so a value
+    like ``{'image_loader': ...}`` or ``<obj at 0x...>`` cannot raise ``KeyError`` on the
+    plain sink or "Max string recursion exceeded" in the colorizer.
+    """
+    text = text.replace("{", "{{").replace("}", "}}")
+    if color:
+        text = text.replace("<", r"\<")
+    return text
+
+
 def _format_with_extras(record, *, color: bool) -> str:
     """Generate the log format string including any bound extras."""
 
@@ -16,9 +31,11 @@ def _format_with_extras(record, *, color: bool) -> str:
         # Use the original source location from the LogRecord
         import os
 
-        # Extract just the filename from the full path for readability
+        # Extract just the filename from the full path for readability. It is spliced
+        # straight into the template below, so escape it like any other dynamic literal.
         pathname = extras.get("stdlib_pathname", "")
         filename = os.path.basename(pathname) if pathname else "unknown"
+        filename = _escape_for_format(filename, color=color)
 
         if color:
             # Use {extra[key]} to safely access values without interpretation as color tags
@@ -53,7 +70,7 @@ def _format_with_extras(record, *, color: bool) -> str:
     ]
     extra_str = ""
     if extra_items:
-        extra_repr = ", ".join(extra_items)
+        extra_repr = _escape_for_format(", ".join(extra_items), color=color)
         extra_str = f" | {extra_repr}"
 
     return base + extra_str + "\n{exception}"
@@ -204,6 +221,8 @@ class HordeLog:
                     "retention": "2 days",
                     "rotation": "1 days",
                     "format": _plain_format,
+                    # Move disk writes off the hot (inference) thread; flushed by atexit shutdown.
+                    "enqueue": True,
                 },
                 # {
                 #     "sink": "logs/stats.log" if cls.process_id is None else f"logs/stats_{cls.process_id}.log",
@@ -221,6 +240,7 @@ class HordeLog:
                     "backtrace": True,
                     "diagnose": True,
                     "format": _plain_format,
+                    "enqueue": True,
                 },
             ],
         }
