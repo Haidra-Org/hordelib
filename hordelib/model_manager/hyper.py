@@ -6,7 +6,7 @@ from collections.abc import Callable, Iterable
 from multiprocessing.synchronize import Lock as multiprocessing_lock
 
 import torch
-from horde_model_reference import MODEL_REFERENCE_CATEGORY
+from horde_model_reference import MODEL_REFERENCE_CATEGORY, category_folder
 from loguru import logger
 
 # from hordelib.model_manager.diffusers import DiffusersModelManager
@@ -35,6 +35,33 @@ MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_REFERENCE_CATEGORY | str, type[BaseModelM
 """A lookup table for the `BaseModelManager` types."""
 
 ALL_MODEL_MANAGER_TYPES: list[type[BaseModelManager]] = list(MODEL_MANAGERS_TYPE_LOOKUP.values())
+
+
+# Migrating to horde_model_reference v5 renamed some categories (e.g. the old "compvis" category is
+# now "image_generation") while keeping the original on-disk folder names for compatibility. Callers
+# and existing tests still address managers by those legacy folder names, so map each folder name that
+# differs from its category value back to the canonical category.
+MODEL_MANAGER_NAME_ALIASES: dict[str, MODEL_REFERENCE_CATEGORY] = {
+    folder: category
+    for category in MODEL_MANAGERS_TYPE_LOOKUP
+    if isinstance(category, MODEL_REFERENCE_CATEGORY)
+    and (folder := category_folder(category)) is not None
+    and folder != category.value
+}
+"""Legacy folder-name aliases (e.g. ``"compvis"``) mapped to their `MODEL_REFERENCE_CATEGORY`."""
+
+
+def resolve_manager_alias(
+    identifier: str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager],
+) -> str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]:
+    """Map a legacy folder-style manager name (e.g. ``"compvis"``) to its canonical category.
+
+    Identifiers that aren't legacy aliases (categories, manager types, unrecognised strings) are
+    returned unchanged.
+    """
+    if isinstance(identifier, str):
+        return MODEL_MANAGER_NAME_ALIASES.get(identifier, identifier)
+    return identifier
 
 
 class ModelManager:
@@ -167,7 +194,8 @@ class ModelManager:
         multiprocessing_lock: multiprocessing_lock | None = None,
         lora_reference_backups: bool | None = None,
     ) -> None:
-        for manager_to_load in managers_to_load:
+        for raw_manager_to_load in managers_to_load:
+            manager_to_load = resolve_manager_alias(raw_manager_to_load)
             resolve_manager_to_load_type: type[BaseModelManager] | None = None
             if isinstance(manager_to_load, type) and issubclass(manager_to_load, BaseModelManager):
                 if manager_to_load not in MODEL_MANAGERS_TYPE_LOOKUP.values():
@@ -205,7 +233,8 @@ class ModelManager:
         self,
         managers_to_unload: Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]],
     ):
-        for manager_to_unload in managers_to_unload:
+        for raw_manager_to_unload in managers_to_unload:
+            manager_to_unload = resolve_manager_alias(raw_manager_to_unload)
             resolved_manager_to_unload_type: type[BaseModelManager] | None = None
             if isinstance(manager_to_unload, type) and issubclass(manager_to_unload, BaseModelManager):
                 if manager_to_unload not in MODEL_MANAGERS_TYPE_LOOKUP.values():
@@ -352,7 +381,8 @@ class ModelManager:
 
         resolved_types = []
         active_model_managers_types_names = [mm_type.__name__ for mm_type in active_model_managers_types]
-        for mm_type in mm_types:  # type: ignore
+        for raw_mm_type in mm_types:  # type: ignore
+            mm_type = resolve_manager_alias(raw_mm_type)
             if isinstance(mm_type, type) and mm_type in active_model_managers_types:
                 resolved_types.append(mm_type)
                 continue
