@@ -145,6 +145,11 @@ def test_preload_constructs_hordelib_before_node_lookup(monkeypatch):
     monkeypatch.setattr(hordelib.horde, "HordeLib", _FakeHordeLib)
     monkeypatch.setattr(hordelib.comfy_horde, "get_node_class", _fake_get_node_class)
     monkeypatch.setattr(preload, "_preload_completed", False)
+    # Disable the persistent marker skip and pin the offline decision so the cold run path is
+    # exercised regardless of an earlier real preload (which sets AUX_ANNOTATOR_CKPTS_PATH and
+    # writes the marker) having run in the same session.
+    monkeypatch.setattr(preload, "_pinned_annotator_ref", lambda: None)
+    monkeypatch.setattr(preload, "_midas_already_cached", lambda: False)
 
     assert preload.download_all_controlnet_annotators()
     assert constructed, "preload did not construct a HordeLib instance"
