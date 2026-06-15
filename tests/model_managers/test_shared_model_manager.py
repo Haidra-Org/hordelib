@@ -170,31 +170,35 @@ class TestSharedModelManager:
         load_models_for_type_test,
     ):
         shared_model_manager.unload_model_managers(["gfpgan"])
-        print(shared_model_manager.manager.get_model_manager_instances(["compvis"]))
-        assert shared_model_manager.manager.get_model_manager_instances(["compvis"]) == [
-            shared_model_manager.manager.compvis,
-        ]
-        # because gfpgan MM not active
-        assert len(shared_model_manager.manager.get_model_manager_instances(["compvis", "gfpgan"])) == 1
-        assert len(shared_model_manager.manager.get_model_manager_instances(["compvis", "gfpgan", "esrgan"])) == 2
-        assert len(shared_model_manager.manager.get_model_manager_instances(["compvis", "FAKE"])) == 1
-        assert shared_model_manager.manager.get_model_manager_instances(None) == []
-        # Any value other than a string or a mm pointer is ignored
-        assert shared_model_manager.manager.get_model_manager_instances([None]) == []  # type: ignore
-        assert set(
-            shared_model_manager.manager.get_model_manager_instances(
-                [None, "FAKE", "esrgan", "compvis"],  # type: ignore
-            ),
-        ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}
+        # The unload above mutates the shared (session-scoped) singleton, so a mid-test failure must
+        # not leak the unloaded gfpgan manager into later tests; the finally guarantees it is restored.
+        try:
+            print(shared_model_manager.manager.get_model_manager_instances(["compvis"]))
+            assert shared_model_manager.manager.get_model_manager_instances(["compvis"]) == [
+                shared_model_manager.manager.compvis,
+            ]
+            # because gfpgan MM not active
+            assert len(shared_model_manager.manager.get_model_manager_instances(["compvis", "gfpgan"])) == 1
+            assert len(shared_model_manager.manager.get_model_manager_instances(["compvis", "gfpgan", "esrgan"])) == 2
+            assert len(shared_model_manager.manager.get_model_manager_instances(["compvis", "FAKE"])) == 1
+            assert shared_model_manager.manager.get_model_manager_instances(None) == []
+            # Any value other than a string or a mm pointer is ignored
+            assert shared_model_manager.manager.get_model_manager_instances([None]) == []  # type: ignore
+            assert set(
+                shared_model_manager.manager.get_model_manager_instances(
+                    [None, "FAKE", "esrgan", "compvis"],  # type: ignore
+                ),
+            ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}
 
-        assert set(
-            shared_model_manager.manager.get_model_manager_instances(
-                [EsrganModelManager, CompVisModelManager],
-            ),
-        ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}
-        assert set(
-            shared_model_manager.manager.get_model_manager_instances(
-                [None, "FAKE", EsrganModelManager, CompVisModelManager],  # type: ignore
-            ),
-        ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}
-        shared_model_manager.load_model_managers(["gfpgan"])
+            assert set(
+                shared_model_manager.manager.get_model_manager_instances(
+                    [EsrganModelManager, CompVisModelManager],
+                ),
+            ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}
+            assert set(
+                shared_model_manager.manager.get_model_manager_instances(
+                    [None, "FAKE", EsrganModelManager, CompVisModelManager],  # type: ignore
+                ),
+            ) == {shared_model_manager.manager.compvis, shared_model_manager.manager.esrgan}
+        finally:
+            shared_model_manager.load_model_managers(["gfpgan"])
