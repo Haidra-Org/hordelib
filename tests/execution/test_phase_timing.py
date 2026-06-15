@@ -35,11 +35,14 @@ def isolated_collector(monkeypatch: pytest.MonkeyPatch) -> MetricsCollector:
 
 
 def _install_fake_model_management(monkeypatch: pytest.MonkeyPatch, load_impl) -> types.ModuleType:
-    comfy_pkg = types.ModuleType("comfy")
+    comfy_pkg = sys.modules.get("comfy") or types.ModuleType("comfy")
+    monkeypatch.setitem(sys.modules, "comfy", comfy_pkg)
     mm = types.ModuleType("comfy.model_management")
     mm.load_models_gpu = load_impl  # type: ignore[attr-defined]
-    monkeypatch.setitem(sys.modules, "comfy", comfy_pkg)
     monkeypatch.setitem(sys.modules, "comfy.model_management", mm)
+    # `from comfy import model_management` reads the attribute off the package object; binding it
+    # here makes the fake win even when real comfy.model_management was already imported this process.
+    monkeypatch.setattr(comfy_pkg, "model_management", mm, raising=False)
     return mm
 
 
@@ -57,6 +60,10 @@ def _install_fake_sd(monkeypatch: pytest.MonkeyPatch) -> type:
 
     sd.VAE = _VAE  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "comfy.sd", sd)
+    # `from comfy import sd` resolves `sd` as an attribute of the comfy package, not via
+    # sys.modules; without this bind a real comfy.sd imported earlier in the process shadows the
+    # fake and the patch lands on the real VAE, leaving phases["vae_decode"] unset (KeyError).
+    monkeypatch.setattr(comfy_pkg, "sd", sd, raising=False)
     return _VAE
 
 
