@@ -227,7 +227,7 @@ def apply_layerdiffuse(
     if hires_fix:
         reconnect_input(graph, "upscale_sampler.model", "layer_diffuse_apply")
 
-    if baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
+    if baseline is KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
         params["layer_diffuse_apply.config"] = "SD15, Attention Injection, attn_sharing"
         params["layer_diffuse_decode_rgba.sd_version"] = "SD15"
     else:
@@ -262,9 +262,9 @@ def hires_fix_first_pass_resolution(
 
     new_width, new_height = (None, None)
     if baseline is not None:
-        if baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade:
+        if baseline is KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade:
             new_width, new_height = ImageUtils.get_first_pass_image_resolution_max(width, height)
-        elif baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl:
+        elif baseline is KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl:
             new_width, new_height = ImageUtils.get_first_pass_image_resolution_sdxl(width, height)
         else:  # fall through case; only `stable_diffusion_1` at time of writing
             new_width, new_height = ImageUtils.get_first_pass_image_resolution_min(width, height)

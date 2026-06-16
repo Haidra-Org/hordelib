@@ -52,6 +52,16 @@ type ImageGenSpec = PipelineSpec[ImageGenPayload, ModelContext]
 type ImageGenTemplate = PipelineTemplate[ImageGenPayload, ModelContext]
 type ImageGenBinding = ParamBinding[ImageGenPayload]
 
+# The flux family spans several baseline enum members; selection and the patch steps treat
+# them uniformly, so they are grouped here rather than compared one by one.
+FLUX_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
+    {
+        KNOWN_IMAGE_GENERATION_BASELINE.flux_1,
+        KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell,
+        KNOWN_IMAGE_GENERATION_BASELINE.flux_dev,
+    },
+)
+
 
 def _has_img2img_mask(payload: ImageGenPayload) -> bool:
     if payload.source_processing != "img2img":
@@ -148,7 +158,7 @@ ALL_IMAGE_BINDINGS: tuple[ImageGenBinding, ...] = (
 
 def _insert_lora_chain_step(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
     if context.resolved_loras:
-        insert_lora_chain(graph.raw, context.resolved_loras, flux=context.is_flux)
+        insert_lora_chain(graph.raw, context.resolved_loras, flux=context.baseline in FLUX_BASELINES)
 
 
 def _apply_model_context_step(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
@@ -159,7 +169,7 @@ def _apply_model_context_step(graph: ComfyGraph, payload: ImageGenPayload, conte
         "model_loader.will_load_loras": context.will_load_loras,
         # The HordeCheckpointLoader needs to know what file to load; "unet" routes qwen
         # through the diffusion-model loader, None keeps normal SD checkpoints working.
-        "model_loader.file_type": "unet" if context.is_qwen else None,
+        "model_loader.file_type": "unet" if context.baseline is KNOWN_IMAGE_GENERATION_BASELINE.qwen_image else None,
         "model_loader_stage_c.ckpt_name": context.extra_files.get("stable_cascade_stage_c"),
         "model_loader_stage_c.model_name": context.extra_files.get("stable_cascade_stage_c"),
         "model_loader_stage_c.horde_model_name": context.horde_model_name,
@@ -224,7 +234,7 @@ def _rewire_img2img_step(graph: ComfyGraph, payload: ImageGenPayload, context: M
         return
     # The rewires skip graphs lacking the relevant nodes, matching the legacy global attempt.
     if graph.has_node("image_loader"):
-        rewire_img2img(graph.raw, flux=context.is_flux)
+        rewire_img2img(graph.raw, flux=context.baseline in FLUX_BASELINES)
     if graph.has_node("sc_image_loader"):
         rewire_cascade_img2img(graph.raw)
 
@@ -281,7 +291,7 @@ def _apply_qr_step(graph: ComfyGraph, payload: ImageGenPayload, context: ModelCo
             y_offset=params.get("qr_flattened_composite.y") or None,
         ),
     )
-    if context.baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
+    if context.baseline is KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1:
         params["controlnet_qr_model_loader.control_net_name"] = "control_v1p_sd15_qrcode_monster_v2.safetensors"
 
     graph.set_inputs(params)
@@ -342,27 +352,28 @@ def build_default_registry() -> PipelineRegistry[ImageGenPayload, ModelContext]:
         # Baseline-specific families must be checked before the generic SD fallback
         PipelineSpec(
             template=_template("stable_cascade_remix"),
-            predicate=lambda p, c: c.is_cascade and p.source_processing == "remix",
+            predicate=lambda p, c: c.baseline is KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade
+            and p.source_processing == "remix",
             priority=90,
         ),
         PipelineSpec(
             template=_template("stable_cascade_2pass"),
-            predicate=lambda p, c: c.is_cascade and p.hires_fix,
+            predicate=lambda p, c: c.baseline is KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade and p.hires_fix,
             priority=89,
         ),
         PipelineSpec(
             template=_template("stable_cascade"),
-            predicate=lambda p, c: c.is_cascade,
+            predicate=lambda p, c: c.baseline is KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade,
             priority=88,
         ),
         PipelineSpec(
             template=_template("flux"),
-            predicate=lambda p, c: c.is_flux,
+            predicate=lambda p, c: c.baseline in FLUX_BASELINES,
             priority=87,
         ),
         PipelineSpec(
             template=_template("qwen"),
-            predicate=lambda p, c: c.is_qwen,
+            predicate=lambda p, c: c.baseline is KNOWN_IMAGE_GENERATION_BASELINE.qwen_image,
             priority=86,
         ),
         # ControlNet

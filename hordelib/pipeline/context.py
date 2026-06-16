@@ -5,14 +5,6 @@ from pydantic import BaseModel, ConfigDict
 
 from hordelib.pipeline.patches import ResolvedLora
 
-FLUX_BASELINES = frozenset(
-    {
-        KNOWN_IMAGE_GENERATION_BASELINE.flux_1,
-        KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell,
-        KNOWN_IMAGE_GENERATION_BASELINE.flux_dev,
-    },
-)
-
 
 class PostProcessingContext(BaseModel):
     """Resolved facts for a post-processing payload: where the model lives on disk.
@@ -48,15 +40,3 @@ class ModelContext(BaseModel):
     """LoRAs that have been validated/downloaded, in application order."""
     will_load_loras: bool = False
     """Whether the model loader should prepare for LoRA application."""
-
-    @property
-    def is_flux(self) -> bool:
-        return self.baseline in FLUX_BASELINES
-
-    @property
-    def is_cascade(self) -> bool:
-        return self.baseline == KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade
-
-    @property
-    def is_qwen(self) -> bool:
-        return self.baseline == KNOWN_IMAGE_GENERATION_BASELINE.qwen_image
