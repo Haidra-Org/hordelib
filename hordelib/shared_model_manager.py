@@ -5,7 +5,12 @@ from multiprocessing.synchronize import Lock as multiprocessing_lock
 from typing import Self
 
 import torch
-from horde_model_reference import MODEL_REFERENCE_CATEGORY, ModelReferenceManager, PrefetchStrategy
+from horde_model_reference import (
+    MODEL_REFERENCE_CATEGORY,
+    ModelReferenceManager,
+    PrefetchStrategy,
+    horde_model_reference_settings,
+)
 from loguru import logger
 
 from hordelib.model_manager.hyper import (
@@ -42,6 +47,23 @@ class SharedModelManager:
     model_reference_manager: ModelReferenceManager
     cuda_available: bool
 
+    _reference_offline: bool | None = None
+    """Explicit offline override set by :func:`hordelib.initialise`. ``None`` means defer to \
+    ``horde_model_reference_settings.offline`` (the ``HORDE_MODEL_REFERENCE_OFFLINE`` env var)."""
+
+    @classmethod
+    def _resolve_reference_offline(cls, explicit: bool | None) -> bool:
+        """Resolve whether the reference manager should be offline (read-only, never download).
+
+        Precedence: an explicit per-call argument, then the process-wide override set by
+        ``initialise(reference_offline=...)``, then ``horde_model_reference_settings.offline``.
+        """
+        if explicit is not None:
+            return explicit
+        if cls._reference_offline is not None:
+            return cls._reference_offline
+        return horde_model_reference_settings.offline
+
     def __new__(cls, do_not_load_model_mangers: bool = True):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
@@ -59,6 +81,7 @@ class SharedModelManager:
         *,
         multiprocessing_lock: multiprocessing_lock | None = None,
         lora_reference_backups: bool | None = None,
+        reference_offline: bool | None = None,
     ):
         """Load the model managers specified.
 
@@ -72,18 +95,33 @@ class SharedModelManager:
             lora_reference_backups (bool | None, optional): Whether the LoRA manager writes backup \
                 copies when saving its reference to disk. Defaults to None (backups on when a \
                 multiprocessing lock is in use).
+            reference_offline (bool | None, optional): If True, construct the reference manager in \
+                offline mode (read references from local disk only, never download). If None, defers \
+                to the process-wide override / ``HORDE_MODEL_REFERENCE_OFFLINE``. Defaults to None.
         """
         if cls.manager is None:
             cls.manager = ModelManager()
 
         # ModelReferenceManager is a singleton; subsequent calls return the same instance.
-        # The prefetch strategy determines whether reference files are fetched eagerly or lazily.
+        # hordelib does not own the download policy: when a subprocess (or the worker) has already
+        # constructed the singleton, we reuse it as-is. We only create one ourselves when absent, and
+        # even then we never force a network download if offline is requested - the parent process is
+        # responsible for downloading and writing the reference files to disk.
         try:
             if not ModelReferenceManager.has_instance():
-                cls.model_reference_manager = ModelReferenceManager(
-                    prefetch_strategy=PrefetchStrategy.DEFERRED,
-                )
-                _await_prefetch(cls.model_reference_manager)
+                if cls._resolve_reference_offline(reference_offline):
+                    cls.model_reference_manager = ModelReferenceManager(
+                        offline=True,
+                        prefetch_strategy=PrefetchStrategy.NONE,
+                    )
+                else:
+                    cls.model_reference_manager = ModelReferenceManager(
+                        prefetch_strategy=PrefetchStrategy.DEFERRED,
+                    )
+                    _await_prefetch(cls.model_reference_manager)
+            else:
+                # Reuse a manager constructed elsewhere (e.g. the worker pre-built an offline one).
+                cls.model_reference_manager = ModelReferenceManager.get_instance()
         except Exception as e:
             logger.exception("Failed to initialize model reference manager")
             raise RuntimeError("Failed to initialize model reference manager") from e

@@ -26,6 +26,7 @@ def initialise(
     disable_smart_memory: bool = False,
     do_not_load_model_mangers: bool = True,
     models_not_to_force_load: list[str] | None = None,
+    reference_offline: bool | None = None,
 ):
     """Initialise hordelib. This is required before using any other hordelib functions.
 
@@ -42,6 +43,9 @@ def initialise(
             ``KNOWN_IMAGE_GENERATION_BASELINE`` members (preferred) or raw comfy class-name fragments. \
             **If this is `None`, the defaults are used.** If you wish to override the defaults, pass an empty list. \
             Defaults to None.
+        reference_offline (bool | None, optional): If True, the model reference manager reads references \
+            from local disk only and never downloads them (the caller/parent process owns downloading). \
+            If None, defers to ``HORDE_MODEL_REFERENCE_OFFLINE``. Defaults to None.
     """
     global _is_initialised
 
@@ -115,6 +119,9 @@ def initialise(
 
     # Initialise model manager
     from hordelib.shared_model_manager import SharedModelManager
+
+    if reference_offline is not None:
+        SharedModelManager._reference_offline = reference_offline
 
     SharedModelManager(do_not_load_model_mangers=do_not_load_model_mangers)
 
