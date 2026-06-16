@@ -560,8 +560,6 @@ torch==2.12.0
     #   torchmetrics
     #   torchsde
     #   torchvision
-torchaudio==2.11.0
-    # via horde-engine
 torchdiffeq==0.2.5
     # via horde-engine
 torchmetrics==1.9.0

@@ -264,6 +264,13 @@ def do_comfy_import(
     if extra_comfyui_args is not None:
         sys.argv.extend(extra_comfyui_args)
 
+    # ComfyUI imports torchaudio eagerly in several node modules loaded just below. torchaudio is an
+    # optional, non-default dependency (no cu132 wheel; audio unsupported), so install a lazy stub when
+    # it is absent, BEFORE comfy is imported, so those imports succeed for image/video work.
+    from hordelib.utils.torch_build import ensure_torchaudio_importable
+
+    ensure_torchaudio_importable()
+
     # Note these imports are intentionally somewhat obfuscated as a reminder to other modules
     # that they should never call through this module into comfy directly. All calls into
     # comfy should be abstracted through functions in this module.

@@ -87,6 +87,12 @@ def initialise(
     # Modify python path to include comfyui
     set_system_path()
 
+    # Fail fast (before ComfyUI imports torch) when the installed torch/torchvision (or a hand-installed
+    # torchaudio) were built for different CUDA/CPU backends, with a message that names the fix.
+    from hordelib.utils.torch_build import verify_torch_build_consistency
+
+    verify_torch_build_consistency()
+
     import hordelib.comfy_horde
 
     hordelib.comfy_horde.do_comfy_import(

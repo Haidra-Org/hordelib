@@ -85,29 +85,36 @@ uv sync   # installs the latest torch (2.12.0, the CUDA 12.6 build) -- see "Choo
 
 ### Choosing a PyTorch build
 
-`horde-engine` does not pin `torch`: it declares `torchvision`/`torchaudio` as version *ranges*, and
-torchvision pins the exact matching torch in its metadata, so installing the library pulls the latest
-supported torch (**2.12.0** -> torchvision 0.27.0 / torchaudio 2.11.0; torchaudio has no 2.12 release).
-You only pick the *build* (which CUDA/ROCm wheels) for your hardware.
+`horde-engine` does not pin `torch`: it declares `torchvision` as a version *range*, and torchvision
+pins the exact matching torch in its metadata, so installing the library pulls the latest supported
+torch (**2.12.0** -> torchvision 0.27.0). You only pick the *build* (which CUDA/ROCm wheels) for your
+hardware. `torch` and `torchvision` are both routed per-build in `[tool.uv.sources]` so they always
+share one CUDA build (a torchvision left on generic PyPI would pull a different CUDA build and break the
+install).
 
-For development, `uv sync` installs the **CUDA 12.6** build of torch 2.12.0 (the index hordelib routes
-to in `[tool.uv.sources]`). It runs on any CUDA 12.6+ driver and, via NVIDIA driver
-backward-compatibility, on CUDA 13 drivers too -- the broadest single build. To use a different build,
-override it ad-hoc after syncing:
+`torchaudio` is **not** installed by default: it is the only package in the trio with no `+cu132` wheel,
+and audio generation is currently unsupported. ComfyUI's eager `import torchaudio` is satisfied by a
+lazy stub (`hordelib.utils.torch_build`) when it is absent; audio operations raise a clear error only if
+actually used. Install a matching torchaudio ad-hoc if you need audio (cu126/cu130/cpu only).
+
+For development, `uv sync --extra cu126` installs the **CUDA 12.6** build of torch 2.12.0. It runs on any
+CUDA 12.6+ driver and, via NVIDIA driver backward-compatibility, on CUDA 13 drivers too -- the broadest
+single build. Pick a different build with the matching extra:
 
 ```bash
-uv sync
-# then, only if you want a build other than the cu126 default:
-UV_TORCH_BACKEND=auto uv pip install torch torchvision torchaudio                # auto-detect your GPU
-uv pip install torch --extra-index-url https://download.pytorch.org/whl/cu130    # exact CUDA 13 build
+uv sync --extra cu132   # exact CUDA 13.2 build
+uv sync --extra cu130   # CUDA 13.0/13.1 build (also runs on a 13.2 driver)
+uv sync --extra cu126   # CUDA 12.6+ build (also runs on CUDA 13 drivers)
+uv sync --extra cpu     # no GPU; ~100x slower, testing only
 ```
 
-With `pip`, select the index with `--extra-index-url`:
+With `pip`, select the index with `--extra-index-url` (install `torch` **and** `torchvision` from the
+same index):
 
 | Hardware | index | Notes |
 |---|---|---|
-| NVIDIA, CUDA 13+ driver | `cu130` | torch 2.12.0; a 13.0 build covers any 13.x driver (incl. 13.2). |
-| NVIDIA, CUDA 13.2 (exact) | `cu132` | torch 2.12.0; `cu130` also runs on a 13.2 driver. |
+| NVIDIA, CUDA 13.2 (exact) | `cu132` | torch 2.12.0; no torchaudio wheel (audio unavailable on this build). |
+| NVIDIA, CUDA 13.0/13.1 driver | `cu130` | torch 2.12.0; also runs on a 13.2 driver. |
 | NVIDIA, CUDA 12.6+ driver | `cu126` | torch 2.12.0; the only CUDA-12 build of 2.12.0. |
 | NVIDIA, CUDA 12.x, older torch | `cu128` | No 2.12.0 wheel; caps at torch **2.11.0** (add `"torch==2.11.0"`). |
 | AMD (Linux only) | `rocm6.4` | torch **2.9.1 only** (see note below). |
@@ -115,7 +122,7 @@ With `pip`, select the index with `--extra-index-url`:
 
 > **ROCm:** only torch 2.9.1 (ROCm 6.4) is currently installable. PyTorch publishes torch 2.10-2.12 on
 > rocm7.x but not the matching `pytorch-triton-rocm` (3.6.0/3.7.0) those wheels hard-depend on, so they
-> cannot be resolved yet. Install it ad-hoc: `uv pip install torch==2.9.1 torchvision torchaudio
+> cannot be resolved yet. Install it ad-hoc: `uv pip install torch==2.9.1 torchvision
 > pytorch-triton-rocm --extra-index-url https://download.pytorch.org/whl/rocm6.4`.
 
 ---
