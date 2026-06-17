@@ -57,6 +57,7 @@ dependencies = [
     "kornia>=0.7.1",
     "logfire[system-metrics]==4.14.2",
     "loguru>=0.7.3",
+    "lpips",
     "matplotlib>=3.10.9",  # comfyui_controlnet_aux node requirement (not a hordelib import)
     "numpy>=1.25.0",
     "omegaconf>=2.3.0",  # comfyui_controlnet_aux + facerestore_cf node requirement (not a hordelib import)
@@ -82,18 +83,13 @@ dependencies = [
     "sqlalchemy>=2.0.0",
     "strenum>=0.4.15",
     "tokenizers>=0.13.3",
+    "torchdiffeq>=0.2.5",
+    "torchsde",
     # Ranges, not exact pins, so a consumer (e.g. the worker) can select any supported torch line
     # (2.9.1 through 2.12.0). torchvision pins the exact matching torch in its own metadata, so whichever
     # torch the consumer installs resolves the right pair (torch 2.9.1 -> torchvision 0.24.1; 2.12.0 ->
     # 0.27.0). torchvision is routed per-build to the matching CUDA wheel index (see [tool.uv.sources])
     # so its compiled CUDA version can never drift from torch's.
-    #
-    # torchaudio is intentionally NOT a default dependency: it is the only piece of the trio with no
-    # +cu132 wheel, and audio is currently unsupported. ComfyUI's eager `import torchaudio` is satisfied
-    # at runtime by a lazy stub (hordelib.utils.torch_build) when it is absent; install a matching build
-    # ad-hoc if you actually need audio (see the PyTorch build selection notes below).
-    "torchdiffeq>=0.2.5",
-    "torchsde",
     "torchvision>=0.24.0,<0.28",
     "tqdm",
     "transformers>=4.50.3",
@@ -120,10 +116,12 @@ dependencies = [
 #   uv sync --extra cu126   NVIDIA, CUDA 12.6+ driver (the only CUDA-12 build of torch 2.12.0; also runs
 #                           on CUDA 13 drivers via NVIDIA driver backward-compatibility)
 #   uv sync --extra cpu     no GPU (~100x slower; testing only)
-# torchaudio is NOT installed by any of these: it has no +cu132 wheel and audio is unsupported, so it is
+#
+# torchaudio is currently NOT installed by any of these: it has no +cu132 wheel and audio is unsupported, so it is
 # omitted by default and stubbed at runtime (hordelib.utils.torch_build). If you need audio, install a
 # torchaudio build matching the active torch index ad-hoc, e.g.
 # `uv pip install torchaudio --index-url https://download.pytorch.org/whl/cu130` (cu126/cu130/cpu only).
+#
 # ROCm has no current lockable build (PyTorch has not published the pytorch-triton-rocm that torch
 # 2.10-2.12 rocm7.x wheels need); install it ad-hoc, e.g. `uv pip install torch==2.9.1 torchvision
 # pytorch-triton-rocm --extra-index-url https://download.pytorch.org/whl/rocm6.4`.
@@ -138,17 +136,21 @@ cu132 = ["torch", "torchvision"]
 cpu = ["torch", "torchvision"]
 
 # --- Feature extras ----------------------------------------------------------------------------
-# NOT torch builds: these gate heavy/optional features out of the lean base so a base install stays
-# close to ComfyUI's own dependency set. They are NOT in the [tool.uv] conflicts set, so any one
-# torch-build extra above may be combined with any of these. The worker installs a feature extra in
-# the dedicated capability process that offers that feature (off by default unless configured).
+# These gate heavy/optional features out of the lean base so a base install stays close to ComfyUI's 
+# own dependency set. They are NOT in the [tool.uv] conflicts set, so any one torch-build extra above 
+# may be combined with any of these. The worker installs a feature extra in the dedicated capability 
+# process that offers that feature (off by default unless configured).
+#
 # A call site that needs one of these guards its import via hordelib.utils.optional_deps so a missing
 # extra produces an actionable "pip install horde-engine[<extra>]" error instead of a bare ImportError.
+#
 layerdiffuse = ["diffusers>=0.25.0"]  # transparent/RGBA generation via the comfyui_layerdiffuse node
 upscale-extra = ["spandrel-extra-arches>=0.2.0"]  # extra (non-commercial) upscaler archs; comfy adds them if present
+
 # strip_background post-processor. rembg pulls onnxruntime, which has no XPU/MPS/Ascend wheels, so it is
 # opt-in; the call site (hordelib.utils.image_utils.strip_background) guards its import via optional_deps.
 rembg = ["rembg[cpu]>=2.0.67"]
+
 # Full comfyui_controlnet_aux annotator dep set, kept out of base because onnxruntime/mediapipe lack wheels
 # for some accelerators. Installing this enables the DWPose/openpose/mediapipe-face/etc. preprocessors; the
 # pure-torch detectors (e.g. canny, depth via MiDaS) work without it.
