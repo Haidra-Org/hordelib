@@ -110,3 +110,13 @@ class TestGitHelpers:
     def test_run_git_raises_on_failure(self, tmp_path: Path):
         with pytest.raises(GitCommandError):
             _run_git(["rev-parse", "HEAD"], tmp_path)  # not a repo
+
+    def test_run_git_missing_git_is_actionable(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+        """A git that is not on PATH surfaces a clear, actionable GitCommandError, not a raw OSError."""
+
+        def _no_git(*_args: object, **_kwargs: object) -> None:
+            raise FileNotFoundError(2, "No such file or directory: 'git'")
+
+        monkeypatch.setattr(subprocess, "run", _no_git)
+        with pytest.raises(GitCommandError, match="git was not found on PATH"):
+            _run_git(["--version"], tmp_path)

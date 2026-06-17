@@ -24,16 +24,24 @@ def _run_git(args: list[str], cwd: Path) -> str:
     """Run a git command, returning stripped stdout.
 
     Raises:
-        GitCommandError: If git exits non-zero.
+        GitCommandError: If git is not installed/on PATH, or exits non-zero.
     """
-    result = subprocess.run(
-        ["git", *args],
-        cwd=str(cwd),
-        text=True,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+    try:
+        result = subprocess.run(
+            ["git", *args],
+            cwd=str(cwd),
+            text=True,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except FileNotFoundError as exc:
+        # A bare-name "git" that the OS cannot find raises FileNotFoundError, not a non-zero exit. Turn it
+        # into the same actionable error all callers already handle, naming why git is needed.
+        raise GitCommandError(
+            "git was not found on PATH. hordelib needs git to fetch and pin ComfyUI and its custom nodes; "
+            "install git (https://git-scm.com/downloads) and make sure it is on PATH, then retry.",
+        ) from exc
     if result.returncode != 0:
         raise GitCommandError(f"git {' '.join(args)} failed in {cwd}: {result.stderr.strip()}")
     return result.stdout.strip()
