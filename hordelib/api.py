@@ -58,6 +58,10 @@ from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.ioredirect import ComfyUIProgress, ComfyUIProgressUnit
 from hordelib.utils.logger import HordeLog
 from hordelib.utils.torch_memory import (
+    AcceleratorInfo,
+    AcceleratorKind,
+    clear_accelerator_cache,
+    enumerate_accelerators,
     get_free_ram_mb,
     get_torch_free_vram_mb,
     get_torch_total_vram_mb,
@@ -66,6 +70,8 @@ from hordelib.utils.torch_memory import (
 
 __all__ = [
     "FEATURE_KIND",
+    "AcceleratorInfo",
+    "AcceleratorKind",
     "BaselineBurden",
     "BurdenEstimate",
     "CalibrationSample",
@@ -97,6 +103,8 @@ __all__ = [
     "UpscalePayload",
     "VRAMStats",
     "classify_post_processor",
+    "clear_accelerator_cache",
+    "enumerate_accelerators",
     "estimate_job_burden",
     "get_baseline_burden",
     "get_feature_impact_registry",

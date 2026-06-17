@@ -175,7 +175,8 @@ class FaceRestoreCFWithModel:
                         output = facerestore_model(cropped_face_t, w=codeformer_fidelity)[0]
                         restored_face = tensor2img(output, rgb2bgr=True, min_max=(-1, 1))
                     del output
-                    torch.cuda.empty_cache()
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
                 except Exception as error:
                     print(f"\tFailed inference for CodeFormer: {error}", file=sys.stderr)
                     restored_face = tensor2img(cropped_face_t, rgb2bgr=True, min_max=(-1, 1))

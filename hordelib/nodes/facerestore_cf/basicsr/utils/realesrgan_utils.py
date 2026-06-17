@@ -221,7 +221,8 @@ class RealESRGANer:
                 if img_mode == "L":
                     output_img = cv2.cvtColor(output_img, cv2.COLOR_BGR2GRAY)
             del output_img_t
-            torch.cuda.empty_cache()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
         except RuntimeError as error:
             output_img = cv2.resize(
                 self.img_pre_pad,

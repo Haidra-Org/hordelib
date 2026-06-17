@@ -92,7 +92,12 @@ class GPUInfo:
 
     def get_info(self):
         if not self.is_nvidia():
-            return GPUInfoResult.get_empty_info()
+            from hordelib.utils.torch_memory import get_torch_free_vram_mb, get_torch_total_vram_mb
+
+            return GPUInfoResult.get_empty_info(
+                vram_total_mb=get_torch_total_vram_mb(),
+                vram_free_mb=get_torch_free_vram_mb(),
+            )
 
         data = self._get_gpu_data()
         if not data:
@@ -180,16 +185,17 @@ class GPUInfoResult(BaseModel):
         return final_string
 
     @classmethod
-    def get_empty_info(cls):
+    def get_empty_info(cls, vram_total_mb: int = 0, vram_free_mb: int = 0):
+        vram_used_mb = max(vram_total_mb - vram_free_mb, 0)
         return GPUInfoResult(
             supported=False,
-            product="unknown (stats with AMD not supported)",
+            product="unknown (detailed stats unavailable on this backend)",
             pci_gen="?",
             pci_width="?",
             fan_speed=("0", Unit.percent),
-            vram_total=(0, Unit.megabytes),
-            vram_used=(0, Unit.megabytes),
-            vram_free=(0, Unit.megabytes),
+            vram_total=(vram_total_mb, Unit.megabytes),
+            vram_used=(vram_used_mb, Unit.megabytes),
+            vram_free=(vram_free_mb, Unit.megabytes),
             load=(0, Unit.percent),
             temp=(0, Unit.degrees_celsius),
             power=(0, Unit.watts),

@@ -32,6 +32,7 @@ from hordelib.utils.ioredirect import ComfyUIProgress, OutputCollector
 from hordelib.config_path import get_hordelib_path
 from hordelib.execution import comfy_patches
 from hordelib.execution.graph_utils import GraphDict
+from hordelib.utils.torch_memory import clear_accelerator_cache
 
 # Note It may not be abundantly clear with no context what is going on below, and I will attempt to clarify:
 #
@@ -374,11 +375,9 @@ def do_comfy_import(
 
 
 def clear_gc_and_torch_cache() -> None:
-    """Clear the garbage collector and the PyTorch cache."""
+    """Clear the garbage collector and the active backend's device cache."""
     gc.collect()
-    from torch.cuda import empty_cache
-
-    empty_cache()
+    clear_accelerator_cache()
 
 
 def pin_models_in_vram() -> bool:
@@ -1079,7 +1078,7 @@ class Comfy_Horde:
             _mc.record_phase("pipeline_validate", _validate_seconds)
             _mc.record_phase("pipeline_execute", _execute_seconds)
             _mc.record_phase("pipeline_finalize", time.perf_counter() - _t_post_execute)
-        except Exception:  # noqa: BLE001 - instrumentation must never break a run
+        except Exception:
             pass
 
         # Record pipeline duration
