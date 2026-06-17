@@ -17,6 +17,7 @@ so it is intentionally NOT a default dependency. Two helpers here keep that arra
   the stub only raises (with guidance) if audio functionality is actually exercised.
 """
 
+import importlib.machinery
 import importlib.util
 import sys
 import types
@@ -68,6 +69,11 @@ class _RaiseOnUse:
 def _make_lazy_module(name: str) -> types.ModuleType:
     """Build a module whose unknown attributes resolve to lazy :class:`_RaiseOnUse` placeholders."""
     module = types.ModuleType(name)
+    # types.ModuleType leaves __spec__ = None, so importlib.util.find_spec(name) (used by feature
+    # probes such as transformers.is_torchaudio_available, which runs eagerly at `import transformers`)
+    # finds the stub in sys.modules and raises "ValueError: <name>.__spec__ is None". Give the stub a
+    # real spec so those probes resolve cleanly instead of crashing comfy import.
+    module.__spec__ = importlib.machinery.ModuleSpec(name, loader=None)
 
     def __getattr__(item: str) -> _RaiseOnUse:
         if item.startswith("__") and item.endswith("__"):

@@ -184,3 +184,24 @@ def test_stub_not_installed_when_present(monkeypatch: pytest.MonkeyPatch, _resto
     monkeypatch.setattr(torch_build, "_torchaudio_installed", lambda: True)
     assert torch_build.ensure_torchaudio_importable() is False
     assert "torchaudio" not in sys.modules
+
+
+def test_stub_is_discoverable_via_find_spec(
+    monkeypatch: pytest.MonkeyPatch,
+    _restore_torchaudio_modules: None,
+) -> None:
+    """The stub must be resolvable via importlib.util.find_spec, not just `import`/attribute access.
+
+    transformers' is_torchaudio_available() (evaluated eagerly at `import transformers`, which ComfyUI
+    pulls in) calls importlib.util.find_spec('torchaudio'). A stub built from a bare types.ModuleType
+    leaves __spec__ = None, which makes find_spec raise 'ValueError: torchaudio.__spec__ is None' and
+    crashes the worker's inference process at comfy import. This guards that regression.
+    """
+    import importlib.util
+
+    monkeypatch.setattr(torch_build, "_torchaudio_installed", lambda: False)
+    assert torch_build.ensure_torchaudio_importable() is True
+
+    for name in ("torchaudio", "torchaudio.functional", "torchaudio.transforms"):
+        spec = importlib.util.find_spec(name)  # must not raise ValueError
+        assert spec is not None, f"find_spec({name!r}) returned None"
