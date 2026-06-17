@@ -1,7 +1,6 @@
 import base64
 
 import numpy as np
-import rembg  # type: ignore
 from loguru import logger
 from PIL import Image, ImageOps, PngImagePlugin, UnidentifiedImageError
 
@@ -317,6 +316,13 @@ class ImageUtils:
 
     @classmethod
     def strip_background(cls, image: Image.Image):
+        # rembg (and its onnxruntime backend) is imported lazily and is no longer a base dependency:
+        # it lives in the optional [rembg] extra (onnxruntime has no XPU/MPS/Ascend wheels). On a lean
+        # base install this gate raises an actionable MissingOptionalDependency rather than dragging the
+        # heavy onnxruntime stack onto every ImageUtils import. See hordelib.feature_requirements.
+        from hordelib.utils.optional_deps import import_optional
+
+        rembg = import_optional("rembg", extra="rembg", feature="strip_background (background removal)")
         session = rembg.new_session("u2net")
         image = rembg.remove(
             image,

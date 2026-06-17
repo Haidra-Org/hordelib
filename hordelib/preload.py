@@ -45,6 +45,12 @@ _ANNOTATOR_NODE_NAME = "comfyui_controlnet_aux"
 # pinned annotator commit so later processes can skip it. See module docstring.
 _PRELOAD_MARKER_NAME = ".hordelib_preload_complete"
 
+# comfyui_controlnet_aux preprocessors that cannot import without an optional `controlnet`-extra
+# package, so they must be dropped from the preload on a lean base install (their node_wrapper is
+# guarded and simply does not register). Openpose's DWPose detector is the only horde-exposed
+# preprocessor that needs onnxruntime; running it without the extra would abort the whole preload.
+_ONNXRUNTIME_GATED_PREPROCESSORS = frozenset({"OpenposePreprocessor"})
+
 
 def _midas_already_cached() -> bool:
     """Return whether the transformers-based MiDaS annotator is fully in the HF cache.
@@ -167,6 +173,22 @@ def _run_preload(*, force_offline: bool) -> bool:
         aio_preprocessor_class = get_node_class("AIO_Preprocessor")
 
         preprocessors = sorted(set(HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.values()))
+        # On a lean base install (no `controlnet` extra) the onnxruntime-backed detectors never
+        # registered; preloading them would raise and abort the whole run. Drop them and preload the
+        # rest, which are pure-torch / transformers and work without the extra.
+        from hordelib.feature_impact import FEATURE_KIND
+        from hordelib.feature_requirements import feature_available
+
+        if not feature_available(FEATURE_KIND.controlnet):
+            skipped = sorted(_ONNXRUNTIME_GATED_PREPROCESSORS.intersection(preprocessors))
+            if skipped:
+                logger.info(
+                    "Skipping controlnet annotators that need the 'controlnet' extra (onnxruntime "
+                    "absent): preprocessors={}",
+                    skipped,
+                )
+                preprocessors = [p for p in preprocessors if p not in _ONNXRUNTIME_GATED_PREPROCESSORS]
+
         # A tiny gray test card; enough for every detector to run its model once
         test_image = torch.full((1, 64, 64, 3), 0.5)
 

@@ -1,11 +1,21 @@
 # test_horde.py
 
+import importlib.util
+
 import pytest
 from PIL import Image
 
 from hordelib.horde import HordeLib
 
 from .testing_shared_functions import check_single_inference_image_similarity
+
+# Transparent generation routes through the comfyui_layerdiffuse node, which needs `diffusers`.
+# That dependency now ships only in the optional `layerdiffuse` extra, so skip cleanly (rather than
+# fail) when it is absent. Run these with `uv run --extra layerdiffuse ...` (or the cu* equivalent).
+pytestmark = pytest.mark.skipif(
+    importlib.util.find_spec("diffusers") is None,
+    reason="needs the optional 'layerdiffuse' extra (diffusers); install horde-engine[layerdiffuse]",
+)
 
 
 class TestHordeInferenceTransparent:
