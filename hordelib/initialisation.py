@@ -49,6 +49,14 @@ def initialise(
     """
     global _is_initialised
 
+    # Opt the CUDA/ROCm caching allocator into expandable segments before ComfyUI imports torch.
+    # Fragmentation (a large "reserved but unallocated" pool) is a common cause of an out-of-memory
+    # error even when the device still reports free memory; torch's own OOM message recommends this
+    # setting. setdefault leaves any operator-provided value untouched. Harmless on non-CUDA backends
+    # (the variable is ignored). On ROCm/HIP builds the equivalent variable is set too.
+    os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
+    os.environ.setdefault("PYTORCH_HIP_ALLOC_CONF", "expandable_segments:True")
+
     # Wipe existing logs if requested
     if clear_logs and os.path.exists("./logs"):
         shutil.rmtree("./logs")
