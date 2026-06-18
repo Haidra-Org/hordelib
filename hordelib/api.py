@@ -53,6 +53,10 @@ from hordelib.metrics import (
     SamplingStats,
     get_metrics_collector,
 )
+from hordelib.pipeline.constants import (
+    CONTROLNET_ANNOTATOR_DOWNLOAD_BYTES,
+    controlnet_annotator_download_bytes,
+)
 from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.pipeline.payload_pp import (
     FacefixPayload,
@@ -77,6 +81,7 @@ from hordelib.utils.torch_memory import (
 )
 
 __all__ = [
+    "CONTROLNET_ANNOTATOR_DOWNLOAD_BYTES",
     "FEATURE_KIND",
     "AcceleratorInfo",
     "AcceleratorKind",
@@ -114,6 +119,7 @@ __all__ = [
     "available_features",
     "classify_post_processor",
     "clear_accelerator_cache",
+    "controlnet_annotator_download_bytes",
     "enumerate_accelerators",
     "estimate_job_burden",
     "feature_available",
