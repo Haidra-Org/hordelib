@@ -511,11 +511,80 @@ def get_torch_free_vram_mb():
     return round(_comfy_get_free_memory() / (1024 * 1024))
 
 
+def get_torch_device_free_vram_mb():
+    """Device-wide free VRAM (mem_get_info), excluding this process's reclaimable torch cache.
+
+    See :func:`hordelib.utils.torch_memory.get_torch_device_free_vram_mb`. This is the honest figure for
+    over-commit/streaming decisions; ``get_torch_free_vram_mb`` (comfy's view) adds back a single
+    process's cache and so over-states cross-process headroom.
+    """
+    from hordelib.utils.torch_memory import get_torch_device_free_vram_mb as _device_free
+
+    return _device_free()
+
+
+_LAST_LOW_VRAM_WARN_TIME: float = 0.0
+"""Monotonic-ish wall time of the last low-free-VRAM warning, so a job that runs its whole length below the
+inference reserve warns periodically rather than on every (very frequent) log_free_ram call."""
+_LOW_VRAM_WARN_INTERVAL_SECONDS: float = 15.0
+
+
 def log_free_ram():
-    logger.debug(
-        f"Free VRAM: {get_torch_free_vram_mb():0.0f} MB, "
-        f"Free RAM: {psutil.virtual_memory().available / (1024 * 1024):0.0f} MB",
+    global _LAST_LOW_VRAM_WARN_TIME
+
+    # Report the *device-wide* free VRAM (mem_get_info), not comfy's get_free_memory: the latter adds back
+    # this process's reserved-but-inactive torch allocator cache, over-stating free by several GB and
+    # hiding VRAM held by other (including leaked) processes. The driver's system-memory fallback triggers
+    # on the device-wide figure, so that is the honest number for a streaming/over-commit warning.
+    free_vram_mb = get_torch_device_free_vram_mb()
+    comfy_free_vram_mb = get_torch_free_vram_mb()
+    reclaimable_cache_mb = max(0.0, comfy_free_vram_mb - free_vram_mb)
+    free_ram_mb = psutil.virtual_memory().available / (1024 * 1024)
+
+    offloaded_mb = 0
+    try:
+        from hordelib.utils.torch_memory import get_loaded_weights_offloaded_mb
+
+        offloaded_mb = get_loaded_weights_offloaded_mb()
+    except Exception:
+        offloaded_mb = 0
+    offloaded_note = f", Weights offloaded to RAM: {offloaded_mb:0.0f} MB" if offloaded_mb > 0 else ""
+    # Surface the gap between the device-wide free and comfy's view so a live run shows how much of the
+    # apparent headroom is merely this process's reclaimable cache (returned by empty_cache), not room a
+    # sibling model load could actually use.
+    cache_note = (
+        f" (+{reclaimable_cache_mb:0.0f} MB reclaimable torch cache; comfy sees {comfy_free_vram_mb:0.0f})"
+        if reclaimable_cache_mb >= 256
+        else ""
     )
+
+    logger.debug(f"Free VRAM: {free_vram_mb:0.0f} MB{cache_note}, Free RAM: {free_ram_mb:0.0f} MB{offloaded_note}")
+
+    # A driver-level system-memory fallback (e.g. the Windows WDDM shared-memory pool, on by default) spills
+    # device allocations to host RAM once free VRAM nears zero, collapsing the sampling rate the same way
+    # ComfyUI's own weight offloading does but *without* appearing in its offload accounting. ComfyUI can
+    # report a model as fully resident while the driver pages its per-step activations. So warn purely on
+    # measured free VRAM falling below the inference working-set reserve: below that floor a sampling step has
+    # no room for its activations and something (ComfyUI or the driver) must stream over the bus. Throttled so
+    # a job that stays under the floor for its whole run periodically reports rather than flooding the log.
+    try:
+        from hordelib.vram_planning import compute_inference_reserve_mb
+
+        reserve_mb = compute_inference_reserve_mb(get_torch_total_vram_mb())
+    except Exception:
+        return
+    if free_vram_mb < reserve_mb:
+        now = time.time()
+        if now - _LAST_LOW_VRAM_WARN_TIME >= _LOW_VRAM_WARN_INTERVAL_SECONDS:
+            _LAST_LOW_VRAM_WARN_TIME = now
+            if offloaded_mb > 0:
+                cause = f"ComfyUI reports {offloaded_mb:0.0f} MB of weights offloaded"
+            else:
+                cause = "ComfyUI reports no offload, so the GPU driver's system-memory fallback is the likely cause"
+            logger.warning(
+                f"Free VRAM {free_vram_mb:0.0f} MB is below the {reserve_mb:0.0f} MB inference reserve: "
+                f"sampling activations will stream from host RAM and run several times slower ({cause}).",
+            )
 
 
 def interrupt_comfyui_processing():

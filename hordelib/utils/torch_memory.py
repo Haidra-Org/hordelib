@@ -132,13 +132,32 @@ def get_torch_free_vram_mb() -> int:
     return round(_torch_fallback_vram_bytes(free=True) / _MB)
 
 
+def get_torch_device_free_vram_mb() -> int:
+    """Physically free VRAM on the device, in MB, from the driver's device-wide accounting.
+
+    Unlike :func:`get_torch_free_vram_mb` (which, when ComfyUI is loaded, returns comfy's
+    ``get_free_memory`` == device-wide free PLUS this process's reserved-but-inactive torch allocator
+    cache), this is the raw device-wide free from ``mem_get_info``. The distinction is load-bearing for
+    cross-process residency budgeting and for predicting the driver's system-memory fallback: the comfy
+    number adds back a single process's reclaimable cache, so it over-states what a *new* allocation can
+    use and hides VRAM held by *other* processes (including leaked/orphaned ones). The driver spills to
+    host RAM on device-wide free nearing zero, not on the inflated number, so the worker must budget
+    against this. Falls back to system RAM on CPU/MPS, matching the other helpers here.
+    """
+    return round(_torch_fallback_vram_bytes(free=True) / _MB)
+
+
 def get_free_ram_mb() -> int:
     """Available system RAM, in MB."""
     return round(psutil.virtual_memory().available / _MB)
 
 
 def log_free_ram() -> None:
-    logger.debug(f"Free VRAM: {get_torch_free_vram_mb():0.0f} MB, Free RAM: {get_free_ram_mb():0.0f} MB")
+    offloaded_mb = get_loaded_weights_offloaded_mb()
+    offloaded_note = f", Weights offloaded to RAM: {offloaded_mb:0.0f} MB" if offloaded_mb > 0 else ""
+    logger.debug(
+        f"Free VRAM: {get_torch_free_vram_mb():0.0f} MB, Free RAM: {get_free_ram_mb():0.0f} MB{offloaded_note}",
+    )
 
 
 def get_accelerator_utilization_percent(index: int = 0) -> int | None:
@@ -264,6 +283,34 @@ def enumerate_accelerators() -> list[AcceleratorInfo]:
         except Exception as e:
             logger.debug(f"ComfyUI device enumeration failed, falling back to torch: {e}")
     return _enumerate_via_torch()
+
+
+def get_loaded_weights_offloaded_mb() -> int:
+    """Return how much of the currently-loaded models' weights sit off the compute device, in MB.
+
+    ComfyUI keeps a model fully resident when it fits the weight budget; otherwise it offloads the
+    remainder to host RAM and streams it to VRAM during sampling (the slow path that drops device-free
+    to near zero and runs several times slower). A non-zero result here is the positive runtime signal
+    that weight streaming is happening for the loaded model(s), which the worker uses to confirm a
+    streaming forecast and to grant the over-budget step grace instead of killing a slow-but-progressing
+    job. Returns 0 when ComfyUI is not loaded in this process or nothing is resident.
+    """
+    mm = _comfy_model_management()
+    if mm is None:
+        return 0
+    loaded_models = getattr(mm, "current_loaded_models", None)
+    if not loaded_models:
+        return 0
+    offloaded_bytes = 0
+    for loaded_model in loaded_models:
+        read_offloaded = getattr(loaded_model, "model_offloaded_memory", None)
+        if read_offloaded is None:
+            continue
+        try:
+            offloaded_bytes += max(0, int(read_offloaded()))
+        except Exception as e:
+            logger.debug(f"offloaded-memory read failed for a loaded model: {e}")
+    return round(offloaded_bytes / _MB)
 
 
 def clear_accelerator_cache() -> None:

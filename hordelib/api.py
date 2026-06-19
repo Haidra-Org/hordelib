@@ -78,9 +78,16 @@ from hordelib.utils.torch_memory import (
     enumerate_accelerators,
     get_accelerator_utilization_percent,
     get_free_ram_mb,
+    get_loaded_weights_offloaded_mb,
+    get_torch_device_free_vram_mb,
     get_torch_free_vram_mb,
     get_torch_total_vram_mb,
     log_free_ram,
+)
+from hordelib.vram_planning import (
+    compute_extra_reserved_mb,
+    compute_inference_reserve_mb,
+    compute_weight_budget_mb,
 )
 
 if TYPE_CHECKING:
@@ -127,6 +134,9 @@ __all__ = [
     "available_features",
     "classify_post_processor",
     "clear_accelerator_cache",
+    "compute_extra_reserved_mb",
+    "compute_inference_reserve_mb",
+    "compute_weight_budget_mb",
     "controlnet_annotator_download_bytes",
     "controlnet_annotators_present",
     "enumerate_accelerators",
@@ -139,6 +149,8 @@ __all__ = [
     "missing_packages",
     "get_accelerator_utilization_percent",
     "get_free_ram_mb",
+    "get_loaded_weights_offloaded_mb",
+    "get_torch_device_free_vram_mb",
     "get_metrics_collector",
     "get_torch_free_vram_mb",
     "get_torch_total_vram_mb",

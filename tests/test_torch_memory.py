@@ -17,6 +17,7 @@ from hordelib.utils.torch_memory import (
     AcceleratorKind,
     clear_accelerator_cache,
     enumerate_accelerators,
+    get_torch_device_free_vram_mb,
     get_torch_free_vram_mb,
     get_torch_total_vram_mb,
 )
@@ -112,3 +113,29 @@ def test_comfy_path_maps_non_cuda_device_kinds(monkeypatch: pytest.MonkeyPatch) 
     kinds = [a.kind for a in enumerate_accelerators()]
 
     assert kinds == [AcceleratorKind.mps, AcceleratorKind.xpu]
+
+
+def test_device_free_vram_excludes_comfy_reclaimable_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``get_torch_device_free_vram_mb`` is the device-wide figure, not comfy's cache-inflated free.
+
+    Regression for the over-commit/streaming root cause: comfy's ``get_free_memory`` returns the
+    device-wide free PLUS this process's reserved-but-inactive allocator cache, over-stating what a new
+    (cross-process) allocation can use and hiding VRAM held by other processes. The worker must budget
+    against the device-wide ``mem_get_info`` figure instead, which this helper exposes regardless of
+    whether ComfyUI is loaded.
+    """
+    fake = _make_fake_comfy([_FakeDevice("cuda")], total_bytes=16000 * _MB)
+    # Comfy's view: device-wide free (11000) + this process's reclaimable cache (4000) == 15000.
+    fake.get_free_memory = lambda dev=None, torch_free_too=False: 15000 * _MB  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, torch_memory._COMFY_MODEL_MANAGEMENT, fake)
+    # The raw device-wide free from mem_get_info is the lower, honest number.
+    monkeypatch.setattr(
+        torch_memory,
+        "_torch_fallback_vram_bytes",
+        lambda *, free: (11000 * _MB if free else 16000 * _MB),
+    )
+
+    # Comfy's helper still reports the inflated figure (it serves comfy's own in-process allocation).
+    assert get_torch_free_vram_mb() == 15000
+    # The device-wide helper strips the reclaimable cache the budget must not count.
+    assert get_torch_device_free_vram_mb() == 11000

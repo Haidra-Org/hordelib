@@ -73,6 +73,18 @@ class BaselineBurden(BaseModel):
     max_recommended_batch: int
     typical_disk_gb: float
     """Typical checkpoint size on disk, used when no model record is available."""
+    vram_weights_mb: int = 0
+    """Resident weight footprint (MB) at the baseline's typical worker dtype, distinct from activations.
+
+    This is the figure ComfyUI compares against its weight budget when deciding whether to keep weights
+    resident or stream them from host RAM, so it (not the activation-inflated ``vram_base_mb``) is what a
+    consumer should use to forecast streaming and whole-card residency. Zero means unspecified, in which
+    case :meth:`resident_weight_estimate_mb` falls back to ``vram_base_mb``. The seeded figures reflect the
+    dtypes the worker typically runs on consumer cards (for example, a Flux fp8 checkpoint)."""
+
+    def resident_weight_estimate_mb(self) -> int:
+        """Return the resident weight footprint (MB), falling back to the conflated base when unseeded."""
+        return self.vram_weights_mb or self.vram_base_mb
 
 
 class BurdenEstimate(BaseModel):
@@ -153,6 +165,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=8000,
         max_recommended_batch=4,
         typical_disk_gb=6.9,
+        vram_weights_mb=4900,
     ),
     BaselineBurden(
         baseline="stable_cascade",
@@ -163,6 +176,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=10000,
         max_recommended_batch=2,
         typical_disk_gb=9.0,
+        vram_weights_mb=8000,
     ),
     BaselineBurden(
         baseline="flux_1",
@@ -173,6 +187,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=14000,
         max_recommended_batch=1,
         typical_disk_gb=17.0,
+        vram_weights_mb=11500,
     ),
     BaselineBurden(
         baseline="flux_schnell",
@@ -183,6 +198,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=14000,
         max_recommended_batch=1,
         typical_disk_gb=17.0,
+        vram_weights_mb=11500,
     ),
     BaselineBurden(
         baseline="flux_dev",
@@ -193,6 +209,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=14000,
         max_recommended_batch=1,
         typical_disk_gb=17.0,
+        vram_weights_mb=11500,
     ),
     BaselineBurden(
         baseline="qwen_image",
@@ -203,6 +220,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=16000,
         max_recommended_batch=1,
         typical_disk_gb=20.0,
+        vram_weights_mb=12000,
     ),
     BaselineBurden(
         baseline="z_image_turbo",
@@ -225,6 +243,7 @@ _FALLBACK_BASELINE_BURDEN = BaselineBurden(
     min_recommended_vram_mb=10000,
     max_recommended_batch=1,
     typical_disk_gb=8.0,
+    vram_weights_mb=7000,
 )
 """Used for baselines with no registry entry (including ``infer``), erring on the heavy side."""
 
