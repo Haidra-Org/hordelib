@@ -120,6 +120,34 @@ def test_preload_records_marker_and_skips_next_time(monkeypatch, tmp_path):
     assert runs == [1], "second call must skip the run thanks to the marker"
 
 
+def test_annotators_present_true_when_marker_matches(monkeypatch, tmp_path):
+    """``controlnet_annotators_present`` reads the on-disk marker the same way the preload skip does."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    monkeypatch.setattr(preload, "_pinned_annotator_ref", lambda: "ref-xyz")
+    (tmp_path / preload._PRELOAD_MARKER_NAME).write_text("ref-xyz\n", encoding="utf-8")
+
+    assert preload.controlnet_annotators_present() is True
+
+
+def test_annotators_present_false_when_marker_absent_or_stale(monkeypatch, tmp_path):
+    """A missing marker (or one keyed to a different pin) reads as a pending download, not unknown."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    monkeypatch.setattr(preload, "_pinned_annotator_ref", lambda: "ref-new")
+
+    assert preload.controlnet_annotators_present() is False
+
+    (tmp_path / preload._PRELOAD_MARKER_NAME).write_text("ref-old\n", encoding="utf-8")
+    assert preload.controlnet_annotators_present() is False
+
+
+def test_annotators_present_unknown_when_ref_undeterminable(monkeypatch, tmp_path):
+    """An unreadable pinned ref yields None (unknown) so callers do not claim a false "missing"."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    monkeypatch.setattr(preload, "_pinned_annotator_ref", lambda: None)
+
+    assert preload.controlnet_annotators_present() is None
+
+
 def test_preload_constructs_hordelib_before_node_lookup(monkeypatch):
     """``download_all_controlnet_annotators`` must build a HordeLib before looking up nodes."""
     constructed: list[object] = []
