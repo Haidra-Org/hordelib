@@ -88,12 +88,32 @@ def _pinned_annotator_ref() -> str | None:
     return None
 
 
+def _annotator_ckpts_dir() -> Path | None:
+    """Return the directory annotator checkpoints live in, or None if it cannot be determined.
+
+    ``hordelib.initialise()`` exports ``AUX_ANNOTATOR_CKPTS_PATH`` and is the authority once a run is
+    underway. When it is unset (e.g. a no-boot caller that only wants to *check* presence) the same value
+    is derived from :class:`~hordelib.settings.UserSettings`, which needs neither ComfyUI nor a GPU, so
+    presence can be read before (or without) initialisation.
+    """
+    ckpts_dir = os.environ.get("AUX_ANNOTATOR_CKPTS_PATH")
+    if ckpts_dir:
+        return Path(ckpts_dir)
+    try:
+        from hordelib.settings import UserSettings
+
+        return UserSettings.get_model_directory() / "controlnet" / "annotators"
+    except Exception as e:
+        logger.debug("Could not derive the annotator checkpoint directory: error={}", e)
+        return None
+
+
 def _preload_marker_path() -> Path | None:
     """Return the on-disk marker path, or None if the annotator directory is unknown."""
-    ckpts_dir = os.environ.get("AUX_ANNOTATOR_CKPTS_PATH")
-    if not ckpts_dir:
+    ckpts_dir = _annotator_ckpts_dir()
+    if ckpts_dir is None:
         return None
-    return Path(ckpts_dir) / _PRELOAD_MARKER_NAME
+    return ckpts_dir / _PRELOAD_MARKER_NAME
 
 
 def _annotators_already_verified(ref: str) -> bool:
@@ -105,6 +125,32 @@ def _annotators_already_verified(ref: str) -> bool:
         return marker.is_file() and marker.read_text(encoding="utf-8").strip() == ref
     except OSError:
         return False
+
+
+def controlnet_annotators_present() -> bool | None:
+    """Whether the controlnet annotators are already downloaded and verified on this machine.
+
+    Reads the on-disk preload marker (keyed to the pinned ``comfyui_controlnet_aux`` commit) exactly the
+    way :func:`download_all_controlnet_annotators` reads it for its fast-path skip, so a caller can decide
+    whether a (slow, one-time) annotator download is still pending *before* paying for it. Import-safe:
+    needs neither :func:`hordelib.initialise` nor a GPU, because the directory is derived from
+    :class:`~hordelib.settings.UserSettings` when the runtime env var is unset.
+
+    Returns:
+        ``True`` when the marker matches the pinned ref (a full set was downloaded and verified),
+        ``False`` when it is absent or stale (a download is still pending), or ``None`` when presence
+        cannot be determined (the pinned ref or the annotator directory is unknown).
+    """
+    try:
+        ref = _pinned_annotator_ref()
+        if ref is None:
+            return None
+        if _preload_marker_path() is None:
+            return None
+        return _annotators_already_verified(ref)
+    except Exception as e:  # pragma: no cover - presence is best-effort; never raise into a caller
+        logger.debug("Could not determine controlnet annotator presence: error={}", e)
+        return None
 
 
 def _record_annotators_verified(ref: str) -> None:

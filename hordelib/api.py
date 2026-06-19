@@ -66,6 +66,7 @@ from hordelib.pipeline.payload_pp import (
     UpscalePayload,
     classify_post_processor,
 )
+from hordelib.preload import controlnet_annotators_present
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.ioredirect import ComfyUIProgress, ComfyUIProgressUnit
 from hordelib.utils.logger import HordeLog
@@ -120,6 +121,7 @@ __all__ = [
     "classify_post_processor",
     "clear_accelerator_cache",
     "controlnet_annotator_download_bytes",
+    "controlnet_annotators_present",
     "enumerate_accelerators",
     "estimate_job_burden",
     "feature_available",
