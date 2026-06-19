@@ -7,6 +7,8 @@ nothing here triggers a ComfyUI import (``hordelib.initialise()`` does that expl
 The contract is enforced by ``tests/meta/test_public_api_contract.py``.
 """
 
+from typing import TYPE_CHECKING
+
 from hordelib import initialise, is_initialised
 from hordelib.execution.interface import (
     ExecutionBackend,
@@ -67,7 +69,6 @@ from hordelib.pipeline.payload_pp import (
     classify_post_processor,
 )
 from hordelib.preload import controlnet_annotators_present
-from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.ioredirect import ComfyUIProgress, ComfyUIProgressUnit
 from hordelib.utils.logger import HordeLog
 from hordelib.utils.torch_memory import (
@@ -81,6 +82,11 @@ from hordelib.utils.torch_memory import (
     get_torch_total_vram_mb,
     log_free_ram,
 )
+
+if TYPE_CHECKING:
+    # Re-exported lazily (see ``__getattr__`` below) so the type checker still sees the name without the
+    # eager import that would drag torch into every consumer of this facade.
+    from hordelib.shared_model_manager import SharedModelManager
 
 __all__ = [
     "CONTROLNET_ANNOTATOR_DOWNLOAD_BYTES",
@@ -142,3 +148,21 @@ __all__ = [
     "log_free_ram",
     "set_gpu_sampling_lease",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Lazily resolve the one torch-heavy re-export so the facade's import cost stays honest.
+
+    Every other name above comes from a torch-free submodule, so ``import hordelib.api`` is cheap
+    (~75MB) and pulls no torch. ``SharedModelManager`` is the exception: it transitively imports the
+    concrete model managers, which import torch (~500MB RSS). Re-exporting it eagerly would tax every
+    consumer of this facade with a full torch load, including the worker's torch-free orchestrator and
+    benchmark planner that only want the pure-Python helpers. PEP 562 module ``__getattr__`` defers that
+    import until ``SharedModelManager`` is actually accessed, so a consumer pays for torch only when it
+    asks for something that genuinely needs it.
+    """
+    if name == "SharedModelManager":
+        from hordelib.shared_model_manager import SharedModelManager
+
+        return SharedModelManager
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

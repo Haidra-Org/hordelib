@@ -37,6 +37,30 @@ def test_api_imports_without_comfy() -> None:
     assert result.returncode == 0, f"hordelib.api comfy-free import check failed:\n{result.stderr}"
 
 
+# Importing the facade must not load torch. Torch is ~500MB RSS; consumers like the worker's
+# orchestrator process import the pure-Python helpers here and must stay torch-free. The only
+# torch-heavy re-export, ``SharedModelManager``, is resolved lazily via ``__getattr__`` and is
+# deliberately NOT touched here (accessing it would, correctly, load torch).
+_TORCH_FREE_IMPORT_CHECK = """
+import sys
+
+import hordelib.api  # noqa: F401
+
+assert "torch" not in sys.modules, "importing hordelib.api must not pull in torch"
+"""
+
+
+def test_api_import_is_torch_free() -> None:
+    """``import hordelib.api`` stays torch-free; only accessing ``SharedModelManager`` loads torch."""
+    result = subprocess.run(
+        [sys.executable, "-c", _TORCH_FREE_IMPORT_CHECK],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, f"hordelib.api torch-free import check failed:\n{result.stderr}"
+
+
 def test_consumer_called_signatures() -> None:
     """The exact keyword surfaces the worker calls; changing these is a coordinated release."""
     from hordelib import api
