@@ -215,3 +215,56 @@ class TestAuxModelWeightOverride:
             aux_model_weights_mb={FEATURE_KIND.post_processing_facefix: 9999},
         )
         assert with_unused_override.vram_mb == base.vram_mb
+
+
+class TestUpscaleFactorActivation:
+    """The upscaler's scale factor inflates the post-processing activation by factor**2 (output pixels)."""
+
+    def _upscale_burden(self, factor: float) -> int:
+        return estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.post_processing_upscale],
+            post_processing_upscale_factor=factor,
+        ).vram_post_processing_mb
+
+    def test_higher_factor_costs_more(self) -> None:
+        assert self._upscale_burden(1.0) < self._upscale_burden(2.0) < self._upscale_burden(4.0)
+
+    def test_factor_scales_activation_by_square(self) -> None:
+        """A 4x upscale works 16x the output pixels, so its activation term is 16x the 1x activation term."""
+        # 1000x1000 is exactly 1.0 MP, so the per-megapixel arithmetic is exact: weight (flat 2000) plus
+        # 300 MB/MP * (factor**2 * 1 MP). 1x -> 2000 + 300; 4x -> 2000 + 300*16.
+        one_x = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1000,
+            height=1000,
+            features=[FEATURE_KIND.post_processing_upscale],
+            post_processing_upscale_factor=1.0,
+        ).vram_post_processing_mb
+        four_x = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1000,
+            height=1000,
+            features=[FEATURE_KIND.post_processing_upscale],
+            post_processing_upscale_factor=4.0,
+        ).vram_post_processing_mb
+        assert one_x == 2000 + 300
+        assert four_x == 2000 + 300 * 16
+
+    def test_factor_does_not_affect_facefix(self) -> None:
+        without = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.post_processing_facefix],
+        )
+        with_factor = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.post_processing_facefix],
+            post_processing_upscale_factor=4.0,
+        )
+        assert with_factor.vram_post_processing_mb == without.vram_post_processing_mb

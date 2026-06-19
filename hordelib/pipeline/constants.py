@@ -93,6 +93,47 @@ def controlnet_annotator_download_bytes(control_types: Iterable[str | None]) -> 
     return sum(CONTROLNET_ANNOTATOR_DOWNLOAD_BYTES.get(control_type, 0) for control_type in distinct)
 
 
+# Horde upscaler name (KNOWN_UPSCALERS value) to its linear scale factor. The upscaler enlarges the
+# generated image by this factor on each axis, so the post-processing activation peak scales with the
+# *output* megapixels (factor**2 the generation megapixels), not the generation resolution. A 4x upscale
+# of a 1 MP image produces a 16 MP tensor, which is the dominant VRAM cost of the post-processing phase
+# (the model weights themselves are tens of MB). Used by the feature-impact estimate to size that peak.
+UPSCALER_SCALE_FACTORS = {
+    "BACKEND_DEFAULT": 4,  # the worker's default upscaler is a 4x ESRGAN; assume the larger factor
+    "RealESRGAN_x4plus": 4,
+    "RealESRGAN_x2plus": 2,
+    "RealESRGAN_x4plus_anime_6B": 4,
+    "NMKD_Siax": 4,
+    "4x_AnimeSharp": 4,
+}
+"""Horde upscaler name to its linear (per-axis) scale factor (ROM)."""
+
+_DEFAULT_UPSCALE_FACTOR = 4
+"""Assumed factor for an upscaler absent from the ROM: err high so the activation peak is not under-sized."""
+
+
+def upscaler_scale_factor(name: str | None) -> int:
+    """Return the linear scale factor for upscaler *name*, or the conservative default when unknown.
+
+    ``None`` returns 1 (no upscaler, no enlargement). An unrecognised upscaler returns
+    :data:`_DEFAULT_UPSCALE_FACTOR` rather than 1, so a new upscaler the ROM has not learned yet
+    over-reserves rather than under-reserving the post-processing activation peak.
+    """
+    if name is None:
+        return 1
+    return UPSCALER_SCALE_FACTORS.get(name, _DEFAULT_UPSCALE_FACTOR)
+
+
+def max_upscale_factor(names: Iterable[str | None]) -> int:
+    """Return the largest linear scale factor among *names*, or 1 when none enlarge the image.
+
+    A job may request several upscalers; the output size (and thus the activation peak) is driven by the
+    largest factor. ``None`` entries and an empty iterable contribute the no-op factor of 1.
+    """
+    factors = [upscaler_scale_factor(name) for name in names if name is not None]
+    return max(factors) if factors else 1
+
+
 SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting", "remix"]
 
 SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform", "sgm_uniform", "exponential"]

@@ -371,6 +371,7 @@ def estimate_job_burden(
     features: list[FEATURE_KIND] | None = None,
     model_record: ImageGenerationModelRecord | None = None,
     aux_model_weights_mb: dict[FEATURE_KIND, float] | None = None,
+    post_processing_upscale_factor: float = 1.0,
 ) -> BurdenEstimate:
     """Estimate the total resource burden of one job configuration.
 
@@ -384,6 +385,12 @@ def estimate_job_burden(
     ESRGAN upscaler or controlnet) supply its real resident weight (MB), replacing that feature's flat
     ``vram_delta_mb`` term while keeping the activation (per-megapixel) term. Unsupplied features keep the
     conservative seed.
+
+    ``post_processing_upscale_factor`` is the linear scale of the requested upscaler (see
+    :func:`hordelib.pipeline.constants.max_upscale_factor`). The upscale activation peak scales with the
+    *output* megapixels, so the ``post_processing_upscale`` feature's per-megapixel term is applied against
+    ``factor**2`` the generation megapixels: a 4x upscale of a 1 MP image works a 16 MP tensor, the dominant
+    cost of the post-processing phase. The default of 1.0 leaves the activation at generation resolution.
 
     Never raises on unknown baselines: pre-flight callers need an answer for every
     job, so unknown baselines use a heavy fallback seed and are flagged via
@@ -411,7 +418,12 @@ def estimate_job_burden(
             weight_mb = round(aux_model_weights_mb[kind])
         else:
             weight_mb = impact.vram_delta_mb
-        vram_delta = weight_mb + round(impact.vram_delta_per_megapixel_mb * megapixels)
+        # The upscaler enlarges the image, so its activation peak scales with the *output* megapixels
+        # (factor**2 the generation megapixels); every other feature works at generation resolution.
+        activation_megapixels = megapixels
+        if kind == FEATURE_KIND.post_processing_upscale and post_processing_upscale_factor > 1.0:
+            activation_megapixels = megapixels * (post_processing_upscale_factor**2)
+        vram_delta = weight_mb + round(impact.vram_delta_per_megapixel_mb * activation_megapixels)
         if impact.phase == FEATURE_PHASE.post_processing:
             vram_post_processing_mb += vram_delta
         else:
