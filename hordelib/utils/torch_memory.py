@@ -8,8 +8,9 @@ what the execution backend sees; otherwise they fall back to plain torch device 
 cover every torch backend (CUDA/ROCm, Intel XPU, Apple MPS, CPU), not just CUDA.
 
 This module is the single source of accelerator truth for the worker: it never assumes
-NVIDIA. NVML (``pynvml``) is treated as optional NVIDIA-only enrichment elsewhere (see
-``hordelib.utils.gpuinfo``), never as a hard requirement here.
+NVIDIA. NVML is treated as optional NVIDIA-only enrichment (see :mod:`hordelib.utils.nvml`),
+never as a hard requirement here; :func:`get_accelerator_utilization_percent` is the one place
+that consults it, and only for the CUDA/NVIDIA backend.
 """
 
 from __future__ import annotations
@@ -138,6 +139,21 @@ def get_free_ram_mb() -> int:
 
 def log_free_ram() -> None:
     logger.debug(f"Free VRAM: {get_torch_free_vram_mb():0.0f} MB, Free RAM: {get_free_ram_mb():0.0f} MB")
+
+
+def get_accelerator_utilization_percent(index: int = 0) -> int | None:
+    """Return device ``index``'s core-utilization percentage (0-100), or None when unavailable.
+
+    Utilization is vendor telemetry with no portable torch/ComfyUI equivalent, so this is best-effort and
+    backend-specific: the NVIDIA CUDA backend is read via NVML (:mod:`hordelib.utils.nvml`); every other
+    backend (ROCm, XPU, MPS, CPU) returns None until a vendor source is wired, so callers simply report no
+    GPU duty cycle there. ROCm presents through ``torch.cuda`` but is not an NVML device, so it returns None.
+    """
+    if _active_torch_kind() is not AcceleratorKind.cuda:
+        return None
+    from hordelib.utils import nvml
+
+    return nvml.get_device_utilization_percent(index)
 
 
 def _enumerate_via_comfy(mm: ModuleType) -> list[AcceleratorInfo]:

@@ -5,6 +5,7 @@ from typing import Self
 
 import psutil
 from horde_model_reference import resolve_weights_root
+from loguru import logger
 
 from hordelib import is_initialised
 from hordelib.utils.switch import Switch
@@ -43,12 +44,14 @@ class UserSettings:
         if not is_initialised():
             return 0
 
-        from hordelib.utils.gpuinfo import GPUInfo
+        # Route through the backend-agnostic accelerator layer (CUDA/ROCm/XPU/MPS/CPU), not NVIDIA-only
+        # NVML, so VRAM-based mode/threshold selection is correct on non-NVIDIA cards too.
+        from hordelib.utils.torch_memory import get_torch_total_vram_mb
 
         try:
-            gpu = GPUInfo()
-            return gpu.get_total_vram_mb()
-        except Exception:
+            return get_torch_total_vram_mb()
+        except Exception as vram_error:
+            logger.debug(f"Could not read total VRAM for settings: {type(vram_error).__name__}: {vram_error}")
             return 0
 
     @staticmethod
