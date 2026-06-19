@@ -37,6 +37,20 @@ class FEATURE_KIND(StrEnum):
     strip_background = auto()
 
 
+class FEATURE_PHASE(StrEnum):
+    """When in a job's lifecycle a feature's VRAM is consumed.
+
+    A consumer that schedules several jobs on one device needs this distinction: the ``sampling`` cost
+    is co-resident with the checkpoint while it denoises, whereas a ``post_processing`` cost (an upscaler
+    or face-fixer) is claimed *after* sampling completes and the checkpoint may already have been evicted.
+    Summing both into a single per-job figure hides that the post-processing peaks of distinct in-flight
+    jobs can align in time and over-commit the card, so the estimate is reported per phase.
+    """
+
+    sampling = auto()
+    post_processing = auto()
+
+
 class DownloadTrigger(BaseModel):
     """Whether using a feature/model can trigger an ad-hoc network download."""
 
@@ -54,6 +68,8 @@ class FeatureImpact(BaseModel):
     """Activation-scaling component, applied per output megapixel."""
     ram_delta_mb: int
     download: DownloadTrigger
+    phase: FEATURE_PHASE = FEATURE_PHASE.sampling
+    """The job phase this feature's VRAM is consumed in; drives the per-phase split of the estimate."""
     applies_to_baselines: list[str] | None = None
     """Baseline values this feature is available for (None = all)."""
     notes: str = ""
@@ -91,6 +107,17 @@ class BurdenEstimate(BaseModel):
     """The estimated total burden of one job configuration."""
 
     vram_mb: int
+    """Total peak VRAM (``vram_sampling_mb + vram_post_processing_mb``); kept for back-compat callers."""
+    vram_sampling_mb: int = 0
+    """VRAM resident during sampling: the baseline plus every sampling-phase feature delta.
+
+    Defaults to 0 so a ``BurdenEstimate`` deserialized from an older producer is still constructible; live
+    estimates from :func:`estimate_job_burden` always populate it."""
+    vram_post_processing_mb: int = 0
+    """Marginal VRAM peak of the post-processing phase (upscalers/face-fixers), claimed after sampling.
+
+    This is the figure a scheduler reserves against concurrent dispatch, since it lands while the slot has
+    already been released for the next job. Zero when the job has no post-processing features."""
     ram_mb: int
     disk_bytes_needed: int
     downloads_expected: list[DownloadTrigger]
@@ -299,6 +326,7 @@ _FEATURE_SEEDS: list[FeatureImpact] = [
         vram_delta_per_megapixel_mb=300,
         ram_delta_mb=2000,
         download=DownloadTrigger(triggered=True, typical_size_mb=70),
+        phase=FEATURE_PHASE.post_processing,
         notes="ESRGAN-family upscalers; model is small but activations on large outputs are not.",
     ),
     FeatureImpact(
@@ -306,6 +334,7 @@ _FEATURE_SEEDS: list[FeatureImpact] = [
         vram_delta_mb=1500,
         ram_delta_mb=2000,
         download=DownloadTrigger(triggered=True, typical_size_mb=350),
+        phase=FEATURE_PHASE.post_processing,
         notes="GFPGAN/CodeFormer weights.",
     ),
     FeatureImpact(
@@ -313,6 +342,7 @@ _FEATURE_SEEDS: list[FeatureImpact] = [
         vram_delta_mb=1000,
         ram_delta_mb=1500,
         download=DownloadTrigger(triggered=True, typical_size_mb=170),
+        phase=FEATURE_PHASE.post_processing,
     ),
 ]
 
@@ -340,8 +370,20 @@ def estimate_job_burden(
     batch: int = 1,
     features: list[FEATURE_KIND] | None = None,
     model_record: ImageGenerationModelRecord | None = None,
+    aux_model_weights_mb: dict[FEATURE_KIND, float] | None = None,
 ) -> BurdenEstimate:
     """Estimate the total resource burden of one job configuration.
+
+    The VRAM total is reported both as a single ``vram_mb`` (back-compat) and split by
+    :class:`FEATURE_PHASE`: ``vram_sampling_mb`` (baseline plus sampling-phase features) and
+    ``vram_post_processing_mb`` (the marginal upscaler/face-fixer peak that lands after sampling). A
+    scheduler reserves the post-processing figure against concurrent dispatch because it is claimed once
+    the inference slot has already been released for the next job.
+
+    ``aux_model_weights_mb`` lets a caller that has resolved a specific auxiliary model (e.g. a particular
+    ESRGAN upscaler or controlnet) supply its real resident weight (MB), replacing that feature's flat
+    ``vram_delta_mb`` term while keeping the activation (per-megapixel) term. Unsupplied features keep the
+    conservative seed.
 
     Never raises on unknown baselines: pre-flight callers need an answer for every
     job, so unknown baselines use a heavy fallback seed and are flagged via
@@ -354,7 +396,8 @@ def estimate_job_burden(
 
     megapixels = (width * height) / 1_000_000
 
-    vram_mb = burden.vram_base_mb + round(burden.vram_per_megapixel_mb * megapixels * batch)
+    vram_sampling_mb = burden.vram_base_mb + round(burden.vram_per_megapixel_mb * megapixels * batch)
+    vram_post_processing_mb = 0
     ram_mb = burden.ram_base_mb
     downloads_expected: list[DownloadTrigger] = []
 
@@ -364,7 +407,15 @@ def estimate_job_burden(
             continue
         if impact.applies_to_baselines is not None and baseline not in impact.applies_to_baselines:
             continue
-        vram_mb += impact.vram_delta_mb + round(impact.vram_delta_per_megapixel_mb * megapixels)
+        if aux_model_weights_mb is not None and kind in aux_model_weights_mb:
+            weight_mb = round(aux_model_weights_mb[kind])
+        else:
+            weight_mb = impact.vram_delta_mb
+        vram_delta = weight_mb + round(impact.vram_delta_per_megapixel_mb * megapixels)
+        if impact.phase == FEATURE_PHASE.post_processing:
+            vram_post_processing_mb += vram_delta
+        else:
+            vram_sampling_mb += vram_delta
         ram_mb += impact.ram_delta_mb
         if impact.download.triggered:
             downloads_expected.append(impact.download)
@@ -376,7 +427,9 @@ def estimate_job_burden(
     disk_bytes += sum((trigger.typical_size_mb or 0) * 1024 * 1024 for trigger in downloads_expected)
 
     return BurdenEstimate(
-        vram_mb=vram_mb,
+        vram_mb=vram_sampling_mb + vram_post_processing_mb,
+        vram_sampling_mb=vram_sampling_mb,
+        vram_post_processing_mb=vram_post_processing_mb,
         ram_mb=ram_mb,
         disk_bytes_needed=disk_bytes,
         downloads_expected=downloads_expected,

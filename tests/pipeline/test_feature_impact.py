@@ -6,6 +6,7 @@ from horde_model_reference.model_reference_records import ImageGenerationModelRe
 
 from hordelib.feature_impact import (
     FEATURE_KIND,
+    FEATURE_PHASE,
     estimate_job_burden,
     get_baseline_burden,
     get_feature_impact_registry,
@@ -128,3 +129,89 @@ class TestEstimateJobBurden:
             features=[FEATURE_KIND.lora],
         )
         assert with_lora.disk_bytes_needed > base.disk_bytes_needed
+
+
+class TestPhaseSplit:
+    def test_total_equals_sum_of_phases(self) -> None:
+        estimate = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.controlnet, FEATURE_KIND.post_processing_upscale],
+        )
+        assert estimate.vram_mb == estimate.vram_sampling_mb + estimate.vram_post_processing_mb
+
+    def test_baseline_only_has_no_post_processing_burden(self) -> None:
+        estimate = estimate_job_burden(baseline="stable_diffusion_xl", width=1024, height=1024)
+        assert estimate.vram_post_processing_mb == 0
+        assert estimate.vram_sampling_mb == estimate.vram_mb
+
+    def test_sampling_feature_lands_in_sampling_phase(self) -> None:
+        """A controlnet (sampling-phase) feature must not leak into the post-processing bucket."""
+        base = estimate_job_burden(baseline="stable_diffusion_xl", width=1024, height=1024)
+        with_controlnet = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.controlnet],
+        )
+        assert with_controlnet.vram_post_processing_mb == 0
+        assert with_controlnet.vram_sampling_mb > base.vram_sampling_mb
+
+    def test_upscaler_lands_in_post_processing_phase(self) -> None:
+        base = estimate_job_burden(baseline="stable_diffusion_xl", width=1024, height=1024)
+        with_upscale = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.post_processing_upscale],
+        )
+        assert with_upscale.vram_post_processing_mb > 0
+        # Sampling-phase cost is unchanged by a post-processing feature.
+        assert with_upscale.vram_sampling_mb == base.vram_sampling_mb
+
+    def test_registry_phase_tags(self) -> None:
+        features = get_feature_impact_registry().features
+        assert features[FEATURE_KIND.post_processing_upscale].phase == FEATURE_PHASE.post_processing
+        assert features[FEATURE_KIND.post_processing_facefix].phase == FEATURE_PHASE.post_processing
+        assert features[FEATURE_KIND.strip_background].phase == FEATURE_PHASE.post_processing
+        assert features[FEATURE_KIND.controlnet].phase == FEATURE_PHASE.sampling
+        assert features[FEATURE_KIND.lora].phase == FEATURE_PHASE.sampling
+
+
+class TestAuxModelWeightOverride:
+    def test_override_replaces_flat_weight_but_keeps_activation(self) -> None:
+        """A supplied real upscaler weight replaces the flat delta; the per-megapixel term stays."""
+        seeded = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.post_processing_upscale],
+        )
+        # The seed flat weight is 2000 MB; a tiny real ESRGAN is ~70 MB, so the override lowers the peak.
+        overridden = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.post_processing_upscale],
+            aux_model_weights_mb={FEATURE_KIND.post_processing_upscale: 70},
+        )
+        assert overridden.vram_post_processing_mb < seeded.vram_post_processing_mb
+        # Activation term (per-megapixel) is still counted, so it is not merely the weight.
+        assert overridden.vram_post_processing_mb > 70
+
+    def test_override_for_absent_feature_is_ignored(self) -> None:
+        base = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.post_processing_upscale],
+        )
+        with_unused_override = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.post_processing_upscale],
+            aux_model_weights_mb={FEATURE_KIND.post_processing_facefix: 9999},
+        )
+        assert with_unused_override.vram_mb == base.vram_mb

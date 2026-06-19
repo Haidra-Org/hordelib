@@ -23,6 +23,7 @@ from hordelib.execution.sampling_lease import (
 )
 from hordelib.feature_impact import (
     FEATURE_KIND,
+    FEATURE_PHASE,
     BaselineBurden,
     BurdenEstimate,
     CalibrationSample,
@@ -98,6 +99,7 @@ if TYPE_CHECKING:
 __all__ = [
     "CONTROLNET_ANNOTATOR_DOWNLOAD_BYTES",
     "FEATURE_KIND",
+    "FEATURE_PHASE",
     "AcceleratorInfo",
     "AcceleratorKind",
     "BaselineBurden",
