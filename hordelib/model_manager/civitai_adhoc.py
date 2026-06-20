@@ -18,6 +18,7 @@ is inherited. See :class:`~hordelib.model_manager.lora.LoraModelManager` and
 
 from __future__ import annotations
 
+import errno
 import glob
 import hashlib
 import json
@@ -50,6 +51,16 @@ TESTS_ONGOING = os.getenv("TESTS_ONGOING", "0") == "1"
 
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
 """The strftime/strptime format used for all cache timestamps persisted to disk."""
+
+_TERMINAL_DISK_ERRNOS: frozenset[int] = frozenset(
+    e for e in (getattr(errno, name, None) for name in ("ENOSPC", "EDQUOT", "EROFS", "EFBIG")) if e is not None
+)
+"""Disk-write failures that retrying cannot fix: full disk, exceeded quota, read-only FS, file too large.
+
+Such a write fails identically on every attempt, yet each retry first re-downloads the entire (often
+hundreds-of-MB) weight file, and the worker thread holds the record for the whole retry budget. The
+ad-hoc downloader treats these as terminal so the queue drains promptly instead of thrashing.
+"""
 
 A1111_TRIGGER_PATTERN = re.compile(r"<(?:lora|ti):(.*):.*>")
 """Matches A1111-style inline trigger syntax so it can be reduced to the bare trigger word."""
@@ -578,6 +589,25 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                         retries=retries,
                     )
                     return
+            except OSError as disk_error:
+                if disk_error.errno in _TERMINAL_DISK_ERRNOS:
+                    # A full / read-only / over-quota disk will not heal between attempts, so retrying only
+                    # re-downloads the whole weight file to fail the write again while pinning this worker
+                    # thread (and thus the callers blocked in wait_for_downloads/reset_adhoc_cache). Record
+                    # the terminal failure and move on; the caller proceeds without this model.
+                    download_logger.error("adhoc.download_disk_error", errno=disk_error.errno, error=str(disk_error))
+                    self._metric_network_errors.add(1, {"error_type": "disk"})
+                    self._record_download_event(
+                        record,
+                        success=False,
+                        size_bytes=0,
+                        duration_seconds=time.perf_counter() - overall_start,
+                        retries=retries,
+                    )
+                    return
+                # Any other OS error may be transient; fall through to the shared retry path below.
+                self._metric_network_errors.add(1, {"error_type": "fatal"})
+                download_logger.error("adhoc.download_fatal_error", error=str(disk_error))
             except Exception as fatal_error:
                 self._metric_network_errors.add(1, {"error_type": "fatal"})
                 download_logger.error("adhoc.download_fatal_error", error=str(fatal_error))
@@ -617,6 +647,10 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     def wait_for_downloads(self, timeout: float | None = None) -> None:
         """Block until the download queue drains and all workers are idle.
 
+        ``timeout`` is the budget in seconds: ``None`` waits forever, and any number (including ``0``) is
+        honoured. Using a truthiness test here instead would silently turn ``timeout=0`` into "wait
+        forever", so a caller that asked for a bounded drain could hang on a wedged background download.
+
         Raises:
             TimeoutError: If *timeout* seconds elapse before downloads complete.
         """
@@ -624,7 +658,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         while not self.are_downloads_complete():
             time.sleep(self.THREAD_WAIT_TIME)
             waited += self.THREAD_WAIT_TIME
-            if timeout and waited > timeout:
+            if timeout is not None and waited > timeout:
                 raise TimeoutError(f"{self.METRIC_PREFIX} downloads exceeded specified timeout ({timeout})")
 
     def are_downloads_complete(self) -> bool:
