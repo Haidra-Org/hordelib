@@ -405,6 +405,10 @@ def pin_models_in_vram() -> bool:
 def unload_all_models_vram():
     global _comfy_current_loaded_models
 
+    from hordelib.metrics import get_metrics_collector
+
+    _unload_start = time.perf_counter()
+
     log_free_ram()
 
     from hordelib.shared_model_manager import SharedModelManager
@@ -447,6 +451,12 @@ def unload_all_models_vram():
     with logfire.span("comfy.gc_and_torch_cache"):
         clear_gc_and_torch_cache()
     log_free_ram()
+
+    # Surface the VRAM-eviction cost to the in-process collector so an embedder can attribute the
+    # between-jobs reload churn (this is the "unload" half; the reload is already timed as
+    # disk_to_ram/ram_to_vram). Recorded under the job in progress when the unload happens, or the
+    # next job on this process when it is an idle eviction.
+    get_metrics_collector().record_phase("model_unload", time.perf_counter() - _unload_start)
 
 
 def unload_all_models_ram():
