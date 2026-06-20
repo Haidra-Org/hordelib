@@ -24,6 +24,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import threading
 import time
 import uuid
@@ -64,6 +65,14 @@ ad-hoc downloader treats these as terminal so the queue drains promptly instead 
 
 A1111_TRIGGER_PATTERN = re.compile(r"<(?:lora|ti):(.*):.*>")
 """Matches A1111-style inline trigger syntax so it can be reduced to the bare trigger word."""
+
+DEFAULT_MIN_FREE_DISK_MB = 1024
+"""Keep at least this many MB free on the cache volume; ad-hoc downloads evict (then refuse) below it.
+
+A full cache disk turns every weight write into an ENOSPC failure (and can take the whole host's
+working volume down with it). Treating a low-free-space floor as a hard constraint on ad-hoc growth
+keeps the cache self-limiting even if the configured byte budget is mis-set or the volume is shared.
+"""
 
 
 def now_timestamp() -> str:
@@ -192,6 +201,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         reference_backups: bool | None = None,
         max_top_disk: int,
         max_adhoc_disk: int,
+        min_free_disk_mb: int = DEFAULT_MIN_FREE_DISK_MB,
     ) -> None:
         """Create an ad-hoc CivitAI model manager.
 
@@ -206,9 +216,12 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 backups follow whether a multiprocessing lock was supplied.
             max_top_disk: The default-set cache budget, in megabytes.
             max_adhoc_disk: The ad-hoc cache budget, in megabytes.
+            min_free_disk_mb: Keep at least this much free space (in megabytes) on the cache volume;
+                ad-hoc downloads evict to make room and refuse rather than cross the floor.
         """
         self._max_top_disk = max_top_disk
         self.max_adhoc_disk = max_adhoc_disk
+        self.min_free_disk_mb = max(0, min_free_disk_mb)
 
         self._data: dict | None = None
         self._next_page_url: str | None = None
@@ -514,6 +527,28 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                     self.save_reference_to_disk()
                     return
 
+                # Refuse to fetch a fresh weight when the volume can't hold it above the floor, even
+                # after evicting every ad-hoc entry. Writing anyway risks an ENOSPC that takes the
+                # whole cache (and any co-located worker data) down; skipping leaves the worker able to
+                # serve the job without this LoRA. Defaults are never evicted, so an over-full default
+                # set legitimately yields "no room" here.
+                if not self._ensure_room_for_download(target):
+                    download_logger.warning(
+                        "adhoc.download_skipped_disk_full",
+                        filename=target.filename,
+                        size_mb=target.size_mb,
+                        free_mb=round(self.disk_free_mb() or -1.0),
+                        floor_mb=self.min_free_disk_mb,
+                    )
+                    self._record_download_event(
+                        record,
+                        success=False,
+                        size_bytes=0,
+                        duration_seconds=time.perf_counter() - overall_start,
+                        retries=retries,
+                    )
+                    return
+
                 download_start = time.perf_counter()
                 download_url = target.url
                 if self._civitai_api_token and self.is_model_url_from_civitai(download_url):
@@ -726,17 +761,17 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
 
     def is_default_cache_full(self) -> bool:
         """Return whether the default cache has reached its budget."""
-        return self.calculate_default_cache() >= self._max_top_disk * 1024
+        return self.calculate_default_cache() >= self._max_top_disk
 
     def is_adhoc_cache_full(self) -> bool:
         """Return whether the ad-hoc cache has reached its budget."""
-        return self.calculate_adhoc_cache() >= self.max_adhoc_disk * 1024
+        return self.calculate_adhoc_cache() >= self.max_adhoc_disk
 
     def amount_of_adhoc_to_delete(self) -> int:
         """Return how many ad-hoc entries to evict: one, plus one more per 4GB over budget."""
         if not self.is_adhoc_cache_full():
             return 0
-        return 1 + int((self.calculate_adhoc_cache() - self.max_adhoc_disk * 1024) / 4096)
+        return 1 + int((self.calculate_adhoc_cache() - self.max_adhoc_disk) / 4096)
 
     def find_oldest_adhoc_entry(self) -> CacheEntry | None:
         """Return the least-recently-used ad-hoc cache entry, or ``None`` if there are none."""
@@ -759,6 +794,72 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         """Evict ad-hoc entries until the ad-hoc cache is back within budget."""
         for _eviction in range(self.amount_of_adhoc_to_delete()):
             self.delete_oldest()
+
+    def enforce_adhoc_budget(self) -> None:
+        """Evict ad-hoc entries back within :attr:`max_adhoc_disk` and persist, if over budget.
+
+        The public entry point for callers (e.g. the worker) that have just lowered
+        ``max_adhoc_disk`` to constrain the cache and want the eviction applied immediately.
+        """
+        if self.is_adhoc_cache_full():
+            self._evict_adhoc_over_limit()
+            self.save_reference_to_disk()
+
+    # ------------------------------------------------------------------
+    # Disk-space safety floor
+    # ------------------------------------------------------------------
+
+    def disk_free_mb(self) -> float | None:
+        """Return free space (in megabytes) on the cache volume, or ``None`` if it can't be read."""
+        try:
+            return shutil.disk_usage(self.model_folder_path).free / (1024 * 1024)
+        except OSError as usage_error:
+            logger.bind(manager=self.METRIC_PREFIX).warning("adhoc.disk_usage_failed", error=str(usage_error))
+            return None
+
+    def is_disk_below_floor(self) -> bool:
+        """Return whether free space on the cache volume is below :attr:`min_free_disk_mb`."""
+        free = self.disk_free_mb()
+        return free is not None and free < self.min_free_disk_mb
+
+    def evict_adhoc_for_free_space(self, *, required_mb: float = 0.0) -> bool:
+        """Evict oldest ad-hoc entries until the volume has room for the floor plus *required_mb*.
+
+        Re-samples free space after each deletion (only the OS knows the true effect of a delete on a
+        shared volume). Persists once if anything was evicted.
+
+        Returns:
+            ``True`` once free space meets the target (or the volume can't be sampled), ``False`` if
+            the ad-hoc entries are exhausted and the target still isn't met (an "unsolvable" disk).
+        """
+        target_mb = self.min_free_disk_mb + max(required_mb, 0.0)
+        evicted_any = False
+        while True:
+            free = self.disk_free_mb()
+            if free is None or free >= target_mb:
+                if evicted_any:
+                    self.save_reference_to_disk()
+                return True
+            oldest = self.find_oldest_adhoc_entry()
+            if oldest is None:
+                if evicted_any:
+                    self.save_reference_to_disk()
+                return False
+            self._delete_model_entry(oldest.model_key, oldest.version_key)
+            evicted_any = True
+
+    def _ensure_room_for_download(self, target: DownloadTarget) -> bool:
+        """Return whether *target* can be written without crossing the disk floor, evicting if needed.
+
+        Evicts oldest ad-hoc entries to make room. Returns ``False`` when even an empty ad-hoc cache
+        would leave the volume below the floor (a download that must be skipped).
+        """
+        free = self.disk_free_mb()
+        if free is None:
+            return True  # Can't sample the volume; defer to the normal ENOSPC handling on write.
+        if free - target.size_mb >= self.min_free_disk_mb:
+            return True
+        return self.evict_adhoc_for_free_space(required_mb=target.size_mb)
 
     # ------------------------------------------------------------------
     # Unused-file cleanup (shared)

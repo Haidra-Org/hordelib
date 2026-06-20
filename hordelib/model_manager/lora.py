@@ -25,6 +25,7 @@ from loguru import logger
 
 import hordelib.exceptions as he
 from hordelib.model_manager.civitai_adhoc import (
+    DEFAULT_MIN_FREE_DISK_MB,
     TESTS_ONGOING,
     CacheEntry,
     CivitaiAdhocModelManager,
@@ -75,6 +76,8 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             allowed_top_lora_storage: The default-set cache budget, in megabytes.
             allowed_adhoc_lora_storage: The ad-hoc cache budget, in megabytes. Overridden by the
                 ``AIWORKER_LORA_CACHE_SIZE`` environment variable when set.
+                The ``AIWORKER_LORA_MIN_DISK_FREE_MB`` environment variable likewise overrides the
+                free-space floor below which ad-hoc downloads evict (then refuse) to spare the disk.
             download_wait: Whether :meth:`download_default_models` blocks until downloads complete.
             multiprocessing_lock: Optional cross-process lock guarding on-disk reference writes.
             civitai_api_token: Optional CivitAI API token.
@@ -93,6 +96,15 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
                 logger.bind(manager="lora").warning("lora.env_cache_size_invalid", raw_value=env_cache_size)
                 adhoc_storage = AIWORKER_LORA_CACHE_SIZE_DEFAULT
 
+        min_free_disk_mb = DEFAULT_MIN_FREE_DISK_MB
+        env_min_free = os.getenv("AIWORKER_LORA_MIN_DISK_FREE_MB")
+        if env_min_free is not None:
+            try:
+                min_free_disk_mb = int(env_min_free)
+            except (ValueError, TypeError):
+                logger.bind(manager="lora").warning("lora.env_min_free_invalid", raw_value=env_min_free)
+                min_free_disk_mb = DEFAULT_MIN_FREE_DISK_MB
+
         models_db_path = horde_model_reference_paths.legacy_path.joinpath("lora.json").resolve()
         super().__init__(
             model_category=MODEL_REFERENCE_CATEGORY.lora,
@@ -103,6 +115,7 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             reference_backups=reference_backups,
             max_top_disk=allowed_top_lora_storage,
             max_adhoc_disk=adhoc_storage,
+            min_free_disk_mb=min_free_disk_mb,
         )
 
     def ensure_is_version(self, lora_version: int | str) -> str | None:
