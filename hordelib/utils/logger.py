@@ -218,8 +218,13 @@ class HordeLog:
                 {
                     "sink": "logs/bridge.log" if cls.process_id is None else f"logs/bridge_{cls.process_id}.log",
                     "level": "DEBUG",
-                    "retention": "2 days",
-                    "rotation": "1 days",
+                    # Rotate on a 25MB size cap so a heavy run can't grow one file large enough to
+                    # choke a tailing reader; zip rotated files and keep a bounded count so total
+                    # disk use stays bounded regardless of how fast logs are written. (loguru 0.7.x
+                    # takes a single rotation condition, not a list.)
+                    "retention": 20,
+                    "rotation": "25 MB",
+                    "compression": "zip",
                     "format": _plain_format,
                     # Move disk writes off the hot (inference) thread; flushed by atexit shutdown.
                     "enqueue": True,
@@ -235,8 +240,10 @@ class HordeLog:
                     "sink": "logs/trace.log" if cls.process_id is None else f"logs/trace_{cls.process_id}.log",
                     "level": "TRACE",
                     "filter": cls.is_trace_log,
-                    "retention": "3 days",
-                    "rotation": "1 days",
+                    # Trace is the most verbose sink; keep fewer rotated files than bridge.log.
+                    "retention": 10,
+                    "rotation": "25 MB",
+                    "compression": "zip",
                     "backtrace": True,
                     "diagnose": True,
                     "format": _plain_format,
