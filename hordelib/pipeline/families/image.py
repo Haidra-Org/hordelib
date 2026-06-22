@@ -7,10 +7,11 @@ The predicates and priorities reproduce the legacy decision tree in
 2. cascade (remix / 2pass / base)
 3. flux
 4. qwen
-5. controlnet (annotator / hires / base)
-6. img2img-with-mask / inpainting / outpainting
-7. hires fix
-8. generic stable diffusion (also plain img2img)
+5. z-image
+6. controlnet (annotator / hires / base)
+7. img2img-with-mask / inpainting / outpainting
+8. hires fix
+9. generic stable diffusion (also plain img2img)
 
 The bindings are the typed port of the legacy ``PAYLOAD_TO_PIPELINE_PARAMETER_MAPPING``: the
 full candidate set is declared once and each template keeps the bindings whose target node
@@ -59,6 +60,15 @@ FLUX_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
         KNOWN_IMAGE_GENERATION_BASELINE.flux_1,
         KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell,
         KNOWN_IMAGE_GENERATION_BASELINE.flux_dev,
+    },
+)
+
+# Split-files baselines whose diffusion weights load through the bare diffusion-model loader
+# (file_type "unet") with CLIP/VAE wired from their own loader nodes, rather than a fused checkpoint.
+UNET_LOADER_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
+    {
+        KNOWN_IMAGE_GENERATION_BASELINE.qwen_image,
+        KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo,
     },
 )
 
@@ -167,9 +177,9 @@ def _apply_model_context_step(graph: ComfyGraph, payload: ImageGenPayload, conte
         "model_loader.model_name": context.main_file,
         "model_loader.horde_model_name": context.horde_model_name,
         "model_loader.will_load_loras": context.will_load_loras,
-        # The HordeCheckpointLoader needs to know what file to load; "unet" routes qwen
-        # through the diffusion-model loader, None keeps normal SD checkpoints working.
-        "model_loader.file_type": "unet" if context.baseline is KNOWN_IMAGE_GENERATION_BASELINE.qwen_image else None,
+        # The HordeCheckpointLoader needs to know what file to load; "unet" routes the split-files
+        # baselines (qwen, z-image) through the diffusion-model loader, None keeps normal SD checkpoints working.
+        "model_loader.file_type": "unet" if context.baseline in UNET_LOADER_BASELINES else None,
         "model_loader_stage_c.ckpt_name": context.extra_files.get("stable_cascade_stage_c"),
         "model_loader_stage_c.model_name": context.extra_files.get("stable_cascade_stage_c"),
         "model_loader_stage_c.horde_model_name": context.horde_model_name,
@@ -375,6 +385,11 @@ def build_default_registry() -> PipelineRegistry[ImageGenPayload, ModelContext]:
             template=_template("qwen"),
             predicate=lambda p, c: c.baseline is KNOWN_IMAGE_GENERATION_BASELINE.qwen_image,
             priority=86,
+        ),
+        PipelineSpec(
+            template=_template("z_image"),
+            predicate=lambda p, c: c.baseline is KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo,
+            priority=85,
         ),
         # ControlNet
         PipelineSpec(

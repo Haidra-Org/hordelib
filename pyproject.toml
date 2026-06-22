@@ -298,6 +298,7 @@ markers = [
     "default_sd15_model: marks tests as default_sd15_model (deselect with '-m \"not default_sd15_model\"')",
     "default_sdxl_model: marks tests as default_sdxl_model (deselect with '-m \"not default_sdxl_model\"')",
     "default_qwen_model: marks tests as default_qwen_model (deselect with '-m \"not default_qwen_model\"')",
+    "default_z_image_turbo_model: marks tests as default_z_image_turbo_model (deselect with '-m \"not default_z_image_turbo_model\"')",
     "refined_sdxl_model: marks tests as refined_sdxl_model (deselect with '-m \"not refined_sdxl_model\"')",
     "patch_harness: instrumentation-only tests for ComfyUI monkeypatch impact",
 ]

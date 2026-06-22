@@ -1,3 +1,4 @@
+import os
 import threading
 from abc import ABC
 from collections.abc import Callable, Iterable
@@ -14,6 +15,7 @@ from horde_model_reference import (
     file_paths_for,
     get_category_descriptor,
     horde_model_reference_paths,
+    is_present,
 )
 from horde_model_reference.model_reference_manager import ModelReferenceManager
 from horde_model_reference.model_reference_records import GenericModelRecord
@@ -539,11 +541,23 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
                 self.validate_model(model)
         return True
 
-    def is_model_available(self, model_name: str) -> bool:
+    def _extra_weights_roots(self) -> list[Path]:
+        """Additional weights roots to search for already-present files, from the environment.
+
+        Mirrors the worker's ``AIWORKER_EXTRA_MODEL_DIRECTORIES`` (an ``os.pathsep``-separated list of
+        weights-root directories) so a model spread across disks is judged present here exactly as the
+        worker's download planner judges it.
         """
-        :param model_name: Name of the model
-        Checks if the model is available.
-        Returns True if the model is available, False otherwise.
+        raw = os.environ.get("AIWORKER_EXTRA_MODEL_DIRECTORIES", "")
+        return [Path(entry) for entry in raw.split(os.pathsep) if entry.strip()]
+
+    def is_model_available(self, model_name: str) -> bool:
+        """Return whether *model_name*'s declared files all exist on disk (existence-only).
+
+        Presence is delegated to horde_model_reference's canonical on-disk layout, so every consumer
+        (the worker's download plan, the TUI picker, this manager) answers "is it on disk?" the same way
+        and a model placed on disk is never reported as needing download. Integrity is a separate concern:
+        a present-but-corrupt file counts as available here and is caught by ``validate_model`` (or at load).
         """
         if model_name not in self.model_reference:
             return False
@@ -551,12 +565,11 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
         if model_name in self.tainted_models:
             return False
 
-        model_files = self.get_model_filenames(model_name)
-        for file_entry in model_files:
-            if not self.is_file_available(file_entry["file_path"]):
-                logger.debug([file_entry["file_path"], self.is_file_available(file_entry["file_path"])])
-                return False
-        return True
+        record = self._get_generic_record(model_name)
+        if record is None:
+            return False
+
+        return is_present(record, self._weights_root, extra_roots=self._extra_weights_roots())
 
     def is_model_url_from_civitai(self, url: str) -> bool:
         return CIVITAI_API_PATH in url

@@ -27,13 +27,12 @@ BASELINE_EXPECTED_TEMPLATE: dict[KNOWN_IMAGE_GENERATION_BASELINE, str] = {
     KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell: "flux",
     KNOWN_IMAGE_GENERATION_BASELINE.flux_dev: "flux",
     KNOWN_IMAGE_GENERATION_BASELINE.qwen_image: "qwen",
+    KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo: "z_image",
 }
 """The template a canonical txt2img payload must select for each supported baseline."""
 
 UNSUPPORTED_BASELINES: set[KNOWN_IMAGE_GENERATION_BASELINE] = {
     KNOWN_IMAGE_GENERATION_BASELINE.infer,
-    # z_image_turbo appeared in the model reference 2026-06; no hordelib family exists yet.
-    KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo,
 }
 """Baselines consciously not (yet) given a pipeline family.
 

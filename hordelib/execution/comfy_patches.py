@@ -33,6 +33,7 @@ FORCE_LOAD_SKIP_CLASS_NAMES: tuple[str, ...] = (
     "SDXLRefiner",
     "Flux",
     "QwenImage",
+    "Lumina2",
 )
 """The comfy ``model_base`` class names hordelib must keep in lockstep with ComfyUI.
 
@@ -88,6 +89,8 @@ def _baseline_class_names() -> dict:
                 KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell: ("Flux",),
                 KNOWN_IMAGE_GENERATION_BASELINE.flux_dev: ("Flux",),
                 KNOWN_IMAGE_GENERATION_BASELINE.qwen_image: ("QwenImage",),
+                # Z-Image (incl. Z-Image-Turbo) loads as comfy's Lumina2 model_base class.
+                KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo: ("Lumina2",),
             },
         )
     return BASELINE_FORCE_LOAD_CLASS_NAMES
