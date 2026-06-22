@@ -59,7 +59,7 @@ dependencies = [
     "loguru>=0.7.3",
     "lpips",
     "matplotlib>=3.10.9",  # comfyui_controlnet_aux node requirement (not a hordelib import)
-    "numpy>=1.25.0",
+    "numpy>=1.25.0,<2.5",
     "omegaconf>=2.3.0",  # comfyui_controlnet_aux + facerestore_cf node requirement (not a hordelib import)
     "opencv-contrib-python>=4.11.0.86",
     "opencv-python>=4.11.0.86",
