@@ -10,6 +10,7 @@ from hordelib.config_path import get_comfyui_path, get_hordelib_path, set_system
 from hordelib.consts import RELEASE_VERSION
 from hordelib.installation import EnvironmentInstaller, load_packaged_manifest
 from hordelib.utils.logger import HordeLog
+from hordelib.utils.torch_memory import AcceleratorKind
 
 _is_initialised = False
 
@@ -27,6 +28,8 @@ def initialise(
     do_not_load_model_mangers: bool = True,
     models_not_to_force_load: list[str] | None = None,
     reference_offline: bool | None = None,
+    device_index: int | None = None,
+    accelerator_kind: AcceleratorKind | None = None,
 ):
     """Initialise hordelib. This is required before using any other hordelib functions.
 
@@ -46,8 +49,31 @@ def initialise(
         reference_offline (bool | None, optional): If True, the model reference manager reads references \
             from local disk only and never downloads them (the caller/parent process owns downloading). \
             If None, defers to ``HORDE_MODEL_REFERENCE_OFFLINE``. Defaults to None.
+        device_index (int | None, optional): Pin this process to a single device by global index. \
+            When set, applies the env-var mask and any required ComfyUI CLI args via \
+            :func:`~hordelib.utils.device_pinning.device_pin_env` before torch is imported. \
+            ``None`` (default) leaves the current environment untouched (today's behavior). \
+            ``accelerator_kind`` must also be provided when this is set.
+        accelerator_kind (AcceleratorKind | None, optional): The backend kind of ``device_index``, \
+            required when ``device_index`` is set. Obtain from \
+            :func:`~hordelib.utils.torch_memory.enumerate_accelerators`. Defaults to None.
     """
     global _is_initialised
+
+    # Device pinning must happen before ComfyUI (and torch) is imported; CUDA_VISIBLE_DEVICES
+    # has no effect after torch.cuda is initialised. Apply the mask here, ahead of everything else.
+    if device_index is not None:
+        if accelerator_kind is None:
+            raise ValueError("accelerator_kind must be provided when device_index is set")
+        from hordelib.utils.device_pinning import device_pin_env
+
+        pin_env, pin_args = device_pin_env(accelerator_kind, device_index)
+        os.environ.update(pin_env)
+        if extra_comfyui_args is None:
+            extra_comfyui_args = list(pin_args)
+        else:
+            extra_comfyui_args = list(extra_comfyui_args) + pin_args
+        logger.debug("Pinned process to device index={} kind={}: env={}", device_index, accelerator_kind, pin_env)
 
     # Opt the CUDA/ROCm caching allocator into expandable segments before ComfyUI imports torch.
     # Fragmentation (a large "reserved but unallocated" pool) is a common cause of an out-of-memory

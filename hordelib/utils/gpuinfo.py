@@ -25,15 +25,25 @@ _AVERAGE_WINDOW_SECONDS = 60 * 5
 class GPUInfo:
     """Collects per-device GPU statistics, keeping rolling averages of load, temperature, and power."""
 
-    def __init__(self) -> None:
-        """Initialize the collector for the device named by ``CUDA_VISIBLE_DEVICES`` (default 0)."""
+    def __init__(self, device_index: int | None = None) -> None:
+        """Initialize the collector for the given device index.
+
+        Args:
+            device_index: The global NVML/CUDA device index to query. When ``None`` (default), reads
+                ``CUDA_VISIBLE_DEVICES`` (which is ``0`` inside a pinned subprocess, and the real
+                device index in the unmasked orchestrator). Pass an explicit index when an unmasked
+                caller needs to survey a specific card without masking the process.
+        """
         self.avg_load: list[int] = []
         self.avg_temp: list[int] = []
         self.avg_power: list[int] = []
         self._average_window_samples = _AVERAGE_SAMPLES_PER_SECOND * _AVERAGE_WINDOW_SECONDS
         if not self.is_nvidia():
             logger.warning("Detailed GPU info (load/temp/power) is only available on NVIDIA GPUs")
-        self.device = int(os.getenv("CUDA_VISIBLE_DEVICES", "0"))
+        if device_index is not None:
+            self.device = device_index
+        else:
+            self.device = int(os.getenv("CUDA_VISIBLE_DEVICES", "0"))
 
     def is_nvidia(self) -> bool:
         """Return whether the active torch build targets NVIDIA CUDA (not ROCm/HIP)."""
