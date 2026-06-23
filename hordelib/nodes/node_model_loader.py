@@ -261,7 +261,14 @@ def make_circular(m):
 
 
 def make_circular_vae(m):
-    m.first_stage_model.apply(make_circular)
+    # Not every VAE exposes a `first_stage_model`: newer architectures (e.g. Z-Image/Lumina2) return a
+    # VAE whose `first_stage_model` is None, so reaching into it to retune Conv2d padding would raise and
+    # take down the whole load. Seamless tiling simply doesn't apply to those, so skip it rather than fault.
+    first_stage_model = getattr(m, "first_stage_model", None)
+    if first_stage_model is None:
+        logger.debug("VAE has no first_stage_model; skipping circular tiling for this architecture")
+        return
+    first_stage_model.apply(make_circular)
 
 
 def make_regular(m):
@@ -270,7 +277,11 @@ def make_regular(m):
 
 
 def make_regular_vae(m):
-    m.first_stage_model.apply(make_regular)
+    first_stage_model = getattr(m, "first_stage_model", None)
+    if first_stage_model is None:
+        logger.debug("VAE has no first_stage_model; skipping regular tiling for this architecture")
+        return
+    first_stage_model.apply(make_regular)
 
 
 NODE_CLASS_MAPPINGS = {"HordeCheckpointLoader": HordeCheckpointLoader}
