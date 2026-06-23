@@ -34,6 +34,19 @@ class TestRegistryCoverage:
         assert get_baseline_burden("stable_diffusion_xl") is not None
         assert get_baseline_burden("not_a_baseline") is None
 
+    @pytest.mark.parametrize("baseline", ["qwen_image", "z_image_turbo"])
+    def test_whole_card_baselines_seed_their_resident_weights(self, baseline: str) -> None:
+        """Whole-card baselines must seed ``vram_weights_mb`` explicitly.
+
+        Falling back to the activation-conflated ``vram_base_mb`` understates the weights and lets the
+        residency forecast read a genuinely card-filling model as comfortably co-resident (the Z-Image
+        regression: it never claimed the card and churned process recoveries instead).
+        """
+        burden = get_baseline_burden(baseline)
+        assert burden is not None
+        assert burden.vram_weights_mb > 0
+        assert burden.resident_weight_estimate_mb() == burden.vram_weights_mb
+
 
 class TestEstimateJobBurden:
     def test_unknown_baseline_uses_fallback_and_is_flagged(self) -> None:

@@ -251,13 +251,18 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
     ),
     BaselineBurden(
         baseline="z_image_turbo",
-        vram_base_mb=8000,
+        vram_base_mb=11000,
         ram_base_mb=14000,
         vram_per_megapixel_mb=1200,
         native_resolution=(1024, 1024),
-        min_recommended_vram_mb=10000,
+        min_recommended_vram_mb=12000,
         max_recommended_batch=2,
         typical_disk_gb=8.0,
+        # The 6B DiT plus its text encoder and VAE stay resident together; the prior unseeded base of 8000
+        # conflated weights with activations and read as comfortably co-resident, so the scheduler never gave
+        # Z-Image the whole card it actually wants. Seeded explicitly so the streaming/residency forecast sees
+        # the real weight footprint at the worker's typical dtype.
+        vram_weights_mb=10000,
     ),
 ]
 
