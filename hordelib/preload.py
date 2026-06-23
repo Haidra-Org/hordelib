@@ -27,10 +27,34 @@ Two optimisations keep this cheap after the first time:
 import contextlib
 import os
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from pathlib import Path
+from typing import Protocol
 
 from loguru import logger
+
+
+class _AnnotatorFileLike(Protocol):
+    """The shape the prefetch reads from a ``horde_model_reference.annotator_catalog.AnnotatorFile``.
+
+    Described structurally so this module type-checks even against an older installed ``horde_model_reference``
+    that does not yet ship the catalog (the concrete type is imported lazily and may be absent; see
+    :func:`_prefetch_annotator_files`).
+    """
+
+    filename: str
+    sha256: str | None
+    preprocessors: tuple[str, ...]
+
+    @property
+    def relative_path(self) -> str:
+        """The file's path relative to the annotator checkpoints directory (``<repo>/<subfolder>/<filename>``)."""
+        ...
+
+    @property
+    def origin_url(self) -> str:
+        """The HuggingFace origin URL the file is fetched from when the gated mirror does not serve it."""
+        ...
 
 _preload_mutex = threading.Lock()
 _preload_completed = False
@@ -50,6 +74,83 @@ _PRELOAD_MARKER_NAME = ".hordelib_preload_complete"
 # guarded and simply does not register). Openpose's DWPose detector is the only horde-exposed
 # preprocessor that needs onnxruntime; running it without the extra would abort the whole preload.
 _ONNXRUNTIME_GATED_PREPROCESSORS = frozenset({"OpenposePreprocessor"})
+
+
+def _annotator_files_to_prefetch(all_files: Iterable[_AnnotatorFileLike]) -> list[_AnnotatorFileLike]:
+    """Filter the annotator catalog to the files whose preprocessor will actually run on this install.
+
+    On a lean base install (no ``controlnet`` extra) the onnxruntime-gated preprocessors never register and the
+    preload skips them (see :func:`_run_preload`), so prefetching their large weights would be wasted. A file is
+    kept when at least one preprocessor that loads it is not gated away. Best-effort: if the feature check itself
+    cannot be evaluated, everything is kept (the worst case is a redundant download, never a missing one).
+    """
+    try:
+        from hordelib.feature_impact import FEATURE_KIND
+        from hordelib.feature_requirements import feature_available
+
+        if feature_available(FEATURE_KIND.controlnet):
+            return list(all_files)
+    except Exception as e:
+        logger.debug("Could not evaluate controlnet feature for annotator prefetch; keeping all: error={}", e)
+        return list(all_files)
+
+    return [
+        entry
+        for entry in all_files
+        if any(preprocessor not in _ONNXRUNTIME_GATED_PREPROCESSORS for preprocessor in entry.preprocessors)
+    ]
+
+
+def _prefetch_annotator_files(ckpts_dir: Path) -> None:
+    """Pre-place known annotator checkpoints via the unified gated-mirror-then-origin download engine.
+
+    For each catalog file not already on disk, fetch it to the exact path ``custom_hf_download`` expects, so the
+    detector finds it present and skips its own HuggingFace download. The gated R2 mirror (when configured and
+    the file's hash is known) is tried first and falls back to the HuggingFace origin on any failure, so this
+    only ever adds a faster, free path; it never blocks a download. Best-effort throughout: any failure simply
+    leaves the file for the detector to fetch itself, exactly as before this hook existed.
+    """
+    try:
+        from horde_model_reference import annotator_catalog, download_engine
+    except Exception as e:
+        # An older installed horde_model_reference without the catalog (or its record-free fetch helper): the
+        # detectors download from HuggingFace themselves, exactly as before. Degrade quietly.
+        logger.debug("Annotator catalog unavailable (older horde_model_reference?); skipping prefetch: {}", e)
+        return
+
+    gateway_base_url: str | None = None
+    apikey: str | None = None
+    try:
+        from hordelib.model_manager.base import _resolve_horde_api_key, _resolve_r2_gateway_url
+
+        gateway_base_url = _resolve_r2_gateway_url()
+        apikey = _resolve_horde_api_key()
+    except Exception as e:
+        logger.debug("Could not resolve gated-mirror settings; annotator prefetch uses origin only: error={}", e)
+
+    for entry in _annotator_files_to_prefetch(annotator_catalog.ANNOTATOR_FILES):
+        destination = ckpts_dir / Path(entry.relative_path)
+        if destination.is_file():
+            continue
+        try:
+            outcome = download_engine.download_addressed_file(
+                entry.origin_url,
+                destination,
+                sha256=entry.sha256,
+                gateway_base_url=gateway_base_url,
+                apikey=apikey,
+            )
+            if not outcome.success:
+                logger.info(
+                    "Annotator prefetch did not complete; the detector will fetch it at first use: file={}",
+                    entry.filename,
+                )
+        except Exception as e:
+            logger.warning(
+                "Annotator prefetch errored; the detector will fetch it at first use: file={} error={}",
+                entry.filename,
+                e,
+            )
 
 
 def _midas_already_cached() -> bool:
@@ -283,6 +384,13 @@ def download_all_controlnet_annotators() -> bool:
             )
             _preload_completed = True
             return True
+
+        # Pre-place the annotator checkpoints through the unified (gated R2 -> HuggingFace) download engine
+        # *before* the detectors run, so custom_hf_download finds them present and skips its own HF fetch. Runs
+        # with the Hub online (the offline window is inside _run_preload). Best-effort; never blocks the preload.
+        ckpts_dir = _annotator_ckpts_dir()
+        if ckpts_dir is not None:
+            _prefetch_annotator_files(ckpts_dir)
 
         force_offline = _midas_already_cached()
         if force_offline:

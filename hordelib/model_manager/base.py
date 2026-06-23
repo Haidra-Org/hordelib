@@ -2,6 +2,7 @@ import os
 import threading
 from abc import ABC
 from collections.abc import Callable, Iterable
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, cast
 from urllib import parse
@@ -25,6 +26,59 @@ from hordelib.beta_models import beta_source_for
 from hordelib.config_path import get_hordelib_path
 from hordelib.consts import CIVITAI_API_PATH
 from hordelib.settings import UserSettings
+
+_ANON_API_KEY = "0000000000"
+
+
+def _resolve_horde_api_key() -> str | None:
+    """Return the worker's horde API key from the environment, or None for anonymous/standalone use.
+
+    The key gates the content-addressed R2 mirror in the download engine. The anonymous key cannot be trusted,
+    and a standalone hordelib user without a key simply downloads from each model's origin host. The worker
+    exposes its configured key as ``AIHORDE_API_KEY`` (inherited by the download subprocess).
+    """
+    key = os.environ.get("AIHORDE_API_KEY") or os.environ.get("AI_HORDE_API_KEY")
+    if not key or key == _ANON_API_KEY:
+        return None
+    return key
+
+
+@lru_cache(maxsize=1)
+def _resolve_r2_gateway_url() -> str | None:
+    """Return the gated-R2 gateway base URL from horde_model_reference settings (process-static, cached).
+
+    None when no gateway is configured, in which case the engine downloads only from origin hosts. An older
+    horde_model_reference without the R2 settings block degrades to the same origin-only behaviour rather than
+    breaking the download path, so the worker keeps working ahead of a coordinated hmr release.
+
+    The gateway URL is owned by the official deployment (the horde_model_reference default); it is deliberately
+    not a per-worker config knob. A sophisticated operator can still override it via the
+    ``HORDE_MODEL_REFERENCE_R2__GATEWAY_URL`` environment variable, in which case the safety guard below applies:
+    because the worker's API key is sent to the gateway, a plaintext (non-``https``) gateway is refused outright
+    (the mirror is disabled and origins are used) so the key cannot travel in the clear.
+    """
+    try:
+        from horde_model_reference import HordeModelReferenceSettings
+        from horde_model_reference.download_engine import gateway_accepts_key
+
+        gateway_url = HordeModelReferenceSettings().r2.gateway_url
+    except (AttributeError, ImportError):
+        # Older horde_model_reference without the R2 settings block or the key-safety guard: origin-only.
+        return None
+
+    if not gateway_url:
+        return None
+    if not gateway_accepts_key(gateway_url):
+        logger.warning(
+            "Configured R2 gateway is not https; refusing to send the API key over plaintext and disabling the "
+            "mirror (downloads use origin hosts): gateway={}",
+            gateway_url,
+        )
+        return None
+    # Normal path logs at DEBUG only: the gateway is a deployment-owned technical detail, not something a typical
+    # operator configures or needs to reason about, so it stays out of the default console.
+    logger.debug("Gated R2 mirror enabled; the API key will be sent to gateway={}", parse.urlparse(gateway_url).netloc)
+    return gateway_url
 
 
 class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
@@ -477,6 +531,7 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
         model_name: str,
         *,
         callback: Callable[[int, int], None] | None = None,
+        connections: int = 1,
     ) -> bool | None:
         """Ensure *model_name*'s declared files are present, fetching any that are missing.
 
@@ -487,6 +542,9 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
         Args:
             model_name: The reference key of the model to download.
             callback: Optional ``(downloaded_bytes, total_bytes)`` progress callback, per file.
+            connections: Maximum concurrent connections per large file, forwarded to the engine. 1 keeps the
+                single-stream path; a higher value lets the engine segment a large file across that many
+                ranged connections to raise single-file throughput (the caller's configured value).
 
         Returns:
             True if the model is present and validated, False on download/validation failure, and None
@@ -520,6 +578,9 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
             self._weights_root,
             progress_callback=callback,
             auth_query_token=self._civitai_token_for(record),
+            gateway_base_url=_resolve_r2_gateway_url(),
+            apikey=_resolve_horde_api_key(),
+            connections=connections,
         )
         if not download_succeeded:
             return False
