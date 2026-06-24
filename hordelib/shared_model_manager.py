@@ -138,6 +138,21 @@ class SharedModelManager:
         )
 
         cls._register_civitai_provider()
+        cls._register_annotator_provider()
+
+    @classmethod
+    def _register_annotator_provider(cls) -> None:
+        """Expose the ControlNet annotators as the queryable ``"comfyui_controlnet_aux"`` source.
+
+        The installed ``comfyui_controlnet_aux`` is the authority on which annotator checkpoints exist; this
+        registers them as a first-class provider so consumers can read them via
+        ``model_reference_manager.query(controlnet_annotator, source="comfyui_controlnet_aux")`` rather than
+        treating the package's internal download as an opaque side-channel. The ``controlnet_annotator``
+        category is supplied by the pinned ``horde_model_reference``.
+        """
+        from hordelib.model_manager.annotator_provider import AnnotatorModelProvider
+
+        ModelReferenceManager.get_instance().register_provider(AnnotatorModelProvider(), replace=True)
 
     @classmethod
     def _register_pending_provider(cls) -> None:

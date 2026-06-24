@@ -52,7 +52,7 @@ dependencies = [
     "ftfy",  # comfyui_controlnet_aux node requirement (previously satisfied transitively via open-clip-torch)
     "fuzzywuzzy>=0.18.0",
     "gitpython>=3.1.45",
-    "horde_model_reference>=6.0.0,<7.0.0",
+    "horde_model_reference>=7.0.2,<8.0.0",
     "horde-sdk>=0.20.1",
     "kornia>=0.7.1",
     "logfire[system-metrics]==4.14.2",
