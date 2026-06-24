@@ -42,6 +42,8 @@ class _AnnotatorFileLike(Protocol):
     :func:`_prefetch_annotator_files`).
     """
 
+    repo: str
+    subfolder: str
     filename: str
     sha256: str | None
     preprocessors: tuple[str, ...]
@@ -252,6 +254,66 @@ def controlnet_annotators_present() -> bool | None:
     except Exception as e:  # pragma: no cover - presence is best-effort; never raise into a caller
         logger.debug("Could not determine controlnet annotator presence: error={}", e)
         return None
+
+
+def _annotator_file_resolvable(entry: _AnnotatorFileLike, ckpts_dir: Path | None) -> bool:
+    """Whether one annotator file is already where the engine will find it at first use (no download needed).
+
+    Existence-based, unlike the preload marker: a detector loads a file it finds on disk and skips its own
+    HuggingFace fetch, so a file present in the checkpoints dir (the flat ``<repo>/<subfolder>/<filename>``
+    layout ``custom_hf_download`` writes) -- or already in the HuggingFace hub cache, which a fetch resolves
+    without touching the network -- will not be re-downloaded. The cheap on-disk path is checked first.
+    """
+    if ckpts_dir is not None and (ckpts_dir / Path(entry.relative_path)).is_file():
+        return True
+    try:
+        from huggingface_hub import try_to_load_from_cache
+
+        in_repo = "/".join(part for part in (entry.subfolder, entry.filename) if part)
+        if isinstance(try_to_load_from_cache(repo_id=entry.repo, filename=in_repo), str):
+            return True
+        if ckpts_dir is not None and isinstance(
+            try_to_load_from_cache(repo_id=entry.repo, filename=in_repo, cache_dir=str(ckpts_dir)),
+            str,
+        ):
+            return True
+    except Exception as e:  # pragma: no cover - a hub-cache probe failure just means "not via the cache"
+        logger.debug("Hub-cache annotator lookup failed (treating this file as absent): error={}", e)
+    return False
+
+
+def annotators_resolvable(control_types: Iterable[str]) -> bool | None:
+    """Whether the controlnet annotators for *control_types* are on disk or cached (existence, not the marker).
+
+    The authoritative answer to "will a controlnet job for these control types need a slow annotator download
+    before it can run", as distinct from :func:`controlnet_annotators_present`, which reads the preload
+    *marker* (a stricter, pin-keyed fast-path that is ``False`` whenever a full verify has not run for the
+    current pin, even when every file is already present on disk). A surface deciding whether to prompt a
+    pre-download should use this; the marker stays only the preload's own skip optimisation.
+
+    Weightless control types (``canny``, ``scribble``) and types unknown to the catalog need no files and are
+    vacuously resolvable. Returns ``None`` only when the file catalog or the checkpoint directory cannot be
+    determined, so a caller treats the unknown as "do not claim missing" rather than nagging spuriously.
+    """
+    try:
+        from horde_model_reference import annotator_catalog
+    except Exception as e:
+        logger.debug("Annotator catalog unavailable; cannot resolve annotator presence: error={}", e)
+        return None
+    # Prefer the catalog's own control-type selector; fall back to filtering the file list directly so an
+    # older horde_model_reference that ships ANNOTATOR_FILES but not the helper still resolves correctly.
+    selector = getattr(annotator_catalog, "annotators_for_control_types", None)
+    if selector is not None:
+        needed = selector(control_types)
+    else:
+        wanted = set(control_types)
+        needed = tuple(entry for entry in annotator_catalog.ANNOTATOR_FILES if wanted.intersection(entry.control_types))
+    if not needed:
+        return True
+    ckpts_dir = _annotator_ckpts_dir()
+    if ckpts_dir is None:
+        return None
+    return all(_annotator_file_resolvable(entry, ckpts_dir) for entry in needed)
 
 
 def _record_annotators_verified(ref: str) -> None:

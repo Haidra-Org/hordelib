@@ -148,6 +148,83 @@ def test_annotators_present_unknown_when_ref_undeterminable(monkeypatch, tmp_pat
     assert preload.controlnet_annotators_present() is None
 
 
+def _make_annotator_files(ckpts_dir, control_types):
+    """Create the flat ``<repo>/<subfolder>/<filename>`` checkpoints a set of control types needs."""
+    from horde_model_reference import annotator_catalog
+
+    wanted = set(control_types)
+    for entry in annotator_catalog.ANNOTATOR_FILES:
+        if wanted.intersection(entry.control_types):
+            destination = ckpts_dir / entry.relative_path
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"x")
+
+
+@pytest.fixture
+def _no_hub_cache(monkeypatch):
+    """Force the HuggingFace hub-cache lookup to miss, so resolution depends only on on-disk files."""
+    import huggingface_hub
+
+    monkeypatch.setattr(huggingface_hub, "try_to_load_from_cache", lambda **kwargs: None)
+
+
+def test_annotators_resolvable_true_when_files_present(monkeypatch, tmp_path):
+    """Files on disk in the flat layout read resolvable, regardless of the preload marker."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    _make_annotator_files(tmp_path, ["depth"])
+    assert preload.annotators_resolvable(["depth"]) is True
+
+
+def test_annotators_resolvable_false_when_absent(monkeypatch, tmp_path, _no_hub_cache):
+    """A control type whose files are not on disk (and not hub-cached) reads as not resolvable."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    assert preload.annotators_resolvable(["openpose"]) is False
+
+
+def test_annotators_resolvable_false_when_partial(monkeypatch, tmp_path, _no_hub_cache):
+    """Resolution requires every needed file: a partially-present selection is not resolvable."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    _make_annotator_files(tmp_path, ["depth"])
+    assert preload.annotators_resolvable(["depth", "openpose"]) is False
+
+
+def test_annotators_resolvable_vacuous_for_weightless_unknown_empty(monkeypatch, tmp_path):
+    """Weightless (canny), unknown, and empty selections need no files and are vacuously resolvable."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    assert preload.annotators_resolvable(["canny"]) is True
+    assert preload.annotators_resolvable(["definitely-not-a-control-type"]) is True
+    assert preload.annotators_resolvable([]) is True
+
+
+def test_annotators_resolvable_unknown_when_ckpts_dir_undeterminable(monkeypatch):
+    """When the checkpoints directory cannot be derived, presence is unknown (None), never a false missing."""
+    monkeypatch.delenv("AUX_ANNOTATOR_CKPTS_PATH", raising=False)
+    monkeypatch.setattr(preload, "_annotator_ckpts_dir", lambda: None)
+    assert preload.annotators_resolvable(["depth"]) is None
+
+
+def test_annotators_resolvable_independent_of_marker(monkeypatch, tmp_path):
+    """The original bug: present files must read resolvable even when the pin-keyed marker is absent."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    monkeypatch.setattr(preload, "_pinned_annotator_ref", lambda: "ref-never-written")
+    _make_annotator_files(tmp_path, ["depth"])
+    assert preload.controlnet_annotators_present() is False  # marker absent -> the stale "missing"
+    assert preload.annotators_resolvable(["depth"]) is True  # but the files are genuinely there
+
+
+def test_preload_import_is_torch_free():
+    """Importing ``hordelib.preload`` (the torch-free presence surface) must not drag torch in."""
+    import subprocess
+    import sys
+
+    result = subprocess.run(
+        [sys.executable, "-c", "import hordelib.preload, sys; assert 'torch' not in sys.modules"],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_preload_constructs_hordelib_before_node_lookup(monkeypatch):
     """``download_all_controlnet_annotators`` must build a HordeLib before looking up nodes."""
     constructed: list[object] = []
