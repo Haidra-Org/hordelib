@@ -20,6 +20,7 @@ from horde_model_reference import (
 )
 from horde_model_reference.model_reference_manager import ModelReferenceManager
 from horde_model_reference.model_reference_records import GenericModelRecord
+from horde_model_reference.source_consts import SourceSelector
 from loguru import logger
 
 from hordelib.beta_models import beta_source_for
@@ -194,7 +195,7 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
         ref_manager = ModelReferenceManager.get_instance()
         pydantic_records = ref_manager.get_model_reference_or_none(
             self._model_category,
-            source=beta_source_for(self._model_category, ref_manager),
+            source=self._reference_source(ref_manager),
         )
         if pydantic_records is None:
             raise RuntimeError(
@@ -213,6 +214,15 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
             len(self.available_models),
             self.models_db_name,
         )
+
+    def _reference_source(self, ref_manager: ModelReferenceManager) -> SourceSelector:
+        """Return the source selector this manager loads its reference from.
+
+        Defaults to the beta-aware selector (pending/beta records override canonical for opted-in
+        categories, canonical only otherwise). A manager whose records are served exclusively by a
+        registered provider rather than canonical data overrides this to name that provider's source.
+        """
+        return beta_source_for(self._model_category, ref_manager)
 
     def download_model_reference(self) -> dict:
         raise NotImplementedError("Downloading model databases is no longer supported within hordelib.")

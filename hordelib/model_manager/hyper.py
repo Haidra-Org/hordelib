@@ -14,6 +14,7 @@ from hordelib.model_manager.base import BaseModelManager
 from hordelib.model_manager.codeformer import CodeFormerModelManager
 from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.controlnet import ControlNetModelManager
+from hordelib.model_manager.controlnet_annotator import ControlNetAnnotatorModelManager
 from hordelib.model_manager.esrgan import EsrganModelManager
 from hordelib.model_manager.gfpgan import GfpganModelManager
 from hordelib.model_manager.lora import LoraModelManager
@@ -25,6 +26,7 @@ MODEL_MANAGERS_TYPE_LOOKUP: dict[MODEL_REFERENCE_CATEGORY | str, type[BaseModelM
     MODEL_REFERENCE_CATEGORY.codeformer: CodeFormerModelManager,
     MODEL_REFERENCE_CATEGORY.image_generation: CompVisModelManager,
     MODEL_REFERENCE_CATEGORY.controlnet: ControlNetModelManager,
+    MODEL_REFERENCE_CATEGORY.controlnet_annotator: ControlNetAnnotatorModelManager,
     MODEL_REFERENCE_CATEGORY.esrgan: EsrganModelManager,
     MODEL_REFERENCE_CATEGORY.gfpgan: GfpganModelManager,
     MODEL_REFERENCE_CATEGORY.safety_checker: SafetyCheckerModelManager,
@@ -87,6 +89,12 @@ class ModelManager:
         """The ControlNet model manager instance. Returns `None` if not loaded."""
         found_mm = self.get_model_manager_instance(ControlNetModelManager)
         return found_mm if isinstance(found_mm, ControlNetModelManager) else None
+
+    @property
+    def controlnet_annotator(self) -> ControlNetAnnotatorModelManager | None:
+        """The ControlNet annotator model manager instance. Returns `None` if not loaded."""
+        found_mm = self.get_model_manager_instance(ControlNetAnnotatorModelManager)
+        return found_mm if isinstance(found_mm, ControlNetAnnotatorModelManager) else None
 
     @property
     def esrgan(self) -> EsrganModelManager | None:

@@ -126,10 +126,12 @@ class SharedModelManager:
             logger.exception("Failed to initialize model reference manager")
             raise RuntimeError("Failed to initialize model reference manager") from e
 
-        # Register the pending/beta provider before constructing managers: each manager
-        # loads its database in __init__, and beta_source_for only selects the provider
-        # when it is already registered.
+        # Register the pending/beta and annotator providers before constructing managers: each manager
+        # loads its database in __init__, so a manager whose records come from a provider (the annotator
+        # manager reads the comfyui_controlnet_aux source) needs that provider already registered, and
+        # beta_source_for only selects the pending provider when it is already registered.
         cls._register_pending_provider()
+        cls._register_annotator_provider()
 
         cls.manager.init_model_managers(
             managers_to_load,
@@ -138,7 +140,6 @@ class SharedModelManager:
         )
 
         cls._register_civitai_provider()
-        cls._register_annotator_provider()
 
     @classmethod
     def _register_annotator_provider(cls) -> None:
