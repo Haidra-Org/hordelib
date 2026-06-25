@@ -189,6 +189,14 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     """The poll interval while waiting on the download queue/threads, in seconds."""
     FUZZ_THRESHOLD: int = 90
     """The minimum fuzzy-match ratio for a name to be accepted as a reference key."""
+    NEGATIVE_CACHE_TTL: float = 600 if not TESTS_ONGOING else 1
+    """How long (seconds) a version that returned a terminal 404/auth failure is remembered and
+    skipped, so repeated jobs requesting a dead model don't each re-spend the full retry budget.
+    Deliberately short: the cache is in-memory only (clears on restart) and expires so a model
+    that CivitAI later restores self-heals."""
+    NOTFOUND_CONFIRM_DELAY: float = 1 if not TESTS_ONGOING else 0.05
+    """The delay before the single confirm retry of a download-endpoint 404, which absorbs a brief
+    CivitAI CDN gap for a just-published or still-propagating file before giving up."""
 
     def __init__(
         self,
@@ -245,6 +253,10 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         self._index_ids: dict[int, str] = {}
         self._index_orig_names: dict[str, str] = {}
         self.total_retries_attempted = 0
+        # Versions that returned a terminal download failure (404/auth), keyed to a monotonic
+        # expiry; guarded by _download_mutex. Lets repeat jobs skip a dead model instantly instead
+        # of each re-spending the full retry budget (the gotomaki_jp_idol-style multi-minute stall).
+        self._known_bad_versions: dict[str, float] = {}
 
         self._init_metrics()
 
@@ -505,6 +517,35 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
             ),
         )
 
+    def _download_cache_key(self, record: RecordT, target: DownloadTarget | None) -> str:
+        """Stable negative-cache identifier for a download.
+
+        Uses the version id for multi-version (LoRA) records and falls back to the record name for
+        single-version (TI) records, so both the skip-check and the failure-marking agree on a key.
+        """
+        if target is not None and target.version_key:
+            return target.version_key
+        return record.name
+
+    def _mark_version_bad(self, key: str) -> None:
+        """Remember *key* as terminally unfetchable until :attr:`NEGATIVE_CACHE_TTL` elapses."""
+        with self._download_mutex:
+            self._known_bad_versions[key] = time.monotonic() + self.NEGATIVE_CACHE_TTL
+
+    def _is_version_bad(self, key: str) -> bool:
+        """Whether *key* is in the negative cache and still within its TTL.
+
+        Expired entries are pruned on access so the cache cannot grow without bound.
+        """
+        with self._download_mutex:
+            expiry = self._known_bad_versions.get(key)
+            if expiry is None:
+                return False
+            if time.monotonic() >= expiry:
+                del self._known_bad_versions[key]
+                return False
+            return True
+
     def _process_download(self, queued: _QueuedDownload, thread_logger) -> None:
         """Download a single queued record's weight file, retrying transient failures."""
         record = queued.record
@@ -512,10 +553,24 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
 
         overall_start = time.perf_counter()
         retries = 0
+        notfound_attempts = 0
+        cache_key = record.name  # Refined to the version id once the target is prepared.
         while retries <= self.MAX_RETRIES:
             try:
                 target = self._prepare_download(record)
                 if target is None:
+                    return
+
+                cache_key = self._download_cache_key(record, target)
+                if self._is_version_bad(cache_key):
+                    download_logger.info("adhoc.download_skipped_known_bad", version=cache_key)
+                    self._record_download_event(
+                        record,
+                        success=False,
+                        size_bytes=0,
+                        duration_seconds=time.perf_counter() - overall_start,
+                        retries=retries,
+                    )
                     return
                 filepath = os.path.join(self.model_folder_path, target.filename)
                 hashpath = f"{os.path.splitext(filepath)[0]}.sha256"
@@ -558,6 +613,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 response.raise_for_status()
                 if "reason=download-auth" in response.url:
                     download_logger.error("adhoc.download_auth_redirect", response_url=response.url)
+                    self._mark_version_bad(cache_key)
                     self._record_download_event(
                         record,
                         success=False,
@@ -616,6 +672,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 status_code = getattr(getattr(net_error, "response", None), "status_code", None)
                 download_logger.warning("adhoc.download_network_error", error_type=error_type, status_code=status_code)
                 if isinstance(net_error, requests.HTTPError) and status_code in (401, 403):
+                    self._mark_version_bad(cache_key)
                     self._record_download_event(
                         record,
                         success=False,
@@ -624,6 +681,25 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                         retries=retries,
                     )
                     return
+                if isinstance(net_error, requests.HTTPError) and status_code == 404:
+                    # A 404 on the signed download URL is deterministic: the file (or its
+                    # token-scoped resource) is gone and the identical URL will not heal. Retrying the
+                    # full ladder only burns ~MAX_RETRIES*RETRY_DELAY seconds while the job blocks in
+                    # download_aux_models. Allow a single quick confirm retry to absorb a brief CDN
+                    # propagation gap, then give up and remember the version so later jobs skip it.
+                    notfound_attempts += 1
+                    if notfound_attempts > 1:
+                        self._mark_version_bad(cache_key)
+                        self._record_download_event(
+                            record,
+                            success=False,
+                            size_bytes=0,
+                            duration_seconds=time.perf_counter() - overall_start,
+                            retries=retries,
+                        )
+                        return
+                    time.sleep(self.NOTFOUND_CONFIRM_DELAY)
+                    continue
             except OSError as disk_error:
                 if disk_error.errno in _TERMINAL_DISK_ERRNOS:
                     # A full / read-only / over-quota disk will not heal between attempts, so retrying only

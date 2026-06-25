@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import builtins
 import errno
+import threading
 import time
 from types import SimpleNamespace
 from typing import Any
@@ -29,6 +30,9 @@ def _bare_manager(tmp_path: Any, target: DownloadTarget | None) -> LoraModelMana
     manager._civitai_api_token = None
     manager.total_retries_attempted = 0
     manager.stop_downloading = False
+    manager.min_free_disk_mb = 0
+    manager._download_mutex = threading.Lock()
+    manager._known_bad_versions = {}
     manager._prepare_download = Mock(return_value=target)  # pyrefly: ignore
     manager._existing_file_matches = Mock(return_value=False)  # pyrefly: ignore
     manager.is_model_url_from_civitai = Mock(return_value=False)  # pyrefly: ignore
@@ -139,3 +143,124 @@ def test_wait_for_downloads_none_timeout_waits_then_returns(monkeypatch: pytest.
     manager.wait_for_downloads(None)  # must not raise
 
     assert calls["n"] >= 3
+
+
+def _http_error(status_code: int) -> civitai_adhoc.requests.HTTPError:
+    """Build an ``HTTPError`` whose ``.response.status_code`` the handler inspects."""
+    error = civitai_adhoc.requests.HTTPError(f"{status_code}")
+    error.response = SimpleNamespace(status_code=status_code)  # type: ignore[assignment]
+    return error
+
+
+def test_download_404_is_terminal_after_one_confirm_retry(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A 404 on the signed download URL must fail fast (one confirm retry) and remember the version.
+
+    The buggy path treated a deterministic download-endpoint 404 like a transient error and burned the
+    full ``MAX_RETRIES`` ladder (~33s of sleeping) while the job blocked in ``download_aux_models``,
+    repeating that waste on every later job that requested the same dead model.
+    """
+    target = DownloadTarget(
+        filename="dead.safetensors",
+        url="http://example/dead",
+        size_mb=1,
+        sha256=None,
+        version_key="299617",
+    )
+    manager = _bare_manager(tmp_path, target)
+    manager.NOTFOUND_CONFIRM_DELAY = 0.0
+
+    get_calls = {"n": 0}
+
+    def _raise_404() -> None:
+        raise _http_error(404)
+
+    def _fake_get(url: str, timeout: float | None = None) -> Any:
+        get_calls["n"] += 1
+        return SimpleNamespace(content=b"", url=url, raise_for_status=_raise_404)
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    record = SimpleNamespace(name="dead lora")
+    manager._process_download(_QueuedDownload(record=record), civitai_adhoc.logger.bind(manager="lora"))
+
+    assert get_calls["n"] == 2, "a download 404 should get exactly one confirm retry, not the full ladder"
+    manager._record_download_event.assert_called_once()  # pyrefly: ignore
+    assert manager._record_download_event.call_args.kwargs["success"] is False  # pyrefly: ignore
+    assert manager._is_version_bad("299617"), "the dead version must be remembered for later jobs"
+
+
+def test_known_bad_version_is_skipped_without_network(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A version already in the negative cache must be skipped before any network call."""
+    target = DownloadTarget(
+        filename="dead.safetensors",
+        url="http://example/dead",
+        size_mb=1,
+        sha256=None,
+        version_key="299617",
+    )
+    manager = _bare_manager(tmp_path, target)
+    manager._mark_version_bad("299617")
+
+    get_calls = {"n": 0}
+
+    def _fake_get(url: str, timeout: float | None = None) -> Any:
+        get_calls["n"] += 1
+        return SimpleNamespace(content=b"", url=url, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    record = SimpleNamespace(name="dead lora")
+    manager._process_download(_QueuedDownload(record=record), civitai_adhoc.logger.bind(manager="lora"))
+
+    assert get_calls["n"] == 0, "a known-bad version must be skipped before any network call"
+    manager._record_download_event.assert_called_once()  # pyrefly: ignore
+    assert manager._record_download_event.call_args.kwargs["success"] is False  # pyrefly: ignore
+
+
+def test_negative_cache_expires_and_prunes(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A negative-cache entry must expire after its TTL (so a restored model self-heals) and be pruned."""
+    manager = object.__new__(LoraModelManager)
+    manager._download_mutex = threading.Lock()
+    manager._known_bad_versions = {}
+    manager.NEGATIVE_CACHE_TTL = 10
+
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(civitai_adhoc.time, "monotonic", lambda: clock["t"])
+
+    manager._mark_version_bad("299617")
+    assert manager._is_version_bad("299617") is True
+
+    clock["t"] += 11  # advance past the TTL
+    assert manager._is_version_bad("299617") is False
+    assert "299617" not in manager._known_bad_versions, "an expired entry must be pruned on access"
+
+
+def test_read_timeout_still_retries_and_is_not_cached(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A transient ReadTimeout must keep its full retry budget and must not poison the negative cache."""
+    target = DownloadTarget(
+        filename="slow.safetensors",
+        url="http://example/slow",
+        size_mb=1,
+        sha256=None,
+        version_key="2493924",
+    )
+    manager = _bare_manager(tmp_path, target)
+    manager.RETRY_DELAY = 0.0
+
+    get_calls = {"n": 0}
+
+    def _fake_get(url: str, timeout: float | None = None) -> Any:
+        get_calls["n"] += 1
+        if get_calls["n"] == 1:
+            raise civitai_adhoc.requests.exceptions.ReadTimeout("read timed out")
+        return SimpleNamespace(content=b"weights", url=url, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    record = SimpleNamespace(name="slow lora")
+    manager._process_download(_QueuedDownload(record=record), civitai_adhoc.logger.bind(manager="lora"))
+
+    assert get_calls["n"] == 2, "a transient ReadTimeout must be retried, then succeed"
+    assert not manager._is_version_bad("2493924"), "a transient failure must not poison the negative cache"
+    manager._record_download_event.assert_called_once()  # pyrefly: ignore
+    assert manager._record_download_event.call_args.kwargs["success"] is True  # pyrefly: ignore
