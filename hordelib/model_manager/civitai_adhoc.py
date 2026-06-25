@@ -149,6 +149,12 @@ class _QueuedDownload[R]:
 
     record: R
     context: dict = field(default_factory=dict)
+    generation: int = 0
+    """The cancellation generation this download was enqueued under.
+
+    A worker thread abandons an in-flight or queued download once the manager's current generation has
+    moved past the value stamped here (see :meth:`CivitaiAdhocModelManager.cancel_active_downloads`),
+    so a caller that has given up on a job can free the shared pool without killing its threads."""
 
 
 class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
@@ -250,6 +256,11 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         self.nsfw = True
         self._adhoc_reset_thread: threading.Thread | None = None
         self._stop_all_threads = False
+        # Monotonic cancellation generation. cancel_active_downloads() bumps it; an in-flight or queued
+        # download whose stamped generation has fallen behind is abandoned at its next retry boundary,
+        # freeing the (shared, daemon) pool for the next job without tearing the threads down. Guarded by
+        # _download_mutex for writes; read locklessly in the worker loop (a plain int read is atomic).
+        self._download_generation = 0
         self._index_ids: dict[int, str] = {}
         self._index_orig_names: dict[str, str] = {}
         self.total_retries_attempted = 0
@@ -466,7 +477,9 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                     worker.start()
                 self._metric_active_threads.set(len(self._download_threads))
 
-            self._download_queue.append(_QueuedDownload(record=record, context=context or {}))
+            self._download_queue.append(
+                _QueuedDownload(record=record, context=context or {}, generation=self._download_generation),
+            )
             self._metric_queue_size.set(len(self._download_queue))
 
     def _download_thread(self, thread_number: int) -> None:
@@ -556,6 +569,20 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         notfound_attempts = 0
         cache_key = record.name  # Refined to the version id once the target is prepared.
         while retries <= self.MAX_RETRIES:
+            # Abandon a download whose job has been cancelled (the caller gave up and freed the slot): a
+            # single-shot requests.get cannot be interrupted mid-transfer, but checking here bails before
+            # the next attempt or retry sleep, so a wedged retry ladder stops within ~one request timeout
+            # and the shared pool is free for the next job instead of pinning a thread on dead work.
+            if queued.generation != self._download_generation:
+                download_logger.info("adhoc.download_cancelled", retries=retries)
+                self._record_download_event(
+                    record,
+                    success=False,
+                    size_bytes=0,
+                    duration_seconds=time.perf_counter() - overall_start,
+                    retries=retries,
+                )
+                return
             try:
                 target = self._prepare_download(record)
                 if target is None:
@@ -806,6 +833,24 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     def stop_all(self) -> None:
         """Signal all worker threads to stop at their next iteration."""
         self._stop_all_threads = True
+
+    def cancel_active_downloads(self) -> None:
+        """Abandon all queued and in-flight downloads, leaving the worker pool alive for the next job.
+
+        Unlike :meth:`stop_all` (which permanently shuts the pool down), this bumps the cancellation
+        generation and clears the pending queue: any download already running abandons itself at its next
+        retry boundary, and nothing new is pre-empted. A caller that has given up on a job (e.g. its aux
+        downloads blew a deadline) uses this to stop pinning shared download threads on dead work so the
+        next job's downloads are not stuck behind it. Idempotent; the pool resumes normally on the next
+        :meth:`_enqueue_download`, which stamps the new generation.
+        """
+        with self._download_mutex:
+            self._download_generation += 1
+            cancelled = len(self._download_queue)
+            self._download_queue.clear()
+            self._metric_queue_size.set(0)
+        if cancelled:
+            logger.bind(manager=self.METRIC_PREFIX).info("adhoc.downloads_cancelled", queued_dropped=cancelled)
 
     # ------------------------------------------------------------------
     # Cache accounting and eviction (generic over CacheEntry)

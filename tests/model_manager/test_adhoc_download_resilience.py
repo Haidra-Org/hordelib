@@ -33,6 +33,7 @@ def _bare_manager(tmp_path: Any, target: DownloadTarget | None) -> LoraModelMana
     manager.min_free_disk_mb = 0
     manager._download_mutex = threading.Lock()
     manager._known_bad_versions = {}
+    manager._download_generation = 0
     manager._prepare_download = Mock(return_value=target)  # pyrefly: ignore
     manager._existing_file_matches = Mock(return_value=False)  # pyrefly: ignore
     manager.is_model_url_from_civitai = Mock(return_value=False)  # pyrefly: ignore
@@ -233,6 +234,82 @@ def test_negative_cache_expires_and_prunes(monkeypatch: pytest.MonkeyPatch) -> N
     clock["t"] += 11  # advance past the TTL
     assert manager._is_version_bad("299617") is False
     assert "299617" not in manager._known_bad_versions, "an expired entry must be pruned on access"
+
+
+def test_cancel_mid_retry_ladder_stops_further_attempts(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A download whose job is cancelled mid-retry must abandon the ladder, not pin the thread.
+
+    This is what frees the shared pool when a caller gives up on a stalled aux download: without it the
+    ReadTimeout ladder burns its full ``MAX_RETRIES`` budget while the next job waits behind it.
+    """
+    target = DownloadTarget(
+        filename="slow.safetensors",
+        url="http://example/slow",
+        size_mb=1,
+        sha256=None,
+        version_key="555",
+    )
+    manager = _bare_manager(tmp_path, target)
+    manager.RETRY_DELAY = 0.0
+
+    get_calls = {"n": 0}
+
+    def _fake_get(url: str, timeout: float | None = None) -> Any:
+        get_calls["n"] += 1
+        # Simulate a concurrent cancel_active_downloads() landing after the second attempt.
+        if get_calls["n"] == 2:
+            manager._download_generation += 1
+        raise civitai_adhoc.requests.exceptions.ReadTimeout("read timed out")
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    record = SimpleNamespace(name="slow lora")
+    manager._process_download(_QueuedDownload(record=record, generation=0), civitai_adhoc.logger.bind(manager="lora"))
+
+    assert get_calls["n"] == 2, "a cancelled download must stop retrying instead of exhausting the ladder"
+    assert manager._record_download_event.call_args.kwargs["success"] is False  # pyrefly: ignore
+    assert not manager._is_version_bad("555"), "a cancel is not a terminal failure and must not poison the cache"
+
+
+def test_stale_generation_download_skips_network(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A queued download already behind the current generation is abandoned before any network call."""
+    target = DownloadTarget(filename="x.safetensors", url="http://example/x", size_mb=1, sha256=None, version_key="9")
+    manager = _bare_manager(tmp_path, target)
+    manager._download_generation = 3  # a cancel happened before this record was picked up
+
+    get_calls = {"n": 0}
+
+    def _fake_get(url: str, timeout: float | None = None) -> Any:
+        get_calls["n"] += 1
+        return SimpleNamespace(content=b"weights", url=url, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    record = SimpleNamespace(name="stale lora")
+    manager._process_download(_QueuedDownload(record=record, generation=0), civitai_adhoc.logger.bind(manager="lora"))
+
+    assert get_calls["n"] == 0, "a stale-generation download must not touch the network"
+
+
+def test_cancel_active_downloads_bumps_generation_and_clears_queue() -> None:
+    """cancel_active_downloads bumps the generation and drops queued work without killing the pool."""
+    from collections import deque
+
+    manager = object.__new__(LoraModelManager)
+    manager._download_mutex = threading.Lock()
+    manager._download_generation = 0
+    manager._stop_all_threads = False
+    manager._download_queue = deque(
+        [_QueuedDownload(record=SimpleNamespace(name="a"), generation=0)],
+    )
+    manager._metric_queue_size = Mock()  # pyrefly: ignore
+    manager.METRIC_PREFIX = "lora"
+
+    manager.cancel_active_downloads()
+
+    assert manager._download_generation == 1
+    assert len(manager._download_queue) == 0
+    assert manager._stop_all_threads is False, "cancel must not permanently shut the pool down"
 
 
 def test_read_timeout_still_retries_and_is_not_cached(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
