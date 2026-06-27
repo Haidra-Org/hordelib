@@ -69,7 +69,7 @@ def test_consumer_called_signatures() -> None:
         return set(inspect.signature(func).parameters)
 
     assert {"comfyui_callback", "aggressive_unloading"} <= params(api.HordeLib.__init__)
-    assert {"payload", "progress_callback"} <= params(api.HordeLib.basic_inference)
+    assert {"payload", "progress_callback", "defer_vram_unload"} <= params(api.HordeLib.basic_inference)
     assert {"horde_model_name", "will_load_loras", "seamless_tiling_enabled"} <= params(api.HordeLib.preload_model)
     assert {"payload"} <= params(api.HordeLib.post_process)
 

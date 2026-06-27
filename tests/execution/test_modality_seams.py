@@ -22,6 +22,7 @@ class _FakeAudioBackend:
         graph: dict[str, Any],
         *,
         progress_callback: ProgressCallback | None = None,
+        defer_vram_unload: bool = False,
     ) -> list[OutputArtifact]:
         return [OutputArtifact(data=io.BytesIO(b"fLaC..."), mime_type="audio/flac", metadata={"duration_s": 4.2})]
 
