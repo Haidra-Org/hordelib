@@ -201,6 +201,7 @@ class HordeLib:
         *,
         single_image_expected: bool = True,
         comfyui_progress_callback: Callable[[ComfyUIProgress, str], None] | None = None,
+        defer_vram_unload: bool = False,
     ) -> list[ResultingImageReturn] | ResultingImageReturn:
         start_time = time.time()
 
@@ -236,6 +237,7 @@ class HordeLib:
         artifacts = self.backend.run_pipeline(
             graph.to_api_dict(),
             progress_callback=comfyui_progress_callback,
+            defer_vram_unload=defer_vram_unload,
         )
 
         ret_results = []
@@ -266,6 +268,7 @@ class HordeLib:
         payload: dict | ImageGenerateJobPopResponse,
         *,
         progress_callback: Callable[[ProgressReport], None] | None = None,
+        defer_vram_unload: bool = False,
     ) -> list[ResultingImageReturn]:
         post_processing_requested: list[str] | None = None
         if isinstance(payload, dict):
@@ -447,6 +450,7 @@ class HordeLib:
             payload,
             single_image_expected=False,
             comfyui_progress_callback=_default_progress_callback,
+            defer_vram_unload=defer_vram_unload,
         )
 
         if not isinstance(result, list):

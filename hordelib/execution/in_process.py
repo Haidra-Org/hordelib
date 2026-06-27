@@ -87,11 +87,17 @@ class InProcessComfyBackend:
         graph: dict[str, Any],
         *,
         progress_callback: ProgressCallback | None = None,
+        defer_vram_unload: bool = False,
     ) -> list[OutputArtifact]:
         self._ensure_started()
         assert self._comfy is not None
 
-        results = self._comfy.run_image_pipeline(graph, {}, progress_callback)
+        results = self._comfy.run_image_pipeline(
+            graph,
+            {},
+            progress_callback,
+            defer_vram_unload=defer_vram_unload,
+        )
         return self._to_artifacts(results)
 
     @staticmethod

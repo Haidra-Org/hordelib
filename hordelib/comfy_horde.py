@@ -1015,6 +1015,8 @@ class Comfy_Horde:
         pipeline: GraphDict,
         params: dict[str, typing.Any],
         comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
+        *,
+        defer_vram_unload: bool = False,
     ) -> list[dict[str, typing.Any]] | None:
         start_time = time.time()
         _t0 = time.perf_counter()
@@ -1134,7 +1136,12 @@ class Comfy_Horde:
                 _execute_seconds = _t_post_execute - _t_pre_execute
                 if use_native_progress:
                     set_run_progress_callback(None)
-                if self.aggressive_unloading:
+                # ``aggressive_unloading`` evicts the just-used model from VRAM after every job so N
+                # sibling ComfyUI instances sharing one GPU never collectively over-commit. ``defer_vram_unload``
+                # lets the host keep the model resident across this job when it knows the same model runs next
+                # and the VRAM budget allows it, so the back-to-back force-reload (the dominant non-sampling cost
+                # on small jobs) is skipped. The host owns the safety decision; here we only honor it.
+                if self.aggressive_unloading and not defer_vram_unload:
                     global _comfy_cleanup_models
                     logger.debug("Cleaning up models")
                     with logfire.span("comfy.cleanup"):
@@ -1191,6 +1198,8 @@ class Comfy_Horde:
         pipeline: GraphDict,
         params: dict[str, typing.Any],
         comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
+        *,
+        defer_vram_unload: bool = False,
     ) -> list[dict[str, typing.Any]]:
         # From the horde point of view, let us assume the output we are interested in
         # is always in a HordeImageOutput node named "output_image". This is an array of
@@ -1219,7 +1228,7 @@ class Comfy_Horde:
             if idle_time > 1 and UserSettings.enable_idle_time_warning.active:
                 logger.warning("No job ran recently", idle_seconds=round(idle_time, 3))
 
-        result = self._run_pipeline(pipeline, params, comfyui_progress_callback)
+        result = self._run_pipeline(pipeline, params, comfyui_progress_callback, defer_vram_unload=defer_vram_unload)
 
         if result:
             return result

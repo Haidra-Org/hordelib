@@ -59,12 +59,17 @@ class ExecutionBackend(Protocol):
         graph: dict[str, Any],
         *,
         progress_callback: ProgressCallback | None = None,
+        defer_vram_unload: bool = False,
     ) -> list[OutputArtifact]:
         """Execute a fully materialized API-format graph and return its outputs.
 
         Args:
             graph: The pipeline graph in ComfyUI API format, with all parameters already set.
             progress_callback: Optionally called with progress updates during execution.
+            defer_vram_unload: When True, keep the model resident in VRAM after this run instead of
+                evicting it, so a following job that reuses it skips the RAM->VRAM reload. The caller
+                owns the VRAM-safety decision (it must know the model fits alongside the live set);
+                backends that never evict between runs ignore this. Defaults to False.
 
         Returns:
             list[OutputArtifact]: The outputs produced by the run.
