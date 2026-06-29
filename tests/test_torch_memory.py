@@ -20,6 +20,7 @@ from hordelib.utils.torch_memory import (
     get_torch_device_free_vram_mb,
     get_torch_free_vram_mb,
     get_torch_total_vram_mb,
+    torch_build_is_cpu_only,
 )
 
 _MB = 1024 * 1024
@@ -113,6 +114,37 @@ def test_comfy_path_maps_non_cuda_device_kinds(monkeypatch: pytest.MonkeyPatch) 
     kinds = [a.kind for a in enumerate_accelerators()]
 
     assert kinds == [AcceleratorKind.mps, AcceleratorKind.xpu]
+
+
+def _set_torch_version(monkeypatch: pytest.MonkeyPatch, *, cuda: str | None, hip: str | None) -> None:
+    """Force torch.version.cuda / .hip to the given values for a build-detection test."""
+    import torch
+
+    monkeypatch.setattr(torch.version, "cuda", cuda, raising=False)
+    monkeypatch.setattr(torch.version, "hip", hip, raising=False)
+
+
+def test_cpu_only_build_detected(monkeypatch: pytest.MonkeyPatch, cpu_only_torch: None) -> None:
+    # A genuine CPU wheel reports no CUDA/HIP version and exposes no XPU/MPS device.
+    _set_torch_version(monkeypatch, cuda=None, hip=None)
+    assert torch_build_is_cpu_only() is True
+
+
+def test_cuda_build_is_not_cpu_only_even_when_device_masked(
+    monkeypatch: pytest.MonkeyPatch,
+    cpu_only_torch: None,
+) -> None:
+    # A CUDA build whose GPU is merely masked (is_available() False) must NOT be treated as CPU-only:
+    # that is a misconfigured GPU, not an intentional CPU install, and forcing --cpu would silently
+    # mask the problem with a 100x-slower run.
+    _set_torch_version(monkeypatch, cuda="13.2", hip=None)
+    assert torch_build_is_cpu_only() is False
+
+
+def test_rocm_build_is_not_cpu_only(monkeypatch: pytest.MonkeyPatch, cpu_only_torch: None) -> None:
+    # ROCm presents through torch.cuda and sets both version.cuda and version.hip.
+    _set_torch_version(monkeypatch, cuda="12.0", hip="6.2.0")
+    assert torch_build_is_cpu_only() is False
 
 
 def test_device_free_vram_excludes_comfy_reclaimable_cache(monkeypatch: pytest.MonkeyPatch) -> None:

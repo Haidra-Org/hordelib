@@ -91,6 +91,42 @@ def _active_torch_kind() -> AcceleratorKind:
     return AcceleratorKind.cpu
 
 
+def torch_build_is_cpu_only() -> bool:
+    """Return whether the installed torch wheel has no GPU backend compiled in at all.
+
+    This is deliberately stricter than ``_active_torch_kind() is AcceleratorKind.cpu``: that returns
+    ``cpu`` whenever no usable device is *found at runtime* (which also happens for a CUDA/ROCm build
+    whose GPU is merely masked or has a broken driver), and it does not know about the NPU/MLU/DirectML
+    backends ComfyUI can still drive. The distinction matters because ComfyUI's ``cpu_state`` defaults to
+    GPU and only flips to CPU on the ``--cpu`` flag (never from ``torch.cuda.is_available()`` being
+    ``False``); telling it to use CPU is correct only when the build genuinely cannot reach any
+    accelerator. A CPU-only wheel reports no CUDA/HIP version and exposes no XPU/MPS/NPU/MLU backend, so
+    that is what is checked here.
+
+    Returns ``False`` on any probe error, so an unexpected torch shape never forces CPU mode onto a box
+    that may actually have a GPU.
+    """
+    try:
+        import torch
+
+        if getattr(torch.version, "cuda", None) is not None:
+            return False  # CUDA or ROCm build (ROCm also sets version.cuda); a masked GPU is not CPU-only.
+        if getattr(torch.version, "hip", None) is not None:
+            return False
+        if hasattr(torch, "xpu") and torch.xpu.is_available():
+            return False
+        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            return False
+        if getattr(torch, "npu", None) is not None and torch.npu.is_available():
+            return False
+        if getattr(torch, "mlu", None) is not None and torch.mlu.is_available():
+            return False
+    except Exception as e:
+        logger.debug(f"Could not determine whether torch is a CPU-only build; assuming not: {e}")
+        return False
+    return True
+
+
 def _torch_fallback_vram_bytes(*, free: bool) -> int:
     """Total or free device memory of the active torch backend, in bytes (0 on failure).
 

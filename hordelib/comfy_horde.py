@@ -262,6 +262,20 @@ def do_comfy_import(
         # is nothing to force anymore.
         logger.info("Normal vram mode requested (ComfyUI default; no flag needed)")
 
+    # A CPU-only torch build cannot reach any accelerator, but ComfyUI's cpu_state defaults to GPU and
+    # only flips to CPU on the --cpu flag (never from torch.cuda.is_available() being False). Without
+    # --cpu it takes the CUDA branch in get_torch_device() and dies with "No CUDA GPUs are available"
+    # during hordelib's startup VRAM probe. Inject the flag here, the single point every entry path
+    # (initialise() and direct do_comfy_import callers) funnels through.
+    from hordelib.utils.torch_memory import torch_build_is_cpu_only
+
+    if torch_build_is_cpu_only():
+        if extra_comfyui_args is None:
+            extra_comfyui_args = ["--cpu"]
+        elif "--cpu" not in extra_comfyui_args:
+            extra_comfyui_args = [*extra_comfyui_args, "--cpu"]
+        logger.info("CPU-only torch build detected; starting ComfyUI in CPU mode (--cpu).")
+
     if extra_comfyui_args is not None:
         sys.argv.extend(extra_comfyui_args)
 
