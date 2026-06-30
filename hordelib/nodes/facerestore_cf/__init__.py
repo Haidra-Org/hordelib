@@ -321,6 +321,18 @@ class FaceRestoreModelLoader:
             codeformer_net.load_state_dict(checkpoint)
             out = codeformer_net.eval()
             return (out,)
+        elif "restoreformer" in model_name.lower():
+            # RestoreFormer is a VQGAN/transformer face restorer, not the GFPGAN StyleGAN2 arch, so
+            # the bespoke r_chainner loader (which only recognizes GFPGAN) can't detect it. spandrel's
+            # core registry does. Its underlying module shares this node's call convention, taking a
+            # [-1, 1] tensor and returning ``(image, None)`` while swallowing the unused ``w`` kwarg,
+            # so the restore loop below drives it unchanged.
+            from spandrel import ModelLoader
+
+            print(f"\tLoading RestoreFormer: {model_name}")
+            model_path = folder_paths.get_full_path("facerestore_models", model_name)
+            out = ModelLoader().load_from_file(model_path).model.eval()
+            return (out,)
         else:
             model_path = folder_paths.get_full_path("facerestore_models", model_name)
             sd = comfy.utils.load_torch_file(model_path, safe_load=True)
