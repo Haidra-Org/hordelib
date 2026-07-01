@@ -135,7 +135,7 @@ The v3 refactor replaced the legacy dict-heavy pipeline machinery with a typed, 
 |---|---|---|
 | **Public API** | `hordelib/api.py` | Declared consumer surface. Workers import from here only. |
 | **Bootstrap** | `hordelib/initialisation.py` | `initialise()` -- manifest installer, path patching, ComfyUI import, monkeypatches. |
-| **Typed pipeline** | `hordelib/pipeline/` | `ImageGenPayload` (pydantic, clamp-dont-reject), `PipelineTemplate`/`ParamBinding`, priority-ordered `PipelineRegistry`, pure graph patch functions, IO/model resolution. All GPU-free and unit-tested. |
+| **Typed pipeline** | `hordelib/pipeline/` | `ImageGenPayload` (pydantic, clamp-dont-reject), `PipelineDefinition`/`ParamBinding`/`Selector`, tier-ordered `PipelineRegistry` with registration audits, pure graph patch functions, IO/model resolution. All GPU-free and unit-tested. |
 | **Execution bridge** | `hordelib/execution/` | `ExecutionBackend` protocol, in-process ComfyUI backend, VRAM monkeypatches, pure graph utilities. |
 | **Environment manifest** | `hordelib/installation/` | `manifest.json` pins ComfyUI commit + external custom nodes. `EnvironmentInstaller` checks out/clones idempotently. |
 | **ComfyUI bridge** | `hordelib/comfy_horde.py` | `Comfy_Horde` -- the actual ComfyUI process. `do_comfy_import()` applies monkeypatches. |
@@ -149,7 +149,7 @@ The v3 refactor replaced the legacy dict-heavy pipeline machinery with a typed, 
 ```
 dict payload --> normalize (horde_compat) --> ImageGenPayload
   --> resolve_context (model files, loras, TIs)
-  --> registry.select (predicate + priority --> PipelineTemplate)
+  --> registry.select (Selector tier + criteria --> PipelineDefinition)
   --> materialize (bindings + patch steps --> ComfyGraph)
   --> backend.run_pipeline --> ResultingImageReturn
 ```
@@ -160,7 +160,7 @@ dict payload --> normalize (horde_compat) --> ImageGenPayload
 - **Public API only.** Consumers import from `hordelib.api`. Anything not re-exported there is internal and may change without notice. Enforced by `tests/meta/test_public_api_contract.py`.
 - **Clamp, don't reject.** Payload validation coerces bad values to defaults rather than raising -- the Horde contract requires tolerance.
 - **Node titles are the parameter namespace.** A KSampler titled `sampler` produces dotted parameters `sampler.cfg`, `sampler.seed`, etc. Renaming a title silently breaks parameter mapping.
-- **Pipeline selection is registry-driven.** Predicates + explicit priorities replace the old if/elif tree. Adding a new baseline requires one family module, one template, one register call, and one inference test. See [Adding a baseline](docs/adding-a-baseline.md).
+- **Pipeline selection is registry-driven.** Declarative `Selector`s (named tiers + typed criteria) replace the old if/elif tree, and every definition is audited against its graph at registration. Adding a pipeline is one module in `hordelib/pipeline/families/image_gen/` plus one entry in `IMAGE_PIPELINES`. See [Adding a pipeline](docs/adding-a-pipeline.md) and [Adding a baseline](docs/adding-a-baseline.md).
 
 ---
 
