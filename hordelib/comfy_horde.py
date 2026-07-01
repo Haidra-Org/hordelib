@@ -32,6 +32,8 @@ from hordelib.utils.ioredirect import ComfyUIProgress, OutputCollector
 from hordelib.config_path import get_hordelib_path
 from hordelib.execution import comfy_patches
 from hordelib.execution.graph_utils import GraphDict
+from hordelib.execution.interface import DEFAULT_IMAGE_OUTPUTS, OutputSpec
+from hordelib.pipeline.graph import HORDE_NODE_REPLACEMENTS
 from hordelib.utils.torch_memory import clear_accelerator_cache
 
 # Note It may not be abundantly clear with no context what is going on below, and I will attempt to clarify:
@@ -633,6 +635,17 @@ def get_node_class(class_type: str) -> type:
     return node_class
 
 
+def _extract_graph_input(pipeline: GraphDict, node_title: str, input_name: str) -> typing.Any | None:
+    """Return a node input value from a materialized graph, or None if absent."""
+    node = pipeline.get(node_title)
+    if not isinstance(node, dict):
+        return None
+    inputs = node.get("inputs")
+    if not isinstance(inputs, dict):
+        return None
+    return inputs.get(input_name)
+
+
 # Module-level metrics for ComfyUI pipeline performance tracking
 pipeline_duration_histogram = logfire.metric_histogram(
     "comfy.pipeline.duration_ms",
@@ -644,31 +657,12 @@ pipeline_duration_histogram = logfire.metric_histogram(
 class Comfy_Horde:
     """Handles horde-specific behavior against ComfyUI."""
 
-    # We save pipelines from the ComfyUI GUI. This is very convenient as it
-    # makes it super easy to load and edit them in the future. We allow the pipeline
-    # design with standard nodes, then at runtime we dynamically replace these
-    # node types with our own where we need to. This allows easy previewing in ComfyUI
-    # which our custom nodes don't allow.
-    NODE_REPLACEMENTS = {
-        "CheckpointLoaderSimple": "HordeCheckpointLoader",
-        "UNETLoader": "HordeCheckpointLoader",
-        # "UpscaleModelLoader": "HordeUpscaleModelLoader",
-        "SaveImage": "HordeImageOutput",
-        "LoadImage": "HordeImageLoader",
-        # "DiffControlNetLoader": "HordeDiffControlNetLoader",
-        "LoraLoader": "HordeLoraLoader",
-    }
-    """A mapping of ComfyUI node types to Horde node types."""
+    NODE_REPLACEMENTS = HORDE_NODE_REPLACEMENTS
+    """ComfyUI standard node types replaced by Horde-specific implementations at graph load.
 
-    # We may wish some ComfyUI standard nodes had different names for consistency. Here
-    # we can dynamically rename some node input parameter names.
-    NODE_PARAMETER_REPLACEMENTS: dict[str, dict[str, str]] = {
-        #     "HordeCheckpointLoader": {
-        #         # We name this "model_name" as then we can use the same generic code in our model loaders
-        #         "ckpt_name": "model_name",
-        #     },
-    }
-    """A mapping of ComfyUI node types which map to a dictionary of node input parameter names to rename."""
+    The single source of truth lives in :mod:`hordelib.pipeline.graph`; this alias remains for
+    any external readers of the historical class attribute.
+    """
 
     GC_TIME = 30
     """The approximate number of seconds to force garbage collection."""
@@ -939,24 +933,34 @@ class Comfy_Horde:
             if len(images_received) == 0:
                 logger.warning("Received no output images from comfyui")
 
+            # Graphs are title-keyed (see ComfyGraph), so the executing node id in the
+            # callback *is* the node title declared by the pipeline's OutputSpec.
+            source_node = data.get("node")
+
             for image_info in images_received:
                 if not isinstance(image_info, dict):
                     logger.error("Received non dict output from comfyui: output={}", image_info)
                     continue
-                for key, value in image_info.items():
-                    if key == "imagedata" and isinstance(value, io.BytesIO):
-                        if self.images is None:
-                            self.images = []
-                        self.images.append(image_info)
-                    elif key == "type":
-                        logger.debug("Received image type: value={}", value)
-                    else:
-                        logger.error(
-                            "Received unexpected image output from comfyui",
-                            key=key,
-                            value=value,
-                        )
-            logger.debug("Received output image(s) from comfyui")
+                if not isinstance(image_info.get("imagedata"), io.BytesIO):
+                    logger.error(
+                        "Received image output without imagedata from comfyui",
+                        keys=list(image_info),
+                        source_node=source_node,
+                    )
+                    continue
+                unexpected_keys = set(image_info) - {"imagedata", "type"}
+                if unexpected_keys:
+                    logger.error(
+                        "Received unexpected image output keys from comfyui",
+                        keys=sorted(unexpected_keys),
+                        source_node=source_node,
+                    )
+                collected = dict(image_info)
+                collected["source_node"] = source_node
+                if self.images is None:
+                    self.images = []
+                self.images.append(collected)
+            logger.debug("Received output image(s) from comfyui", source_node=source_node)
         else:
             if self._comfyui_callback is not None and sid is not None:
                 self._comfyui_callback(label, data, sid)
@@ -1205,28 +1209,23 @@ class Comfy_Horde:
         log_free_ram()
         return self.images
 
-    # Run a pipeline that returns an image in pixel space
+    # Run a materialized pipeline graph and collect its declared outputs
     @logfire.instrument("comfy.run_pipeline", extract_args=False)
-    def run_image_pipeline(
+    def run_pipeline(
         self,
         pipeline: GraphDict,
         params: dict[str, typing.Any],
         comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
         *,
+        outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
         defer_vram_unload: bool = False,
     ) -> list[dict[str, typing.Any]]:
-        # From the horde point of view, let us assume the output we are interested in
-        # is always in a HordeImageOutput node named "output_image". This is an array of
-        # dicts of the form:
-        # [ {
-        #     "imagedata": <BytesIO>,
-        #     "type": "PNG"
-        #   },
-        # ]
-        # See node_image_output.py
+        # Results are collected from the declared output nodes as dicts of the form
+        # {"imagedata": <BytesIO>, "type": "PNG", "source_node": <node title>};
+        # see node_image_output.py and send_sync above.
         if not isinstance(pipeline, dict):
             raise TypeError(
-                f"run_image_pipeline expects a materialized graph dict, got {type(pipeline).__name__!r}. "
+                f"run_pipeline expects a materialized graph dict, got {type(pipeline).__name__!r}. "
                 "Named pipelines were removed; materialize a graph via the pipeline registry or "
                 "hordelib.pipeline.graph.ComfyGraph instead.",
             )
@@ -1234,6 +1233,7 @@ class Comfy_Horde:
         logger.info(
             "Pipeline starting",
             params_keys=list(params.keys()),
+            declared_outputs=[output.node for output in outputs],
         )
 
         # If no callers for a while, announce it
@@ -1244,33 +1244,49 @@ class Comfy_Horde:
 
         result = self._run_pipeline(pipeline, params, comfyui_progress_callback, defer_vram_unload=defer_vram_unload)
 
-        if result:
+        produced_nodes = {entry.get("source_node") for entry in result} if result else set()
+        missing_nodes = [output.node for output in outputs if output.node not in produced_nodes]
+
+        if result and not missing_nodes:
+            declared_nodes = {output.node for output in outputs}
+            undeclared_nodes = produced_nodes - declared_nodes
+            if undeclared_nodes:
+                # Behavior-preserving fallback: collected but flagged, so stray SaveImage-style
+                # nodes surface during the migration to declared outputs.
+                logger.warning(
+                    "Pipeline produced results from undeclared output nodes",
+                    undeclared_nodes=sorted(node for node in undeclared_nodes if node is not None),
+                    declared_nodes=sorted(declared_nodes),
+                )
             return result
 
-        # Pipeline failed - provide detailed error context
+        model_name = _extract_graph_input(pipeline, "model_loader", "horde_model_name") or "unknown"
         logger.error(
-            "Pipeline execution failed - no images produced",
+            "Pipeline execution failed - declared outputs missing",
             result_is_none=result is None,
-            result_type=type(result).__name__ if result is not None else "None",
-            params_provided=list(params.keys()),
-            param_count=len(params),
-        )
-
-        # Log the most critical params for debugging
-        model_name = params.get("model_loader.horde_model_name", "unknown")
-        steps = params.get("sampler.steps", "unknown")
-        resolution = f"{params.get('empty_latent_image.width', '?')}x{params.get('empty_latent_image.height', '?')}"
-
-        logger.error(
-            "Pipeline failed to produce images",
+            produced_count=len(result) if result else 0,
+            missing_output_nodes=missing_nodes,
             model_name=model_name,
-            steps=steps,
-            resolution=resolution,
+        )
+        raise RuntimeError(
+            f"Pipeline failed to run - declared output node(s) {missing_nodes} produced no results. "
+            f"Model: {model_name}",
         )
 
-        raise RuntimeError(
-            f"Pipeline failed to run - no images were produced. "
-            f"Model: {model_name}, Steps: {steps}, Resolution: {resolution}",
+    def run_image_pipeline(
+        self,
+        pipeline: GraphDict,
+        params: dict[str, typing.Any],
+        comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
+        *,
+        defer_vram_unload: bool = False,
+    ) -> list[dict[str, typing.Any]]:
+        """Deprecated alias for :meth:`run_pipeline` (historical image-only name)."""
+        return self.run_pipeline(
+            pipeline,
+            params,
+            comfyui_progress_callback,
+            defer_vram_unload=defer_vram_unload,
         )
 
 

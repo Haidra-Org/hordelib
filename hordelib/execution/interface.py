@@ -6,6 +6,8 @@ never import ComfyUI or anything that transitively does.
 
 import io
 from collections.abc import Callable
+from dataclasses import dataclass
+from enum import StrEnum, auto
 from typing import Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict
@@ -14,6 +16,31 @@ from hordelib.utils.ioredirect import ComfyUIProgress
 
 ProgressCallback = Callable[[ComfyUIProgress, str], None]
 """Callback invoked with progress updates and the latest output message during a pipeline run."""
+
+
+class OutputKind(StrEnum):
+    """The modality of a pipeline output."""
+
+    IMAGE = auto()
+    # Future modalities (VIDEO, AUDIO, TEXT) are added here; collection is keyed by the
+    # declared output node, so new kinds need no changes to the collection path.
+
+
+@dataclass(frozen=True)
+class OutputSpec:
+    """Declares one node a pipeline produces results from.
+
+    Pipeline definitions declare their outputs with these; the execution backend collects
+    artifacts per declared node and fails loudly (naming the node) when one produces nothing.
+    """
+
+    node: str
+    """The graph node title, e.g. ``"output_image"``."""
+    kind: OutputKind = OutputKind.IMAGE
+
+
+DEFAULT_IMAGE_OUTPUTS: tuple[OutputSpec, ...] = (OutputSpec(node="output_image"),)
+"""The historical single-image-output convention, used where no explicit declaration exists."""
 
 
 class OutputArtifact(BaseModel):
@@ -27,6 +54,9 @@ class OutputArtifact(BaseModel):
 
     data: io.BytesIO
     mime_type: str = "image/png"
+    kind: OutputKind = OutputKind.IMAGE
+    source_node: str | None = None
+    """The graph node title this artifact was collected from, when the backend knows it."""
     metadata: dict[str, Any] = {}
 
 
@@ -58,6 +88,7 @@ class ExecutionBackend(Protocol):
         self,
         graph: dict[str, Any],
         *,
+        outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
         progress_callback: ProgressCallback | None = None,
         defer_vram_unload: bool = False,
     ) -> list[OutputArtifact]:
@@ -65,6 +96,8 @@ class ExecutionBackend(Protocol):
 
         Args:
             graph: The pipeline graph in ComfyUI API format, with all parameters already set.
+            outputs: The nodes the graph is declared to produce results from. Every declared
+                node must yield at least one artifact or the run fails naming the node.
             progress_callback: Optionally called with progress updates during execution.
             defer_vram_unload: When True, keep the model resident in VRAM after this run instead of
                 evicting it, so a following job that reuses it skips the RAM->VRAM reload. The caller
@@ -72,11 +105,11 @@ class ExecutionBackend(Protocol):
                 backends that never evict between runs ignore this. Defaults to False.
 
         Returns:
-            list[OutputArtifact]: The outputs produced by the run.
+            list[OutputArtifact]: The outputs produced by the run, tagged with their source node.
 
         Raises:
-            RuntimeError: If the pipeline produced no outputs (e.g. an execution error inside
-                the ComfyUI runtime).
+            RuntimeError: If a declared output produced no artifacts (e.g. an execution error
+                inside the ComfyUI runtime).
         """
         ...
 

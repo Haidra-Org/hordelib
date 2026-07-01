@@ -10,7 +10,14 @@ from typing import Any
 
 from loguru import logger
 
-from hordelib.execution.interface import OutputArtifact, ProgressCallback, VRAMStats
+from hordelib.execution.interface import (
+    DEFAULT_IMAGE_OUTPUTS,
+    OutputArtifact,
+    OutputKind,
+    OutputSpec,
+    ProgressCallback,
+    VRAMStats,
+)
 
 
 class InProcessComfyBackend:
@@ -86,22 +93,25 @@ class InProcessComfyBackend:
         self,
         graph: dict[str, Any],
         *,
+        outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
         progress_callback: ProgressCallback | None = None,
         defer_vram_unload: bool = False,
     ) -> list[OutputArtifact]:
         self._ensure_started()
         assert self._comfy is not None
 
-        results = self._comfy.run_image_pipeline(
+        results = self._comfy.run_pipeline(
             graph,
             {},
             progress_callback,
+            outputs=outputs,
             defer_vram_unload=defer_vram_unload,
         )
-        return self._to_artifacts(results)
+        return self._to_artifacts(results, outputs)
 
     @staticmethod
-    def _to_artifacts(results: list[dict[str, Any]]) -> list[OutputArtifact]:
+    def _to_artifacts(results: list[dict[str, Any]], outputs: tuple[OutputSpec, ...]) -> list[OutputArtifact]:
+        kind_by_node = {output.node: output.kind for output in outputs}
         artifacts: list[OutputArtifact] = []
         for result in results:
             data = result.get("imagedata")
@@ -109,7 +119,17 @@ class InProcessComfyBackend:
                 logger.warning("Pipeline result entry without imagedata; skipping: keys={}", list(result))
                 continue
             mime_type = "image/png" if result.get("type", "PNG").upper() == "PNG" else "application/octet-stream"
-            artifacts.append(OutputArtifact(data=data, mime_type=mime_type))
+            source_node_raw = result.get("source_node")
+            source_node = source_node_raw if isinstance(source_node_raw, str) else None
+            artifact_kind = kind_by_node.get(source_node, OutputKind.IMAGE) if source_node else OutputKind.IMAGE
+            artifacts.append(
+                OutputArtifact(
+                    data=data,
+                    mime_type=mime_type,
+                    kind=artifact_kind,
+                    source_node=source_node,
+                ),
+            )
         return artifacts
 
     def interrupt(self) -> None:

@@ -8,7 +8,14 @@ mime-typed and the ``ExecutionBackend`` protocol is artifact-typed, not image-ty
 import io
 from typing import Any
 
-from hordelib.execution.interface import ExecutionBackend, OutputArtifact, ProgressCallback, VRAMStats
+from hordelib.execution.interface import (
+    DEFAULT_IMAGE_OUTPUTS,
+    ExecutionBackend,
+    OutputArtifact,
+    OutputSpec,
+    ProgressCallback,
+    VRAMStats,
+)
 
 
 class _FakeAudioBackend:
@@ -21,10 +28,18 @@ class _FakeAudioBackend:
         self,
         graph: dict[str, Any],
         *,
+        outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
         progress_callback: ProgressCallback | None = None,
         defer_vram_unload: bool = False,
     ) -> list[OutputArtifact]:
-        return [OutputArtifact(data=io.BytesIO(b"fLaC..."), mime_type="audio/flac", metadata={"duration_s": 4.2})]
+        return [
+            OutputArtifact(
+                data=io.BytesIO(b"fLaC..."),
+                mime_type="audio/flac",
+                source_node=outputs[0].node,
+                metadata={"duration_s": 4.2},
+            ),
+        ]
 
     def interrupt(self) -> None:
         pass
@@ -42,10 +57,11 @@ class _FakeAudioBackend:
 def test_backend_protocol_accepts_non_image_artifacts() -> None:
     backend: ExecutionBackend = _FakeAudioBackend()
 
-    artifacts = backend.run_pipeline({})
+    artifacts = backend.run_pipeline({}, outputs=(OutputSpec(node="output_audio"),))
 
     assert len(artifacts) == 1
     artifact = artifacts[0]
     assert artifact.mime_type == "audio/flac"
     assert artifact.data.getvalue().startswith(b"fLaC")
+    assert artifact.source_node == "output_audio"
     assert artifact.metadata["duration_s"] == 4.2

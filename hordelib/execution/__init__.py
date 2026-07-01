@@ -11,10 +11,18 @@ Only modules inside this package (and the legacy :mod:`hordelib.comfy_horde`) ma
 ComfyUI internals.
 """
 
-from hordelib.execution.interface import ExecutionBackend, OutputArtifact, VRAMStats
+from hordelib.execution.interface import (
+    ExecutionBackend,
+    OutputArtifact,
+    OutputKind,
+    OutputSpec,
+    VRAMStats,
+)
 
 __all__ = [
     "ExecutionBackend",
     "OutputArtifact",
+    "OutputKind",
+    "OutputSpec",
     "VRAMStats",
 ]
