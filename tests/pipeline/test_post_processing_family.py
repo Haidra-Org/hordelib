@@ -5,8 +5,8 @@ from PIL import Image
 
 from hordelib.pipeline.context import PostProcessingContext
 from hordelib.pipeline.families.post_processing import (
-    IMAGE_FACEFIX_TEMPLATE,
-    IMAGE_UPSCALE_TEMPLATE,
+    IMAGE_FACEFIX_DEFINITION,
+    IMAGE_UPSCALE_DEFINITION,
     POST_PROCESSING_REGISTRY,
 )
 from hordelib.pipeline.payload_pp import (
@@ -94,7 +94,7 @@ class TestRegistrySelection:
             UpscalePayload(model="NMKD_Siax", source_image=source_image),
             context,
         )
-        assert template is IMAGE_UPSCALE_TEMPLATE
+        assert template is IMAGE_UPSCALE_DEFINITION
 
     def test_facefix_selected(self, source_image: Image.Image) -> None:
         context = PostProcessingContext(model_name="GFPGAN", model_file="GFPGANv1.4.pth")
@@ -102,14 +102,14 @@ class TestRegistrySelection:
             FacefixPayload(model="GFPGAN", source_image=source_image),
             context,
         )
-        assert template is IMAGE_FACEFIX_TEMPLATE
+        assert template is IMAGE_FACEFIX_DEFINITION
 
 
 class TestMaterialization:
     def test_upscale_graph(self, source_image: Image.Image) -> None:
         payload = UpscalePayload(model="NMKD_Siax", source_image=source_image)
         context = PostProcessingContext(model_name="NMKD_Siax", model_file="NMKD_Siax.pth")
-        graph = IMAGE_UPSCALE_TEMPLATE.materialize(payload, context).to_api_dict()
+        graph = IMAGE_UPSCALE_DEFINITION.materialize(payload, context).to_api_dict()
 
         model_loader = next(n for n in graph.values() if n["_meta"]["title"] == "model_loader")
         assert model_loader["inputs"]["model_name"] == "NMKD_Siax.pth"
@@ -124,7 +124,7 @@ class TestMaterialization:
     def test_facefix_graph_binds_fidelity(self, source_image: Image.Image) -> None:
         payload = FacefixPayload(model="CodeFormers", source_image=source_image, fidelity=0.7)
         context = PostProcessingContext(model_name="CodeFormers", model_file="codeformer.pth")
-        graph = IMAGE_FACEFIX_TEMPLATE.materialize(payload, context).to_api_dict()
+        graph = IMAGE_FACEFIX_DEFINITION.materialize(payload, context).to_api_dict()
 
         model_loader = next(n for n in graph.values() if n["_meta"]["title"] == "model_loader")
         assert model_loader["inputs"]["model_name"] == "codeformer.pth"
@@ -136,6 +136,6 @@ class TestMaterialization:
         # ported facefix output stays image-identical.
         payload = FacefixPayload(model="GFPGAN", source_image=source_image)
         context = PostProcessingContext(model_name="GFPGAN", model_file="GFPGANv1.4.pth")
-        graph = IMAGE_FACEFIX_TEMPLATE.materialize(payload, context).to_api_dict()
+        graph = IMAGE_FACEFIX_DEFINITION.materialize(payload, context).to_api_dict()
         restore = next(n for n in graph.values() if n["_meta"]["title"] == "face_restore_with_model")
         assert restore["inputs"]["codeformer_fidelity"] == 0.5

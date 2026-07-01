@@ -7,24 +7,36 @@ This package replaces the dict-based payload validation and string-keyed pipelin
 - :mod:`hordelib.pipeline.payload` — pydantic payload models with Horde's clamp-don't-reject
   semantics.
 - :mod:`hordelib.pipeline.graph` — :class:`ComfyGraph`, a typed wrapper over API-format JSON.
-- :mod:`hordelib.pipeline.template` — :class:`PipelineTemplate`, a graph plus its declared,
-  typed parameter surface.
-- :mod:`hordelib.pipeline.registry` — explicit, priority-ordered pipeline selection.
+- :mod:`hordelib.pipeline.definition` — :class:`PipelineDefinition`, everything one pipeline
+  declares (graph, bindings, selection, outputs) in one object.
+- :mod:`hordelib.pipeline.registry` — explicit, tier-ordered pipeline selection.
 
 Nothing in this package imports ComfyUI.
 """
 
+from hordelib.pipeline.definition import (
+    OutputKind,
+    OutputSpec,
+    ParamBinding,
+    PayloadFeature,
+    PipelineDefinition,
+    SelectionTier,
+    Selector,
+)
 from hordelib.pipeline.graph import ComfyGraph, NodeRef
 from hordelib.pipeline.payload import ImageGenPayload
-from hordelib.pipeline.registry import PipelineRegistry, PipelineSpec
-from hordelib.pipeline.template import ParamBinding, PipelineTemplate
+from hordelib.pipeline.registry import PipelineRegistry
 
 __all__ = [
     "ComfyGraph",
     "ImageGenPayload",
     "NodeRef",
+    "OutputKind",
+    "OutputSpec",
     "ParamBinding",
+    "PayloadFeature",
+    "PipelineDefinition",
     "PipelineRegistry",
-    "PipelineSpec",
-    "PipelineTemplate",
+    "SelectionTier",
+    "Selector",
 ]

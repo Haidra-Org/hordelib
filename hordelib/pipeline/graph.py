@@ -7,6 +7,7 @@ canonical handles (a KSampler titled ``sampler`` is addressed as ``sampler.steps
 
 import copy
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, NamedTuple, Self
 
@@ -17,6 +18,7 @@ from hordelib.execution.graph_utils import (
     fix_pipeline_types,
     reconnect_input,
 )
+from hordelib.execution.interface import OutputKind
 
 HORDE_NODE_REPLACEMENTS = {
     "CheckpointLoaderSimple": "HordeCheckpointLoader",
@@ -26,6 +28,11 @@ HORDE_NODE_REPLACEMENTS = {
     "LoraLoader": "HordeLoraLoader",
 }
 """ComfyUI standard node types replaced by Horde-specific implementations at load time."""
+
+HORDE_OUTPUT_CLASS_TYPES: Mapping[OutputKind, frozenset[str]] = {
+    OutputKind.IMAGE: frozenset({"HordeImageOutput"}),
+}
+"""The (post-replacement) node class types results of each kind are collected from."""
 
 
 class NodeRef(NamedTuple):

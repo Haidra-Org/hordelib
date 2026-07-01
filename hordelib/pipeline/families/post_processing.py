@@ -11,14 +11,33 @@ graph (see ``HordeLib.post_process``).
 from pathlib import Path
 
 from hordelib.pipeline.context import PostProcessingContext
+from hordelib.pipeline.definition import (
+    OutputSpec,
+    ParamBinding,
+    PayloadFeature,
+    PipelineDefinition,
+    SelectionTier,
+    Selector,
+)
 from hordelib.pipeline.graph import ComfyGraph
 from hordelib.pipeline.payload_pp import FacefixPayload, PostProcessingGraphPayload, UpscalePayload
-from hordelib.pipeline.registry import PipelineRegistry, PipelineSpec
-from hordelib.pipeline.template import ParamBinding, PipelineTemplate
+from hordelib.pipeline.registry import PipelineRegistry
 
 PIPELINES_DIR = Path(__file__).parent.parent.parent / "pipelines"
 
-type PostProcessingTemplate = PipelineTemplate[PostProcessingGraphPayload, PostProcessingContext]
+type PostProcessingDefinition = PipelineDefinition[PostProcessingGraphPayload, PostProcessingContext]
+
+
+def _is_upscale_payload(payload: PostProcessingGraphPayload) -> bool:
+    return isinstance(payload, UpscalePayload)
+
+
+def _is_facefix_payload(payload: PostProcessingGraphPayload) -> bool:
+    return isinstance(payload, FacefixPayload)
+
+
+UPSCALE_REQUESTED = PayloadFeature[PostProcessingGraphPayload](name="upscale_payload", is_set=_is_upscale_payload)
+FACEFIX_REQUESTED = PayloadFeature[PostProcessingGraphPayload](name="facefix_payload", is_set=_is_facefix_payload)
 
 
 def _apply_model_file(
@@ -31,40 +50,32 @@ def _apply_model_file(
     graph.set_input("model_loader.model_name", context.model_file)
 
 
-IMAGE_UPSCALE_TEMPLATE: PostProcessingTemplate = PipelineTemplate(
+IMAGE_UPSCALE_DEFINITION: PostProcessingDefinition = PipelineDefinition(
     name="image_upscale",
     graph_file=PIPELINES_DIR / "pipeline_image_upscale.json",
+    selector=Selector(tier=SelectionTier.FEATURE, order=0, features=(UPSCALE_REQUESTED,)),
     bindings=(ParamBinding(target="image_loader.image", source="source_image"),),
+    outputs=(OutputSpec(node="output_image"),),
     patch_steps=(_apply_model_file,),
 )
 
-IMAGE_FACEFIX_TEMPLATE: PostProcessingTemplate = PipelineTemplate(
+IMAGE_FACEFIX_DEFINITION: PostProcessingDefinition = PipelineDefinition(
     name="image_facefix",
     graph_file=PIPELINES_DIR / "pipeline_image_facefix.json",
+    selector=Selector(tier=SelectionTier.FEATURE, order=1, features=(FACEFIX_REQUESTED,)),
     bindings=(
         ParamBinding(target="image_loader.image", source="source_image"),
         ParamBinding(target="face_restore_with_model.codeformer_fidelity", source="fidelity"),
     ),
+    outputs=(OutputSpec(node="output_image"),),
     patch_steps=(_apply_model_file,),
 )
 
 
 def build_post_processing_registry() -> PipelineRegistry[PostProcessingGraphPayload, PostProcessingContext]:
     registry: PipelineRegistry[PostProcessingGraphPayload, PostProcessingContext] = PipelineRegistry()
-    registry.register(
-        PipelineSpec(
-            template=IMAGE_UPSCALE_TEMPLATE,
-            predicate=lambda p, c: isinstance(p, UpscalePayload),
-            priority=10,
-        ),
-    )
-    registry.register(
-        PipelineSpec(
-            template=IMAGE_FACEFIX_TEMPLATE,
-            predicate=lambda p, c: isinstance(p, FacefixPayload),
-            priority=10,
-        ),
-    )
+    registry.register(IMAGE_UPSCALE_DEFINITION)
+    registry.register(IMAGE_FACEFIX_DEFINITION)
     return registry
 
 

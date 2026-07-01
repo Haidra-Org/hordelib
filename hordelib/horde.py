@@ -20,6 +20,7 @@ from PIL import Image
 from pydantic import BaseModel
 
 from hordelib.execution.in_process import InProcessComfyBackend
+from hordelib.execution.interface import OutputSpec
 from hordelib.pipeline import constants as pipeline_constants
 from hordelib.pipeline.context import ModelContext
 from hordelib.pipeline.families.post_processing import POST_PROCESSING_REGISTRY
@@ -159,11 +160,11 @@ class HordeLib:
     def _materialize_image_graph(
         self,
         payload: dict,
-    ) -> tuple[ComfyGraph, ImageGenPayload, ModelContext, list[GenMetadataEntry]]:
+    ) -> tuple[ComfyGraph, ImageGenPayload, ModelContext, list[GenMetadataEntry], tuple[OutputSpec, ...]]:
         """The typed pipeline flow: resolve -> normalize -> validate -> select -> materialize.
 
         Returns the fully materialized graph, the typed payload, the resolved model context,
-        and any faults to attach to the results.
+        any faults to attach to the results, and the pipeline's declared outputs.
         """
         from hordelib.pipeline.families.image import DEFAULT_REGISTRY
         from hordelib.pipeline.horde_compat import normalize_horde_payload, resize_sources_to_request
@@ -179,20 +180,20 @@ class HordeLib:
         typed = resize_sources_to_request(typed)
         typed, context, resolution_faults = resolve_image_generation(typed, context)
 
-        template = DEFAULT_REGISTRY.select(typed, context)
-        if template is None:
-            # The registry has a priority-0 catch-all, so this is purely defensive
+        definition = DEFAULT_REGISTRY.select(typed, context)
+        if definition is None:
+            # The registry has a fallback-tier catch-all, so this is purely defensive
             logger.warning("No pipeline matched payload; falling back to stable_diffusion")
-            template = DEFAULT_REGISTRY.get("stable_diffusion")
-            assert template is not None
+            definition = DEFAULT_REGISTRY.get("stable_diffusion")
+            assert definition is not None
 
         logger.info(
             "Pipeline validation complete",
-            pipeline=template.name,
+            pipeline=definition.name,
             faults_count=len(compat_faults) + len(resolution_faults),
         )
-        graph = template.materialize(typed, context)
-        return graph, typed, context, compat_faults + resolution_faults
+        graph = definition.materialize(typed, context)
+        return graph, typed, context, compat_faults + resolution_faults, definition.outputs
 
     @logfire.instrument("horde.inference", extract_args=False)
     def _inference(
@@ -205,7 +206,7 @@ class HordeLib:
     ) -> list[ResultingImageReturn] | ResultingImageReturn:
         start_time = time.time()
 
-        graph, typed, context, faults = self._materialize_image_graph(payload)
+        graph, typed, context, faults, declared_outputs = self._materialize_image_graph(payload)
 
         resolution = f"{typed.width}x{typed.height}"
         logger.info(
@@ -236,6 +237,7 @@ class HordeLib:
 
         artifacts = self.backend.run_pipeline(
             graph.to_api_dict(),
+            outputs=declared_outputs,
             progress_callback=comfyui_progress_callback,
             defer_vram_unload=defer_vram_unload,
         )
@@ -688,12 +690,12 @@ class HordeLib:
         log_free_ram()
 
         context = resolve_post_processing_model(payload.model)
-        template = POST_PROCESSING_REGISTRY.select(payload, context)
-        if template is None:
+        definition = POST_PROCESSING_REGISTRY.select(payload, context)
+        if definition is None:
             raise RuntimeError(f"No post-processing pipeline matched payload type {type(payload).__name__}")
 
-        graph = template.materialize(payload, context)
-        artifacts = self.backend.run_pipeline(graph.to_api_dict())
+        graph = definition.materialize(payload, context)
+        artifacts = self.backend.run_pipeline(graph.to_api_dict(), outputs=definition.outputs)
         if len(artifacts) != 1:
             raise RuntimeError("Expected a single image but got multiple")
 

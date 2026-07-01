@@ -83,22 +83,47 @@ def test_selection(payload_dict, baseline, expected):
     payload = ImageGenPayload.from_horde_dict(payload_dict)
     context = ModelContext(horde_model_name="some model", baseline=baseline)
 
-    template = registry.select(payload, context)
+    definition = registry.select(payload, context)
 
-    assert template is not None
-    assert template.name == expected
+    assert definition is not None
+    assert definition.name == expected
+
+
+EXPECTED_SELECTION_ORDER = [
+    "qr_code",
+    "stable_cascade_remix",
+    "stable_cascade_2pass",
+    "stable_cascade",
+    "flux",
+    "qwen",
+    "z_image",
+    "controlnet_annotator",
+    "controlnet_hires_fix",
+    "controlnet",
+    "stable_diffusion_img2img_mask",
+    "stable_diffusion_paint",
+    "stable_diffusion_hires_fix",
+    "stable_diffusion",
+]
+"""The full selection precedence order, pinned. A tier/order change that reshuffles the
+registry is a behavior change and must be made deliberately here."""
+
+
+def test_selection_precedence_order_is_pinned():
+    registry = build_default_registry()
+    assert [definition.name for definition in registry.all_definitions()] == EXPECTED_SELECTION_ORDER
 
 
 def test_every_registered_graph_file_exists():
     registry = build_default_registry()
-    for spec in registry.all_specs():
-        assert spec.template.graph_file.exists(), f"Missing graph file for {spec.template.name}"
+    for definition in registry.all_definitions():
+        assert definition.graph_file.exists(), f"Missing graph file for {definition.name}"
 
 
 def test_all_graphs_load_and_have_an_image_output():
     registry = build_default_registry()
-    for spec in registry.all_specs():
-        graph = spec.template.load_graph()
+    for definition in registry.all_definitions():
+        graph = definition.load_graph()
         # Results are collected from HordeImageOutput nodes (SaveImage pre-replacement),
         # regardless of their title
-        assert "HordeImageOutput" in graph.class_types(), f"{spec.template.name} has no image output node"
+        assert "HordeImageOutput" in graph.class_types(), f"{definition.name} has no image output node"

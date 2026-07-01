@@ -37,12 +37,14 @@ FORCE_LOAD_SKIP_CLASS_NAMES: tuple[str, ...] = (
 )
 """The comfy ``model_base`` class names hordelib must keep in lockstep with ComfyUI.
 
-This is the single source of truth for the force-load skip policy: the default
-:data:`models_not_to_force_load` is derived from it, and :data:`BASELINE_FORCE_LOAD_CLASS_NAMES`
-may only reference names listed here. ComfyUI has no notion of horde baselines, so this mapping
-cannot be derived from comfy and must be hand-maintained — :func:`assert_force_load_class_names_exist`
-fails fast at startup if any name here has drifted from ``comfy.model_base`` (a silent miss would
-let an oversized model be force-loaded and OOM/segfault).
+The default :data:`models_not_to_force_load` is derived from this flat list, which must stay a
+horde_model_reference-free literal so this module remains importable anywhere. The
+baseline-keyed declaration lives in the image family's ``BaselineProfile`` table
+(:mod:`hordelib.pipeline.families.image_gen.baselines`); ComfyUI has no notion of horde
+baselines, so neither can be derived from comfy and both are hand-maintained —
+:func:`assert_force_load_class_names_exist` fails fast at startup if the two disagree or any
+name has drifted from ``comfy.model_base`` (a silent miss would let an oversized model be
+force-loaded and OOM/segfault).
 """
 
 models_not_to_force_load: list = list(FORCE_LOAD_SKIP_CLASS_NAMES)
@@ -73,24 +75,21 @@ BASELINE_FORCE_LOAD_CLASS_NAMES: dict = {}
 
 hordelib owns the knowledge of which comfy class implements which horde baseline; consumers
 (the worker) express force-load policy in baseline enum members and never ship raw class names.
-Populated lazily to keep this module importable without horde_model_reference.
+The declaration itself lives in the image family's ``BaselineProfile`` table
+(:mod:`hordelib.pipeline.families.image_gen.baselines`); this cache is populated lazily from
+it to keep this module importable without horde_model_reference.
 """
 
 
 def _baseline_class_names() -> dict:
     if not BASELINE_FORCE_LOAD_CLASS_NAMES:
-        from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
+        from hordelib.pipeline.families.image_gen.baselines import IMAGE_BASELINE_PROFILES
 
         BASELINE_FORCE_LOAD_CLASS_NAMES.update(
             {
-                KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade: ("StableCascade_C", "StableCascade_B"),
-                KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl: ("SDXL", "SDXLRefiner"),
-                KNOWN_IMAGE_GENERATION_BASELINE.flux_1: ("Flux",),
-                KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell: ("Flux",),
-                KNOWN_IMAGE_GENERATION_BASELINE.flux_dev: ("Flux",),
-                KNOWN_IMAGE_GENERATION_BASELINE.qwen_image: ("QwenImage",),
-                # Z-Image (incl. Z-Image-Turbo) loads as comfy's Lumina2 model_base class.
-                KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo: ("Lumina2",),
+                profile.baseline: profile.force_load_skip_classes
+                for profile in IMAGE_BASELINE_PROFILES.values()
+                if profile.force_load_skip_classes
             },
         )
     return BASELINE_FORCE_LOAD_CLASS_NAMES
@@ -142,9 +141,10 @@ def assert_force_load_class_names_exist() -> None:
     if only_in_baseline or only_in_flat:
         raise RuntimeError(
             "hordelib force-load class-name declarations disagree: "
-            f"only in BASELINE_FORCE_LOAD_CLASS_NAMES={sorted(only_in_baseline)}, "
+            f"only in the BaselineProfile table={sorted(only_in_baseline)}, "
             f"only in FORCE_LOAD_SKIP_CLASS_NAMES={sorted(only_in_flat)}. "
-            "Keep both in hordelib/execution/comfy_patches.py in sync.",
+            "Keep hordelib/pipeline/families/image_gen/baselines.py and "
+            "FORCE_LOAD_SKIP_CLASS_NAMES in hordelib/execution/comfy_patches.py in sync.",
         )
 
     referenced = set(FORCE_LOAD_SKIP_CLASS_NAMES) | baseline_names

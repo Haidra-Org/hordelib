@@ -95,8 +95,8 @@ class TestHordeTI:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        graph, _, _, _ = hordelib_instance._materialize_image_graph(dict(data))
-        basic_graph, _, _, _ = hordelib_instance._materialize_image_graph(dict(basic_ti_payload_data))
+        graph, _, _, _, _ = hordelib_instance._materialize_image_graph(dict(data))
+        basic_graph, _, _, _, _ = hordelib_instance._materialize_image_graph(dict(basic_ti_payload_data))
 
         prompt_text = graph.node("prompt")["inputs"]["text"]
         negative_prompt_text = graph.node("negative_prompt")["inputs"]["text"]
@@ -153,7 +153,7 @@ class TestHordeTI:
             "model": stable_diffusion_model_name_for_testing,
         }
 
-        graph, _, _, _ = hordelib_instance._materialize_image_graph(dict(data))
+        graph, _, _, _, _ = hordelib_instance._materialize_image_graph(dict(data))
 
         assert "(embedding:7523:1.0)" in graph.node("prompt")["inputs"]["text"]
         assert "(embedding:7808:0.5)" in graph.node("negative_prompt")["inputs"]["text"]
