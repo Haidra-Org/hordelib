@@ -1,0 +1,228 @@
+{
+  "graph": {
+    "ConditioningZeroOut": {
+      "_meta": {
+        "title": "ConditioningZeroOut"
+      },
+      "class_type": "ConditioningZeroOut",
+      "inputs": {
+        "conditioning": [
+          "prompt",
+          0
+        ]
+      }
+    },
+    "StableCascade_StageB_Conditioning": {
+      "_meta": {
+        "title": "StableCascade_StageB_Conditioning"
+      },
+      "class_type": "StableCascade_StageB_Conditioning",
+      "inputs": {
+        "conditioning": [
+          "ConditioningZeroOut",
+          0
+        ],
+        "stage_c": [
+          "sampler_stage_c",
+          0
+        ]
+      }
+    },
+    "VAE Decode": {
+      "_meta": {
+        "title": "VAE Decode"
+      },
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "sampler_stage_b",
+          0
+        ],
+        "vae": [
+          "model_loader_stage_b",
+          2
+        ]
+      }
+    },
+    "empty_latent_image": {
+      "_meta": {
+        "title": "empty_latent_image"
+      },
+      "class_type": "StableCascade_EmptyLatentImage",
+      "inputs": {
+        "batch_size": 1,
+        "compression": 42,
+        "height": 512,
+        "width": 512
+      }
+    },
+    "model_loader_stage_b": {
+      "_meta": {
+        "title": "model_loader_stage_b"
+      },
+      "class_type": "HordeCheckpointLoader",
+      "inputs": {
+        "ckpt_name": "snapshot_stage_b.safetensors",
+        "file_type": "stable_cascade_stage_b",
+        "horde_model_name": "Snapshot Model",
+        "model_name": "snapshot_stage_b.safetensors",
+        "seamless_tiling_enabled": false,
+        "will_load_loras": false
+      }
+    },
+    "model_loader_stage_c": {
+      "_meta": {
+        "title": "model_loader_stage_c"
+      },
+      "class_type": "HordeCheckpointLoader",
+      "inputs": {
+        "ckpt_name": "snapshot_stage_c.safetensors",
+        "file_type": "stable_cascade_stage_c",
+        "horde_model_name": "Snapshot Model",
+        "model_name": "snapshot_stage_c.safetensors",
+        "seamless_tiling_enabled": false,
+        "will_load_loras": false
+      }
+    },
+    "negative_prompt": {
+      "_meta": {
+        "title": "negative_prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "model_loader_stage_c",
+          1
+        ],
+        "text": "blurry, deterministic snapshot negative"
+      }
+    },
+    "prompt": {
+      "_meta": {
+        "title": "prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "model_loader_stage_c",
+          1
+        ],
+        "text": "a deterministic snapshot prompt"
+      }
+    },
+    "repeat_image_batch": {
+      "_meta": {
+        "title": "repeat_image_batch"
+      },
+      "class_type": "RepeatImageBatch",
+      "inputs": {
+        "amount": 1,
+        "image": [
+          "sc_image_loader",
+          0
+        ]
+      }
+    },
+    "sampler_stage_b": {
+      "_meta": {
+        "title": "sampler_stage_b"
+      },
+      "class_type": "KSampler",
+      "inputs": {
+        "cfg": 1,
+        "denoise": 1,
+        "latent_image": [
+          "empty_latent_image",
+          1
+        ],
+        "model": [
+          "model_loader_stage_b",
+          0
+        ],
+        "negative": [
+          "ConditioningZeroOut",
+          0
+        ],
+        "positive": [
+          "StableCascade_StageB_Conditioning",
+          0
+        ],
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "seed": 123456789,
+        "steps": 10
+      }
+    },
+    "sampler_stage_c": {
+      "_meta": {
+        "title": "sampler_stage_c"
+      },
+      "class_type": "KSampler",
+      "inputs": {
+        "cfg": 8.0,
+        "denoise": 1.0,
+        "latent_image": [
+          "empty_latent_image",
+          0
+        ],
+        "model": [
+          "model_loader_stage_c",
+          0
+        ],
+        "negative": [
+          "negative_prompt",
+          0
+        ],
+        "positive": [
+          "prompt",
+          0
+        ],
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "seed": 123456789,
+        "steps": 20
+      }
+    },
+    "save_image": {
+      "_meta": {
+        "title": "save_image"
+      },
+      "class_type": "HordeImageOutput",
+      "inputs": {
+        "filename_prefix": "ComfyUI",
+        "images": [
+          "VAE Decode",
+          0
+        ]
+      }
+    },
+    "sc_image_loader": {
+      "_meta": {
+        "title": "sc_image_loader"
+      },
+      "class_type": "HordeImageLoader",
+      "inputs": {
+        "image": null,
+        "upload": "image"
+      }
+    },
+    "stablecascade_stagec_vaeencode": {
+      "_meta": {
+        "title": "stablecascade_stagec_vaeencode"
+      },
+      "class_type": "StableCascade_StageC_VAEEncode",
+      "inputs": {
+        "compression": 42,
+        "image": [
+          "repeat_image_batch",
+          0
+        ],
+        "vae": [
+          "model_loader_stage_c",
+          2
+        ]
+      }
+    }
+  },
+  "pipeline": "stable_cascade"
+}

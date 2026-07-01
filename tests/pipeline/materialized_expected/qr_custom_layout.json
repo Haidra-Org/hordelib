@@ -1,0 +1,552 @@
+{
+  "graph": {
+    "Convert Image to Mask": {
+      "_meta": {
+        "title": "Convert Image to Mask"
+      },
+      "class_type": "ImageToMask",
+      "inputs": {
+        "channel": "red",
+        "image": [
+          "image_blur",
+          0
+        ]
+      }
+    },
+    "Convert Mask to Image": {
+      "_meta": {
+        "title": "Convert Mask to Image"
+      },
+      "class_type": "MaskToImage",
+      "inputs": {
+        "mask": [
+          "GrowMask",
+          0
+        ]
+      }
+    },
+    "GrowMask": {
+      "_meta": {
+        "title": "GrowMask"
+      },
+      "class_type": "GrowMask",
+      "inputs": {
+        "expand": 8,
+        "mask": [
+          "mask_composite",
+          0
+        ],
+        "tapered_corners": false
+      }
+    },
+    "LatentCompositeMasked": {
+      "_meta": {
+        "title": "LatentCompositeMasked"
+      },
+      "class_type": "LatentCompositeMasked",
+      "inputs": {
+        "destination": [
+          "sampler_bg",
+          0
+        ],
+        "mask": [
+          "Convert Image to Mask",
+          0
+        ],
+        "resize_source": false,
+        "source": [
+          "sampler_fg",
+          0
+        ],
+        "x": 0,
+        "y": 0
+      }
+    },
+    "Save Image": {
+      "_meta": {
+        "title": "Save Image"
+      },
+      "class_type": "HordeImageOutput",
+      "inputs": {
+        "filename_prefix": "qr",
+        "images": [
+          "VAE Decode",
+          0
+        ]
+      }
+    },
+    "Solid (Black)": {
+      "_meta": {
+        "title": "Solid (Black)"
+      },
+      "class_type": "MaskToImage",
+      "inputs": {
+        "mask": [
+          "solidmask_black",
+          0
+        ]
+      }
+    },
+    "Solid (Grey)": {
+      "_meta": {
+        "title": "Solid (Grey)"
+      },
+      "class_type": "MaskToImage",
+      "inputs": {
+        "mask": [
+          "solidmask_grey",
+          0
+        ]
+      }
+    },
+    "Solid (White)": {
+      "_meta": {
+        "title": "Solid (White)"
+      },
+      "class_type": "MaskToImage",
+      "inputs": {
+        "mask": [
+          "solidmask_white",
+          0
+        ]
+      }
+    },
+    "VAE Decode": {
+      "_meta": {
+        "title": "VAE Decode"
+      },
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "sampler",
+          0
+        ],
+        "vae": [
+          "model_loader",
+          2
+        ]
+      }
+    },
+    "VAE Encode (BG)": {
+      "_meta": {
+        "title": "VAE Encode (BG)"
+      },
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": [
+          "module_layer_composite",
+          0
+        ],
+        "vae": [
+          "model_loader",
+          2
+        ]
+      }
+    },
+    "VAE Encode (FG)": {
+      "_meta": {
+        "title": "VAE Encode (FG)"
+      },
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": [
+          "function_layer_composite",
+          0
+        ],
+        "vae": [
+          "model_loader",
+          2
+        ]
+      }
+    },
+    "controlnet_bg": {
+      "_meta": {
+        "title": "controlnet_bg"
+      },
+      "class_type": "ControlNetApplyAdvanced",
+      "inputs": {
+        "control_net": [
+          "controlnet_qr_model_loader",
+          0
+        ],
+        "end_percent": 1,
+        "image": [
+          "module_layer_composite",
+          0
+        ],
+        "negative": [
+          "negative_prompt",
+          0
+        ],
+        "positive": [
+          "prompt",
+          0
+        ],
+        "start_percent": 0,
+        "strength": 1.0
+      }
+    },
+    "controlnet_combined": {
+      "_meta": {
+        "title": "controlnet_combined"
+      },
+      "class_type": "ControlNetApplyAdvanced",
+      "inputs": {
+        "control_net": [
+          "controlnet_qr_model_loader",
+          0
+        ],
+        "end_percent": 1,
+        "image": [
+          "qr_flattened_composite",
+          0
+        ],
+        "negative": [
+          "negative_prompt",
+          0
+        ],
+        "positive": [
+          "prompt",
+          0
+        ],
+        "start_percent": 0,
+        "strength": 1.5
+      }
+    },
+    "controlnet_fg": {
+      "_meta": {
+        "title": "controlnet_fg"
+      },
+      "class_type": "ControlNetApplyAdvanced",
+      "inputs": {
+        "control_net": [
+          "controlnet_qr_model_loader",
+          0
+        ],
+        "end_percent": 1,
+        "image": [
+          "function_layer_composite",
+          0
+        ],
+        "negative": [
+          "negative_prompt",
+          0
+        ],
+        "positive": [
+          "function_layer_prompt",
+          0
+        ],
+        "start_percent": 0,
+        "strength": 6
+      }
+    },
+    "controlnet_qr_model_loader": {
+      "_meta": {
+        "title": "controlnet_qr_model_loader"
+      },
+      "class_type": "ControlNetLoader",
+      "inputs": {
+        "control_net_name": "control_v1p_sdxl_qrcode_monster.safetensors"
+      }
+    },
+    "function_layer_composite": {
+      "_meta": {
+        "title": "function_layer_composite"
+      },
+      "class_type": "ImageCompositeMasked",
+      "inputs": {
+        "destination": [
+          "Solid (White)",
+          0
+        ],
+        "resize_source": false,
+        "source": [
+          "qr_code_split",
+          2
+        ],
+        "x": 128,
+        "y": 96
+      }
+    },
+    "function_layer_prompt": {
+      "_meta": {
+        "title": "function_layer_prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "model_loader",
+          1
+        ],
+        "text": "a hidden village"
+      }
+    },
+    "image_blur": {
+      "_meta": {
+        "title": "image_blur"
+      },
+      "class_type": "ImageBlur",
+      "inputs": {
+        "blur_radius": 16,
+        "image": [
+          "Convert Mask to Image",
+          0
+        ],
+        "sigma": 3.0000000000000018
+      }
+    },
+    "mask_composite": {
+      "_meta": {
+        "title": "mask_composite"
+      },
+      "class_type": "MaskComposite",
+      "inputs": {
+        "destination": [
+          "solidmask_black",
+          0
+        ],
+        "operation": "add",
+        "source": [
+          "qr_code_split",
+          3
+        ],
+        "x": 128,
+        "y": 96
+      }
+    },
+    "model_loader": {
+      "_meta": {
+        "title": "model_loader"
+      },
+      "class_type": "HordeCheckpointLoader",
+      "inputs": {
+        "ckpt_name": "snapshot_model.safetensors",
+        "file_type": null,
+        "horde_model_name": "Snapshot Model",
+        "model_name": "snapshot_model.safetensors",
+        "seamless_tiling_enabled": false,
+        "will_load_loras": false
+      }
+    },
+    "module_layer_composite": {
+      "_meta": {
+        "title": "module_layer_composite"
+      },
+      "class_type": "ImageCompositeMasked",
+      "inputs": {
+        "destination": [
+          "Solid (Grey)",
+          0
+        ],
+        "resize_source": false,
+        "source": [
+          "qr_code_split",
+          1
+        ],
+        "x": 128,
+        "y": 96
+      }
+    },
+    "negative_prompt": {
+      "_meta": {
+        "title": "negative_prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "model_loader",
+          1
+        ],
+        "text": "blurry, deterministic snapshot negative"
+      }
+    },
+    "prompt": {
+      "_meta": {
+        "title": "prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "model_loader",
+          1
+        ],
+        "text": "a deterministic snapshot prompt"
+      }
+    },
+    "qr_code_split": {
+      "_meta": {
+        "title": "qr_code_split"
+      },
+      "class_type": "comfy-qr-by-module-split",
+      "inputs": {
+        "back_hexcolor": "#FFFFFF",
+        "border": 2,
+        "error_correction": "High",
+        "fill_hexcolor": "#000000",
+        "max_image_size": 768,
+        "module_drawer": "Circle",
+        "module_size": 16,
+        "protocol": "Https",
+        "text": "https://aihorde.net"
+      }
+    },
+    "qr_flattened_composite": {
+      "_meta": {
+        "title": "qr_flattened_composite"
+      },
+      "class_type": "ImageCompositeMasked",
+      "inputs": {
+        "destination": [
+          "Solid (Grey)",
+          0
+        ],
+        "resize_source": false,
+        "source": [
+          "qr_code_split",
+          0
+        ],
+        "x": 128,
+        "y": 96
+      }
+    },
+    "sampler": {
+      "_meta": {
+        "title": "sampler"
+      },
+      "class_type": "KSamplerAdvanced",
+      "inputs": {
+        "add_noise": "disable",
+        "cfg": 8.0,
+        "denoise": 1.0,
+        "end_at_step": 10000,
+        "latent_image": [
+          "LatentCompositeMasked",
+          0
+        ],
+        "model": [
+          "model_loader",
+          0
+        ],
+        "negative": [
+          "controlnet_combined",
+          1
+        ],
+        "noise_seed": 123456789,
+        "positive": [
+          "controlnet_combined",
+          0
+        ],
+        "return_with_leftover_noise": "disable",
+        "sampler_name": "euler",
+        "scheduler": "normal",
+        "seed": 123456789,
+        "start_at_step": 11,
+        "steps": 30
+      }
+    },
+    "sampler_bg": {
+      "_meta": {
+        "title": "sampler_bg"
+      },
+      "class_type": "KSamplerAdvanced",
+      "inputs": {
+        "add_noise": "enable",
+        "cfg": 8.0,
+        "denoise": 1.0,
+        "end_at_step": 11,
+        "latent_image": [
+          "VAE Encode (BG)",
+          0
+        ],
+        "model": [
+          "model_loader",
+          0
+        ],
+        "negative": [
+          "controlnet_bg",
+          1
+        ],
+        "noise_seed": 123456789,
+        "positive": [
+          "controlnet_bg",
+          0
+        ],
+        "return_with_leftover_noise": "enable",
+        "sampler_name": "euler",
+        "scheduler": "normal",
+        "seed": 123456789,
+        "start_at_step": 0,
+        "steps": 30
+      }
+    },
+    "sampler_fg": {
+      "_meta": {
+        "title": "sampler_fg"
+      },
+      "class_type": "KSamplerAdvanced",
+      "inputs": {
+        "add_noise": "enable",
+        "cfg": 8.0,
+        "denoise": 1.0,
+        "end_at_step": 11,
+        "latent_image": [
+          "VAE Encode (FG)",
+          0
+        ],
+        "model": [
+          "model_loader",
+          0
+        ],
+        "negative": [
+          "controlnet_fg",
+          1
+        ],
+        "noise_seed": 123456789,
+        "positive": [
+          "controlnet_fg",
+          0
+        ],
+        "return_with_leftover_noise": "enable",
+        "sampler_name": "euler",
+        "scheduler": "normal",
+        "seed": 123456789,
+        "start_at_step": 1,
+        "steps": 30
+      }
+    },
+    "solidmask_black": {
+      "_meta": {
+        "title": "solidmask_black"
+      },
+      "class_type": "SolidMask",
+      "inputs": {
+        "height": 768,
+        "value": 0,
+        "width": 768
+      }
+    },
+    "solidmask_grey": {
+      "_meta": {
+        "title": "solidmask_grey"
+      },
+      "class_type": "SolidMask",
+      "inputs": {
+        "height": 768,
+        "value": 0.5,
+        "width": 768
+      }
+    },
+    "solidmask_white": {
+      "_meta": {
+        "title": "solidmask_white"
+      },
+      "class_type": "SolidMask",
+      "inputs": {
+        "height": 768,
+        "value": 1,
+        "width": 768
+      }
+    }
+  },
+  "pipeline": "qr_code"
+}

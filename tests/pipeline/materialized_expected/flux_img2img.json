@@ -1,0 +1,206 @@
+{
+  "graph": {
+    "basic_scheduler": {
+      "_meta": {
+        "title": "basic_scheduler"
+      },
+      "class_type": "BasicScheduler",
+      "inputs": {
+        "denoise": 0.8,
+        "model": [
+          "model_loader",
+          0
+        ],
+        "scheduler": "normal",
+        "steps": 30
+      }
+    },
+    "cfg_guider": {
+      "_meta": {
+        "title": "cfg_guider"
+      },
+      "class_type": "CFGGuider",
+      "inputs": {
+        "cfg": 8.0,
+        "model": [
+          "model_loader",
+          0
+        ],
+        "negative": [
+          "negative_prompt",
+          0
+        ],
+        "positive": [
+          "prompt",
+          0
+        ]
+      }
+    },
+    "empty_latent_image": {
+      "_meta": {
+        "title": "empty_latent_image"
+      },
+      "class_type": "EmptyLatentImage",
+      "inputs": {
+        "batch_size": 1,
+        "height": 512,
+        "width": 512
+      }
+    },
+    "image_loader": {
+      "_meta": {
+        "title": "image_loader"
+      },
+      "class_type": "HordeImageLoader",
+      "inputs": {
+        "image": "<image mode=RGB size=512x512>",
+        "upload": "image"
+      }
+    },
+    "k_sampler_select": {
+      "_meta": {
+        "title": "k_sampler_select"
+      },
+      "class_type": "KSamplerSelect",
+      "inputs": {
+        "sampler_name": "euler"
+      }
+    },
+    "model_loader": {
+      "_meta": {
+        "title": "model_loader"
+      },
+      "class_type": "HordeCheckpointLoader",
+      "inputs": {
+        "ckpt_name": "snapshot_model.safetensors",
+        "file_type": null,
+        "horde_model_name": "Snapshot Model",
+        "model_name": "snapshot_model.safetensors",
+        "seamless_tiling_enabled": false,
+        "will_load_loras": false
+      }
+    },
+    "negative_prompt": {
+      "_meta": {
+        "title": "negative_prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "model_loader",
+          1
+        ],
+        "text": "blurry, deterministic snapshot negative"
+      }
+    },
+    "output_image": {
+      "_meta": {
+        "title": "output_image"
+      },
+      "class_type": "HordeImageOutput",
+      "inputs": {
+        "filename_prefix": "ComfyUI",
+        "images": [
+          "vae_decode",
+          0
+        ]
+      }
+    },
+    "prompt": {
+      "_meta": {
+        "title": "prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "model_loader",
+          1
+        ],
+        "text": "a deterministic snapshot prompt"
+      }
+    },
+    "random_noise": {
+      "_meta": {
+        "title": "random_noise"
+      },
+      "class_type": "RandomNoise",
+      "inputs": {
+        "noise_seed": 123456789
+      }
+    },
+    "repeat_image_batch": {
+      "_meta": {
+        "title": "repeat_image_batch"
+      },
+      "class_type": "RepeatImageBatch",
+      "inputs": {
+        "amount": 1,
+        "image": [
+          "image_loader",
+          0
+        ]
+      }
+    },
+    "sampler_custom_advanced": {
+      "_meta": {
+        "title": "sampler_custom_advanced"
+      },
+      "class_type": "SamplerCustomAdvanced",
+      "inputs": {
+        "guider": [
+          "cfg_guider",
+          0
+        ],
+        "latent_image": [
+          "vae_encode",
+          0
+        ],
+        "noise": [
+          "random_noise",
+          0
+        ],
+        "sampler": [
+          "k_sampler_select",
+          0
+        ],
+        "sigmas": [
+          "basic_scheduler",
+          0
+        ]
+      }
+    },
+    "vae_decode": {
+      "_meta": {
+        "title": "vae_decode"
+      },
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "sampler_custom_advanced",
+          0
+        ],
+        "vae": [
+          "model_loader",
+          2
+        ]
+      }
+    },
+    "vae_encode": {
+      "_meta": {
+        "title": "vae_encode"
+      },
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": [
+          "repeat_image_batch",
+          0
+        ],
+        "vae": [
+          "model_loader",
+          2
+        ]
+      }
+    }
+  },
+  "pipeline": "flux"
+}

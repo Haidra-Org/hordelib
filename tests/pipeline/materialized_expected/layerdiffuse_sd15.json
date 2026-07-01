@@ -1,0 +1,200 @@
+{
+  "graph": {
+    "clip_skip": {
+      "_meta": {
+        "title": "clip_skip"
+      },
+      "class_type": "CLIPSetLastLayer",
+      "inputs": {
+        "clip": [
+          "model_loader",
+          1
+        ],
+        "stop_at_clip_layer": -1
+      }
+    },
+    "empty_latent_image": {
+      "_meta": {
+        "title": "empty_latent_image"
+      },
+      "class_type": "EmptyLatentImage",
+      "inputs": {
+        "batch_size": 1,
+        "height": 512,
+        "width": 512
+      }
+    },
+    "image_loader": {
+      "_meta": {
+        "title": "image_loader"
+      },
+      "class_type": "HordeImageLoader",
+      "inputs": {
+        "image": null,
+        "upload": "image"
+      }
+    },
+    "layer_diffuse_apply": {
+      "_meta": {
+        "title": "layer_diffuse_apply"
+      },
+      "class_type": "LayeredDiffusionApply",
+      "inputs": {
+        "config": "SD15, Attention Injection, attn_sharing",
+        "model": [
+          "model_loader",
+          0
+        ],
+        "weight": 1
+      }
+    },
+    "layer_diffuse_decode_rgba": {
+      "_meta": {
+        "title": "layer_diffuse_decode_rgba"
+      },
+      "class_type": "LayeredDiffusionDecodeRGBA",
+      "inputs": {
+        "images": [
+          "vae_decode",
+          0
+        ],
+        "samples": [
+          "sampler",
+          0
+        ],
+        "sd_version": "SD15",
+        "sub_batch_size": 16
+      }
+    },
+    "model_loader": {
+      "_meta": {
+        "title": "model_loader"
+      },
+      "class_type": "HordeCheckpointLoader",
+      "inputs": {
+        "ckpt_name": "snapshot_model.safetensors",
+        "file_type": null,
+        "horde_model_name": "Snapshot Model",
+        "model_name": "snapshot_model.safetensors",
+        "seamless_tiling_enabled": false,
+        "will_load_loras": true
+      }
+    },
+    "negative_prompt": {
+      "_meta": {
+        "title": "negative_prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "clip_skip",
+          0
+        ],
+        "text": "blurry, deterministic snapshot negative"
+      }
+    },
+    "output_image": {
+      "_meta": {
+        "title": "output_image"
+      },
+      "class_type": "HordeImageOutput",
+      "inputs": {
+        "filename_prefix": "ComfyUI",
+        "images": [
+          "layer_diffuse_decode_rgba",
+          0
+        ]
+      }
+    },
+    "prompt": {
+      "_meta": {
+        "title": "prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "clip_skip",
+          0
+        ],
+        "text": "a deterministic snapshot prompt"
+      }
+    },
+    "repeat_image_batch": {
+      "_meta": {
+        "title": "repeat_image_batch"
+      },
+      "class_type": "RepeatImageBatch",
+      "inputs": {
+        "amount": 1,
+        "image": [
+          "image_loader",
+          0
+        ]
+      }
+    },
+    "sampler": {
+      "_meta": {
+        "title": "sampler"
+      },
+      "class_type": "KSampler",
+      "inputs": {
+        "cfg": 8.0,
+        "denoise": 1.0,
+        "latent_image": [
+          "empty_latent_image",
+          0
+        ],
+        "model": [
+          "layer_diffuse_apply",
+          0
+        ],
+        "negative": [
+          "negative_prompt",
+          0
+        ],
+        "noise_seed": 123456789,
+        "positive": [
+          "prompt",
+          0
+        ],
+        "sampler_name": "euler",
+        "scheduler": "normal",
+        "seed": 123456789,
+        "steps": 30
+      }
+    },
+    "vae_decode": {
+      "_meta": {
+        "title": "vae_decode"
+      },
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "sampler",
+          0
+        ],
+        "vae": [
+          "model_loader",
+          2
+        ]
+      }
+    },
+    "vae_encode": {
+      "_meta": {
+        "title": "vae_encode"
+      },
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": [
+          "repeat_image_batch",
+          0
+        ],
+        "vae": [
+          "model_loader",
+          2
+        ]
+      }
+    }
+  },
+  "pipeline": "stable_diffusion"
+}

@@ -1,0 +1,42 @@
+{
+  "graph": {
+    "image_loader": {
+      "_meta": {
+        "title": "image_loader"
+      },
+      "class_type": "HordeImageLoader",
+      "inputs": {
+        "image": "<image mode=RGB size=512x512>",
+        "upload": "image"
+      }
+    },
+    "output_image": {
+      "_meta": {
+        "title": "output_image"
+      },
+      "class_type": "HordeImageOutput",
+      "inputs": {
+        "filename_prefix": "ComfyUI",
+        "images": [
+          "preprocessor",
+          0
+        ]
+      }
+    },
+    "preprocessor": {
+      "_meta": {
+        "title": "preprocessor"
+      },
+      "class_type": "AIO_Preprocessor",
+      "inputs": {
+        "image": [
+          "image_loader",
+          0
+        ],
+        "preprocessor": "CannyEdgePreprocessor",
+        "resolution": 512
+      }
+    }
+  },
+  "pipeline": "controlnet_annotator"
+}

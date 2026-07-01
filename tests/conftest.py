@@ -17,6 +17,15 @@ from hordelib.shared_model_manager import SharedModelManager
 from .testing_shared_classes import ResolutionTestCase
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--snapshot-update",
+        action="store_true",
+        default=False,
+        help="Regenerate the committed materialized-graph snapshots instead of comparing against them.",
+    )
+
+
 @pytest.fixture(scope="function", autouse=True)
 def line_break():
     print()

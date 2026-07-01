@@ -1,0 +1,138 @@
+{
+  "graph": {
+    "clip_loader": {
+      "_meta": {
+        "title": "clip_loader"
+      },
+      "class_type": "CLIPLoader",
+      "inputs": {
+        "clip_name": "qwen_3_4b.safetensors",
+        "device": "default",
+        "type": "lumina2"
+      }
+    },
+    "empty_latent_image": {
+      "_meta": {
+        "title": "empty_latent_image"
+      },
+      "class_type": "EmptySD3LatentImage",
+      "inputs": {
+        "batch_size": 1,
+        "height": 512,
+        "width": 512
+      }
+    },
+    "model_loader": {
+      "_meta": {
+        "title": "model_loader"
+      },
+      "class_type": "HordeCheckpointLoader",
+      "inputs": {
+        "ckpt_name": "snapshot_model.safetensors",
+        "file_type": "unet",
+        "horde_model_name": "Snapshot Model",
+        "model_name": "snapshot_model.safetensors",
+        "seamless_tiling_enabled": false,
+        "unet_name": "z_image_turbo_bf16.safetensors",
+        "weight_dtype": "default",
+        "will_load_loras": false
+      }
+    },
+    "negative_prompt": {
+      "_meta": {
+        "title": "negative_prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "clip_loader",
+          0
+        ],
+        "text": "blurry, deterministic snapshot negative"
+      }
+    },
+    "output_image": {
+      "_meta": {
+        "title": "output_image"
+      },
+      "class_type": "HordeImageOutput",
+      "inputs": {
+        "filename_prefix": "ComfyUI",
+        "images": [
+          "vae_decode",
+          0
+        ]
+      }
+    },
+    "prompt": {
+      "_meta": {
+        "title": "prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "clip_loader",
+          0
+        ],
+        "text": "a deterministic snapshot prompt"
+      }
+    },
+    "sampler": {
+      "_meta": {
+        "title": "sampler"
+      },
+      "class_type": "KSampler",
+      "inputs": {
+        "cfg": 8.0,
+        "denoise": 1.0,
+        "latent_image": [
+          "empty_latent_image",
+          0
+        ],
+        "model": [
+          "model_loader",
+          0
+        ],
+        "negative": [
+          "negative_prompt",
+          0
+        ],
+        "noise_seed": 123456789,
+        "positive": [
+          "prompt",
+          0
+        ],
+        "sampler_name": "euler",
+        "scheduler": "normal",
+        "seed": 123456789,
+        "steps": 30
+      }
+    },
+    "vae_decode": {
+      "_meta": {
+        "title": "vae_decode"
+      },
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "sampler",
+          0
+        ],
+        "vae": [
+          "vae_loader",
+          0
+        ]
+      }
+    },
+    "vae_loader": {
+      "_meta": {
+        "title": "vae_loader"
+      },
+      "class_type": "VAELoader",
+      "inputs": {
+        "vae_name": "ae.safetensors"
+      }
+    }
+  },
+  "pipeline": "z_image"
+}

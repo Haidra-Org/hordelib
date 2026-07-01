@@ -1,0 +1,174 @@
+{
+  "graph": {
+    "controlnet_apply": {
+      "_meta": {
+        "title": "controlnet_apply"
+      },
+      "class_type": "ControlNetApply",
+      "inputs": {
+        "conditioning": [
+          "prompt",
+          0
+        ],
+        "control_net": [
+          "controlnet_model_loader",
+          0
+        ],
+        "image": [
+          "preprocessor",
+          0
+        ],
+        "strength": 1.0
+      }
+    },
+    "controlnet_model_loader": {
+      "_meta": {
+        "title": "controlnet_model_loader"
+      },
+      "class_type": "DiffControlNetLoader",
+      "inputs": {
+        "control_net_name": "diff_control_sd15_canny_fp16.safetensors",
+        "model": [
+          "model_loader",
+          0
+        ]
+      }
+    },
+    "empty_latent_image": {
+      "_meta": {
+        "title": "empty_latent_image"
+      },
+      "class_type": "EmptyLatentImage",
+      "inputs": {
+        "batch_size": 1,
+        "height": 512,
+        "width": 512
+      }
+    },
+    "image_loader": {
+      "_meta": {
+        "title": "image_loader"
+      },
+      "class_type": "HordeImageLoader",
+      "inputs": {
+        "image": "<image mode=RGB size=512x512>",
+        "upload": "image"
+      }
+    },
+    "model_loader": {
+      "_meta": {
+        "title": "model_loader"
+      },
+      "class_type": "HordeCheckpointLoader",
+      "inputs": {
+        "ckpt_name": "snapshot_model.safetensors",
+        "file_type": null,
+        "horde_model_name": "Snapshot Model",
+        "model_name": "snapshot_model.safetensors",
+        "seamless_tiling_enabled": false,
+        "will_load_loras": false
+      }
+    },
+    "negative_prompt": {
+      "_meta": {
+        "title": "negative_prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "model_loader",
+          1
+        ],
+        "text": "blurry, deterministic snapshot negative"
+      }
+    },
+    "output_image": {
+      "_meta": {
+        "title": "output_image"
+      },
+      "class_type": "HordeImageOutput",
+      "inputs": {
+        "filename_prefix": "ComfyUI",
+        "images": [
+          "vae_decode",
+          0
+        ]
+      }
+    },
+    "preprocessor": {
+      "_meta": {
+        "title": "preprocessor"
+      },
+      "class_type": "AIO_Preprocessor",
+      "inputs": {
+        "image": [
+          "image_loader",
+          0
+        ],
+        "preprocessor": "CannyEdgePreprocessor",
+        "resolution": 512
+      }
+    },
+    "prompt": {
+      "_meta": {
+        "title": "prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "model_loader",
+          1
+        ],
+        "text": "a deterministic snapshot prompt"
+      }
+    },
+    "sampler": {
+      "_meta": {
+        "title": "sampler"
+      },
+      "class_type": "KSampler",
+      "inputs": {
+        "cfg": 8.0,
+        "denoise": 1.0,
+        "latent_image": [
+          "empty_latent_image",
+          0
+        ],
+        "model": [
+          "model_loader",
+          0
+        ],
+        "negative": [
+          "negative_prompt",
+          0
+        ],
+        "noise_seed": 123456789,
+        "positive": [
+          "controlnet_apply",
+          0
+        ],
+        "sampler_name": "euler",
+        "scheduler": "normal",
+        "seed": 123456789,
+        "steps": 30
+      }
+    },
+    "vae_decode": {
+      "_meta": {
+        "title": "vae_decode"
+      },
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "sampler",
+          0
+        ],
+        "vae": [
+          "model_loader",
+          2
+        ]
+      }
+    }
+  },
+  "pipeline": "controlnet"
+}

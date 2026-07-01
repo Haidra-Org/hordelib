@@ -1,0 +1,293 @@
+{
+  "graph": {
+    "Save Image": {
+      "_meta": {
+        "title": "Save Image"
+      },
+      "class_type": "HordeImageOutput",
+      "inputs": {
+        "filename_prefix": "ComfyUI",
+        "images": [
+          "VAE Decode",
+          0
+        ]
+      }
+    },
+    "StableCascade_StageB_Conditioning": {
+      "_meta": {
+        "title": "StableCascade_StageB_Conditioning"
+      },
+      "class_type": "StableCascade_StageB_Conditioning",
+      "inputs": {
+        "conditioning": [
+          "prompt",
+          0
+        ],
+        "stage_c": [
+          "sampler_stage_c",
+          0
+        ]
+      }
+    },
+    "VAE Decode": {
+      "_meta": {
+        "title": "VAE Decode"
+      },
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "sampler_stage_b",
+          0
+        ],
+        "vae": [
+          "model_loader_stage_b",
+          2
+        ]
+      }
+    },
+    "clip_vision_encode_0": {
+      "_meta": {
+        "title": "clip_vision_encode_0"
+      },
+      "class_type": "CLIPVisionEncode",
+      "inputs": {
+        "clip_vision": [
+          "model_loader_stage_c",
+          3
+        ],
+        "crop": "center",
+        "image": [
+          "sc_image_loader_0",
+          0
+        ]
+      }
+    },
+    "clip_vision_encode_1": {
+      "class_type": "CLIPVisionEncode",
+      "inputs": {
+        "clip_vision": [
+          "model_loader_stage_c",
+          3
+        ],
+        "crop": "center",
+        "image": [
+          "sc_image_loader_1",
+          0
+        ]
+      }
+    },
+    "clip_vision_encode_2": {
+      "class_type": "CLIPVisionEncode",
+      "inputs": {
+        "clip_vision": [
+          "model_loader_stage_c",
+          3
+        ],
+        "crop": "center",
+        "image": [
+          "sc_image_loader_2",
+          0
+        ]
+      }
+    },
+    "model_loader_stage_b": {
+      "_meta": {
+        "title": "model_loader_stage_b"
+      },
+      "class_type": "HordeCheckpointLoader",
+      "inputs": {
+        "ckpt_name": "snapshot_stage_b.safetensors",
+        "file_type": "stable_cascade_stage_b",
+        "horde_model_name": "Snapshot Model",
+        "model_name": "snapshot_stage_b.safetensors",
+        "seamless_tiling_enabled": false,
+        "will_load_loras": false
+      }
+    },
+    "model_loader_stage_c": {
+      "_meta": {
+        "title": "model_loader_stage_c"
+      },
+      "class_type": "unCLIPCheckpointLoader",
+      "inputs": {
+        "ckpt_name": "snapshot_stage_c.safetensors",
+        "file_type": "stable_cascade_stage_c",
+        "horde_model_name": "Snapshot Model",
+        "model_name": "snapshot_stage_c.safetensors",
+        "seamless_tiling_enabled": false,
+        "will_load_loras": false
+      }
+    },
+    "negative_prompt": {
+      "_meta": {
+        "title": "negative_prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "model_loader_stage_c",
+          1
+        ],
+        "text": "blurry, deterministic snapshot negative"
+      }
+    },
+    "prompt": {
+      "_meta": {
+        "title": "prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "model_loader_stage_c",
+          1
+        ],
+        "text": "a deterministic snapshot prompt"
+      }
+    },
+    "sampler_stage_b": {
+      "_meta": {
+        "title": "sampler_stage_b"
+      },
+      "class_type": "KSampler",
+      "inputs": {
+        "cfg": 1,
+        "denoise": 1,
+        "latent_image": [
+          "stable_cascade_empty_latent_image",
+          1
+        ],
+        "model": [
+          "model_loader_stage_b",
+          0
+        ],
+        "negative": [
+          "negative_prompt",
+          0
+        ],
+        "positive": [
+          "StableCascade_StageB_Conditioning",
+          0
+        ],
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "seed": 123456789,
+        "steps": 10
+      }
+    },
+    "sampler_stage_c": {
+      "_meta": {
+        "title": "sampler_stage_c"
+      },
+      "class_type": "KSampler",
+      "inputs": {
+        "cfg": 8.0,
+        "denoise": 1.0,
+        "latent_image": [
+          "stable_cascade_empty_latent_image",
+          0
+        ],
+        "model": [
+          "model_loader_stage_c",
+          0
+        ],
+        "negative": [
+          "negative_prompt",
+          0
+        ],
+        "positive": [
+          "unclip_conditioning_2",
+          0
+        ],
+        "sampler_name": "euler",
+        "scheduler": "simple",
+        "seed": 123456789,
+        "steps": 20
+      }
+    },
+    "sc_image_loader_0": {
+      "_meta": {
+        "title": "sc_image_loader_0"
+      },
+      "class_type": "HordeImageLoader",
+      "inputs": {
+        "image": "<image mode=RGB size=512x512>",
+        "upload": "image"
+      }
+    },
+    "sc_image_loader_1": {
+      "class_type": "HordeImageLoader",
+      "inputs": {
+        "image": "<image mode=RGB size=512x512>",
+        "upload": "image"
+      }
+    },
+    "sc_image_loader_2": {
+      "class_type": "HordeImageLoader",
+      "inputs": {
+        "image": "<image mode=RGBA size=512x512>",
+        "upload": "image"
+      }
+    },
+    "stable_cascade_empty_latent_image": {
+      "_meta": {
+        "title": "stable_cascade_empty_latent_image"
+      },
+      "class_type": "StableCascade_EmptyLatentImage",
+      "inputs": {
+        "batch_size": 1,
+        "compression": 42,
+        "height": 512,
+        "width": 512
+      }
+    },
+    "unclip_conditioning_0": {
+      "_meta": {
+        "title": "unclip_conditioning_0"
+      },
+      "class_type": "unCLIPConditioning",
+      "inputs": {
+        "clip_vision_output": [
+          "clip_vision_encode_0",
+          0
+        ],
+        "conditioning": [
+          "prompt",
+          0
+        ],
+        "noise_augmentation": 0,
+        "strength": 1
+      }
+    },
+    "unclip_conditioning_1": {
+      "class_type": "unCLIPConditioning",
+      "inputs": {
+        "clip_vision_output": [
+          "clip_vision_encode_1",
+          0
+        ],
+        "conditioning": [
+          "unclip_conditioning_0",
+          0
+        ],
+        "noise_augmentation": 0,
+        "strength": 0.6
+      }
+    },
+    "unclip_conditioning_2": {
+      "class_type": "unCLIPConditioning",
+      "inputs": {
+        "clip_vision_output": [
+          "clip_vision_encode_2",
+          0
+        ],
+        "conditioning": [
+          "unclip_conditioning_1",
+          0
+        ],
+        "noise_augmentation": 0,
+        "strength": 1.2
+      }
+    }
+  },
+  "pipeline": "stable_cascade_remix"
+}
