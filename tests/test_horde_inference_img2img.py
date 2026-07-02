@@ -557,3 +557,46 @@ class TestHordeInferenceImg2Img:
             img_pairs_to_check.append((f"images_expected/{img_filename}", image_result.image))
 
         assert check_list_inference_images_similarity(img_pairs_to_check)
+
+
+class TestHordeCreativeUpscaleWorkflow:
+    @pytest.mark.default_sd15_model
+    def test_creative_upscale_workflow(
+        self,
+        stable_diffusion_model_name_for_testing: str,
+        hordelib_instance: HordeLib,
+    ):
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 0.6,
+            "seed": 1312,
+            "height": 768,
+            "width": 768,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "a majestic dragon flying over a mountain range",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": stable_diffusion_model_name_for_testing,
+            "source_image": Image.open("images/test_db0.jpg"),
+            "source_processing": "img2img",
+            "workflow": "creative_upscale",
+        }
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image is not None
+        assert isinstance(pil_image, Image.Image)
+        assert pil_image.size == (768, 768)
+
+        img_filename = "creative_upscale_workflow.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )

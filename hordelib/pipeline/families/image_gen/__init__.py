@@ -22,6 +22,7 @@ from hordelib.pipeline.families.image_gen import (
     stable_diffusion,
     z_image,
 )
+from hordelib.pipeline.identifiers import ImagePipeline
 from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.pipeline.registry import PipelineRegistry
 
@@ -62,3 +63,14 @@ def build_default_registry() -> PipelineRegistry[ImageGenPayload, ModelContext]:
 
 
 DEFAULT_REGISTRY = build_default_registry()
+
+# The public ImagePipeline vocabulary must be exactly the registered pipelines; drift is a
+# programming error surfaced at import time, in the same spirit as the registry's own
+# definition audits (mirrored by a named test in tests/pipeline/).
+_registered_pipeline_names = {definition.name for definition in IMAGE_PIPELINES}
+_enumerated_pipeline_names = {member.value for member in ImagePipeline}
+if _registered_pipeline_names != _enumerated_pipeline_names:
+    raise RuntimeError(
+        "ImagePipeline enum is out of sync with IMAGE_PIPELINES: "
+        f"{sorted(_registered_pipeline_names ^ _enumerated_pipeline_names)}",
+    )

@@ -105,6 +105,12 @@ UPSCALER_SCALE_FACTORS = {
     "RealESRGAN_x4plus_anime_6B": 4,
     "NMKD_Siax": 4,
     "4x_AnimeSharp": 4,
+    "4xNomos8kSC": 4,
+    "4xLSDIRplus": 4,
+    "4xNomosWebPhoto_RealPLKSR": 4,
+    "4xNomos2_realplksr_dysample": 4,
+    "4xNomos2_hq_dat2": 4,
+    "2xModernSpanimationV1": 2,
 }
 """Horde upscaler name to its linear (per-axis) scale factor (ROM)."""
 

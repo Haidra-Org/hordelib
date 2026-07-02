@@ -126,6 +126,62 @@ def normalize_horde_payload(
     return payload, faults
 
 
+def apply_model_compat(
+    payload: ImageGenPayload,
+    context: ModelContext,
+) -> tuple[ImageGenPayload, list[GenMetadataEntry]]:
+    """Apply model-fact-dependent compatibility adjustments to a typed payload.
+
+    The typed counterpart of the inpainting rules in :func:`normalize_horde_payload`: a
+    request can resolve to an inpainting model regardless of what it asked for, in which
+    case the source processing is forced to inpainting, missing inputs are synthesized
+    (noise image, all-white mask) with faults recorded, and hires fix is disabled because
+    the dimensions come from the source image.
+    """
+    faults: list[GenMetadataEntry] = []
+
+    payload = payload.model_copy(deep=False)
+    payload.model_name = context.horde_model_name
+
+    if not context.is_inpainting_model:
+        return payload, faults
+
+    if payload.source_processing not in ("inpainting", "outpainting"):
+        logger.warning(
+            "Inpainting model detected, but source processing not set to inpainting or outpainting.",
+        )
+        payload.source_processing = "inpainting"
+
+    if payload.source_image is None:
+        logger.warning(
+            "Inpainting model detected, but source image is not a valid image. Using a noise image.",
+        )
+        faults.append(
+            GenMetadataEntry(type=METADATA_TYPE.source_image, value=METADATA_VALUE.parse_failed),
+        )
+        payload.source_image = ImageUtils.create_noise_image(payload.width, payload.height)
+
+    source_image = payload.source_image
+
+    if payload.source_mask is None and (source_image is None or not ImageUtils.has_alpha_channel(source_image)):
+        logger.warning(
+            "Inpainting model detected, but no source mask provided. Using an all white mask.",
+        )
+        faults.append(
+            GenMetadataEntry(type=METADATA_TYPE.source_mask, value=METADATA_VALUE.parse_failed),
+        )
+        payload.source_mask = ImageUtils.create_white_image(
+            source_image.width if source_image else payload.width,
+            source_image.height if source_image else payload.height,
+        )
+
+    # The (in|out)painting dimensions come from the source image, so a two-pass upscale is
+    # meaningless; mirrors the dict-path disable rule.
+    payload.hires_fix = False
+
+    return payload, faults
+
+
 def resize_sources_to_request(payload: ImageGenPayload) -> ImageGenPayload:
     """Ensure the source image and mask match the requested generation size.
 
@@ -141,7 +197,12 @@ def resize_sources_to_request(payload: ImageGenPayload) -> ImageGenPayload:
 
     new_width, new_height = payload.width, payload.height
     if payload.hires_fix or payload.control_type:
-        new_width, new_height = ImageUtils.get_first_pass_image_resolution_min(payload.width, payload.height)
+        explicit_first_pass_width = payload.hires_fix_first_pass_width
+        explicit_first_pass_height = payload.hires_fix_first_pass_height
+        if payload.hires_fix and explicit_first_pass_width is not None and explicit_first_pass_height is not None:
+            new_width, new_height = explicit_first_pass_width, explicit_first_pass_height
+        else:
+            new_width, new_height = ImageUtils.get_first_pass_image_resolution_min(payload.width, payload.height)
     if source_image.size != (new_width, new_height):
         source_image = source_image.resize((new_width, new_height), Image.Resampling.LANCZOS)
         payload.source_image = source_image

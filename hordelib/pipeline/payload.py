@@ -155,6 +155,9 @@ class ImageGenPayload(_HordePayloadModel):
     source_image: PIL.Image.Image | None = None
     source_processing: str | None = None
     hires_fix_denoising_strength: float = 0.65
+    hires_fix_first_pass_width: int | None = None
+    hires_fix_first_pass_height: int | None = None
+    hires_fix_second_pass_steps: int | None = None
     scheduler: str = "normal"
     tiling: bool = False
     model_name: str = "stable_diffusion"
@@ -203,6 +206,32 @@ class ImageGenPayload(_HordePayloadModel):
         min=0.01,
         max=1.0,
         default=0.65,
+    )
+    # Explicit two-pass overrides: when set (typically by a caller that computed the passes
+    # itself, such as the SDK's generic-parameters converter), they take precedence over the
+    # baseline-derived recompute during materialization; None keeps the historical behavior.
+    _v_hires_first_pass_width = _clamping_validator(
+        "hires_fix_first_pass_width",
+        datatype=int,
+        min=64,
+        max=8192,
+        default=None,
+        divisible=64,
+    )
+    _v_hires_first_pass_height = _clamping_validator(
+        "hires_fix_first_pass_height",
+        datatype=int,
+        min=64,
+        max=8192,
+        default=None,
+        divisible=64,
+    )
+    _v_hires_second_pass_steps = _clamping_validator(
+        "hires_fix_second_pass_steps",
+        datatype=int,
+        min=1,
+        max=500,
+        default=None,
     )
     _v_scheduler = _clamping_validator("scheduler", datatype=str, values=SCHEDULERS, default="normal")
     _v_tiling = _clamping_validator("tiling", datatype=bool, default=False)

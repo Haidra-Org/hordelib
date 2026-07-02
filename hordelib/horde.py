@@ -2,19 +2,17 @@
 # Main interface for the horde to this library.
 from __future__ import annotations
 
-import base64
 import io
 import time
 from collections.abc import Callable
 from enum import Enum, auto
 
 import logfire
-from horde_sdk.ai_horde_api.apimodels import ImageGenerateJobPopResponse
 from horde_sdk.ai_horde_api.apimodels.base import (
     GenMetadataEntry,
 )
-from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
 from horde_sdk.generation_parameters.alchemy.consts import KNOWN_FACEFIXERS
+from horde_sdk.generation_parameters.image import ImageGenerationParameters
 from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
@@ -23,8 +21,10 @@ from hordelib.execution.in_process import InProcessComfyBackend
 from hordelib.execution.interface import OutputSpec
 from hordelib.pipeline import constants as pipeline_constants
 from hordelib.pipeline.context import ModelContext
+from hordelib.pipeline.definition import PipelineDefinition
 from hordelib.pipeline.families.post_processing import POST_PROCESSING_REGISTRY
 from hordelib.pipeline.graph import ComfyGraph
+from hordelib.pipeline.identifiers import AUTO_PIPELINE, AutoPipeline, ImagePipeline
 from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.pipeline.payload_pp import (
     FacefixPayload,
@@ -160,15 +160,24 @@ class HordeLib:
     def _materialize_image_graph(
         self,
         payload: dict,
-    ) -> tuple[ComfyGraph, ImageGenPayload, ModelContext, list[GenMetadataEntry], tuple[OutputSpec, ...]]:
-        """The typed pipeline flow: resolve -> normalize -> validate -> select -> materialize.
+    ) -> tuple[
+        ComfyGraph,
+        ImageGenPayload,
+        ModelContext,
+        list[GenMetadataEntry],
+        tuple[OutputSpec, ...],
+    ]:
+        """The legacy-dict pipeline flow: resolve -> normalize -> validate -> select -> materialize.
+
+        The compatibility front end for raw Horde payload dicts: the AI-Horde-specific dict
+        hacks (``###`` prompt splitting, the karras flag, hires-fix disable rules) are applied
+        before validation, then the shared typed tail runs with automatic pipeline selection.
 
         Returns the fully materialized graph, the typed payload, the resolved model context,
         any faults to attach to the results, and the pipeline's declared outputs.
         """
-        from hordelib.pipeline.families.image import DEFAULT_REGISTRY
-        from hordelib.pipeline.horde_compat import normalize_horde_payload, resize_sources_to_request
-        from hordelib.pipeline.resolution import resolve_image_generation, resolve_image_model
+        from hordelib.pipeline.horde_compat import normalize_horde_payload
+        from hordelib.pipeline.resolution import resolve_image_model
 
         model = payload.get("model")
         if model is None:
@@ -177,23 +186,76 @@ class HordeLib:
         context = resolve_image_model(str(model))
         normalized, compat_faults = normalize_horde_payload(payload, context)
         typed = ImageGenPayload.from_horde_dict(normalized)
+        return self._finalize_and_materialize(typed, context, compat_faults, pipeline=AUTO_PIPELINE)
+
+    def _finalize_and_materialize(
+        self,
+        typed: ImageGenPayload,
+        context: ModelContext,
+        faults: list[GenMetadataEntry],
+        *,
+        pipeline: ImagePipeline | AutoPipeline,
+    ) -> tuple[
+        ComfyGraph,
+        ImageGenPayload,
+        ModelContext,
+        list[GenMetadataEntry],
+        tuple[OutputSpec, ...],
+    ]:
+        """The shared typed tail of the pipeline flow: resize -> resolve -> select -> materialize."""
+        from hordelib.pipeline.horde_compat import resize_sources_to_request
+        from hordelib.pipeline.resolution import resolve_image_generation
+
         typed = resize_sources_to_request(typed)
         typed, context, resolution_faults = resolve_image_generation(typed, context)
 
-        definition = DEFAULT_REGISTRY.select(typed, context)
-        if definition is None:
-            # The registry has a fallback-tier catch-all, so this is purely defensive
-            logger.warning("No pipeline matched payload; falling back to stable_diffusion")
-            definition = DEFAULT_REGISTRY.get("stable_diffusion")
-            assert definition is not None
+        definition = self._resolve_pipeline_definition(typed, context, pipeline)
 
         logger.info(
             "Pipeline validation complete",
             pipeline=definition.name,
-            faults_count=len(compat_faults) + len(resolution_faults),
+            faults_count=len(faults) + len(resolution_faults),
         )
         graph = definition.materialize(typed, context)
-        return graph, typed, context, compat_faults + resolution_faults, definition.outputs
+        return graph, typed, context, faults + resolution_faults, definition.outputs
+
+    @staticmethod
+    def _resolve_pipeline_definition(
+        typed: ImageGenPayload,
+        context: ModelContext,
+        pipeline: ImagePipeline | AutoPipeline,
+    ) -> PipelineDefinition[ImageGenPayload, ModelContext]:
+        """Resolve the pipeline definition to run: the caller's explicit choice, or the registry's.
+
+        An explicit choice is trusted even when its selector would not have matched (the
+        registry audits guarantee any payload can materialize any registered definition); the
+        mismatch is logged, along with what automatic selection would have picked.
+        """
+        from hordelib.pipeline.families.image_gen import DEFAULT_REGISTRY
+
+        if isinstance(pipeline, AutoPipeline):
+            definition = DEFAULT_REGISTRY.select(typed, context)
+            if definition is None:
+                # The registry has a fallback-tier catch-all, so this is purely defensive
+                logger.warning("No pipeline matched payload; falling back to stable_diffusion")
+                definition = DEFAULT_REGISTRY.get(ImagePipeline.STABLE_DIFFUSION.value)
+                assert definition is not None
+            return definition
+
+        definition = DEFAULT_REGISTRY.get(pipeline.value)
+        if definition is None:
+            # Unreachable while the import-time enum/registry sync audit holds.
+            raise RuntimeError(f"Pipeline {pipeline.value!r} is not registered")
+
+        if not definition.selector.matches(typed, context):
+            auto_definition = DEFAULT_REGISTRY.select(typed, context)
+            logger.warning(
+                "Explicit pipeline does not match the payload's features; proceeding as requested",
+                pipeline=definition.name,
+                auto_would_select=auto_definition.name if auto_definition else None,
+            )
+
+        return definition
 
     @logfire.instrument("horde.inference", extract_args=False)
     def _inference(
@@ -204,9 +266,32 @@ class HordeLib:
         comfyui_progress_callback: Callable[[ComfyUIProgress, str], None] | None = None,
         defer_vram_unload: bool = False,
     ) -> list[ResultingImageReturn] | ResultingImageReturn:
+        graph_bundle = self._materialize_image_graph(payload)
+        return self._run_materialized(
+            graph_bundle,
+            single_image_expected=single_image_expected,
+            comfyui_progress_callback=comfyui_progress_callback,
+            defer_vram_unload=defer_vram_unload,
+        )
+
+    def _run_materialized(
+        self,
+        graph_bundle: tuple[
+            ComfyGraph,
+            ImageGenPayload,
+            ModelContext,
+            list[GenMetadataEntry],
+            tuple[OutputSpec, ...],
+        ],
+        *,
+        single_image_expected: bool = True,
+        comfyui_progress_callback: Callable[[ComfyUIProgress, str], None] | None = None,
+        defer_vram_unload: bool = False,
+    ) -> list[ResultingImageReturn] | ResultingImageReturn:
+        """Run a materialized graph on the backend and wrap the artifacts as results."""
         start_time = time.time()
 
-        graph, typed, context, faults, declared_outputs = self._materialize_image_graph(payload)
+        graph, typed, context, faults, declared_outputs = graph_bundle
 
         resolution = f"{typed.width}x{typed.height}"
         logger.info(
@@ -264,165 +349,27 @@ class HordeLib:
 
         return ret_results
 
-    @logfire.instrument("horde.basic_inference", extract_args=False)
-    def basic_inference(
-        self,
-        payload: dict | ImageGenerateJobPopResponse,
-        *,
-        progress_callback: Callable[[ProgressReport], None] | None = None,
-        defer_vram_unload: bool = False,
-    ) -> list[ResultingImageReturn]:
-        post_processing_requested: list[str] | None = None
-        if isinstance(payload, dict):
-            post_processing_requested = payload.get("post_processing")
-            n_iter = payload.get("n_iter", 1)
-        else:
-            n_iter = getattr(payload.payload, "n_iter", 1)
+    @staticmethod
+    def _emit_progress(
+        progress_callback: Callable[[ProgressReport], None] | None,
+        report: ProgressReport,
+    ) -> None:
+        """Send a progress report to the callback, never letting a callback error propagate."""
+        if progress_callback is None:
+            return
+        try:
+            progress_callback(report)
+        except Exception:
+            logger.exception("Progress callback failed")
 
-        logger.info(
-            "Basic inference started",
-            n_iter=n_iter,
-            post_processing_count=len(post_processing_requested) if post_processing_requested else 0,
-            has_callback=progress_callback is not None,
-        )
+    @classmethod
+    def _make_comfyui_progress_adapter(
+        cls,
+        progress_callback: Callable[[ProgressReport], None] | None,
+    ) -> Callable[[ComfyUIProgress, str], None]:
+        """Create the backend-facing progress adapter: metrics, logging, and callback fan-out."""
 
-        faults = []
-        if isinstance(payload, ImageGenerateJobPopResponse):  # TODO move this to _inference()
-            for post_processor_requested in payload.payload.post_processing:
-                if post_processing_requested is None:
-                    post_processing_requested = []
-                post_processing_requested.append(post_processor_requested)
-                logger.debug("Post-processing requested: processors={}", post_processor_requested)
-
-            sub_payload = payload.payload.model_dump()
-
-            def handle_images(
-                payload: ImageGenerateJobPopResponse,
-                image_type: str,
-                get_downloaded_image_func: Callable,
-            ):
-                image = getattr(payload, image_type)
-
-                if image is not None and "http" in image:
-                    image = get_downloaded_image_func()
-
-                    if image is None:
-                        logger.error(
-                            f"{image_type.capitalize()} is a URL but wasn't downloaded, "
-                            "this is not supported in this context. Run the `async_download_*` methods first.",
-                        )
-
-                        return None
-
-                return image
-
-            source_image = handle_images(
-                payload,
-                "source_image",
-                payload.get_downloaded_source_image,
-            )
-            if source_image is None:
-                logger.info("No source image found in payload.")
-
-            mask_image = handle_images(
-                payload,
-                "source_mask",
-                payload.get_downloaded_source_mask,
-            )
-            if mask_image is None:
-                logger.info("No mask image found in payload.")
-
-            extra_source_images = payload.extra_source_images
-
-            if extra_source_images is not None:
-                extra_source_images = payload.get_downloaded_extra_source_images()
-                if extra_source_images is not None:
-                    logger.info("Using downloaded extra source images: count={}", len(extra_source_images))
-                else:
-                    logger.info("No extra source images found in payload.")
-
-            esi_to_remove = []
-            if extra_source_images is not None:
-                for esi in extra_source_images:
-                    if "http" in esi.image:
-                        logger.warning("Extra source image is a URL, this is not supported in this context.")
-                        esi_to_remove.append(esi)
-
-                extra_source_images = [esi for esi in extra_source_images if esi not in esi_to_remove]
-            # If its a base64 encoded image, decode it
-            if isinstance(source_image, str):
-                try:
-                    source_image_bytes = base64.b64decode(source_image)
-                    source_image_pil = Image.open(io.BytesIO(source_image_bytes))
-                    sub_payload["source_image"] = source_image_pil
-                except Exception as err:
-                    faults.append(
-                        GenMetadataEntry(
-                            type=METADATA_TYPE.source_image,
-                            value=METADATA_VALUE.parse_failed,
-                        ),
-                    )
-                    logger.warning("Failed to parse source image, falling back to text2img: error={}", err)
-
-            if isinstance(mask_image, str):
-                try:
-                    mask_image_bytes = base64.b64decode(mask_image)
-                    mask_image_pil = Image.open(io.BytesIO(mask_image_bytes))
-                    sub_payload["source_mask"] = mask_image_pil
-                except Exception as err:
-                    faults.append(
-                        GenMetadataEntry(
-                            type=METADATA_TYPE.source_mask,
-                            value=METADATA_VALUE.parse_failed,
-                        ),
-                    )
-                    logger.warning("Failed to parse source mask, ignoring it: error={}", err)
-
-            if isinstance(extra_source_images, list):
-                extra_source_images_sub = []
-                for esi_index, esi in enumerate(extra_source_images):
-                    try:
-                        esi_bytes = base64.b64decode(esi.image)
-                        esi_pil = Image.open(io.BytesIO(esi_bytes))
-                        extra_source_images_sub.append(
-                            {
-                                "image": esi_pil,
-                                "strength": esi.strength,
-                            },
-                        )
-                    except Exception as err:
-                        faults.append(
-                            GenMetadataEntry(
-                                type=METADATA_TYPE.extra_source_images,
-                                value=METADATA_VALUE.parse_failed,
-                                ref=str(esi_index),
-                            ),
-                        )
-                        logger.warning(
-                            "Failed to parse extra source image, ignoring: index={}, error={}",
-                            esi_index,
-                            err,
-                        )
-                sub_payload["extra_source_images"] = extra_source_images_sub
-
-            sub_payload["source_processing"] = payload.source_processing
-            sub_payload["model"] = payload.model
-            payload = sub_payload
-
-        if progress_callback is not None:
-            try:
-                progress_callback(
-                    ProgressReport(
-                        hordelib_progress_state=ProgressState.started,
-                        hordelib_message="Initiating inference...",
-                        progress=0,
-                    ),
-                )
-            except Exception:
-                logger.exception("Progress callback failed")
-
-        def _default_progress_callback(comfyui_progress: ComfyUIProgress, message: str) -> None:
-            nonlocal progress_callback
+        def _comfyui_progress_adapter(comfyui_progress: ComfyUIProgress, message: str) -> None:
             # Record progress metric
             progress_gauge.set(comfyui_progress.percent)
 
@@ -436,22 +383,50 @@ class HordeLib:
                 rate_unit=comfyui_progress.rate_unit.name,
             )
 
-            if progress_callback is not None:
-                try:
-                    progress_callback(
-                        ProgressReport(
-                            hordelib_progress_state=ProgressState.progress,
-                            hordelib_message=message,
-                            comfyui_progress=comfyui_progress,
-                        ),
-                    )
-                except Exception:
-                    logger.exception("Progress callback failed")
+            cls._emit_progress(
+                progress_callback,
+                ProgressReport(
+                    hordelib_progress_state=ProgressState.progress,
+                    hordelib_message=message,
+                    comfyui_progress=comfyui_progress,
+                ),
+            )
+
+        return _comfyui_progress_adapter
+
+    @logfire.instrument("horde.basic_inference", extract_args=False)
+    def basic_inference(
+        self,
+        payload: dict,
+        *,
+        progress_callback: Callable[[ProgressReport], None] | None = None,
+        defer_vram_unload: bool = False,
+    ) -> list[ResultingImageReturn]:
+        post_processing_requested: list[str] | None = payload.get("post_processing")
+        n_iter = payload.get("n_iter", 1)
+
+        logger.info(
+            "Basic inference started",
+            n_iter=n_iter,
+            post_processing_count=len(post_processing_requested) if post_processing_requested else 0,
+            has_callback=progress_callback is not None,
+        )
+
+        faults: list[GenMetadataEntry] = []
+
+        self._emit_progress(
+            progress_callback,
+            ProgressReport(
+                hordelib_progress_state=ProgressState.started,
+                hordelib_message="Initiating inference...",
+                progress=0,
+            ),
+        )
 
         result = self._inference(
             payload,
             single_image_expected=False,
-            comfyui_progress_callback=_default_progress_callback,
+            comfyui_progress_callback=self._make_comfyui_progress_adapter(progress_callback),
             defer_vram_unload=defer_vram_unload,
         )
 
@@ -645,6 +620,123 @@ class HordeLib:
             return [result.image]
 
         raise RuntimeError(f"Expected at least one io.BytesIO. Got {result}.")
+
+    @logfire.instrument("horde.generate", extract_args=False)
+    def generate(
+        self,
+        params: ImageGenerationParameters,
+        *,
+        pipeline: ImagePipeline | AutoPipeline,
+        progress_callback: Callable[[ProgressReport], None] | None = None,
+        defer_vram_unload: bool = False,
+    ) -> list[ResultingImageReturn]:
+        """Run an image generation from backend-agnostic parameters. Inference only.
+
+        The typed counterpart of `basic_inference`: it accepts the ecosystem-shared
+        [`ImageGenerationParameters`][horde_sdk.generation_parameters.image.ImageGenerationParameters]
+        and requires the pipeline choice to be visible at the call site, either a specific
+        [`ImagePipeline`][hordelib.pipeline.identifiers.ImagePipeline] member or the explicit
+        [`AUTO_PIPELINE`][hordelib.pipeline.identifiers.AUTO_PIPELINE] opt-in to registry
+        selection. Unlike `basic_inference`, no post-processing is performed (and
+        `ProgressState.post_processing` is never emitted); callers drive post-processing
+        explicitly via `post_process`.
+
+        Args:
+            params: The generation parameters. Any embedded `alchemy_params` are ignored.
+            pipeline: The pipeline to run, or `AUTO_PIPELINE` for registry-based selection.
+                An explicit pipeline is trusted even if its selector would not have matched
+                the payload (a warning is logged with what AUTO would have chosen).
+            progress_callback: Receives started/progress/finished reports.
+            defer_vram_unload: Keep the model resident in VRAM after the job.
+
+        Returns:
+            One result per generated image, each carrying the image, its raw PNG stream, and
+            any faults accumulated during conversion and generation.
+
+        Raises:
+            RuntimeError: If the model cannot be resolved (unknown to the reference or
+                missing from disk).
+        """
+        from hordelib.pipeline.horde_compat import apply_model_compat
+        from hordelib.pipeline.resolution import resolve_image_model
+        from hordelib.pipeline.sdk_adapter import to_image_gen_payload
+
+        logger.info(
+            "Typed generation started",
+            batch_size=params.batch_size,
+            pipeline=pipeline.value if isinstance(pipeline, ImagePipeline) else "auto",
+            has_callback=progress_callback is not None,
+        )
+
+        typed, conversion_faults = to_image_gen_payload(params)
+        context = resolve_image_model(typed.model)
+        typed, compat_faults = apply_model_compat(typed, context)
+
+        self._emit_progress(
+            progress_callback,
+            ProgressReport(
+                hordelib_progress_state=ProgressState.started,
+                hordelib_message="Initiating inference...",
+                progress=0,
+            ),
+        )
+
+        graph_bundle = self._finalize_and_materialize(
+            typed,
+            context,
+            conversion_faults + compat_faults,
+            pipeline=pipeline,
+        )
+
+        result = self._run_materialized(
+            graph_bundle,
+            single_image_expected=False,
+            comfyui_progress_callback=self._make_comfyui_progress_adapter(progress_callback),
+            defer_vram_unload=defer_vram_unload,
+        )
+
+        if not isinstance(result, list):
+            raise RuntimeError(f"Expected a list of results but got {type(result)}")
+
+        return_list = [single_result for single_result in result if isinstance(single_result.image, Image.Image)]
+
+        self._emit_progress(
+            progress_callback,
+            ProgressReport(
+                hordelib_progress_state=ProgressState.finished,
+                hordelib_message="Inference complete.",
+                progress=100,
+            ),
+        )
+
+        if len(return_list) != len(result):
+            raise RuntimeError("Expected a list of PIL.Image.Image but got a mix of types!")
+
+        return return_list
+
+    def select_pipeline(self, params: ImageGenerationParameters) -> ImagePipeline:
+        """Return the pipeline that `AUTO_PIPELINE` would select for these parameters.
+
+        A preview of selection, not a pure function: the parameters are resolved exactly as
+        `generate` would resolve them, which touches the model managers and may download
+        referenced ad-hoc models (LoRAs) as an IO boundary.
+
+        Raises:
+            RuntimeError: If the model cannot be resolved (unknown to the reference or
+                missing from disk).
+        """
+        from hordelib.pipeline.horde_compat import apply_model_compat, resize_sources_to_request
+        from hordelib.pipeline.resolution import resolve_image_generation, resolve_image_model
+        from hordelib.pipeline.sdk_adapter import to_image_gen_payload
+
+        typed, _conversion_faults = to_image_gen_payload(params)
+        context = resolve_image_model(typed.model)
+        typed, _compat_faults = apply_model_compat(typed, context)
+        typed = resize_sources_to_request(typed)
+        typed, context, _resolution_faults = resolve_image_generation(typed, context)
+
+        definition = self._resolve_pipeline_definition(typed, context, AUTO_PIPELINE)
+        return ImagePipeline(definition.name)
 
     def preload_model(
         self,

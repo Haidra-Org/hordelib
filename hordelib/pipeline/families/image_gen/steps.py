@@ -91,15 +91,36 @@ def apply_cascade_stage_models(graph: ComfyGraph, payload: ImageGenPayload, cont
 
 
 def apply_hires_fix_resolution(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
-    """Shrink the first pass to a baseline-appropriate resolution when hires fix is on."""
+    """Shrink the first pass to a baseline-appropriate resolution when hires fix is on.
+
+    Explicit first-pass dimensions on the payload take precedence over the baseline-derived
+    recompute; they are set by callers that computed the two passes themselves.
+    """
     if not payload.hires_fix:
+        return
+    if payload.hires_fix_first_pass_width is not None and payload.hires_fix_first_pass_height is not None:
+        graph.set_inputs(
+            {
+                "latent_upscale.width": payload.width,
+                "latent_upscale.height": payload.height,
+                "empty_latent_image.width": payload.hires_fix_first_pass_width,
+                "empty_latent_image.height": payload.hires_fix_first_pass_height,
+            },
+        )
         return
     graph.set_inputs(hires_fix_first_pass_resolution(context.baseline, payload.width, payload.height))
 
 
 def apply_upscale_sampler_steps(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
-    """Compute the hires-fix second-pass step count from the model's native resolution."""
+    """Compute the hires-fix second-pass step count from the model's native resolution.
+
+    An explicit second-pass step count on the payload takes precedence over the recompute;
+    it is set by callers that computed the two passes themselves.
+    """
     if not graph.has_node("upscale_sampler"):
+        return
+    if payload.hires_fix_second_pass_steps is not None:
+        graph.set_input("upscale_sampler.steps", payload.hires_fix_second_pass_steps)
         return
     native_resolution = get_baseline_native_resolution(context.baseline) if context.baseline is not None else None
     graph.set_input(

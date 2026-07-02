@@ -45,9 +45,9 @@ def init_horde(
     assert os.getenv("CIVIT_API_TOKEN")
 
     examples_path = Path(__file__).parent.parent / "images_expected"
-    assert examples_path.exists() and examples_path.is_dir(), (
-        "The `images_expected` directory must exist. You can find in in the github repo."
-    )
+    assert (
+        examples_path.exists() and examples_path.is_dir()
+    ), "The `images_expected` directory must exist. You can find in in the github repo."
 
     HORDELIB_CUSTOM_MODELS = os.getenv("HORDELIB_CUSTOM_MODELS", None)
     print(f"HORDELIB_CUSTOM_MODELS: {HORDELIB_CUSTOM_MODELS}")

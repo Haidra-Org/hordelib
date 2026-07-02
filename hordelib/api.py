@@ -60,6 +60,11 @@ from hordelib.pipeline.constants import (
     CONTROLNET_ANNOTATOR_DOWNLOAD_BYTES,
     controlnet_annotator_download_bytes,
 )
+from hordelib.pipeline.identifiers import (
+    AUTO_PIPELINE,
+    AutoPipeline,
+    ImagePipeline,
+)
 from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.pipeline.payload_pp import (
     FacefixPayload,
@@ -97,11 +102,13 @@ if TYPE_CHECKING:
     from hordelib.shared_model_manager import SharedModelManager
 
 __all__ = [
+    "AUTO_PIPELINE",
     "CONTROLNET_ANNOTATOR_DOWNLOAD_BYTES",
     "FEATURE_KIND",
     "FEATURE_PHASE",
     "AcceleratorInfo",
     "AcceleratorKind",
+    "AutoPipeline",
     "BaselineBurden",
     "BurdenEstimate",
     "CalibrationSample",
@@ -117,6 +124,7 @@ __all__ = [
     "HordeLib",
     "HordeLog",
     "ImageGenPayload",
+    "ImagePipeline",
     "JobPhaseMetrics",
     "MetricsCollector",
     "ModelLoadEvent",

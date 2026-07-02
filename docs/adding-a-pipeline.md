@@ -97,12 +97,17 @@ Field by field:
 3. List the definition in `IMAGE_PIPELINES` in
    `hordelib/pipeline/families/image_gen/__init__.py` (there is deliberately no discovery
    magic).
-4. Run `pytest tests/pipeline` — the contract tests (`test_pipeline_contracts.py`)
+4. Add a matching member to the public `ImagePipeline` enum in
+   `hordelib/pipeline/identifiers.py` (the vocabulary callers use to select a pipeline
+   explicitly via `HordeLib.generate`). An import-time audit in the family package, mirrored
+   by `tests/pipeline/test_pipeline_identifiers.py`, fails loudly if the enum and
+   `IMAGE_PIPELINES` drift.
+5. Run `pytest tests/pipeline` — the contract tests (`test_pipeline_contracts.py`)
    automatically cover the new definition: graph loads, audit is clean, strict
    materialization works. Fix whatever they name.
-5. If your pipeline's materialized graph should be pinned (it should), add canned cases to
+6. If your pipeline's materialized graph should be pinned (it should), add canned cases to
    `tests/pipeline/test_materialize_snapshots.py` and generate with `--snapshot-update`.
-6. Add a GPU oracle test (`tests/test_horde_inference_<name>.py`) with reference outputs in
+7. Add a GPU oracle test (`tests/test_horde_inference_<name>.py`) with reference outputs in
    `images_expected/`.
 
 If the pipeline serves a **new model baseline**, also follow
