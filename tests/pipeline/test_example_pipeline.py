@@ -12,11 +12,11 @@ from .examples.example_definition import EXAMPLE_PIPELINE
 
 
 def test_example_definition_audits_clean() -> None:
-    assert audit_definition(EXAMPLE_PIPELINE) == []
+    assert audit_definition(EXAMPLE_PIPELINE, payload_types=(ImageGenPayload,)) == []
 
 
 def test_example_definition_registers_and_selects() -> None:
-    registry: PipelineRegistry[ImageGenPayload, ModelContext] = PipelineRegistry()
+    registry: PipelineRegistry[ImageGenPayload, ModelContext] = PipelineRegistry(payload_types=(ImageGenPayload,))
     registry.register(EXAMPLE_PIPELINE)
 
     selected = registry.select(

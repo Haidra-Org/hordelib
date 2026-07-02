@@ -23,20 +23,29 @@ from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
+from typing_extensions import TypeVar
+
+BoundPayloadT = TypeVar("BoundPayloadT", bound=BaseModel, default=BaseModel)
+"""The payload type of a ``bind`` call; defaults to ``BaseModel`` when no transform pins it
+(a binding of plain field names is payload-type-agnostic)."""
 
 from hordelib.execution.interface import OutputKind, OutputSpec
 from hordelib.pipeline.graph import ComfyGraph
 
 __all__ = [
     "PACKAGED_PIPELINES_DIR",
+    "NodeHandle",
     "OutputKind",
     "OutputSpec",
     "ParamBinding",
     "pipeline_graph",
+    "node",
+    "scaled",
     "PatchStep",
     "PayloadFeature",
     "PipelineDefinition",
     "Predicate",
+    "ScaledSource",
     "SelectionTier",
     "Selector",
     "Transform",
@@ -69,7 +78,8 @@ type Predicate[PayloadT: BaseModel, ContextT] = Callable[[PayloadT, ContextT], b
 class ParamBinding[PayloadT: BaseModel]:
     """Binds one graph input to a payload field or a computed value.
 
-    Exactly one of ``source`` or ``transform`` must be set.
+    Exactly one of ``source`` or ``transform`` must be set. Prefer authoring bindings through
+    :func:`node` handles, which build these with the node class attached for auditing.
     """
 
     target: str
@@ -80,6 +90,11 @@ class ParamBinding[PayloadT: BaseModel]:
     """A function computing the value from the whole payload."""
     multiplier: float | None = None
     """Optional multiplier applied (and rounded) to a numeric source value."""
+    node_classes: tuple[str, ...] = ()
+    """The (post-replacement) node class_types the target node may be; empty skips the check.
+
+    Set by :meth:`NodeHandle.bind` so the audit can verify a graph re-export has not swapped
+    the class under an unchanged title."""
 
     def __post_init__(self) -> None:
         if (self.source is None) == (self.transform is None):
@@ -94,6 +109,88 @@ class ParamBinding[PayloadT: BaseModel]:
         if self.multiplier is not None and value is not None:
             return round(value * self.multiplier)
         return value
+
+
+@dataclass(frozen=True)
+class ScaledSource:
+    """A payload field bound with a multiplier (see :func:`scaled`)."""
+
+    source: str
+    multiplier: float
+
+
+def scaled(source: str, multiplier: float) -> ScaledSource:
+    """Bind a payload field scaled by a constant, e.g. ``steps=scaled("ddim_steps", 0.33)``."""
+    return ScaledSource(source=source, multiplier=multiplier)
+
+
+type BindingValue[PayloadT: BaseModel] = str | ScaledSource | Transform[PayloadT]
+"""What a node input can be bound to: a payload field name, a scaled field, or a transform."""
+
+
+@dataclass(frozen=True)
+class NodeHandle:
+    """A named graph node with its expected class(es); binds inputs by keyword.
+
+    Built via :func:`node`. ``bind`` keyword names are the node's input names, so a binding
+    group reads node-first::
+
+        SAMPLER_CORE = node("sampler", "KSampler").bind(
+            sampler_name=comfy_sampler,
+            cfg="cfg_scale",
+            seed="seed",
+        )
+
+    Both halves are audited at registration: the graph node must exist with one of the
+    declared classes, and every keyword must be an input that class actually declares
+    (ComfyUI silently drops unknown input names).
+    """
+
+    title: str
+    class_types: tuple[str, ...]
+
+    def bind(
+        self,
+        **inputs: BindingValue[BoundPayloadT],
+    ) -> tuple[ParamBinding[BoundPayloadT], ...]:
+        """Bind this node's inputs; values are payload field names, transforms, or scaled fields.
+
+        Raises:
+            TypeError: If a value is not a valid :data:`BindingValue`.
+        """
+        bindings: list[ParamBinding[BoundPayloadT]] = []
+        for input_name, value in inputs.items():
+            target = f"{self.title}.{input_name}"
+            if isinstance(value, str):
+                binding = ParamBinding[BoundPayloadT](target=target, source=value, node_classes=self.class_types)
+            elif isinstance(value, ScaledSource):
+                binding = ParamBinding[BoundPayloadT](
+                    target=target,
+                    source=value.source,
+                    multiplier=value.multiplier,
+                    node_classes=self.class_types,
+                )
+            elif callable(value):
+                binding = ParamBinding[BoundPayloadT](target=target, transform=value, node_classes=self.class_types)
+            else:
+                raise TypeError(f"Binding value for {target!r} must be a field name, transform, or scaled()")
+            bindings.append(binding)
+        return tuple(bindings)
+
+
+def node(title: str, *class_types: str) -> NodeHandle:
+    """Return a handle for the graph node ``title``, declaring its expected class(es).
+
+    Most nodes declare exactly one class; pass several only when a shared binding group spans
+    graphs whose node legitimately differs (e.g. ``EmptyLatentImage``/``EmptySD3LatentImage``,
+    which share their input names).
+
+    Raises:
+        ValueError: If no class_type is declared.
+    """
+    if not class_types:
+        raise ValueError(f"node({title!r}) must declare at least one expected class_type")
+    return NodeHandle(title=title, class_types=class_types)
 
 
 @dataclass(frozen=True)
@@ -194,6 +291,14 @@ class PipelineDefinition[PayloadT: BaseModel, ContextT]:
     title here acknowledges a legacy graph's collision until the export is repaired (which
     changes the loaded graph and therefore needs GPU-oracle verification). Never add entries
     for new pipelines; fix the export instead.
+    """
+    known_spurious_inputs: frozenset[str] = frozenset()
+    """Grandfathered binding targets whose input name the node class does not declare.
+
+    ComfyUI silently drops such inputs, so the audit rejects them; listing a dotted target
+    here acknowledges a legacy binding that has always been a no-op on this graph (they are
+    pinned by the snapshot corpus because pruning them changes prompt hashes). Never add
+    entries for new pipelines; bind only real inputs instead.
     """
 
     def load_graph(self) -> ComfyGraph:

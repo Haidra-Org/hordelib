@@ -13,11 +13,11 @@ from pathlib import Path
 from hordelib.pipeline.context import PostProcessingContext
 from hordelib.pipeline.definition import (
     OutputSpec,
-    ParamBinding,
     PayloadFeature,
     PipelineDefinition,
     SelectionTier,
     Selector,
+    node,
 )
 from hordelib.pipeline.graph import ComfyGraph
 from hordelib.pipeline.payload_pp import FacefixPayload, PostProcessingGraphPayload, UpscalePayload
@@ -54,7 +54,7 @@ IMAGE_UPSCALE_DEFINITION: PostProcessingDefinition = PipelineDefinition(
     name="image_upscale",
     graph_file=PIPELINES_DIR / "pipeline_image_upscale.json",
     selector=Selector(tier=SelectionTier.FEATURE, order=0, features=(UPSCALE_REQUESTED,)),
-    bindings=(ParamBinding(target="image_loader.image", source="source_image"),),
+    bindings=node("image_loader", "HordeImageLoader").bind(image="source_image"),
     outputs=(OutputSpec(node="output_image"),),
     patch_steps=(_apply_model_file,),
 )
@@ -64,8 +64,8 @@ IMAGE_FACEFIX_DEFINITION: PostProcessingDefinition = PipelineDefinition(
     graph_file=PIPELINES_DIR / "pipeline_image_facefix.json",
     selector=Selector(tier=SelectionTier.FEATURE, order=1, features=(FACEFIX_REQUESTED,)),
     bindings=(
-        ParamBinding(target="image_loader.image", source="source_image"),
-        ParamBinding(target="face_restore_with_model.codeformer_fidelity", source="fidelity"),
+        *node("image_loader", "HordeImageLoader").bind(image="source_image"),
+        *node("face_restore_with_model", "FaceRestoreCFWithModel").bind(codeformer_fidelity="fidelity"),
     ),
     outputs=(OutputSpec(node="output_image"),),
     patch_steps=(_apply_model_file,),
@@ -73,7 +73,9 @@ IMAGE_FACEFIX_DEFINITION: PostProcessingDefinition = PipelineDefinition(
 
 
 def build_post_processing_registry() -> PipelineRegistry[PostProcessingGraphPayload, PostProcessingContext]:
-    registry: PipelineRegistry[PostProcessingGraphPayload, PostProcessingContext] = PipelineRegistry()
+    registry: PipelineRegistry[PostProcessingGraphPayload, PostProcessingContext] = PipelineRegistry(
+        payload_types=(UpscalePayload, FacefixPayload),
+    )
     registry.register(IMAGE_UPSCALE_DEFINITION)
     registry.register(IMAGE_FACEFIX_DEFINITION)
     return registry

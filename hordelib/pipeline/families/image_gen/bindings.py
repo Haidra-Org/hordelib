@@ -1,9 +1,12 @@
 """The image family's parameter bindings, as named, composable groups.
 
 Each group binds one coherent piece of the graph vocabulary (the sampler node, the prompts,
-the controlnet nodes, ...). A pipeline composes exactly the groups its graph provides via
-:func:`compose`; registration then audits every target against the graph, so a group included
-by mistake fails loudly instead of silently skipping.
+the controlnet nodes, ...), authored node-first via :func:`hordelib.pipeline.definition.node`
+handles: the handle names the graph node and its expected class, and ``bind`` keywords are the
+node's actual input names. A pipeline composes exactly the groups its graph provides via
+:func:`compose`; registration then audits every node title, node class, input name (against
+the committed ComfyUI node schema snapshot), and payload source, so a typo in any of the four
+fails loudly instead of silently skipping.
 
 Group membership is pinned by ``tests/pipeline/materialized_expected/``; changing what a
 group binds changes the submitted ComfyUI prompts and must be done deliberately (see the
@@ -11,7 +14,7 @@ snapshot harness docstring).
 """
 
 from hordelib.pipeline.constants import SAMPLERS_MAP
-from hordelib.pipeline.definition import ParamBinding
+from hordelib.pipeline.definition import ParamBinding, node, scaled
 from hordelib.pipeline.payload import ImageGenPayload
 
 __all__ = [
@@ -28,6 +31,7 @@ __all__ = [
     "HIRES_FIX_UPSCALE",
     "PROMPTS",
     "QR_LAYERS",
+    "QR_SAMPLER_CORE",
     "SAMPLER_CORE",
     "SEAMLESS_TILING",
     "SOURCE_IMAGE",
@@ -71,115 +75,148 @@ def comfy_clip_skip(payload: ImageGenPayload) -> int:
     return -payload.clip_skip if payload.clip_skip > 0 else payload.clip_skip
 
 
-SAMPLER_CORE: BindingGroup = (
-    ParamBinding(target="sampler.sampler_name", transform=comfy_sampler),
-    ParamBinding(target="sampler.cfg", source="cfg_scale"),
-    ParamBinding(target="sampler.denoise", source="denoising_strength"),
-    ParamBinding(target="sampler.seed", source="seed"),
-    # noise_seed is spurious on plain KSampler nodes but pinned by the snapshot corpus;
-    # pruning it changes prompt hashes and is deferred to a deliberate, GPU-verified pass.
-    ParamBinding(target="sampler.noise_seed", source="seed"),
-    ParamBinding(target="sampler.scheduler", source="scheduler"),
-    ParamBinding(target="sampler.steps", source="ddim_steps"),
+SAMPLER_CORE: BindingGroup = node("sampler", "KSampler").bind(
+    sampler_name=comfy_sampler,
+    cfg="cfg_scale",
+    denoise="denoising_strength",
+    seed="seed",
+    # noise_seed is spurious on KSampler (grandfathered via known_spurious_inputs) but pinned
+    # by the snapshot corpus; pruning it changes prompt hashes and is deferred to a
+    # deliberate, GPU-verified pass.
+    noise_seed="seed",
+    scheduler="scheduler",
+    steps="ddim_steps",
 )
 """The standard KSampler node titled ``sampler``."""
 
-EMPTY_LATENT: BindingGroup = (
-    ParamBinding(target="empty_latent_image.height", source="height"),
-    ParamBinding(target="empty_latent_image.width", source="width"),
-    ParamBinding(target="empty_latent_image.batch_size", source="n_iter"),
+QR_SAMPLER_CORE: BindingGroup = node("sampler", "KSamplerAdvanced").bind(
+    sampler_name=comfy_sampler,
+    cfg="cfg_scale",
+    # KSamplerAdvanced has no denoise/seed inputs (it takes noise_seed); both are
+    # grandfathered no-ops pinned by the snapshot corpus, like SAMPLER_CORE's noise_seed.
+    denoise="denoising_strength",
+    seed="seed",
+    noise_seed="seed",
+    scheduler="scheduler",
+    steps="ddim_steps",
 )
-"""The txt2img starting latent (``empty_latent_image``)."""
+"""The qr_code graph's main sampler: same targets as :data:`SAMPLER_CORE`, but the node is a
+KSamplerAdvanced there."""
 
-BATCH_REPEAT: BindingGroup = (ParamBinding(target="repeat_image_batch.amount", source="n_iter"),)
+EMPTY_LATENT: BindingGroup = node(
+    "empty_latent_image",
+    "EmptyLatentImage",
+    "EmptySD3LatentImage",
+    "StableCascade_EmptyLatentImage",
+).bind(
+    height="height",
+    width="width",
+    batch_size="n_iter",
+)
+"""The txt2img starting latent; the empty-latent node class varies by graph family but all
+of them declare the same three inputs."""
+
+BATCH_REPEAT: BindingGroup = node("repeat_image_batch", "RepeatImageBatch").bind(amount="n_iter")
 """Graphs that batch via a RepeatImageBatch node instead of (or besides) the latent batch."""
 
-CLIP_SKIP: BindingGroup = (ParamBinding(target="clip_skip.stop_at_clip_layer", transform=comfy_clip_skip),)
+CLIP_SKIP: BindingGroup = node("clip_skip", "CLIPSetLastLayer").bind(stop_at_clip_layer=comfy_clip_skip)
 
 PROMPTS: BindingGroup = (
-    ParamBinding(target="prompt.text", source="prompt"),
-    ParamBinding(target="negative_prompt.text", source="negative_prompt"),
+    *node("prompt", "CLIPTextEncode").bind(text="prompt"),
+    *node("negative_prompt", "CLIPTextEncode").bind(text="negative_prompt"),
 )
 
-SEAMLESS_TILING: BindingGroup = (ParamBinding(target="model_loader.seamless_tiling_enabled", source="tiling"),)
+SEAMLESS_TILING: BindingGroup = node("model_loader", "HordeCheckpointLoader").bind(seamless_tiling_enabled="tiling")
 
-SOURCE_IMAGE: BindingGroup = (ParamBinding(target="image_loader.image", source="source_image"),)
+SOURCE_IMAGE: BindingGroup = node("image_loader", "HordeImageLoader").bind(image="source_image")
 """The img2img source image loader (rewired into the sampler by the img2img patch step)."""
 
-HIRES_FIX_UPSCALE: BindingGroup = (
-    ParamBinding(target="upscale_sampler.denoise", source="hires_fix_denoising_strength"),
-    ParamBinding(target="upscale_sampler.seed", source="seed"),
-    ParamBinding(target="upscale_sampler.cfg", source="cfg_scale"),
-    ParamBinding(target="upscale_sampler.sampler_name", transform=comfy_sampler),
+HIRES_FIX_UPSCALE: BindingGroup = node("upscale_sampler", "KSampler").bind(
+    denoise="hires_fix_denoising_strength",
+    seed="seed",
+    cfg="cfg_scale",
+    sampler_name=comfy_sampler,
 )
 """The second-pass sampler of hires-fix graphs (its steps are computed by a patch step)."""
 
 CONTROLNET: BindingGroup = (
-    ParamBinding(target="controlnet_apply.strength", source="control_strength"),
-    ParamBinding(target="controlnet_model_loader.control_net_name", source="control_type"),
+    *node("controlnet_apply", "ControlNetApply").bind(strength="control_strength"),
+    *node("controlnet_model_loader", "DiffControlNetLoader").bind(control_net_name="control_type"),
 )
 """The controlnet apply/loader pair (the model name is refined by the controlnet patch step)."""
 
 FLUX_SAMPLING: BindingGroup = (
-    ParamBinding(target="cfg_guider.cfg", source="cfg_scale"),
-    ParamBinding(target="random_noise.noise_seed", source="seed"),
-    ParamBinding(target="k_sampler_select.sampler_name", transform=comfy_sampler),
-    ParamBinding(target="basic_scheduler.denoise", source="denoising_strength"),
-    ParamBinding(target="basic_scheduler.steps", source="ddim_steps"),
+    *node("cfg_guider", "CFGGuider").bind(cfg="cfg_scale"),
+    *node("random_noise", "RandomNoise").bind(noise_seed="seed"),
+    *node("k_sampler_select", "KSamplerSelect").bind(sampler_name=comfy_sampler),
+    *node("basic_scheduler", "BasicScheduler").bind(denoise="denoising_strength", steps="ddim_steps"),
 )
 """Flux's split sampling nodes (SamplerCustomAdvanced constellation)."""
 
-CASCADE_EMPTY_LATENT: BindingGroup = (
-    ParamBinding(target="stable_cascade_empty_latent_image.width", source="width"),
-    ParamBinding(target="stable_cascade_empty_latent_image.height", source="height"),
-    ParamBinding(target="stable_cascade_empty_latent_image.batch_size", source="n_iter"),
+CASCADE_EMPTY_LATENT: BindingGroup = node(
+    "stable_cascade_empty_latent_image",
+    "StableCascade_EmptyLatentImage",
+).bind(
+    width="width",
+    height="height",
+    batch_size="n_iter",
 )
 
-CASCADE_REMIX_SOURCE_IMAGE: BindingGroup = (ParamBinding(target="sc_image_loader_0.image", source="source_image"),)
+CASCADE_REMIX_SOURCE_IMAGE: BindingGroup = node("sc_image_loader_0", "HordeImageLoader").bind(image="source_image")
 """The remix graph's primary source image (extras are chained in by the remix patch step)."""
 
-CASCADE_SOURCE_IMAGE: BindingGroup = (ParamBinding(target="sc_image_loader.image", source="source_image"),)
+CASCADE_SOURCE_IMAGE: BindingGroup = node("sc_image_loader", "HordeImageLoader").bind(image="source_image")
 
 CASCADE_SAMPLERS: BindingGroup = (
-    ParamBinding(target="sampler_stage_c.sampler_name", transform=comfy_sampler),
-    ParamBinding(target="sampler_stage_b.sampler_name", transform=comfy_sampler),
-    ParamBinding(target="sampler_stage_c.cfg", source="cfg_scale"),
-    ParamBinding(target="sampler_stage_c.denoise", source="denoising_strength"),
-    ParamBinding(target="sampler_stage_b.seed", source="seed"),
-    ParamBinding(target="sampler_stage_c.seed", source="seed"),
-    ParamBinding(target="sampler_stage_b.steps", source="ddim_steps", multiplier=0.33),
-    ParamBinding(target="sampler_stage_c.steps", source="ddim_steps", multiplier=0.67),
+    *node("sampler_stage_c", "KSampler").bind(
+        sampler_name=comfy_sampler,
+        cfg="cfg_scale",
+        denoise="denoising_strength",
+        seed="seed",
+        steps=scaled("ddim_steps", 0.67),
+    ),
+    *node("sampler_stage_b", "KSampler").bind(
+        sampler_name=comfy_sampler,
+        seed="seed",
+        steps=scaled("ddim_steps", 0.33),
+    ),
 )
 """Stable Cascade's two-stage samplers, with the legacy 0.67/0.33 step split."""
 
 CASCADE_SECOND_PASS: BindingGroup = (
-    ParamBinding(target="2pass_sampler_stage_c.sampler_name", transform=comfy_sampler),
-    ParamBinding(target="2pass_sampler_stage_c.steps", source="ddim_steps", multiplier=0.67),
-    ParamBinding(target="2pass_sampler_stage_c.denoise", source="hires_fix_denoising_strength"),
-    ParamBinding(target="2pass_sampler_stage_b.sampler_name", transform=comfy_sampler),
-    ParamBinding(target="2pass_sampler_stage_b.steps", source="ddim_steps", multiplier=0.33),
+    *node("2pass_sampler_stage_c", "KSampler").bind(
+        sampler_name=comfy_sampler,
+        steps=scaled("ddim_steps", 0.67),
+        denoise="hires_fix_denoising_strength",
+    ),
+    *node("2pass_sampler_stage_b", "KSampler").bind(
+        sampler_name=comfy_sampler,
+        steps=scaled("ddim_steps", 0.33),
+    ),
 )
 
 QR_LAYERS: BindingGroup = (
-    ParamBinding(target="sampler_bg.sampler_name", transform=comfy_sampler),
-    ParamBinding(target="sampler_bg.cfg", source="cfg_scale"),
-    ParamBinding(target="sampler_bg.denoise", source="denoising_strength"),
-    ParamBinding(target="sampler_bg.seed", source="seed"),
-    ParamBinding(target="sampler_bg.steps", source="ddim_steps"),
-    ParamBinding(target="sampler_bg.noise_seed", source="seed"),
-    ParamBinding(target="sampler_fg.sampler_name", transform=comfy_sampler),
-    ParamBinding(target="sampler_fg.cfg", source="cfg_scale"),
-    ParamBinding(target="sampler_fg.denoise", source="denoising_strength"),
-    ParamBinding(target="sampler_fg.seed", source="seed"),
-    ParamBinding(target="sampler_fg.steps", source="ddim_steps"),
-    ParamBinding(target="sampler_fg.noise_seed", source="seed"),
-    ParamBinding(target="controlnet_bg.strength", source="control_strength"),
-    ParamBinding(target="solidmask_grey.width", source="width"),
-    ParamBinding(target="solidmask_grey.height", source="height"),
-    ParamBinding(target="solidmask_white.width", source="width"),
-    ParamBinding(target="solidmask_white.height", source="height"),
-    ParamBinding(target="solidmask_black.width", source="width"),
-    ParamBinding(target="solidmask_black.height", source="height"),
-    ParamBinding(target="qr_code_split.max_image_size", source="width"),
+    *node("sampler_bg", "KSamplerAdvanced").bind(
+        sampler_name=comfy_sampler,
+        cfg="cfg_scale",
+        # denoise/seed are not KSamplerAdvanced inputs; grandfathered no-ops (see above).
+        denoise="denoising_strength",
+        seed="seed",
+        steps="ddim_steps",
+        noise_seed="seed",
+    ),
+    *node("sampler_fg", "KSamplerAdvanced").bind(
+        sampler_name=comfy_sampler,
+        cfg="cfg_scale",
+        denoise="denoising_strength",
+        seed="seed",
+        steps="ddim_steps",
+        noise_seed="seed",
+    ),
+    *node("controlnet_bg", "ControlNetApplyAdvanced").bind(strength="control_strength"),
+    *node("solidmask_grey", "SolidMask").bind(width="width", height="height"),
+    *node("solidmask_white", "SolidMask").bind(width="width", height="height"),
+    *node("solidmask_black", "SolidMask").bind(width="width", height="height"),
+    *node("qr_code_split", "comfy-qr-by-module-split").bind(max_image_size="width"),
 )
 """The qr_code workflow's background/foreground samplers and mask layers."""

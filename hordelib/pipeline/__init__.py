@@ -15,13 +15,17 @@ Nothing in this package imports ComfyUI.
 """
 
 from hordelib.pipeline.definition import (
+    NodeHandle,
     OutputKind,
     OutputSpec,
     ParamBinding,
     PayloadFeature,
     PipelineDefinition,
+    ScaledSource,
     SelectionTier,
     Selector,
+    node,
+    scaled,
 )
 from hordelib.pipeline.graph import ComfyGraph, NodeRef
 from hordelib.pipeline.payload import ImageGenPayload
@@ -30,6 +34,7 @@ from hordelib.pipeline.registry import PipelineRegistry
 __all__ = [
     "ComfyGraph",
     "ImageGenPayload",
+    "NodeHandle",
     "NodeRef",
     "OutputKind",
     "OutputSpec",
@@ -37,6 +42,9 @@ __all__ = [
     "PayloadFeature",
     "PipelineDefinition",
     "PipelineRegistry",
+    "ScaledSource",
     "SelectionTier",
     "Selector",
+    "node",
+    "scaled",
 ]

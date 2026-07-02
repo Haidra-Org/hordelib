@@ -21,4 +21,6 @@ QWEN: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefinition(
     ),
     outputs=(OutputSpec(node="output_image"),),
     patch_steps=steps.IMAGE_PATCH_STEPS,
+    # SAMPLER_CORE's grandfathered KSampler no-op (see the group's comment in bindings.py).
+    known_spurious_inputs=frozenset({"sampler.noise_seed"}),
 )

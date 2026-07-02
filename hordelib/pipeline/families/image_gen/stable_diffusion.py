@@ -28,6 +28,9 @@ _SD_BINDINGS = bindings.compose(
     bindings.SOURCE_IMAGE,
 )
 
+_SD_SPURIOUS = frozenset({"sampler.noise_seed"})
+"""SAMPLER_CORE's grandfathered KSampler no-op (see the group's comment in bindings.py)."""
+
 STABLE_DIFFUSION: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefinition(
     name="stable_diffusion",
     graph_file=pipeline_graph("stable_diffusion"),
@@ -35,6 +38,7 @@ STABLE_DIFFUSION: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDe
     bindings=_SD_BINDINGS,
     outputs=(OutputSpec(node="output_image"),),
     patch_steps=steps.IMAGE_PATCH_STEPS,
+    known_spurious_inputs=_SD_SPURIOUS,
 )
 
 STABLE_DIFFUSION_HIRES_FIX: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefinition(
@@ -44,6 +48,7 @@ STABLE_DIFFUSION_HIRES_FIX: PipelineDefinition[ImageGenPayload, ModelContext] = 
     bindings=bindings.compose(_SD_BINDINGS, bindings.HIRES_FIX_UPSCALE),
     outputs=(OutputSpec(node="output_image"),),
     patch_steps=steps.IMAGE_PATCH_STEPS,
+    known_spurious_inputs=_SD_SPURIOUS,
 )
 
 STABLE_DIFFUSION_IMG2IMG_MASK: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefinition(
@@ -53,6 +58,7 @@ STABLE_DIFFUSION_IMG2IMG_MASK: PipelineDefinition[ImageGenPayload, ModelContext]
     bindings=_SD_BINDINGS,
     outputs=(OutputSpec(node="output_image"),),
     patch_steps=steps.IMAGE_PATCH_STEPS,
+    known_spurious_inputs=_SD_SPURIOUS,
 )
 
 STABLE_DIFFUSION_PAINT: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefinition(
@@ -62,4 +68,5 @@ STABLE_DIFFUSION_PAINT: PipelineDefinition[ImageGenPayload, ModelContext] = Pipe
     bindings=_SD_BINDINGS,
     outputs=(OutputSpec(node="output_image"),),
     patch_steps=steps.IMAGE_PATCH_STEPS,
+    known_spurious_inputs=_SD_SPURIOUS,
 )

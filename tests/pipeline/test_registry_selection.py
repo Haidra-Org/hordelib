@@ -68,6 +68,18 @@ SELECTION_CASES = [
     ("qwen", {}, QWEN, "qwen"),
     ("qr_workflow", {"workflow": "qr_code"}, SD1, "qr_code"),
     ("qr_beats_everything", {"workflow": "qr_code", "control_type": "canny", "hires_fix": True}, CASCADE, "qr_code"),
+    (
+        "creative_upscale_workflow",
+        {"workflow": "creative_upscale", "source_image": _rgb_image()},
+        SD1,
+        "creative_upscale",
+    ),
+    (
+        "creative_upscale_beats_features",
+        {"workflow": "creative_upscale", "source_image": _rgb_image(), "control_type": "canny", "hires_fix": True},
+        SDXL,
+        "creative_upscale",
+    ),
     ("sdxl_plain", {}, SDXL, "stable_diffusion"),
     ("unknown_baseline", {}, None, "stable_diffusion"),
 ]
@@ -91,6 +103,7 @@ def test_selection(payload_dict, baseline, expected):
 
 EXPECTED_SELECTION_ORDER = [
     "qr_code",
+    "creative_upscale",
     "stable_cascade_remix",
     "stable_cascade_2pass",
     "stable_cascade",

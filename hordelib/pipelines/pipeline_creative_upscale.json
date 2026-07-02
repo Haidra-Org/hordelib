@@ -1,0 +1,69 @@
+{
+  "1": {
+    "inputs": { "ckpt_name": "Deliberate.ckpt" },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": { "title": "model_loader" }
+  },
+  "2": {
+    "inputs": { "image": "example.png", "upload": "image" },
+    "class_type": "LoadImage",
+    "_meta": { "title": "image_loader" }
+  },
+  "3": {
+    "inputs": { "text": "an example prompt", "clip": ["10", 0] },
+    "class_type": "CLIPTextEncode",
+    "_meta": { "title": "prompt" }
+  },
+  "4": {
+    "inputs": { "text": "an example negative prompt", "clip": ["10", 0] },
+    "class_type": "CLIPTextEncode",
+    "_meta": { "title": "negative_prompt" }
+  },
+  "10": {
+    "inputs": { "stop_at_clip_layer": -1, "clip": ["1", 1] },
+    "class_type": "CLIPSetLastLayer",
+    "_meta": { "title": "clip_skip" }
+  },
+  "5": {
+    "inputs": { "pixels": ["2", 0], "vae": ["1", 2] },
+    "class_type": "VAEEncode",
+    "_meta": { "title": "vae_encode" }
+  },
+  "6": {
+    "inputs": {
+      "upscale_method": "bislerp",
+      "width": 1024,
+      "height": 1024,
+      "crop": "disabled",
+      "samples": ["5", 0]
+    },
+    "class_type": "LatentUpscale",
+    "_meta": { "title": "latent_upscale" }
+  },
+  "7": {
+    "inputs": {
+      "seed": 0,
+      "steps": 20,
+      "cfg": 8,
+      "sampler_name": "euler",
+      "scheduler": "normal",
+      "denoise": 0.4,
+      "model": ["1", 0],
+      "positive": ["3", 0],
+      "negative": ["4", 0],
+      "latent_image": ["6", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": { "title": "sampler" }
+  },
+  "8": {
+    "inputs": { "samples": ["7", 0], "vae": ["1", 2] },
+    "class_type": "VAEDecode",
+    "_meta": { "title": "vae_decode" }
+  },
+  "9": {
+    "inputs": { "filename_prefix": "creative_upscale", "images": ["8", 0] },
+    "class_type": "SaveImage",
+    "_meta": { "title": "output_image" }
+  }
+}

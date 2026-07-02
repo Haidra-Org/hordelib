@@ -13,7 +13,8 @@ QR_CODE: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefinition(
     graph_file=pipeline_graph("qr_code"),
     selector=ImageSelector(tier=SelectionTier.WORKFLOW_OVERRIDE, workflow="qr_code"),
     bindings=bindings.compose(
-        bindings.SAMPLER_CORE,
+        # The qr graph's main "sampler" is a KSamplerAdvanced, unlike every other graph.
+        bindings.QR_SAMPLER_CORE,
         bindings.PROMPTS,
         bindings.SEAMLESS_TILING,
         bindings.QR_LAYERS,
@@ -27,4 +28,16 @@ QR_CODE: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefinition(
     # at load time (pre-existing behavior, pinned by the snapshot corpus). Repairing the
     # export needs GPU-oracle verification.
     known_title_collisions=frozenset({"Convert Mask to Image"}),
+    # KSamplerAdvanced has no seed/denoise inputs (it takes noise_seed); these have always
+    # been silently-dropped no-ops on this graph, pinned by the snapshot corpus.
+    known_spurious_inputs=frozenset(
+        {
+            "sampler.seed",
+            "sampler.denoise",
+            "sampler_bg.seed",
+            "sampler_bg.denoise",
+            "sampler_fg.seed",
+            "sampler_fg.denoise",
+        },
+    ),
 )

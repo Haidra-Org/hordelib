@@ -24,6 +24,7 @@ from pydantic import BaseModel
 
 from hordelib.pipeline.definition import PipelineDefinition, SelectionTier
 from hordelib.pipeline.graph import HORDE_OUTPUT_CLASS_TYPES
+from hordelib.pipeline.node_schemas import load_node_input_schemas
 
 __all__ = [
     "PipelineRegistry",
@@ -31,20 +32,74 @@ __all__ = [
 ]
 
 
-def audit_definition(definition: PipelineDefinition) -> list[str]:
+def _audit_target(
+    definition: PipelineDefinition,
+    graph_class_types: dict[str, str],
+    target: str,
+    node_classes: tuple[str, ...],
+) -> list[str]:
+    """Audit one dotted binding/extra-input target against the graph and node schemas."""
+    title, _, input_name = target.partition(".")
+    if not input_name:
+        return [f"target {target!r} is not a dotted 'node_title.input_name' path"]
+
+    actual_class = graph_class_types.get(title)
+    if actual_class is None:
+        return [f"target {target!r} names a node absent from the graph"]
+
+    violations: list[str] = []
+    if node_classes and actual_class not in node_classes:
+        violations.append(
+            f"target {target!r}: graph node is class {actual_class!r}, "
+            f"but the binding declares {sorted(node_classes)}",
+        )
+
+    schema = load_node_input_schemas().get(actual_class)
+    if schema is None:
+        violations.append(
+            f"target {target!r}: class {actual_class!r} is not in the node schema snapshot; "
+            "regenerate it with `python -m hordelib.pipeline.node_schemas`",
+        )
+        return violations
+
+    input_is_declared = input_name in schema.all_inputs
+    grandfathered = target in definition.known_spurious_inputs
+    if not input_is_declared and not grandfathered:
+        violations.append(
+            f"target {target!r}: class {actual_class!r} declares no input {input_name!r} "
+            "(ComfyUI would silently drop it)",
+        )
+    if input_is_declared and grandfathered:
+        violations.append(
+            f"target {target!r} is listed in known_spurious_inputs but class {actual_class!r} "
+            "does declare that input; remove the stale grandfather entry",
+        )
+    return violations
+
+
+def audit_definition(
+    definition: PipelineDefinition,
+    *,
+    payload_types: tuple[type[BaseModel], ...] = (),
+) -> list[str]:
     """Validate a definition against its graph, returning every violation found.
 
     Checks:
         - The graph file's raw ``_meta.title`` values are unique (``fix_node_names`` would
           otherwise silently drop colliding nodes).
-        - Every binding target's node title exists in the loaded graph. (Input *names* are
-          not validated against node schemas; that needs ComfyUI imports and is future work.)
+        - Every binding and extra-input target names a node present in the loaded graph,
+          with the class the binding declares (when authored via ``node()``), and an input
+          name that class actually declares in the committed node schema snapshot (ComfyUI
+          silently drops unknown input names; see ``hordelib/pipeline/node_schemas.py``).
+        - Every binding source is a field on one of ``payload_types`` (when provided).
         - At least one output is declared; every output node exists and its post-replacement
           class type is a registered Horde output class for its kind.
         - A non-fallback selector declares at least one criterion.
 
     Args:
         definition: The pipeline definition to audit.
+        payload_types: The family's payload model(s); binding sources are validated against
+            their fields when non-empty.
 
     Returns:
         list[str]: Human-readable violations; empty when the definition is sound.
@@ -70,12 +125,27 @@ def audit_definition(definition: PipelineDefinition) -> list[str]:
 
     graph = definition.load_graph()
     node_titles = set(graph.node_titles())
+    graph_class_types = {title: graph.node(title).get("class_type", "") for title in node_titles}
 
-    unbound_targets = [
-        binding.target for binding in definition.bindings if binding.target.split(".", 1)[0] not in node_titles
-    ]
-    if unbound_targets:
-        violations.append(f"bindings target nodes absent from the graph: {unbound_targets}")
+    for binding in definition.bindings:
+        violations.extend(_audit_target(definition, graph_class_types, binding.target, binding.node_classes))
+    for extra_target in definition.extra_inputs:
+        violations.extend(_audit_target(definition, graph_class_types, extra_target, ()))
+
+    if payload_types:
+        known_fields = {field for payload_type in payload_types for field in payload_type.model_fields}
+        for binding in definition.bindings:
+            if binding.source is not None and binding.source not in known_fields:
+                violations.append(
+                    f"binding for {binding.target!r} reads payload field {binding.source!r}, "
+                    f"which none of {[t.__name__ for t in payload_types]} declares",
+                )
+
+    stale_grandfathers = definition.known_spurious_inputs - {binding.target for binding in definition.bindings}
+    if stale_grandfathers:
+        violations.append(
+            f"known_spurious_inputs entries with no matching binding: {sorted(stale_grandfathers)}",
+        )
 
     if not definition.outputs:
         violations.append("no outputs declared; every pipeline must declare at least one output node")
@@ -110,8 +180,15 @@ class PipelineRegistry[PayloadT: BaseModel, ContextT]:
     selector matches.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, payload_types: tuple[type[BaseModel], ...] = ()) -> None:
+        """Create an empty registry.
+
+        Args:
+            payload_types: The family's payload model(s); when provided, registration also
+                validates every binding source against their declared fields.
+        """
         self._definitions: list[PipelineDefinition[PayloadT, ContextT]] = []
+        self._payload_types = payload_types
 
     def register(self, definition: PipelineDefinition[PayloadT, ContextT]) -> None:
         """Register a definition, auditing it against its graph.
@@ -123,7 +200,7 @@ class PipelineRegistry[PayloadT: BaseModel, ContextT]:
         if any(existing.name == definition.name for existing in self._definitions):
             raise ValueError(f"Pipeline {definition.name!r} is already registered")
 
-        violations = audit_definition(definition)
+        violations = audit_definition(definition, payload_types=self._payload_types)
         if violations:
             details = "\n  - ".join(violations)
             raise ValueError(f"Pipeline definition {definition.name!r} failed its audit:\n  - {details}")

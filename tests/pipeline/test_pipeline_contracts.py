@@ -16,30 +16,30 @@ from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.pipeline.payload_pp import FacefixPayload, UpscalePayload
 from hordelib.pipeline.registry import audit_definition
 
-ALL_DEFINITIONS: list[PipelineDefinition] = [
-    *IMAGE_PIPELINES,
-    *POST_PROCESSING_REGISTRY.all_definitions(),
+ALL_DEFINITIONS: list[tuple[PipelineDefinition, tuple[type, ...]]] = [
+    *((definition, (ImageGenPayload,)) for definition in IMAGE_PIPELINES),
+    *((definition, (UpscalePayload, FacefixPayload)) for definition in POST_PROCESSING_REGISTRY.all_definitions()),
 ]
 
 
 def _definition_ids() -> list[str]:
-    return [definition.name for definition in ALL_DEFINITIONS]
+    return [definition.name for definition, _ in ALL_DEFINITIONS]
 
 
-@pytest.mark.parametrize("definition", ALL_DEFINITIONS, ids=_definition_ids())
-def test_graph_file_exists_and_loads(definition: PipelineDefinition) -> None:
+@pytest.mark.parametrize(("definition", "payload_types"), ALL_DEFINITIONS, ids=_definition_ids())
+def test_graph_file_exists_and_loads(definition: PipelineDefinition, payload_types: tuple[type, ...]) -> None:
     assert definition.graph_file.exists(), f"Missing graph file {definition.graph_file}"
     graph = definition.load_graph()
     assert graph.node_titles(), f"{definition.name} loaded an empty graph"
 
 
-@pytest.mark.parametrize("definition", ALL_DEFINITIONS, ids=_definition_ids())
-def test_definition_audits_clean(definition: PipelineDefinition) -> None:
-    assert audit_definition(definition) == []
+@pytest.mark.parametrize(("definition", "payload_types"), ALL_DEFINITIONS, ids=_definition_ids())
+def test_definition_audits_clean(definition: PipelineDefinition, payload_types: tuple[type, ...]) -> None:
+    assert audit_definition(definition, payload_types=payload_types) == []
 
 
-@pytest.mark.parametrize("definition", ALL_DEFINITIONS, ids=_definition_ids())
-def test_extra_predicate_is_not_used(definition: PipelineDefinition) -> None:
+@pytest.mark.parametrize(("definition", "payload_types"), ALL_DEFINITIONS, ids=_definition_ids())
+def test_extra_predicate_is_not_used(definition: PipelineDefinition, payload_types: tuple[type, ...]) -> None:
     """The escape hatch stays empty: express conditions as named features/selector fields.
 
     If a pipeline genuinely cannot express its condition declaratively, add it to an explicit

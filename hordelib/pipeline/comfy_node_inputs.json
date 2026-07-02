@@ -1,0 +1,446 @@
+{
+  "AIO_Preprocessor": {
+    "required": [
+      "image"
+    ],
+    "optional": [
+      "preprocessor",
+      "resolution"
+    ]
+  },
+  "BasicScheduler": {
+    "required": [
+      "model",
+      "scheduler",
+      "steps",
+      "denoise"
+    ],
+    "optional": []
+  },
+  "CFGGuider": {
+    "required": [
+      "model",
+      "positive",
+      "negative",
+      "cfg"
+    ],
+    "optional": []
+  },
+  "CLIPLoader": {
+    "required": [
+      "clip_name",
+      "type"
+    ],
+    "optional": [
+      "device"
+    ]
+  },
+  "CLIPSetLastLayer": {
+    "required": [
+      "clip",
+      "stop_at_clip_layer"
+    ],
+    "optional": []
+  },
+  "CLIPTextEncode": {
+    "required": [
+      "text",
+      "clip"
+    ],
+    "optional": []
+  },
+  "CLIPVisionEncode": {
+    "required": [
+      "clip_vision",
+      "image",
+      "crop"
+    ],
+    "optional": []
+  },
+  "ConditioningZeroOut": {
+    "required": [
+      "conditioning"
+    ],
+    "optional": []
+  },
+  "ControlNetApply": {
+    "required": [
+      "conditioning",
+      "control_net",
+      "image",
+      "strength"
+    ],
+    "optional": []
+  },
+  "ControlNetApplyAdvanced": {
+    "required": [
+      "positive",
+      "negative",
+      "control_net",
+      "image",
+      "strength",
+      "start_percent",
+      "end_percent"
+    ],
+    "optional": [
+      "vae"
+    ]
+  },
+  "ControlNetLoader": {
+    "required": [
+      "control_net_name"
+    ],
+    "optional": []
+  },
+  "DiffControlNetLoader": {
+    "required": [
+      "model",
+      "control_net_name"
+    ],
+    "optional": []
+  },
+  "EmptyLatentImage": {
+    "required": [
+      "width",
+      "height",
+      "batch_size"
+    ],
+    "optional": []
+  },
+  "EmptySD3LatentImage": {
+    "required": [
+      "width",
+      "height",
+      "batch_size"
+    ],
+    "optional": []
+  },
+  "FaceRestoreCFWithModel": {
+    "required": [
+      "facerestore_model",
+      "image",
+      "facedetection",
+      "codeformer_fidelity"
+    ],
+    "optional": []
+  },
+  "FaceRestoreModelLoader": {
+    "required": [
+      "model_name"
+    ],
+    "optional": []
+  },
+  "GrowMask": {
+    "required": [
+      "mask",
+      "expand",
+      "tapered_corners"
+    ],
+    "optional": []
+  },
+  "HordeCheckpointLoader": {
+    "required": [
+      "will_load_loras",
+      "seamless_tiling_enabled",
+      "horde_model_name",
+      "ckpt_name",
+      "file_type"
+    ],
+    "optional": [
+      "weight_dtype"
+    ]
+  },
+  "HordeImageLoader": {
+    "required": [
+      "image"
+    ],
+    "optional": []
+  },
+  "HordeImageOutput": {
+    "required": [
+      "images"
+    ],
+    "optional": []
+  },
+  "HordeLoraLoader": {
+    "required": [
+      "model",
+      "clip",
+      "lora_name",
+      "strength_model",
+      "strength_clip"
+    ],
+    "optional": []
+  },
+  "ImageBlur": {
+    "required": [
+      "image",
+      "blur_radius",
+      "sigma"
+    ],
+    "optional": []
+  },
+  "ImageCompositeMasked": {
+    "required": [
+      "destination",
+      "source",
+      "x",
+      "y",
+      "resize_source"
+    ],
+    "optional": [
+      "mask"
+    ]
+  },
+  "ImageScale": {
+    "required": [
+      "image",
+      "upscale_method",
+      "width",
+      "height",
+      "crop"
+    ],
+    "optional": []
+  },
+  "ImageToMask": {
+    "required": [
+      "image",
+      "channel"
+    ],
+    "optional": []
+  },
+  "ImageUpscaleWithModel": {
+    "required": [
+      "upscale_model",
+      "image"
+    ],
+    "optional": []
+  },
+  "KSampler": {
+    "required": [
+      "model",
+      "seed",
+      "steps",
+      "cfg",
+      "sampler_name",
+      "scheduler",
+      "positive",
+      "negative",
+      "latent_image",
+      "denoise"
+    ],
+    "optional": []
+  },
+  "KSamplerAdvanced": {
+    "required": [
+      "model",
+      "add_noise",
+      "noise_seed",
+      "steps",
+      "cfg",
+      "sampler_name",
+      "scheduler",
+      "positive",
+      "negative",
+      "latent_image",
+      "start_at_step",
+      "end_at_step",
+      "return_with_leftover_noise"
+    ],
+    "optional": []
+  },
+  "KSamplerSelect": {
+    "required": [
+      "sampler_name"
+    ],
+    "optional": []
+  },
+  "LatentCompositeMasked": {
+    "required": [
+      "destination",
+      "source",
+      "x",
+      "y",
+      "resize_source"
+    ],
+    "optional": [
+      "mask"
+    ]
+  },
+  "LatentUpscale": {
+    "required": [
+      "samples",
+      "upscale_method",
+      "width",
+      "height",
+      "crop"
+    ],
+    "optional": []
+  },
+  "LayeredDiffusionApply": {
+    "required": [
+      "model",
+      "config",
+      "weight"
+    ],
+    "optional": []
+  },
+  "LayeredDiffusionDecodeRGBA": {
+    "required": [
+      "samples",
+      "images",
+      "sd_version",
+      "sub_batch_size"
+    ],
+    "optional": []
+  },
+  "MaskComposite": {
+    "required": [
+      "destination",
+      "source",
+      "x",
+      "y",
+      "operation"
+    ],
+    "optional": []
+  },
+  "MaskToImage": {
+    "required": [
+      "mask"
+    ],
+    "optional": []
+  },
+  "ModelSamplingAuraFlow": {
+    "required": [
+      "model",
+      "shift"
+    ],
+    "optional": []
+  },
+  "RandomNoise": {
+    "required": [
+      "noise_seed"
+    ],
+    "optional": []
+  },
+  "RepeatImageBatch": {
+    "required": [
+      "image",
+      "amount"
+    ],
+    "optional": []
+  },
+  "SamplerCustomAdvanced": {
+    "required": [
+      "noise",
+      "guider",
+      "sampler",
+      "sigmas",
+      "latent_image"
+    ],
+    "optional": []
+  },
+  "SetLatentNoiseMask": {
+    "required": [
+      "samples",
+      "mask"
+    ],
+    "optional": []
+  },
+  "SolidMask": {
+    "required": [
+      "value",
+      "width",
+      "height"
+    ],
+    "optional": []
+  },
+  "StableCascade_EmptyLatentImage": {
+    "required": [
+      "width",
+      "height",
+      "compression",
+      "batch_size"
+    ],
+    "optional": []
+  },
+  "StableCascade_StageB_Conditioning": {
+    "required": [
+      "conditioning",
+      "stage_c"
+    ],
+    "optional": []
+  },
+  "StableCascade_StageC_VAEEncode": {
+    "required": [
+      "image",
+      "vae",
+      "compression"
+    ],
+    "optional": []
+  },
+  "UpscaleModelLoader": {
+    "required": [
+      "model_name"
+    ],
+    "optional": []
+  },
+  "VAEDecode": {
+    "required": [
+      "samples",
+      "vae"
+    ],
+    "optional": []
+  },
+  "VAEEncode": {
+    "required": [
+      "pixels",
+      "vae"
+    ],
+    "optional": []
+  },
+  "VAEEncodeForInpaint": {
+    "required": [
+      "pixels",
+      "vae",
+      "mask",
+      "grow_mask_by"
+    ],
+    "optional": []
+  },
+  "VAELoader": {
+    "required": [
+      "vae_name"
+    ],
+    "optional": []
+  },
+  "comfy-qr-by-module-split": {
+    "required": [
+      "protocol",
+      "text",
+      "module_size",
+      "max_image_size",
+      "fill_hexcolor",
+      "back_hexcolor",
+      "error_correction",
+      "border",
+      "module_drawer"
+    ],
+    "optional": []
+  },
+  "unCLIPCheckpointLoader": {
+    "required": [
+      "ckpt_name"
+    ],
+    "optional": []
+  },
+  "unCLIPConditioning": {
+    "required": [
+      "conditioning",
+      "clip_vision_output",
+      "strength",
+      "noise_augmentation"
+    ],
+    "optional": []
+  }
+}

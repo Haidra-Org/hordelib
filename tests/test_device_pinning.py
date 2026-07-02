@@ -11,7 +11,6 @@ import pytest
 from hordelib.utils.device_pinning import device_pin_env
 from hordelib.utils.torch_memory import AcceleratorKind
 
-
 # --- No pre-existing env vars (logical == physical) ---
 
 

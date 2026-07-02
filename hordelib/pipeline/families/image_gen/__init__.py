@@ -12,7 +12,16 @@ materialized-graph snapshots in ``tests/pipeline/materialized_expected/``.
 
 from hordelib.pipeline.context import ModelContext
 from hordelib.pipeline.definition import PipelineDefinition
-from hordelib.pipeline.families.image_gen import cascade, controlnet, flux, qr_code, qwen, stable_diffusion, z_image
+from hordelib.pipeline.families.image_gen import (
+    cascade,
+    controlnet,
+    creative_upscale,
+    flux,
+    qr_code,
+    qwen,
+    stable_diffusion,
+    z_image,
+)
 from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.pipeline.registry import PipelineRegistry
 
@@ -26,6 +35,7 @@ type ImageGenDefinition = PipelineDefinition[ImageGenPayload, ModelContext]
 
 IMAGE_PIPELINES: tuple[ImageGenDefinition, ...] = (
     qr_code.QR_CODE,
+    creative_upscale.CREATIVE_UPSCALE,
     cascade.STABLE_CASCADE_REMIX,
     cascade.STABLE_CASCADE_2PASS,
     cascade.STABLE_CASCADE,
@@ -45,7 +55,7 @@ IMAGE_PIPELINES: tuple[ImageGenDefinition, ...] = (
 
 def build_default_registry() -> PipelineRegistry[ImageGenPayload, ModelContext]:
     """Create a registry holding all image pipelines, auditing each against its graph."""
-    registry: PipelineRegistry[ImageGenPayload, ModelContext] = PipelineRegistry()
+    registry: PipelineRegistry[ImageGenPayload, ModelContext] = PipelineRegistry(payload_types=(ImageGenPayload,))
     for definition in IMAGE_PIPELINES:
         registry.register(definition)
     return registry

@@ -1,0 +1,197 @@
+{
+  "graph": {
+    "clip_skip": {
+      "_meta": {
+        "title": "clip_skip"
+      },
+      "class_type": "CLIPSetLastLayer",
+      "inputs": {
+        "clip": [
+          "lora_1",
+          1
+        ],
+        "stop_at_clip_layer": -1
+      }
+    },
+    "image_loader": {
+      "_meta": {
+        "title": "image_loader"
+      },
+      "class_type": "HordeImageLoader",
+      "inputs": {
+        "image": "<image mode=RGB size=512x512>",
+        "upload": "image"
+      }
+    },
+    "latent_upscale": {
+      "_meta": {
+        "title": "latent_upscale"
+      },
+      "class_type": "LatentUpscale",
+      "inputs": {
+        "crop": "disabled",
+        "height": 1024,
+        "samples": [
+          "vae_encode",
+          0
+        ],
+        "upscale_method": "bislerp",
+        "width": 1536
+      }
+    },
+    "lora_0": {
+      "_meta": {
+        "title": "lora_0"
+      },
+      "class_type": "HordeLoraLoader",
+      "inputs": {
+        "clip": [
+          "model_loader",
+          1
+        ],
+        "lora_name": "snapshot_lora_a.safetensors",
+        "model": [
+          "model_loader",
+          0
+        ],
+        "strength_clip": 0.5,
+        "strength_model": 0.75
+      }
+    },
+    "lora_1": {
+      "_meta": {
+        "title": "lora_1"
+      },
+      "class_type": "HordeLoraLoader",
+      "inputs": {
+        "clip": [
+          "lora_0",
+          1
+        ],
+        "lora_name": "snapshot_lora_b.safetensors",
+        "model": [
+          "lora_0",
+          0
+        ],
+        "strength_clip": 1.0,
+        "strength_model": 1.0
+      }
+    },
+    "model_loader": {
+      "_meta": {
+        "title": "model_loader"
+      },
+      "class_type": "HordeCheckpointLoader",
+      "inputs": {
+        "ckpt_name": "snapshot_model.safetensors",
+        "file_type": null,
+        "horde_model_name": "Snapshot Model",
+        "model_name": "snapshot_model.safetensors",
+        "seamless_tiling_enabled": false,
+        "will_load_loras": true
+      }
+    },
+    "negative_prompt": {
+      "_meta": {
+        "title": "negative_prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "clip_skip",
+          0
+        ],
+        "text": "blurry, deterministic snapshot negative"
+      }
+    },
+    "output_image": {
+      "_meta": {
+        "title": "output_image"
+      },
+      "class_type": "HordeImageOutput",
+      "inputs": {
+        "filename_prefix": "creative_upscale",
+        "images": [
+          "vae_decode",
+          0
+        ]
+      }
+    },
+    "prompt": {
+      "_meta": {
+        "title": "prompt"
+      },
+      "class_type": "CLIPTextEncode",
+      "inputs": {
+        "clip": [
+          "clip_skip",
+          0
+        ],
+        "text": "a deterministic snapshot prompt"
+      }
+    },
+    "sampler": {
+      "_meta": {
+        "title": "sampler"
+      },
+      "class_type": "KSampler",
+      "inputs": {
+        "cfg": 8.0,
+        "denoise": 0.3,
+        "latent_image": [
+          "latent_upscale",
+          0
+        ],
+        "model": [
+          "lora_1",
+          0
+        ],
+        "negative": [
+          "negative_prompt",
+          0
+        ],
+        "positive": [
+          "prompt",
+          0
+        ],
+        "sampler_name": "euler",
+        "scheduler": "normal",
+        "seed": 123456789,
+        "steps": 30
+      }
+    },
+    "vae_decode": {
+      "_meta": {
+        "title": "vae_decode"
+      },
+      "class_type": "VAEDecode",
+      "inputs": {
+        "samples": [
+          "sampler",
+          0
+        ],
+        "vae": [
+          "model_loader",
+          2
+        ]
+      }
+    },
+    "vae_encode": {
+      "_meta": {
+        "title": "vae_encode"
+      },
+      "class_type": "VAEEncode",
+      "inputs": {
+        "pixels": [
+          "image_loader",
+          0
+        ],
+        "vae": [
+          "model_loader",
+          2
+        ]
+      }
+    }
+  },
+  "pipeline": "creative_upscale"
+}

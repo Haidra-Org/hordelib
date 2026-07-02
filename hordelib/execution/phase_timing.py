@@ -84,7 +84,7 @@ def _patch_model_load() -> bool:
 def _patch_clip() -> bool:
     try:
         from comfy import sd as sd_module
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         logger.warning(f"Phase timing: could not patch CLIP ({e})")
         return False
 

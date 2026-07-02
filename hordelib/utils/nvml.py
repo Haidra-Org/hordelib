@@ -67,7 +67,7 @@ def _nvml_module() -> object | None:
             import pynvml
         pynvml.nvmlInit()
         return pynvml
-    except Exception as nvml_error:  # noqa: BLE001 - any NVML failure means "no NVIDIA telemetry", not a crash
+    except Exception as nvml_error:
         logger.debug(f"NVML unavailable ({type(nvml_error).__name__}: {nvml_error}); NVIDIA telemetry disabled")
         _nvml_unavailable = True
         return None
@@ -82,7 +82,7 @@ def _device_handle(pynvml: object, index: int) -> c_void_p | None:
     """Return the NVML handle for device ``index``, or None when it cannot be resolved."""
     try:
         return pynvml.nvmlDeviceGetHandleByIndex(index)  # type: ignore[attr-defined]
-    except Exception as handle_error:  # noqa: BLE001 - a missing device is "no telemetry", not a crash
+    except Exception as handle_error:
         logger.debug(f"NVML handle for device {index} unavailable ({type(handle_error).__name__}: {handle_error})")
         return None
 
@@ -105,7 +105,7 @@ def get_device_memory_mb(index: int = 0) -> NvmlMemory | None:
             info = pynvml.nvmlDeviceGetMemoryInfo(handle, version=memory_v2_version)  # type: ignore[attr-defined]
         else:
             info = pynvml.nvmlDeviceGetMemoryInfo(handle)  # type: ignore[attr-defined]
-    except Exception as memory_error:  # noqa: BLE001 - best-effort enrichment
+    except Exception as memory_error:
         logger.debug(f"NVML memory read failed for device {index} ({type(memory_error).__name__}: {memory_error})")
         return None
     return NvmlMemory(
@@ -125,7 +125,7 @@ def get_device_utilization_percent(index: int = 0) -> int | None:
         return None
     try:
         return int(pynvml.nvmlDeviceGetUtilizationRates(handle).gpu)  # type: ignore[attr-defined]
-    except Exception as utilization_error:  # noqa: BLE001 - best-effort enrichment
+    except Exception as utilization_error:
         logger.debug(f"NVML utilization read failed for device {index} ({type(utilization_error).__name__})")
         return None
 
@@ -134,7 +134,7 @@ def _device_name(pynvml: object, handle: c_void_p) -> str:
     """Return the device product name, decoding the bytes older bindings return."""
     try:
         name = pynvml.nvmlDeviceGetName(handle)  # type: ignore[attr-defined]
-    except Exception:  # noqa: BLE001 - name is cosmetic
+    except Exception:
         return "unknown"
     return name.decode() if isinstance(name, bytes) else str(name)
 
@@ -143,7 +143,7 @@ def _best_effort_int(read: object, *, field: str, index: int) -> int:
     """Return ``read()`` coerced to int, or 0 when the card does not support that sensor."""
     try:
         return int(read())  # type: ignore[operator]
-    except Exception as sensor_error:  # noqa: BLE001 - many sensors are unsupported per-card
+    except Exception as sensor_error:
         logger.debug(f"NVML {field} unsupported for device {index} ({type(sensor_error).__name__})")
         return 0
 

@@ -58,6 +58,7 @@ class _AnnotatorFileLike(Protocol):
         """The HuggingFace origin URL the file is fetched from when the gated mirror does not serve it."""
         ...
 
+
 _preload_mutex = threading.Lock()
 _preload_completed = False
 
@@ -307,7 +308,9 @@ def annotators_resolvable(control_types: Iterable[str]) -> bool | None:
         needed = selector(control_types)
     else:
         wanted = set(control_types)
-        needed = tuple(entry for entry in annotator_catalog.ANNOTATOR_FILES if wanted.intersection(entry.control_types))
+        needed = tuple(
+            entry for entry in annotator_catalog.ANNOTATOR_FILES if wanted.intersection(entry.control_types)
+        )
     if not needed:
         return True
     ckpts_dir = _annotator_ckpts_dir()

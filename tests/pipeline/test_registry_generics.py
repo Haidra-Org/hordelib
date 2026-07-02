@@ -57,7 +57,7 @@ def _toy_definition(name: str, selector: ToySelector) -> PipelineDefinition[ToyP
         selector=selector,
         bindings=(
             ParamBinding(target="model_loader.model_name", source="model"),
-            ParamBinding(target="output_image.filename_prefix", transform=lambda p: f"toy-{p.model}"),
+            ParamBinding(target="image_loader.image", transform=lambda p: f"toy-{p.model}"),
         ),
         outputs=(OutputSpec(node="output_image"),),
     )
@@ -91,8 +91,8 @@ def test_materialize_with_non_image_payload() -> None:
     api_dict = graph.to_api_dict()
     model_loader = next(node for node in api_dict.values() if node["_meta"]["title"] == "model_loader")
     assert model_loader["inputs"]["model_name"] == "RealESRGAN_x4plus"
-    output_image = next(node for node in api_dict.values() if node["_meta"]["title"] == "output_image")
-    assert output_image["inputs"]["filename_prefix"] == "toy-RealESRGAN_x4plus"
+    image_loader = next(node for node in api_dict.values() if node["_meta"]["title"] == "image_loader")
+    assert image_loader["inputs"]["image"] == "toy-RealESRGAN_x4plus"
 
 
 def test_binding_validation_is_payload_agnostic() -> None:

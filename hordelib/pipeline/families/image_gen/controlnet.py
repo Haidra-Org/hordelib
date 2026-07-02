@@ -26,6 +26,9 @@ _CONTROLNET_BINDINGS = bindings.compose(
     bindings.CONTROLNET,
 )
 
+_CONTROLNET_SPURIOUS = frozenset({"sampler.noise_seed"})
+"""SAMPLER_CORE's grandfathered KSampler no-op (see the group's comment in bindings.py)."""
+
 CONTROLNET_ANNOTATOR: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefinition(
     name="controlnet_annotator",
     graph_file=pipeline_graph("controlnet_annotator"),
@@ -50,6 +53,7 @@ CONTROLNET_HIRES_FIX: PipelineDefinition[ImageGenPayload, ModelContext] = Pipeli
     bindings=bindings.compose(_CONTROLNET_BINDINGS, bindings.HIRES_FIX_UPSCALE),
     outputs=(OutputSpec(node="output_image"),),
     patch_steps=steps.IMAGE_PATCH_STEPS,
+    known_spurious_inputs=_CONTROLNET_SPURIOUS,
 )
 
 CONTROLNET: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefinition(
@@ -59,4 +63,5 @@ CONTROLNET: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefiniti
     bindings=_CONTROLNET_BINDINGS,
     outputs=(OutputSpec(node="output_image"),),
     patch_steps=steps.IMAGE_PATCH_STEPS,
+    known_spurious_inputs=_CONTROLNET_SPURIOUS,
 )

@@ -8,7 +8,7 @@ can be edited freely to experiment with the authoring surface.
 from pathlib import Path
 
 from hordelib.pipeline.context import ModelContext
-from hordelib.pipeline.definition import OutputSpec, PipelineDefinition, SelectionTier
+from hordelib.pipeline.definition import OutputSpec, PipelineDefinition, SelectionTier, node
 from hordelib.pipeline.families.image_gen import bindings, steps
 from hordelib.pipeline.families.image_gen.features import ImageSelector
 from hordelib.pipeline.payload import ImageGenPayload
@@ -25,11 +25,22 @@ EXAMPLE_PIPELINE: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDe
     # When this pipeline is chosen. Tiers replace magic priorities; a real pipeline would
     # select on a baseline set or named payload features (see families/image_gen/features.py).
     selector=ImageSelector(tier=SelectionTier.FALLBACK),
-    # The complete parameter surface: what user payloads can set on this graph. Composed
-    # from the named groups in families/image_gen/bindings.py; every target is audited
-    # against the graph at registration, so a typo fails immediately.
+    # The complete parameter surface: what user payloads can set on this graph. A node()
+    # handle names the graph node and its class; bind keywords are that node's real input
+    # names, and values are payload fields (or transforms like comfy_sampler). Registration
+    # audits all four halves — node title, node class, input name (against the committed
+    # ComfyUI schema snapshot), and payload field — so a typo in any of them fails
+    # immediately instead of being silently dropped. Reusable groups from
+    # families/image_gen/bindings.py (PROMPTS, EMPTY_LATENT, ...) compose the same way.
     bindings=bindings.compose(
-        bindings.SAMPLER_CORE,
+        node("sampler", "KSampler").bind(
+            sampler_name=bindings.comfy_sampler,
+            cfg="cfg_scale",
+            denoise="denoising_strength",
+            seed="seed",
+            scheduler="scheduler",
+            steps="ddim_steps",
+        ),
         bindings.EMPTY_LATENT,
         bindings.PROMPTS,
     ),

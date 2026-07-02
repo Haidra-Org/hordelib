@@ -193,6 +193,28 @@ SNAPSHOT_CASES: list[tuple[str, dict[str, Any], ModelContext]] = [
     ("qwen", {}, _context(QWEN)),
     ("z_image", {}, _context(Z_IMAGE)),
     (
+        "creative_upscale",
+        {
+            "workflow": "creative_upscale",
+            "source_image": _rgb_image(),
+            "width": 1024,
+            "height": 1024,
+            "denoising_strength": 0.35,
+        },
+        _context(SD1),
+    ),
+    (
+        "creative_upscale_loras",
+        {
+            "workflow": "creative_upscale",
+            "source_image": _rgb_image(),
+            "width": 1536,
+            "height": 1024,
+            "denoising_strength": 0.3,
+        },
+        _context(SDXL, resolved_loras=_TWO_LORAS, will_load_loras=True),
+    ),
+    (
         "loras_sd",
         {},
         _context(SD1, resolved_loras=_TWO_LORAS, will_load_loras=True),
