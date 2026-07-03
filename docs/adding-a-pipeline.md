@@ -127,4 +127,7 @@ see `hordelib/pipeline/families/post_processing.py` for a complete second family
 lines, and `tests/pipeline/test_registry_generics.py` for a toy family showing a custom
 `Selector` subclass. New output modalities add an `OutputKind` member, a Horde output node
 class registered in `HORDE_OUTPUT_CLASS_TYPES` (`hordelib/pipeline/graph.py`), and flow
-through the execution layer unchanged.
+through the execution layer unchanged (collection walks every list-valued ui key of a
+declared output node; see `docs/comfyui-bridge.md`). New nodes are written against
+ComfyUI's typed V3 API, modeled on `hordelib/nodes/node_v3_canary.py`; see
+`docs/modality-readiness.md` for the full recipe.

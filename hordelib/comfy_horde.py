@@ -31,8 +31,23 @@ from hordelib.settings import UserSettings
 from hordelib.utils.ioredirect import ComfyUIProgress, OutputCollector
 from hordelib.config_path import get_hordelib_path
 from hordelib.execution import comfy_patches
-from hordelib.execution.graph_utils import GraphDict
+from hordelib.execution.comfy_events import (
+    HORDE_MODEL_NAME_INPUT,
+    MODEL_LOADER_NODE_TITLE,
+    VAE_DECODE_NODE_TITLE,
+    ExecutingEvent,
+    ExecutionCachedEvent,
+    ExecutionErrorEvent,
+    ExecutionInterruptedEvent,
+    ExecutionSuccessEvent,
+    ValidationResult,
+    parse_event,
+)
+from hordelib.execution.graph_utils import GraphDict, apply_dotted_params
 from hordelib.execution.interface import DEFAULT_IMAGE_OUTPUTS, OutputSpec
+from hordelib.execution.model_dirs import ModelCategory, invalidate_filename_cache, register_horde_model_paths
+from hordelib.execution.results import PipelineRunResult, collect_output_entries
+from hordelib.execution.server_shim import HeadlessComfyServer
 from hordelib.pipeline.graph import HORDE_NODE_REPLACEMENTS
 from hordelib.utils.torch_memory import clear_accelerator_cache
 
@@ -83,9 +98,6 @@ _comfy_validate_prompt: types.FunctionType
 _comfy_execution: types.ModuleType
 _comfy_nodes_images: types.ModuleType
 
-_comfy_folder_names_and_paths: dict[str, tuple[list[str], list[str] | set[str]]]
-_comfy_supported_pt_extensions: set[str]
-
 _comfy_load_checkpoint_guess_config: types.FunctionType
 
 _comfy_get_torch_device: types.FunctionType
@@ -96,8 +108,12 @@ _comfy_get_total_memory: types.FunctionType
 """Will return the total amount of memory on the current torch device."""
 _comfy_load_torch_file: types.FunctionType
 _comfy_model_loading: types.ModuleType
-_comfy_free_memory: Callable[[float, torch.device, list], None]
-"""Will aggressively unload models from memory"""
+_comfy_free_memory: Callable[..., None]
+"""Will aggressively unload models from memory.
+
+Called as ``(memory_required, device)``; the pristine signature (with its optional
+keep-loaded/pinning parameters) is pinned by ``tests/test_comfy_contract_drift.py``.
+"""
 _comfy_cleanup_models: Callable
 """Will unload unused models from memory"""
 _comfy_soft_empty_cache: Callable
@@ -246,7 +262,6 @@ def do_comfy_import(
     global _comfy_execution
     global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt
     global _comfy_nodes_images
-    global _comfy_folder_names_and_paths, _comfy_supported_pt_extensions
     global _comfy_load_checkpoint_guess_config
     global _comfy_get_torch_device, _comfy_get_free_memory, _comfy_get_total_memory
     global _comfy_load_torch_file, _comfy_model_loading
@@ -315,8 +330,6 @@ def do_comfy_import(
             comfy_patches.IsChangedCache_get_hijack,
         )
 
-        from folder_paths import folder_names_and_paths as _comfy_folder_names_and_paths
-        from folder_paths import supported_pt_extensions as _comfy_supported_pt_extensions
         from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config
         from comfy.model_management import current_loaded_models as _comfy_current_loaded_models
         import comfy.model_management
@@ -418,7 +431,7 @@ def pin_models_in_vram() -> bool:
         return False
 
 
-def unload_all_models_vram():
+def unload_all_models_vram() -> None:
     global _comfy_current_loaded_models
 
     from hordelib.metrics import get_metrics_collector
@@ -475,7 +488,7 @@ def unload_all_models_vram():
     get_metrics_collector().record_phase("model_unload", time.perf_counter() - _unload_start)
 
 
-def unload_all_models_ram():
+def unload_all_models_ram() -> None:
     global _comfy_current_loaded_models
 
     log_free_ram()
@@ -525,19 +538,19 @@ def unload_all_models_ram():
     log_free_ram()
 
 
-def get_torch_device():
+def get_torch_device() -> torch.device:
     return _comfy_get_torch_device()
 
 
-def get_torch_total_vram_mb():
+def get_torch_total_vram_mb() -> int:
     return round(_comfy_get_total_memory() / (1024 * 1024))
 
 
-def get_torch_free_vram_mb():
+def get_torch_free_vram_mb() -> int:
     return round(_comfy_get_free_memory() / (1024 * 1024))
 
 
-def get_torch_device_free_vram_mb():
+def get_torch_device_free_vram_mb() -> int:
     """Device-wide free VRAM (mem_get_info), excluding this process's reclaimable torch cache.
 
     See :func:`hordelib.utils.torch_memory.get_torch_device_free_vram_mb`. This is the honest figure for
@@ -555,7 +568,7 @@ inference reserve warns periodically rather than on every (very frequent) log_fr
 _LOW_VRAM_WARN_INTERVAL_SECONDS: float = 15.0
 
 
-def log_free_ram():
+def log_free_ram() -> None:
     global _LAST_LOW_VRAM_WARN_TIME
 
     # Report the *device-wide* free VRAM (mem_get_info), not comfy's get_free_memory: the latter adds back
@@ -613,7 +626,7 @@ def log_free_ram():
             )
 
 
-def interrupt_comfyui_processing():
+def interrupt_comfyui_processing() -> None:
     logger.warning("Interrupting comfyui processing")
     _comfy_interrupt_current_processing()
 
@@ -664,12 +677,6 @@ class Comfy_Horde:
     any external readers of the historical class attribute.
     """
 
-    GC_TIME = 30
-    """The approximate number of seconds to force garbage collection."""
-
-    pipelines: dict
-    images: list[dict[str, io.BytesIO]] | None
-
     def __init__(
         self,
         *,
@@ -683,14 +690,13 @@ class Comfy_Horde:
         """
         if _comfy_current_loaded_models is None:
             raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
-        self._exit_time = 0
-        self._callers = 0
-        self._gc_timer = time.time()
-        self._counter_mutex = threading.Lock()
-        self.images = None
 
-        # Set comfyui paths for checkpoints, loras, etc
-        self._set_comfyui_paths()
+        # The named server contract ComfyUI's executor runs against when embedded; events
+        # land in send_sync below.
+        self._server_shim = HeadlessComfyServer(event_listener=self.send_sync)
+
+        # Register horde model directories (and the custom-node path) with ComfyUI.
+        register_horde_model_paths()
 
         # Load our custom nodes
         self._load_custom_nodes()
@@ -698,115 +704,20 @@ class Comfy_Horde:
         self._comfyui_callback = comfyui_callback
         self.aggressive_unloading = aggressive_unloading
 
-    def _set_comfyui_paths(self) -> None:
-        # These set the default paths for comfyui to look for models and embeddings. From within hordelib,
-        # we aren't ever going to use the default ones, and this may help lubricate any further changes.
-        _comfy_folder_names_and_paths["loras"] = (
-            [
-                _comfy_folder_names_and_paths["loras"][0][0],
-                str(UserSettings.get_model_directory() / "lora"),
-            ],
-            _comfy_supported_pt_extensions,
-        )
-        _comfy_folder_names_and_paths["embeddings"] = (
-            [
-                _comfy_folder_names_and_paths["embeddings"][0][0],
-                str(UserSettings.get_model_directory() / "ti"),
-            ],
-            _comfy_supported_pt_extensions,
-        )
-
-        _comfy_folder_names_and_paths["checkpoints"] = (
-            [
-                _comfy_folder_names_and_paths["checkpoints"][0][0],
-                str(UserSettings.get_model_directory() / "compvis"),
-            ],
-            _comfy_supported_pt_extensions,
-        )
-
-        _comfy_folder_names_and_paths["diffusion_models"] = (
-            [
-                _comfy_folder_names_and_paths["diffusion_models"][0][0],
-                str(UserSettings.get_model_directory() / "compvis"),
-            ],
-            _comfy_supported_pt_extensions,
-        )
-
-        _comfy_folder_names_and_paths["vae"] = (
-            [
-                _comfy_folder_names_and_paths["vae"][0][0],
-                str(UserSettings.get_model_directory() / "vae"),
-            ],
-            _comfy_supported_pt_extensions,
-        )
-
-        _comfy_folder_names_and_paths["text_encoders"] = (
-            [
-                _comfy_folder_names_and_paths["text_encoders"][0][0],
-                str(UserSettings.get_model_directory() / "text_encoders"),
-            ],
-            _comfy_supported_pt_extensions,
-        )
-
-        _comfy_folder_names_and_paths["upscale_models"] = (
-            [
-                _comfy_folder_names_and_paths["upscale_models"][0][0],
-                str(UserSettings.get_model_directory() / "esrgan"),
-                str(UserSettings.get_model_directory() / "gfpgan"),
-                str(UserSettings.get_model_directory() / "codeformer"),
-            ],
-            _comfy_supported_pt_extensions,
-        )
-
-        _comfy_folder_names_and_paths["facerestore_models"] = (
-            [
-                str(UserSettings.get_model_directory() / "gfpgan"),
-                str(UserSettings.get_model_directory() / "codeformer"),
-            ],
-            _comfy_supported_pt_extensions,
-        )
-
-        _comfy_folder_names_and_paths["controlnet"] = (
-            [
-                _comfy_folder_names_and_paths["controlnet"][0][0],
-                str(UserSettings.get_model_directory() / "controlnet"),
-            ],
-            _comfy_supported_pt_extensions,
-        )
-
-        # Set custom node path
-        _comfy_folder_names_and_paths["custom_nodes"] = (
-            [
-                _comfy_folder_names_and_paths["custom_nodes"][0][0],
-                str(get_hordelib_path() / "nodes"),
-            ],
-            [],
-        )
-
-    def _this_dir(self, filename: str, subdir="") -> str:
-        """Return the path to a file in the same directory as this file.
-
-        Args:
-            filename (str): The filename to return the path to.
-            subdir (str, optional): The subdirectory to look in. Defaults to "".
-
-        Returns:
-            str: The path to the file.
-        """
-        target_dir = os.path.dirname(os.path.realpath(__file__))
-        if subdir:
-            target_dir = os.path.join(target_dir, subdir)
-        return os.path.join(target_dir, filename)
-
     def _load_custom_nodes(self) -> None:
         """Force ComfyUI to load its normal custom nodes and the horde custom nodes."""
         asyncio.run(_comfy_nodes.init_extra_nodes(init_custom_nodes=True))
 
-    def _get_executor(self):
-        """Return the ComfyUI PromptExecutor object."""
-        # This class (`Comfy_Horde`) uses duck typing to intercept calls intended for
-        # ComfyUI's `PromptServer` class. In particular, it intercepts calls to
-        # `PromptServer.send_sync`. See `Comfy_Horde.send_sync` for more details.
+    def _get_executor(self) -> typing.Any:
+        """Return a fresh ComfyUI PromptExecutor for one run.
+
+        A new executor (and so a new cache set) is built per run on purpose: cross-run node
+        caching would pin tensors in RAM/VRAM against the worker's aggressive unload policy,
+        and executor construction is cheap.
+
+        The executor runs against the HeadlessComfyServer shim in place of ComfyUI's
+        PromptServer; its events arrive in send_sync below.
+        """
         from comfy.cli_args import args
 
         cache_lru: int = getattr(args, "cache_lru", 0)
@@ -839,194 +750,95 @@ class Comfy_Horde:
 
         cache_args = {"lru": cache_lru, "ram": cache_ram, "ram_inactive": cache_ram_inactive}
 
-        return _comfy_PromptExecutor(self, cache_type=cache_type, cache_args=cache_args)
-
-    def _set(self, dct, **kwargs) -> None:
-        """Set the named parameter to the named value in the pipeline template.
-
-        Allows inputs to be missing from the key name, if it is we insert it.
-        """
-        num_skipped = 0
-
-        for key, value in kwargs.items():
-            keys = key.split(".")
-            skip = False
-            if "inputs" not in keys:
-                keys.insert(1, "inputs")
-            current = dct
-
-            for k in keys[:-1]:
-                if k not in current:
-                    # logger.debug(f"Attempt to set parameter not defined in this template: {key}")
-                    skip = True
-                    num_skipped += 1
-                    break
-
-                current = current[k]
-
-            if not skip:
-                if not current.get(keys[-1]):
-                    logger.debug("Template parameter created: key={}", key)
-                current[keys[-1]] = value
-        logger.debug(
-            "Attempted to set parameters: requested_count={}, skipped_count={}",
-            len(kwargs),
-            num_skipped,
-        )
-
-    # Connect the named input to the named node (output).
-    # Used for dynamic switching of pipeline graphs
-    @classmethod
-    def reconnect_input(cls, dct, input, output):
-        # logger.debug(f"Request to reconnect input {input} to output {output}")
-
-        # First check the output even exists
-        if output not in dct.keys():
-            logger.debug(
-                "Cannot reconnect input to missing output",
-                input_name=input,
-                output_name=output,
-            )
-            return None
-
-        keys = input.split(".")
-        if "inputs" not in keys:
-            keys.insert(1, "inputs")
-        current = dct
-        for k in keys:
-            if k not in current:
-                logger.debug("Attempt to reconnect unknown input: input_name={}", input)
-                return None
-
-            current = current[k]
-
-        logger.debug("Reconnected input to output", input_name=input, output_name=output)
-        current[0] = output
-        return True
+        return _comfy_PromptExecutor(self._server_shim, cache_type=cache_type, cache_args=cache_args)
 
     _comfyui_callback: typing.Callable[[str, dict, str], None] | None = None
 
-    # This is the callback handler for comfy async events.
     def send_sync(self, label: str, data: dict, sid: str | None = None) -> None:
-        # Log all execution state changes for debugging
+        """Receive one execution event from ComfyUI, via the HeadlessComfyServer shim.
+
+        Artifact collection reads the executor's ``history_result`` after the run (see
+        ``_collect_run_result``); this channel only logs typed event context and forwards the
+        raw event to the external callback.
+        """
         logger.debug(
             "ComfyUI callback",
             label=label,
             client_id=sid,
-            has_output=data.get("output") is not None,
             data_keys=list(data.keys()),
         )
 
-        # Get receive image outputs via this async mechanism
-        output = data.get("output", None)
-        logger.debug(
-            "ComfyUI callback raw output",
-            label=label,
-            output_present=output is not None,
-            output_type=type(output).__name__ if output is not None else None,
-        )
-        images_received = None
-        if output is not None and "images" in output:
-            images_received = output.get("images", None)
+        if self._comfyui_callback is not None and sid is not None:
+            self._comfyui_callback(label, data, sid)
 
-        if images_received is not None:
-            if len(images_received) == 0:
-                logger.warning("Received no output images from comfyui")
+        event = parse_event(label, data)
 
-            # Graphs are title-keyed (see ComfyGraph), so the executing node id in the
-            # callback *is* the node title declared by the pipeline's OutputSpec.
-            source_node = data.get("node")
-
-            for image_info in images_received:
-                if not isinstance(image_info, dict):
-                    logger.error("Received non dict output from comfyui: output={}", image_info)
-                    continue
-                if not isinstance(image_info.get("imagedata"), io.BytesIO):
-                    logger.error(
-                        "Received image output without imagedata from comfyui",
-                        keys=list(image_info),
-                        source_node=source_node,
-                    )
-                    continue
-                unexpected_keys = set(image_info) - {"imagedata", "type"}
-                if unexpected_keys:
-                    logger.error(
-                        "Received unexpected image output keys from comfyui",
-                        keys=sorted(unexpected_keys),
-                        source_node=source_node,
-                    )
-                collected = dict(image_info)
-                collected["source_node"] = source_node
-                if self.images is None:
-                    self.images = []
-                self.images.append(collected)
-            logger.debug("Received output image(s) from comfyui", source_node=source_node)
-        else:
-            if self._comfyui_callback is not None and sid is not None:
-                self._comfyui_callback(label, data, sid)
-
-            if label == "execution_error":
-                # Extract detailed error information
-                node_id = data.get("node_id", "unknown")
-                node_type = data.get("node_type", "unknown")
-                exception_message = data.get("exception_message", "")
-                exception_type = data.get("exception_type", "")
-                traceback_text = data.get("traceback", "")
-
-                logger.error(
-                    "ComfyUI execution error",
-                    node_id=node_id,
-                    node_type=node_type,
-                    exception_message=exception_message,
-                )
-
-                logger.error(
-                    "ComfyUI node execution failed",
-                    label=label,
-                    client_id=sid,
-                    node_id=node_id,
-                    node_type=node_type,
-                    exception_type=exception_type,
-                    exception_message=exception_message,
-                    traceback=traceback_text if traceback_text else None,
-                    full_error_data=data,
-                )
-
-                # Reset images on error so that we receive expected None input and can raise an exception
-                self.images = None
-            elif label == "execution_success":
-                # Log successful execution
-                logger.info(
-                    "ComfyUI execution completed successfully",
-                    client_id=sid,
-                    has_images=self.images is not None,
-                    image_count=len(self.images) if self.images else 0,
-                )
-            elif label == "execution_cached":
-                # Comfy emits execution_cached with an empty node list when nothing was
-                # actually cached, so only treat a non-empty list as noteworthy.
-                cached_nodes = data.get("nodes", [])
+        if isinstance(event, ExecutionErrorEvent):
+            logger.error(
+                "ComfyUI node execution failed",
+                client_id=sid,
+                node_id=event.node_id,
+                node_type=event.node_type,
+                exception_type=event.exception_type,
+                exception_message=event.exception_message,
+                traceback=event.traceback if event.traceback else None,
+            )
+        elif isinstance(event, ExecutionInterruptedEvent):
+            logger.warning(
+                "ComfyUI execution interrupted",
+                client_id=sid,
+                node_id=event.node_id,
+                node_type=event.node_type,
+            )
+        elif isinstance(event, ExecutionSuccessEvent):
+            logger.info("ComfyUI execution completed successfully", client_id=sid)
+        elif isinstance(event, ExecutionCachedEvent):
+            # Comfy emits execution_cached with an empty node list when nothing was
+            # actually cached, so only treat a non-empty list as noteworthy.
+            if event.nodes:
                 logger.info(
                     "ComfyUI execution fully cached",
                     client_id=sid,
-                    cached_nodes=cached_nodes,
+                    cached_nodes=event.nodes,
                 )
-                if cached_nodes:
-                    logger.warning(
-                        "All nodes were cached - this may indicate a problem if new images were expected",
-                        cached_nodes=cached_nodes,
-                    )
-            elif label != "executing":
-                pass
-                # logger.debug(f"{label}, {data}, {sid}")
-            else:
-                node_name = data.get("node", "")
-                logger.debug("ComfyUI executing node", label=label, node_name=node_name)
-                if node_name == "vae_decode":
-                    logger.info("Decoding image from VAE. This may take a while for large images.")
+                logger.warning(
+                    "All nodes were cached - this may indicate a problem if new images were expected",
+                    cached_nodes=event.nodes,
+                )
+        elif isinstance(event, ExecutingEvent):
+            logger.debug("ComfyUI executing node", node_name=event.node)
+            if event.node == VAE_DECODE_NODE_TITLE:
+                logger.info("Decoding image from VAE. This may take a while for large images.")
+
+    @staticmethod
+    def _collect_run_result(executor: typing.Any) -> PipelineRunResult:
+        """Build the typed run result from the executor's post-run attributes.
+
+        ComfyUI's ``PromptExecutor`` exposes ``success``, ``status_messages`` and
+        ``history_result`` after ``execute()`` returns; ``history_result`` is absent only
+        when an exception escaped the executor entirely (there is no finally-assignment),
+        which is treated as failure.
+        """
+        history_result = getattr(executor, "history_result", None)
+        success = bool(getattr(executor, "success", False)) and history_result is not None
+
+        entries: list[dict[str, typing.Any]] = []
+        if history_result is not None:
+            entries = collect_output_entries(history_result.get("outputs", {}))
+
+        error_event: ExecutionErrorEvent | None = None
+        for event_label, event_data in getattr(executor, "status_messages", []):
+            parsed_event = parse_event(event_label, event_data)
+            if isinstance(parsed_event, ExecutionErrorEvent):
+                error_event = parsed_event
+                break
+            if isinstance(parsed_event, ExecutionInterruptedEvent):
+                # Interrupts share the failure path; there is no exception context to carry.
+                break
+
+        return PipelineRunResult(success=success, entries=entries, error=error_event)
 
     # Execute a fully materialized graph, applying any remaining dotted params.
-    # For the horde we assume the pipeline returns an array of images.
     @logfire.instrument("comfy.execute_graph", extract_args=False)
     def _run_pipeline(
         self,
@@ -1035,7 +847,7 @@ class Comfy_Horde:
         comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
         *,
         defer_vram_unload: bool = False,
-    ) -> list[dict[str, typing.Any]] | None:
+    ) -> PipelineRunResult:
         start_time = time.time()
         _t0 = time.perf_counter()
         _validate_seconds = 0.0
@@ -1056,11 +868,8 @@ class Comfy_Horde:
             node_count=len(pipeline),
         )
 
-        # Wipe any previous images, if they exist.
-        self.images = None
-
-        # Set the pipeline parameters
-        self._set(pipeline, **params)
+        # Set any remaining dotted parameters on the materialized graph
+        apply_dotted_params(pipeline, params)
 
         # Create (or retrieve) our prompt executor
         inference = self._get_executor()
@@ -1100,52 +909,51 @@ class Comfy_Horde:
                 node_types=pipeline_node_types,
             )
 
-            # validate_prompt from comfy returns [bool, str, list]
-            # Which gives us these nice hardcoded list indexes, which valid[2] is the output node list
             _t_validate = time.perf_counter()
-            valid = asyncio.run(_comfy_validate_prompt(1, pipeline, None))
+            validation = ValidationResult.from_comfy(asyncio.run(_comfy_validate_prompt(1, pipeline, None)))
             _validate_seconds = time.perf_counter() - _t_validate
-
-            # Log validation results with structured data
-            validation_status = valid[0] if len(valid) > 0 else None
-            validation_error = valid[1] if len(valid) > 1 else None
-            output_nodes = valid[2] if len(valid) > 2 else []
-            node_errors = valid[3] if len(valid) > 3 else {}
 
             logger.info(
                 "Pipeline validation result",
-                is_valid=validation_status,
-                error_message=validation_error if validation_error else None,
-                error_details=validation_error.get("details") if isinstance(validation_error, dict) else None,
-                error_type=validation_error.get("type") if isinstance(validation_error, dict) else None,
-                output_node_count=len(output_nodes) if output_nodes else 0,
-                output_nodes=output_nodes if output_nodes else [],
-                node_error_count=len(node_errors) if node_errors else 0,
+                is_valid=validation.is_valid,
+                error_message=validation.error if validation.error else None,
+                error_details=validation.error.get("details") if validation.error else None,
+                error_type=validation.error.get("type") if validation.error else None,
+                output_node_count=len(validation.output_node_ids),
+                output_nodes=validation.output_node_ids,
+                node_error_count=len(validation.node_errors),
             )
 
-            if not validation_status:
+            if not validation.is_valid:
                 logger.error(
                     "Pipeline validation failed",
-                    validation_error=validation_error,
+                    validation_error=validation.error,
                     client_id=self.client_id,
-                    node_errors=node_errors,
+                    node_errors=validation.node_errors,
                     pipeline_node_types=pipeline_node_types,
                 )
                 logger.error(
                     "Pipeline validation failed summary",
-                    validation_error=validation_error,
+                    validation_error=validation.error,
                     node_count=len(pipeline),
                     node_types=list(set(pipeline_node_types.values())),
                 )
-            import folder_paths
-
-            if "embeddings" in folder_paths.filename_list_cache:
-                del folder_paths.filename_list_cache["embeddings"]
+            # Textual inversions can be downloaded between jobs; force a rescan so the run
+            # sees embeddings that appeared since the last listing.
+            invalidate_filename_cache(ModelCategory.EMBEDDINGS)
 
             _t_pre_execute = time.perf_counter()
             try:
                 with logger.catch(reraise=True):
-                    inference.execute(pipeline, self.client_id, {"client_id": self.client_id}, valid[2])
+                    # client_id in extra_data is required: ComfyUI only delivers cached output
+                    # nodes into history_result when the server has a client_id (pinned by
+                    # tests/test_comfy_contract_drift.py).
+                    inference.execute(
+                        pipeline,
+                        self.client_id,
+                        {"client_id": self.client_id},
+                        validation.output_node_ids,
+                    )
             except Exception as exc:
                 logger.exception("Exception during comfy execute")
                 logger.error("ComfyUI execution failed", error=str(exc))
@@ -1189,25 +997,18 @@ class Comfy_Horde:
         duration_ms = (time.time() - start_time) * 1000
         pipeline_duration_histogram.record(duration_ms)
 
-        # Validate execution results
-        images_generated = self.images is not None and len(self.images) > 0 if self.images else False
-        image_count = len(self.images) if self.images else 0
+        run_result = self._collect_run_result(inference)
 
         logger.info(
             "ComfyUI pipeline execution complete",
             duration_ms=duration_ms,
-            images_generated=images_generated,
-            image_count=image_count,
+            success=run_result.success,
+            artifact_count=len(run_result.entries),
             client_id=self.client_id,
         )
 
-        # # Check if there are any resource to clean up
-        # cleanup()
-        # if time.time() - self._gc_timer > Comfy_Horde.GC_TIME:
-        #     self._gc_timer = time.time()
-        #     garbage_collect()
         log_free_ram()
-        return self.images
+        return run_result
 
     # Run a materialized pipeline graph and collect its declared outputs
     @logfire.instrument("comfy.run_pipeline", extract_args=False)
@@ -1221,8 +1022,8 @@ class Comfy_Horde:
         defer_vram_unload: bool = False,
     ) -> list[dict[str, typing.Any]]:
         # Results are collected from the declared output nodes as dicts of the form
-        # {"imagedata": <BytesIO>, "type": "PNG", "source_node": <node title>};
-        # see node_image_output.py and send_sync above.
+        # {"imagedata": <BytesIO>, "type": "PNG", "source_node": <node title>}, read from the
+        # executor's history_result; see hordelib.execution.results and node_image_output.py.
         if not isinstance(pipeline, dict):
             raise TypeError(
                 f"run_pipeline expects a materialized graph dict, got {type(pipeline).__name__!r}. "
@@ -1236,18 +1037,17 @@ class Comfy_Horde:
             declared_outputs=[output.node for output in outputs],
         )
 
-        # If no callers for a while, announce it
-        if self._callers == 0 and self._exit_time:
-            idle_time = time.time() - self._exit_time
-            if idle_time > 1 and UserSettings.enable_idle_time_warning.active:
-                logger.warning("No job ran recently", idle_seconds=round(idle_time, 3))
+        run_result = self._run_pipeline(
+            pipeline,
+            params,
+            comfyui_progress_callback,
+            defer_vram_unload=defer_vram_unload,
+        )
 
-        result = self._run_pipeline(pipeline, params, comfyui_progress_callback, defer_vram_unload=defer_vram_unload)
-
-        produced_nodes = {entry.get("source_node") for entry in result} if result else set()
+        produced_nodes = run_result.produced_nodes
         missing_nodes = [output.node for output in outputs if output.node not in produced_nodes]
 
-        if result and not missing_nodes:
+        if run_result.success and run_result.entries and not missing_nodes:
             declared_nodes = {output.node for output in outputs}
             undeclared_nodes = produced_nodes - declared_nodes
             if undeclared_nodes:
@@ -1255,38 +1055,24 @@ class Comfy_Horde:
                 # nodes surface during the migration to declared outputs.
                 logger.warning(
                     "Pipeline produced results from undeclared output nodes",
-                    undeclared_nodes=sorted(node for node in undeclared_nodes if node is not None),
+                    undeclared_nodes=sorted(undeclared_nodes),
                     declared_nodes=sorted(declared_nodes),
                 )
-            return result
+            return run_result.entries
 
-        model_name = _extract_graph_input(pipeline, "model_loader", "horde_model_name") or "unknown"
+        model_name = _extract_graph_input(pipeline, MODEL_LOADER_NODE_TITLE, HORDE_MODEL_NAME_INPUT) or "unknown"
+        error_summary = f" Error: {run_result.error.summary()}" if run_result.error else ""
         logger.error(
             "Pipeline execution failed - declared outputs missing",
-            result_is_none=result is None,
-            produced_count=len(result) if result else 0,
+            success=run_result.success,
+            produced_count=len(run_result.entries),
             missing_output_nodes=missing_nodes,
             model_name=model_name,
+            error_summary=run_result.error.summary() if run_result.error else None,
         )
         raise RuntimeError(
             f"Pipeline failed to run - declared output node(s) {missing_nodes} produced no results. "
-            f"Model: {model_name}",
-        )
-
-    def run_image_pipeline(
-        self,
-        pipeline: GraphDict,
-        params: dict[str, typing.Any],
-        comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
-        *,
-        defer_vram_unload: bool = False,
-    ) -> list[dict[str, typing.Any]]:
-        """Deprecated alias for :meth:`run_pipeline` (historical image-only name)."""
-        return self.run_pipeline(
-            pipeline,
-            params,
-            comfyui_progress_callback,
-            defer_vram_unload=defer_vram_unload,
+            f"Model: {model_name}.{error_summary}",
         )
 
 
@@ -1300,7 +1086,7 @@ from hordelib.execution.comfy_patches import (
 )
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> typing.Any:
     # Forward reads of moved attributes so existing imports keep working for one release.
     if name in ("models_not_to_force_load", "disable_force_loading"):
         from hordelib.execution import comfy_patches

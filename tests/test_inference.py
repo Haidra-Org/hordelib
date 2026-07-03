@@ -27,7 +27,7 @@ class TestInference:
 
     def test_non_dict_pipeline_rejected(self, isolated_comfy_horde_instance: Comfy_Horde):
         with pytest.raises(TypeError, match="materialized graph dict"):
-            isolated_comfy_horde_instance.run_image_pipeline("stable_diffusion", {})  # type: ignore[arg-type]
+            isolated_comfy_horde_instance.run_pipeline("stable_diffusion", {})  # type: ignore[arg-type]
 
     def test_stable_diffusion_pipeline(
         self,
@@ -52,7 +52,7 @@ class TestInference:
             "model_loader.file_type": None,
             "clip_skip.stop_at_clip_layer": -1,
         }
-        images = isolated_comfy_horde_instance.run_image_pipeline(_load_graph("stable_diffusion"), params)
+        images = isolated_comfy_horde_instance.run_pipeline(_load_graph("stable_diffusion"), params)
         assert images is not None
 
         pil_image = Image.open(images[0]["imagedata"])
@@ -86,7 +86,7 @@ class TestInference:
             "model_loader.file_type": None,
             "clip_skip.stop_at_clip_layer": -2,
         }
-        images = isolated_comfy_horde_instance.run_image_pipeline(_load_graph("stable_diffusion"), params)
+        images = isolated_comfy_horde_instance.run_pipeline(_load_graph("stable_diffusion"), params)
         assert images is not None
 
         pil_image = Image.open(images[0]["imagedata"])
@@ -136,7 +136,7 @@ class TestInference:
             "upscale_sampler.denoise": 0.65,
             "clip_skip.stop_at_clip_layer": -1,
         }
-        images = isolated_comfy_horde_instance.run_image_pipeline(
+        images = isolated_comfy_horde_instance.run_pipeline(
             _load_graph("stable_diffusion_hires_fix"),
             params,
         )
@@ -151,7 +151,7 @@ class TestInference:
         )
 
         params["clip_skip.stop_at_clip_layer"] = -2
-        images = isolated_comfy_horde_instance.run_image_pipeline(
+        images = isolated_comfy_horde_instance.run_pipeline(
             _load_graph("stable_diffusion_hires_fix"),
             params,
         )
