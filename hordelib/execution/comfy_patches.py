@@ -245,6 +245,41 @@ def _force_full_load_would_overflow_vram(models) -> bool:
     return overflow
 
 
+SMALL_MODEL_WORKING_CLAMP_MAX_BYTES: int = 1024**3
+"""Weight-size ceiling under which a load's caller-supplied working estimate is clamped.
+
+Support models (VAEs are the significant case) weigh a few hundred MB but their callers pass a
+worst-case *working-memory* estimate as ``memory_required`` (a 1-megapixel decode estimates
+several GB). ComfyUI frees that estimate up front, evicting a co-resident diffusion model (a
+multi-second PCIe round-trip both ways) to host a tiny model whose actual work would usually fit
+in the free VRAM already available; for decodes, ComfyUI degrades to tiled decoding on a true OOM
+anyway. Diffusion models themselves are never clamped (their estimate covers sampling, which has
+no such fallback), and the 1 GiB ceiling keeps every image VAE inside while excluding text
+encoders large enough to declare their own memory-estimation functions, whose encode path has no
+OOM fallback either.
+"""
+
+
+def _small_support_models_only(models) -> bool:
+    """Whether *models* are all non-diffusion (support) models small enough to clamp.
+
+    Any ``comfy.model_base.BaseModel`` (a diffusion model) disqualifies the load, as does any
+    failure to size the models (fail closed: no clamp, preserving ComfyUI's own behavior).
+    """
+    import comfy.model_base
+
+    try:
+        total_size = 0
+        for model_patcher in models:
+            if isinstance(getattr(model_patcher, "model", None), comfy.model_base.BaseModel):
+                return False
+            total_size += model_patcher.model_size()
+    except Exception as exc:
+        logger.debug("Could not size models for working-estimate clamp; not clamping: error={}", exc)
+        return False
+    return 0 < total_size <= SMALL_MODEL_WORKING_CLAMP_MAX_BYTES
+
+
 @logfire.instrument("comfy.load_models_gpu_hijack")
 def _load_models_gpu_hijack(*args, **kwargs):
     """Intercepts the comfy load_models_gpu function to force full load.
@@ -253,6 +288,12 @@ def _load_models_gpu_hijack(*args, **kwargs):
     multiple ComfyUI instances running on the same GPU. This function forces a full load of the model
     and the worker/horde-engine takes responsibility for managing the memory or the problems this may
     cause.
+
+    For small support models (see :data:`SMALL_MODEL_WORKING_CLAMP_MAX_BYTES`) the caller's
+    ``memory_required`` working estimate is additionally clamped to zero so ComfyUI frees only its
+    standard inference reserve: freeing the full estimate evicts co-resident diffusion weights to
+    host a model a fraction of their size, and the operation the estimate covers (VAE decode/encode)
+    falls back to tiling on a genuine OOM rather than failing.
     """
 
     models = args[0]
@@ -267,6 +308,15 @@ def _load_models_gpu_hijack(*args, **kwargs):
         kwargs.pop("force_full_load", None)
         _originals["load_models_gpu"](*args, **kwargs)
         return
+
+    requested_working_bytes = kwargs.get("memory_required", 0)
+    if requested_working_bytes and _small_support_models_only(models):
+        kwargs["memory_required"] = 0
+        logger.info(
+            "comfy.small_model_working_clamp",
+            model_count=len(models),
+            requested_mb=round(requested_working_bytes / 2**20),
+        )
 
     kwargs.pop("force_full_load", None)
     kwargs["force_full_load"] = True

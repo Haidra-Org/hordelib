@@ -91,7 +91,11 @@ Five ComfyUI internals are patched at import time (`hordelib/execution/comfy_pat
 all policy injections with no native hook:
 
 - `load_models_gpu` and `ModelPatcher.load`: force full GPU loads (with VRAM-overflow and
-  model-class guards) so sibling worker processes sharing a GPU behave predictably.
+  model-class guards) so sibling worker processes sharing a GPU behave predictably. Small
+  support-model loads (VAEs) additionally have their caller-supplied working-memory estimate
+  clamped: ComfyUI otherwise frees the full worst-case decode estimate up front, evicting a
+  co-resident diffusion model (a multi-second PCIe round-trip each way, every job) to host a
+  few hundred MB of autoencoder, when a genuine shortfall would only mean a tiled decode.
 - `text_encoder_initial_device`: load text encoders on CPU first.
 - `comfy.lora.calculate_weight`: repair malformed "diff" patch tuples.
 - `IsChangedCache.get`: prompt-change logging.

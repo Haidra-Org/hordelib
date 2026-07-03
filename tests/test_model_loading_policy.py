@@ -106,3 +106,86 @@ class TestForceLoadClassNameDriftTripwire:
         _install_fake_comfy_model_base(monkeypatch, drifted)
         with pytest.raises(RuntimeError, match="QwenImage"):
             comfy_patches.assert_force_load_class_names_exist()
+
+
+class _FakePatcher:
+    """Stand-in ModelPatcher exposing just what the load hijack inspects."""
+
+    def __init__(self, model: object, size: int) -> None:
+        self.model = model
+        self._size = size
+
+    def model_size(self) -> int:
+        return self._size
+
+
+class TestSmallModelWorkingClamp:
+    """VAE-sized loads must not evict co-resident diffusion weights to satisfy a working estimate.
+
+    Callers pass a worst-case working-memory estimate (a 1MP decode estimates several GB) as
+    ``memory_required``; ComfyUI frees that much up front, evicting a resident diffusion model to
+    host a few hundred MB of VAE. The hijack clamps the estimate for small non-diffusion loads,
+    relying on ComfyUI's tiled-decode OOM fallback as the backstop.
+    """
+
+    def _fake_base_model_cls(self, monkeypatch: pytest.MonkeyPatch) -> type:
+        _install_fake_comfy_model_base(monkeypatch, _all_referenced_class_names() | {"BaseModel"})
+        import comfy.model_base
+
+        return comfy.model_base.BaseModel
+
+    def test_small_support_models_qualify(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._fake_base_model_cls(monkeypatch)
+        vae = _FakePatcher(model=object(), size=160 * 1024**2)
+        assert comfy_patches._small_support_models_only([vae]) is True
+
+    def test_diffusion_model_disqualifies(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        base_model_cls = self._fake_base_model_cls(monkeypatch)
+        unet = _FakePatcher(model=base_model_cls(), size=160 * 1024**2)
+        assert comfy_patches._small_support_models_only([unet]) is False
+
+    def test_oversize_support_model_disqualifies(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._fake_base_model_cls(monkeypatch)
+        big = _FakePatcher(model=object(), size=comfy_patches.SMALL_MODEL_WORKING_CLAMP_MAX_BYTES + 1)
+        assert comfy_patches._small_support_models_only([big]) is False
+
+    def test_sizing_failure_fails_closed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._fake_base_model_cls(monkeypatch)
+
+        class _Unsizable:
+            model = object()
+
+            def model_size(self) -> int:
+                raise RuntimeError("no size")
+
+        assert comfy_patches._small_support_models_only([_Unsizable()]) is False
+
+    def test_hijack_clamps_vae_working_estimate(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._fake_base_model_cls(monkeypatch)
+        captured: dict = {}
+
+        def capture(models, **kwargs):
+            captured.update(kwargs)
+
+        monkeypatch.setitem(comfy_patches._originals, "load_models_gpu", capture)
+        vae = _FakePatcher(model=object(), size=160 * 1024**2)
+
+        comfy_patches._load_models_gpu_hijack([vae], memory_required=5 * 1024**3)
+
+        assert captured["force_full_load"] is True
+        assert captured["memory_required"] == 0
+
+    def test_hijack_preserves_estimate_for_diffusion_models(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        base_model_cls = self._fake_base_model_cls(monkeypatch)
+        captured: dict = {}
+
+        def capture(models, **kwargs):
+            captured.update(kwargs)
+
+        monkeypatch.setitem(comfy_patches._originals, "load_models_gpu", capture)
+        unet = _FakePatcher(model=base_model_cls(), size=5 * 1024**3)
+
+        comfy_patches._load_models_gpu_hijack([unet], memory_required=7 * 1024**3)
+
+        assert captured["force_full_load"] is True
+        assert captured["memory_required"] == 7 * 1024**3
