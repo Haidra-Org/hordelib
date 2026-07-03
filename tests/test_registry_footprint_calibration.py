@@ -107,13 +107,16 @@ def _verify_seeds_against_profile(baseline: str, profile: JobVramProfile) -> Non
         f"co-residency room that does not exist. Raise vram_weights_mb / vram_support_weights_mb."
     )
 
-    # Detection, not a hard gate: vram_base_mb predates the split weight seeds and can read below the true
-    # activation-inclusive peak. When it does, surface the measured figure so the seed is set from data.
+    # Surface (not gate) the activation-inclusive figure so vram_base_mb can be set from data. This is a
+    # warning rather than an assertion because peak_device_used is the whole-job high-water, which may fall in
+    # the decode phase rather than sampling; a precise vram_base gate needs per-phase attribution. A sampling
+    # seed below the observed device high-water is nonetheless the signal that vram_base_mb has drifted low.
     if seed_sampling_peak < profile.peak_device_used_mb * (1 - _UNDER_COUNT_TOLERANCE):
         needed_base = round(profile.peak_device_used_mb - (seed_sampling_peak - burden.vram_base_mb))
-        pytest.xfail(
-            f"{baseline}: sampling-peak seed {seed_sampling_peak:.0f} MB under-counts the measured device "
-            f"high-water {profile.peak_device_used_mb:.0f} MB; set vram_base_mb to ~{needed_base} MB."
+        logger.warning(
+            f"[footprint calibration] {baseline}: sampling-peak seed {seed_sampling_peak:.0f} MB is below the "
+            f"measured device high-water {profile.peak_device_used_mb:.0f} MB; consider raising vram_base_mb "
+            f"toward ~{needed_base} MB (verify the peak phase before setting)."
         )
 
 
