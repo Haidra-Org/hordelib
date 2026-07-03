@@ -68,8 +68,21 @@ def test_download_model_delegates_to_engine_and_validates(tmp_path: Path, monkey
         *,
         progress_callback: object = None,
         auth_query_token: object = None,
+        gateway_base_url: str | None = None,
+        apikey: str | None = None,
+        use_configured_gateway: bool = True,
+        connections: int = 1,
     ) -> bool:
-        captured.update(record=record, root=root, callback=progress_callback, token=auth_query_token)
+        captured.update(
+            record=record,
+            root=root,
+            callback=progress_callback,
+            token=auth_query_token,
+            gateway_base_url=gateway_base_url,
+            apikey=apikey,
+            use_configured_gateway=use_configured_gateway,
+            connections=connections,
+        )
         return True
 
     monkeypatch.setattr(base_module.download_engine, "download_record_files", fake_download_record_files)
