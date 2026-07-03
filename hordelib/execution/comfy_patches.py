@@ -280,6 +280,32 @@ def _small_support_models_only(models) -> bool:
     return 0 < total_size <= SMALL_MODEL_WORKING_CLAMP_MAX_BYTES
 
 
+@contextlib.contextmanager
+def _free_memory_capped(cap_bytes: int):
+    """Temporarily cap ComfyUI's ``free_memory`` target on the way into one load.
+
+    ``load_models_gpu`` frees ``weights * 1.1 + max(minimum_inference_memory(), memory_required +
+    extra_reserved)`` before loading; the inference-reserve floor cannot be lowered through the call's
+    arguments, so a small support-model load on a card whose free VRAM sits under that floor still
+    evicts a resident diffusion model. Within this scope, ``free_memory`` requests are capped at
+    ``cap_bytes`` (enough for the weights being loaded plus a margin), so the load can only reclaim
+    what it needs for itself. ComfyUI executes one graph at a time per process, so the scoped swap
+    cannot race another load.
+    """
+    import comfy.model_management as model_management
+
+    original_free_memory = model_management.free_memory
+
+    def capped_free_memory(memory_required, device, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003, ANN202
+        return original_free_memory(min(memory_required, cap_bytes), device, *args, **kwargs)
+
+    model_management.free_memory = capped_free_memory
+    try:
+        yield
+    finally:
+        model_management.free_memory = original_free_memory
+
+
 @logfire.instrument("comfy.load_models_gpu_hijack")
 def _load_models_gpu_hijack(*args, **kwargs):
     """Intercepts the comfy load_models_gpu function to force full load.
@@ -317,6 +343,21 @@ def _load_models_gpu_hijack(*args, **kwargs):
             model_count=len(models),
             requested_mb=round(requested_working_bytes / 2**20),
         )
+        kwargs.pop("force_full_load", None)
+        kwargs["force_full_load"] = True
+        logger.info("comfy.force_full_load", model_count=len(models))
+        # Zeroing memory_required is not enough: load_models_gpu still frees the weights plus its
+        # ~1GB minimum inference reserve, and on a packed card that floor alone evicts a resident
+        # diffusion model (a multi-second PCIe round-trip each way) to host a few hundred MB of
+        # support model. Cap the free target at the weights plus a small margin for this one load;
+        # the decode/encode the load serves falls back to tiled processing on a genuine OOM.
+        try:
+            total_weight_bytes = sum(model_patcher.model_size() for model_patcher in models)
+        except Exception:
+            total_weight_bytes = SMALL_MODEL_WORKING_CLAMP_MAX_BYTES
+        with _free_memory_capped(int(total_weight_bytes * 1.1) + 256 * 1024**2):
+            _originals["load_models_gpu"](*args, **kwargs)
+        return
 
     kwargs.pop("force_full_load", None)
     kwargs["force_full_load"] = True

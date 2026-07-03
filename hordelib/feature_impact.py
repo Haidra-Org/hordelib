@@ -98,9 +98,27 @@ class BaselineBurden(BaseModel):
     case :meth:`resident_weight_estimate_mb` falls back to ``vram_base_mb``. The seeded figures reflect the
     dtypes the worker typically runs on consumer cards (for example, a Flux fp8 checkpoint)."""
 
+    vram_support_weights_mb: int = 0
+    """Resident weight footprint (MB) of the support components loaded alongside the core weights.
+
+    Text encoders and the VAE are force-loaded onto the device over the course of every job, so a job's
+    true resident demand is the core weights plus these. They are tracked separately because streaming
+    decisions apply to the core (diffusion) weights only, while room and residency verdicts must charge
+    the whole set: judging card fit by the core weights alone under-counts a multi-component checkpoint
+    by the full text-encoder size. Zero means unmeasured (the footprint falls back to the core figure)."""
+
     def resident_weight_estimate_mb(self) -> int:
-        """Return the resident weight footprint (MB), falling back to the conflated base when unseeded."""
+        """Return the core (diffusion) resident weight footprint (MB), falling back when unseeded."""
         return self.vram_weights_mb or self.vram_base_mb
+
+    def resident_footprint_estimate_mb(self) -> int:
+        """Return the full per-job resident weight footprint (MB): core weights plus support components.
+
+        This is the figure a scheduler should charge when judging whether a card can host this model
+        beside anything else; every component in it is force-loaded to the device at some point in each
+        job, so room granted against a smaller number is room that does not exist.
+        """
+        return self.resident_weight_estimate_mb() + self.vram_support_weights_mb
 
 
 class BurdenEstimate(BaseModel):
@@ -193,6 +211,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         max_recommended_batch=4,
         typical_disk_gb=6.9,
         vram_weights_mb=4900,
+        vram_support_weights_mb=1700,
     ),
     BaselineBurden(
         baseline="stable_cascade",
@@ -215,6 +234,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         max_recommended_batch=1,
         typical_disk_gb=17.0,
         vram_weights_mb=11500,
+        vram_support_weights_mb=4900,
     ),
     BaselineBurden(
         baseline="flux_schnell",
@@ -226,6 +246,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         max_recommended_batch=1,
         typical_disk_gb=17.0,
         vram_weights_mb=11500,
+        vram_support_weights_mb=4900,
     ),
     BaselineBurden(
         baseline="flux_dev",
@@ -237,6 +258,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         max_recommended_batch=1,
         typical_disk_gb=17.0,
         vram_weights_mb=11500,
+        vram_support_weights_mb=4900,
     ),
     BaselineBurden(
         baseline="qwen_image",
