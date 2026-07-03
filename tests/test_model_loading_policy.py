@@ -28,15 +28,32 @@ def _all_referenced_class_names() -> set[str]:
     return names
 
 
-def _install_fake_comfy_model_base(monkeypatch: pytest.MonkeyPatch, class_names: set[str]) -> None:
-    """Put a stand-in ``comfy.model_base`` (exposing *class_names* as classes) into sys.modules."""
+def _install_fake_comfy_model_base(
+    monkeypatch: pytest.MonkeyPatch,
+    class_names: set[str],
+) -> types.ModuleType:
+    """Put a stand-in ``comfy`` (``model_base`` classes + a recording ``model_management``) into sys.modules.
+
+    Returns the fake ``model_management`` module; its ``free_memory`` appends each requested byte count
+    to ``free_memory_requests`` so tests can observe what a scoped cap let through.
+    """
     model_base = types.ModuleType("comfy.model_base")
     for name in class_names:
         setattr(model_base, name, type(name, (), {}))
+    model_management = types.ModuleType("comfy.model_management")
+    model_management.free_memory_requests = []  # type: ignore[attr-defined]
+
+    def free_memory(memory_required, device, *args, **kwargs):
+        model_management.free_memory_requests.append(memory_required)  # type: ignore[attr-defined]
+
+    model_management.free_memory = free_memory  # type: ignore[attr-defined]
     comfy_pkg = types.ModuleType("comfy")
     comfy_pkg.model_base = model_base  # type: ignore[attr-defined]
+    comfy_pkg.model_management = model_management  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "comfy", comfy_pkg)
     monkeypatch.setitem(sys.modules, "comfy.model_base", model_base)
+    monkeypatch.setitem(sys.modules, "comfy.model_management", model_management)
+    return model_management
 
 
 class TestForceLoadSkipResolution:
@@ -174,6 +191,31 @@ class TestSmallModelWorkingClamp:
 
         assert captured["force_full_load"] is True
         assert captured["memory_required"] == 0
+
+    def test_hijack_caps_free_memory_during_small_load(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """A free_memory call made while the load runs is capped near the weights, not comfy's floor.
+
+        Zeroing ``memory_required`` still leaves ComfyUI freeing its ~1GB inference reserve, which on a
+        packed card evicts a resident diffusion model; the scoped cap is what actually prevents that.
+        """
+        self._fake_base_model_cls(monkeypatch)
+        import comfy.model_management as fake_model_management
+
+        weights = 160 * 1024**2
+        expected_cap = int(weights * 1.1) + 256 * 1024**2
+
+        def capture(models, **kwargs):
+            fake_model_management.free_memory(10 * 1024**3, None)
+
+        monkeypatch.setitem(comfy_patches._originals, "load_models_gpu", capture)
+        vae = _FakePatcher(model=object(), size=weights)
+
+        comfy_patches._load_models_gpu_hijack([vae], memory_required=5 * 1024**3)
+
+        assert fake_model_management.free_memory_requests == [expected_cap]
+        # Outside the scope the original is restored: an uncapped request passes through unchanged.
+        fake_model_management.free_memory(10 * 1024**3, None)
+        assert fake_model_management.free_memory_requests[-1] == 10 * 1024**3
 
     def test_hijack_preserves_estimate_for_diffusion_models(self, monkeypatch: pytest.MonkeyPatch) -> None:
         base_model_cls = self._fake_base_model_cls(monkeypatch)

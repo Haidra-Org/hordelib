@@ -47,6 +47,29 @@ class TestRegistryCoverage:
         assert burden.vram_weights_mb > 0
         assert burden.resident_weight_estimate_mb() == burden.vram_weights_mb
 
+    @pytest.mark.parametrize("baseline", ["flux_1", "flux_schnell", "flux_dev", "stable_diffusion_xl"])
+    def test_multi_component_baselines_seed_support_weights(self, baseline: str) -> None:
+        """Multi-component checkpoints must charge their force-loaded support components.
+
+        The text encoder and VAE join the core weights on the device during every job; a footprint
+        equal to the core weights alone under-counts the card demand by the full text-encoder size,
+        and room granted against it lets the components evict each other all job long.
+        """
+        burden = get_baseline_burden(baseline)
+        assert burden is not None
+        assert burden.vram_support_weights_mb > 0
+        assert (
+            burden.resident_footprint_estimate_mb()
+            == burden.resident_weight_estimate_mb() + burden.vram_support_weights_mb
+        )
+
+    def test_unseeded_support_weights_fall_back_to_core_footprint(self) -> None:
+        """A baseline without a support seed keeps its previous (core-only) footprint."""
+        burden = get_baseline_burden("stable_diffusion_1")
+        assert burden is not None
+        assert burden.vram_support_weights_mb == 0
+        assert burden.resident_footprint_estimate_mb() == burden.resident_weight_estimate_mb()
+
 
 class TestEstimateJobBurden:
     def test_unknown_baseline_uses_fallback_and_is_flagged(self) -> None:

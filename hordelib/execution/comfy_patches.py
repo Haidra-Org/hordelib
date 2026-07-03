@@ -296,7 +296,7 @@ def _free_memory_capped(cap_bytes: int):
 
     original_free_memory = model_management.free_memory
 
-    def capped_free_memory(memory_required, device, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003, ANN202
+    def capped_free_memory(memory_required, device, *args, **kwargs):
         return original_free_memory(min(memory_required, cap_bytes), device, *args, **kwargs)
 
     model_management.free_memory = capped_free_memory
