@@ -80,6 +80,7 @@ from hordelib.utils.logger import HordeLog
 from hordelib.utils.torch_memory import (
     AcceleratorInfo,
     AcceleratorKind,
+    JobVramProfile,
     ResidentFootprint,
     ResidentFootprintRecorder,
     clear_accelerator_cache,
@@ -91,6 +92,7 @@ from hordelib.utils.torch_memory import (
     get_torch_free_vram_mb,
     get_torch_total_vram_mb,
     log_free_ram,
+    record_job_vram_profile,
     record_resident_footprint,
 )
 from hordelib.vram_planning import (
@@ -167,8 +169,10 @@ __all__ = [
     "get_metrics_collector",
     "get_torch_free_vram_mb",
     "get_torch_total_vram_mb",
+    "JobVramProfile",
     "ResidentFootprint",
     "ResidentFootprintRecorder",
+    "record_job_vram_profile",
     "record_resident_footprint",
     "initialise",
     "install_sampling_lease_hook",

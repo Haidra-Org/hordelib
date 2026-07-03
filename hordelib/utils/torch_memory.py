@@ -16,6 +16,7 @@ that consults it, and only for the CUDA/NVIDIA backend.
 from __future__ import annotations
 
 import sys
+import threading
 from collections.abc import Iterator
 from contextlib import contextmanager
 from types import ModuleType
@@ -447,6 +448,120 @@ def record_resident_footprint() -> Iterator[ResidentFootprintRecorder]:
         yield recorder
     finally:
         mm.load_models_gpu = original  # type: ignore[attr-defined]  # restore the backend's loader
+
+
+def _sum_resident_weights_mb() -> float:
+    """Sum the weights *currently on the device* across ComfyUI's loaded models (MB), 0 without ComfyUI.
+
+    Reads each loaded model's ``model_loaded_memory`` (the weights actually resident, excluding any offloaded
+    to host RAM), so block-swapped or partially-offloaded weights are counted at their on-device size, not
+    their full checkpoint size. A snapshot: sampled over a job it reveals the peak *simultaneous* residency,
+    which is distinct from the union of every component ever loaded (components that time-share the device are
+    never all resident at once).
+    """
+    mm = _comfy_model_management()
+    if mm is None:
+        return 0.0
+    loaded_models = getattr(mm, "current_loaded_models", None)
+    if not loaded_models:
+        return 0.0
+    resident_bytes = 0
+    for loaded_model in list(loaded_models):  # copy: the backend mutates this list from the worker thread
+        read_loaded = getattr(loaded_model, "model_loaded_memory", None)
+        if read_loaded is None:
+            continue
+        try:
+            resident_bytes += max(0, int(read_loaded()))
+        except Exception as e:
+            logger.debug(f"loaded-memory read failed for a loaded model: {e}")
+    return resident_bytes / _MB
+
+
+class JobVramProfile(BaseModel):
+    """Peak VRAM a job actually consumed, separating simultaneous residency from the union of components.
+
+    ``peak_resident_weights_mb`` is the largest the *on-device weight set* ever got at one instant. It is the
+    honest figure for a co-residency judgment: when the backend evicts a text encoder before sampling or
+    block-swaps a large diffusion model, the peak simultaneous weight set is below the summed component
+    weights (``sum_component_weights_mb``, the conservative upper bound). ``peak_device_used_mb`` adds the
+    transient activation high-water, so it is what an activation-inclusive peak seed (``vram_base_mb``) should
+    be measured against. Zero fields mean the profile ran without ComfyUI or a device to read.
+    """
+
+    peak_resident_weights_mb: float
+    peak_device_used_mb: float
+    sum_component_weights_mb: float
+
+    @property
+    def time_shared_mb(self) -> float:
+        """How much the summed components exceed the peak simultaneous weights (the eviction/swap savings)."""
+        return max(0.0, self.sum_component_weights_mb - self.peak_resident_weights_mb)
+
+
+class _JobVramProfiler:
+    """Samples on-device weights and device-used VRAM on a background thread while a job runs."""
+
+    def __init__(self, recorder: ResidentFootprintRecorder, *, poll_interval_s: float) -> None:
+        self._recorder = recorder
+        self._poll_interval_s = poll_interval_s
+        self._peak_resident_weights_mb = 0.0
+        self._peak_device_used_mb = 0.0
+        self._total_vram_mb = float(get_torch_total_vram_mb())
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name="vram-profiler", daemon=True)
+
+    def _sample(self) -> None:
+        self._peak_resident_weights_mb = max(self._peak_resident_weights_mb, _sum_resident_weights_mb())
+        device_used = self._total_vram_mb - float(get_torch_device_free_vram_mb())
+        self._peak_device_used_mb = max(self._peak_device_used_mb, device_used)
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            try:
+                self._sample()
+            except Exception as e:
+                logger.debug(f"vram profile sample failed: {e}")
+            self._stop.wait(self._poll_interval_s)
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=2.0)
+        self._sample()  # a final reading so a peak between the last poll and stop is not lost
+
+    def profile(self) -> JobVramProfile:
+        """Return the measured peaks alongside the summed-component upper bound from the recorder."""
+        footprint = self._recorder.resident_footprint()
+        return JobVramProfile(
+            peak_resident_weights_mb=self._peak_resident_weights_mb,
+            peak_device_used_mb=self._peak_device_used_mb,
+            sum_component_weights_mb=footprint.total_mb,
+        )
+
+
+@contextmanager
+def record_job_vram_profile(*, poll_interval_s: float = 0.02) -> Iterator[_JobVramProfiler]:
+    """Measure a job's peak *simultaneous* VRAM, not just the union of components it loaded.
+
+    Samples the on-device weight set and the device-used high-water on a background thread while wrapping
+    ``load_models_gpu`` for the component union, so one run yields all three views: the summed components
+    (conservative), the peak simultaneous weights (the true co-residency footprint once time-sharing is
+    accounted for), and the peak device use (weights plus activations). Yields an inert profiler when
+    ComfyUI is not loaded. This is how a burden seed is set from what a model *actually* holds at once,
+    rather than from an assumption about whether its components co-reside.
+    """
+    with record_resident_footprint() as recorder:
+        profiler = _JobVramProfiler(recorder, poll_interval_s=poll_interval_s)
+        if _comfy_model_management() is None:
+            yield profiler
+            return
+        profiler.start()
+        try:
+            yield profiler
+        finally:
+            profiler.stop()
 
 
 def clear_accelerator_cache() -> None:

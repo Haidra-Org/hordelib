@@ -285,3 +285,67 @@ def test_is_core_diffusion_module_identifies_basemodel() -> None:
     core = object.__new__(model_base.BaseModel)
     assert torch_memory._is_core_diffusion_module(core) is True
     assert torch_memory._is_core_diffusion_module(object()) is False
+
+
+class _FakeLoadedModel:
+    """A stand-in for a ComfyUI ``LoadedModel``: reports its on-device (loaded) weight bytes."""
+
+    def __init__(self, *, loaded_mb: float) -> None:
+        self._loaded_bytes = int(loaded_mb * _MB)
+
+    def model_loaded_memory(self) -> int:
+        return self._loaded_bytes
+
+
+def test_sum_resident_weights_reads_on_device_loaded_memory(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The resident-weight sum reflects what is on the device now, across ComfyUI's loaded models."""
+    fake = types.SimpleNamespace(
+        current_loaded_models=[_FakeLoadedModel(loaded_mb=19500), _FakeLoadedModel(loaded_mb=0)]
+    )
+    monkeypatch.setitem(sys.modules, torch_memory._COMFY_MODEL_MANAGEMENT, fake)
+    assert torch_memory._sum_resident_weights_mb() == 19500
+
+
+def test_sum_resident_weights_is_zero_without_comfy(no_comfy: None) -> None:
+    """Without ComfyUI loaded there is nothing resident to sum."""
+    assert torch_memory._sum_resident_weights_mb() == 0.0
+
+
+def test_profiler_tracks_peak_simultaneous_not_the_running_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The profiler keeps the high-water of resident weights and device use, not the final reading.
+
+    This is the property that distinguishes a peak simultaneous footprint from an end-of-job snapshot: a
+    component resident only mid-job (an encoder evicted before decode) must still lift the peak.
+    """
+    monkeypatch.setattr(torch_memory, "get_torch_total_vram_mb", lambda: 24000)
+    profiler = torch_memory._JobVramProfiler(torch_memory.ResidentFootprintRecorder(), poll_interval_s=0.0)
+
+    # Three moments: encoder resident, then diffusion resident (peak weights), then decode (peak device use).
+    for resident_mb, free_mb in [(8000.0, 15000.0), (19500.0, 3000.0), (12000.0, 1000.0)]:
+        monkeypatch.setattr(torch_memory, "_sum_resident_weights_mb", lambda r=resident_mb: r)
+        monkeypatch.setattr(torch_memory, "get_torch_device_free_vram_mb", lambda f=free_mb: f)
+        profiler._sample()
+
+    profile = profiler.profile()
+    assert profile.peak_resident_weights_mb == 19500.0  # the sampling-phase weight peak, not the 12000 end
+    assert profile.peak_device_used_mb == 23000.0  # 24000 total - 1000 free at the decode high-water
+
+
+def test_profile_time_shared_is_sum_minus_peak() -> None:
+    """``time_shared_mb`` reports how far the summed components exceed the peak simultaneous residency."""
+    profile = torch_memory.JobVramProfile(
+        peak_resident_weights_mb=19500.0,
+        peak_device_used_mb=22000.0,
+        sum_component_weights_mb=27700.0,
+    )
+    assert profile.time_shared_mb == pytest.approx(8200.0)
+
+
+def test_record_job_vram_profile_is_inert_without_comfy(no_comfy: None) -> None:
+    """Without ComfyUI the profiler starts no thread and reports zero peaks."""
+    with torch_memory.record_job_vram_profile() as profiler:
+        pass
+    profile = profiler.profile()
+    assert profile.peak_resident_weights_mb == 0.0
+    assert profile.peak_device_used_mb == 0.0
+    assert profile.sum_component_weights_mb == 0.0
