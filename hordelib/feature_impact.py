@@ -262,7 +262,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
     ),
     BaselineBurden(
         baseline="qwen_image",
-        vram_base_mb=14000,
+        vram_base_mb=20694,
         ram_base_mb=28000,
         vram_per_megapixel_mb=1500,
         native_resolution=(1024, 1024),
@@ -279,7 +279,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
     ),
     BaselineBurden(
         baseline="z_image_turbo",
-        vram_base_mb=11000,
+        vram_base_mb=14485,
         ram_base_mb=14000,
         vram_per_megapixel_mb=1200,
         native_resolution=(1024, 1024),
