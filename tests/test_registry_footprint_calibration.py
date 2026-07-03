@@ -108,17 +108,12 @@ class TestRegistryFootprintCalibration:
         measured = _measure_text_to_image_footprint(hordelib_instance, z_image_turbo_base_model_name, steps=4)
         _assert_footprint_seed_matches("z_image_turbo", measured)
 
-    @pytest.mark.xfail(
-        strict=True,
-        reason="qwen_image seed counts only the DiT weights; its Qwen2.5-VL text encoder is unseeded. "
-        "Remove this marker after setting vram_support_weights_mb from this test's measured support.",
-    )
     @pytest.mark.default_qwen_model
     def test_qwen_image_footprint_matches_registry(
         self,
         hordelib_instance: HordeLib,
         qwen_image_fp8_base_model_name: str,
     ) -> None:
-        """Qwen-Image fp8: the reproduced under-count. The measured support here is what the seed must carry."""
+        """Qwen-Image fp8: DiT plus its Qwen2.5-VL text encoder, seeded from the measured resident weights."""
         measured = _measure_text_to_image_footprint(hordelib_instance, qwen_image_fp8_base_model_name, steps=8)
         _assert_footprint_seed_matches("qwen_image", measured)

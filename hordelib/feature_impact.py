@@ -269,7 +269,13 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=16000,
         max_recommended_batch=1,
         typical_disk_gb=20.0,
-        vram_weights_mb=12000,
+        # The 20B DiT and the Qwen2.5-VL text encoder are both force-loaded every job. A prior estimate of
+        # 12000 charged only part of the DiT and none of the encoder, so the whole set read as co-residable on
+        # a 24GB card and was admitted beside a sibling that then ran it out of memory mid-sample. These figures
+        # are the weights ComfyUI actually loads (measured by test_registry_footprint_calibration): the core DiT
+        # alone exceeds a 24GB card's usable VRAM, so the forecast correctly treats it as whole-card/streaming.
+        vram_weights_mb=19500,
+        vram_support_weights_mb=8200,
     ),
     BaselineBurden(
         baseline="z_image_turbo",
@@ -280,11 +286,12 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=12000,
         max_recommended_batch=2,
         typical_disk_gb=8.0,
-        # The 6B DiT plus its text encoder and VAE stay resident together; the prior unseeded base of 8000
-        # conflated weights with activations and read as comfortably co-resident, so the scheduler never gave
-        # Z-Image the whole card it actually wants. Seeded explicitly so the streaming/residency forecast sees
-        # the real weight footprint at the worker's typical dtype.
-        vram_weights_mb=10000,
+        # The DiT plus its text encoder and VAE stay resident together. The prior folded estimate of 10000
+        # charged roughly half the real set, so the forecast read it as comfortably co-resident and never gave
+        # Z-Image the card it needs. Split from the measured weights (test_registry_footprint_calibration): the
+        # core diffusion weights and the support components each carried separately.
+        vram_weights_mb=11800,
+        vram_support_weights_mb=7900,
     ),
 ]
 
