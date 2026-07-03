@@ -16,6 +16,8 @@ that consults it, and only for the CUDA/NVIDIA backend.
 from __future__ import annotations
 
 import sys
+from collections.abc import Iterator
+from contextlib import contextmanager
 from types import ModuleType
 
 import psutil
@@ -347,6 +349,104 @@ def get_loaded_weights_offloaded_mb() -> int:
         except Exception as e:
             logger.debug(f"offloaded-memory read failed for a loaded model: {e}")
     return round(offloaded_bytes / _MB)
+
+
+def _is_core_diffusion_module(module: object) -> bool:
+    """Whether ``module`` is a core diffusion model (the checkpoint's UNet/DiT), not a support component.
+
+    ComfyUI loads a checkpoint's diffusion model as a :class:`comfy.model_base.BaseModel`; its text
+    encoders and VAE are distinct modules loaded through their own patchers. The distinction sizes the
+    streaming-vs-residency split: streaming judgments apply to the core weights, while sibling-room and
+    whole-card judgments must charge the core plus every support component. Returns False (support, the
+    conservative side for a room judgment) when ComfyUI is not importable.
+    """
+    try:
+        from comfy.model_base import BaseModel
+    except Exception:
+        return False
+    return isinstance(module, BaseModel)
+
+
+class ResidentFootprint(BaseModel):
+    """Measured resident weight footprint of a job, split into core diffusion weights and support.
+
+    ``support_mb`` is the text encoders and VAE force-loaded alongside the core weights; ``total_mb`` is
+    the full set a scheduler must charge when deciding whether a card can host this model beside anything
+    else. Distinct from an activation-inclusive VRAM high-water mark: this is weights only.
+    """
+
+    core_mb: float
+    support_mb: float
+
+    @property
+    def total_mb(self) -> float:
+        """Core diffusion weights plus every force-loaded support component."""
+        return self.core_mb + self.support_mb
+
+
+class ResidentFootprintRecorder:
+    """Accumulates the distinct model components ComfyUI loads to the device, deduplicated by patcher.
+
+    Recording every load (rather than snapshotting ``current_loaded_models`` once) is what makes the
+    measurement robust to mid-job eviction: a text encoder freed before VAE decode is still counted,
+    which is exactly the component an end-of-job snapshot would miss and the one whose omission from a
+    burden seed under-counts a multi-component checkpoint.
+    """
+
+    def __init__(self) -> None:
+        self._by_patcher: dict[int, tuple[bool, float]] = {}
+
+    def record_load(self, models: object) -> None:
+        """Record each patcher in a ``load_models_gpu`` call, classified core vs support by its module."""
+        try:
+            patchers = list(models)  # type: ignore[call-overload]
+        except TypeError:
+            return
+        for patcher in patchers:
+            module = getattr(patcher, "model", None)
+            model_size = getattr(patcher, "model_size", None)
+            if module is None or model_size is None:
+                continue
+            try:
+                size_mb = float(model_size()) / _MB
+            except Exception as e:
+                logger.debug(f"model_size read failed for a loaded patcher: {e}")
+                continue
+            self._by_patcher[id(patcher)] = (_is_core_diffusion_module(module), size_mb)
+
+    def resident_footprint(self) -> ResidentFootprint:
+        """Return the accumulated core and support weight totals (MB)."""
+        core = sum(size for is_core, size in self._by_patcher.values() if is_core)
+        support = sum(size for is_core, size in self._by_patcher.values() if not is_core)
+        return ResidentFootprint(core_mb=core, support_mb=support)
+
+
+@contextmanager
+def record_resident_footprint() -> Iterator[ResidentFootprintRecorder]:
+    """Record the resident weight footprint of the ComfyUI work done inside the block.
+
+    Wraps ``model_management.load_models_gpu`` so every component the backend force-loads to the device
+    during a job is captured (deduplicated), then classified into core diffusion weights and support
+    components. Yields a no-op recorder when ComfyUI is not loaded, so callers need no guard. The wrapper
+    is removed on exit even if the block raises. This is the measurement side of the burden registry: a
+    seed can be verified against what the backend actually loads for a real job on real hardware.
+    """
+    recorder = ResidentFootprintRecorder()
+    mm = _comfy_model_management()
+    original = getattr(mm, "load_models_gpu", None) if mm is not None else None
+    if mm is None or original is None:
+        yield recorder
+        return
+
+    def _recording_load_models_gpu(models: object, *args: object, **kwargs: object) -> object:
+        recorder.record_load(models)
+        return original(models, *args, **kwargs)
+
+    mm.load_models_gpu = _recording_load_models_gpu  # type: ignore[attr-defined]  # patching a dynamic module
+    try:
+        yield recorder
+    finally:
+        mm.load_models_gpu = original  # type: ignore[attr-defined]  # restore the backend's loader
 
 
 def clear_accelerator_cache() -> None:

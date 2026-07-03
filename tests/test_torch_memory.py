@@ -171,3 +171,117 @@ def test_device_free_vram_excludes_comfy_reclaimable_cache(monkeypatch: pytest.M
     assert get_torch_free_vram_mb() == 15000
     # The device-wide helper strips the reclaimable cache the budget must not count.
     assert get_torch_device_free_vram_mb() == 11000
+
+
+class _FakePatcher:
+    """A stand-in for a ComfyUI ``ModelPatcher``: a module reference plus a byte weight size."""
+
+    def __init__(self, *, is_core: bool, size_mb: float) -> None:
+        self.model = types.SimpleNamespace(is_core=is_core)
+        self._size_bytes = int(size_mb * _MB)
+
+    def model_size(self) -> int:
+        return self._size_bytes
+
+
+@pytest.fixture
+def classify_by_marker(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Classify a fake patcher by its ``model.is_core`` marker instead of importing ``comfy.model_base``.
+
+    Keeps the recorder wiring tests free of a ComfyUI import; the real ``comfy.model_base.BaseModel``
+    classification is covered separately.
+    """
+    monkeypatch.setattr(
+        torch_memory,
+        "_is_core_diffusion_module",
+        lambda module: bool(getattr(module, "is_core", False)),
+    )
+
+
+def _fake_comfy_with_load_gpu(monkeypatch: pytest.MonkeyPatch) -> types.SimpleNamespace:
+    """Install a fake ``comfy.model_management`` exposing a recording-friendly ``load_models_gpu``."""
+    calls: list[object] = []
+
+    def load_models_gpu(models: object, *args: object, **kwargs: object) -> str:
+        calls.append(models)
+        return "loaded"
+
+    fake = types.SimpleNamespace(load_models_gpu=load_models_gpu, _calls=calls)
+    monkeypatch.setitem(sys.modules, torch_memory._COMFY_MODEL_MANAGEMENT, fake)
+    return fake
+
+
+def test_recorder_splits_core_and_support(
+    monkeypatch: pytest.MonkeyPatch,
+    classify_by_marker: None,
+) -> None:
+    """The recorder attributes each loaded component to core weights or support by its module type."""
+    fake = _fake_comfy_with_load_gpu(monkeypatch)
+
+    with torch_memory.record_resident_footprint() as recorder:
+        result = fake.load_models_gpu(
+            [_FakePatcher(is_core=True, size_mb=12000), _FakePatcher(is_core=False, size_mb=4900)]
+        )
+
+    # The wrapper delegates to the original (the load still happens).
+    assert result == "loaded"
+    footprint = recorder.resident_footprint()
+    assert footprint.core_mb == 12000
+    assert footprint.support_mb == 4900
+    assert footprint.total_mb == 16900
+
+
+def test_recorder_counts_a_component_evicted_before_job_end(
+    monkeypatch: pytest.MonkeyPatch,
+    classify_by_marker: None,
+) -> None:
+    """A support component loaded then evicted then followed by a core reload is still counted once.
+
+    This is the property an end-of-job snapshot of ``current_loaded_models`` would miss: the text encoder
+    freed before VAE decode. Recording every load, deduplicated by patcher, captures it regardless.
+    """
+    fake = _fake_comfy_with_load_gpu(monkeypatch)
+    encoder = _FakePatcher(is_core=False, size_mb=4900)
+    diffusion = _FakePatcher(is_core=True, size_mb=12000)
+
+    with torch_memory.record_resident_footprint() as recorder:
+        fake.load_models_gpu([encoder])  # encoder loads for text conditioning
+        fake.load_models_gpu([diffusion])  # sampling; encoder may now be evicted
+        fake.load_models_gpu([diffusion])  # reloaded on a later step: must not double-count
+
+    footprint = recorder.resident_footprint()
+    assert footprint.core_mb == 12000  # diffusion counted once despite two loads
+    assert footprint.support_mb == 4900  # the evicted encoder still contributes
+
+
+def test_recorder_restores_original_load_models_gpu_on_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The wrapper is always removed, so a failing job does not leave ComfyUI's loader patched."""
+    fake = _fake_comfy_with_load_gpu(monkeypatch)
+    original = fake.load_models_gpu
+
+    with pytest.raises(RuntimeError):
+        with torch_memory.record_resident_footprint():
+            assert fake.load_models_gpu is not original  # patched inside the block
+            raise RuntimeError("job failed")
+
+    assert fake.load_models_gpu is original
+
+
+def test_recorder_is_a_noop_without_comfy(no_comfy: None) -> None:
+    """With ComfyUI not loaded the recorder yields an empty footprint and never raises."""
+    with torch_memory.record_resident_footprint() as recorder:
+        pass
+    footprint = recorder.resident_footprint()
+    assert footprint.core_mb == 0
+    assert footprint.support_mb == 0
+
+
+def test_is_core_diffusion_module_identifies_basemodel() -> None:
+    """A ``comfy.model_base.BaseModel`` reads as core; a plain module reads as support."""
+    model_base = pytest.importorskip("comfy.model_base")
+    # A bare instance is enough for the isinstance classification; no config/weights needed.
+    core = object.__new__(model_base.BaseModel)
+    assert torch_memory._is_core_diffusion_module(core) is True
+    assert torch_memory._is_core_diffusion_module(object()) is False
