@@ -184,7 +184,13 @@ class HordeCheckpointLoader:
         else:
             raise ValueError("No model file name provided.")
 
-        with torch.no_grad():
+        # Keep the checkpoint's mmap-backed tensors as the module weights where byte-identical
+        # (dtype-matching) instead of copying them into private memory: sibling processes pinning the
+        # same model then share one set of physical pages via the OS page cache. See
+        # hordelib.execution.zero_copy_load for the exact adoption rules and fallbacks.
+        from hordelib.execution.zero_copy_load import zero_copy_state_dict_assignment
+
+        with torch.no_grad(), zero_copy_state_dict_assignment():
             load_start_time = time.time()
 
             if file_type in COMPONENT_FILE_TYPES:
