@@ -240,6 +240,13 @@ class HordeCheckpointLoader:
                 load_duration_ms,
             )
             logger.debug(result)
+        # Cross-process component dedupe: adopt a sibling's byte-identical CLIP/VAE weights or offer
+        # ours (no-op unless the worker wired a sharing client into this process).
+        if file_type not in COMPONENT_FILE_TYPES:
+            from hordelib.execution.shared_components import adopt_or_publish_checkpoint_components
+
+            adopt_or_publish_checkpoint_components(result[1], result[2])
+
         SharedModelManager.manager._models_in_ram[horde_in_memory_name] = result, will_load_loras
 
         # Apply tiling settings - handle both checkpoint format (tuple) and component format (single object)

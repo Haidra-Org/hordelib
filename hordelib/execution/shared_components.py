@@ -263,3 +263,56 @@ def assert_unchanged(tensors: Mapping[str, Any], fingerprints: Mapping[str, floa
             logger.error(f"Shared component tensor {name!r} changed under a patched job ({before} -> {after})")
             return False
     return True
+
+
+_process_client: SharedComponentClient | None = None
+
+
+def set_client(client: SharedComponentClient | None) -> None:
+    """Install this process's sharing client (called once at child startup; None disables)."""
+    global _process_client
+    _process_client = client
+
+
+def get_client() -> SharedComponentClient | None:
+    """This process's sharing client, or None when sharing is not wired/enabled here."""
+    return _process_client
+
+
+def adopt_or_publish_checkpoint_components(clip: Any, vae: Any) -> None:
+    """Deduplicate a freshly built checkpoint's CLIP/VAE weights across worker processes.
+
+    Content-hashes each component's state dict (cheap: the tensors are mmap views at build time) and
+    either adopts a sibling's published copy (the module's parameters then share the sibling's
+    storage: shared memory for CPU tensors, the same VRAM via cudaIpc for CUDA tensors on Linux) or
+    publishes this process's copy for siblings. Adoption only ever happens on hash equality, so a
+    finetune's bespoke VAE is never substituted. Any failure leaves the component exactly as loaded:
+    sharing is an optimization, never a load dependency.
+
+    The UNet is deliberately not shared here: same-file UNets are already CPU-deduped by the mmap
+    load path, and cross-process VRAM UNet sharing needs the backend's loaded-model bookkeeping
+    taught about externally-resident weights first.
+    """
+    client = get_client()
+    if client is None or not client.enabled:
+        return
+    from hordelib.execution.zero_copy_load import zero_copy_state_dict_assignment
+
+    for label, module in (
+        ("clip", getattr(clip, "cond_stage_model", None)),
+        ("vae", getattr(vae, "first_stage_model", None)),
+    ):
+        if module is None:
+            continue
+        try:
+            state_dict = module.state_dict()
+            component_hash = hash_state_dict(state_dict)
+            fetched = client.fetch(component_hash)
+            if fetched is not None:
+                with zero_copy_state_dict_assignment():
+                    module.load_state_dict(fetched, strict=False)
+                logger.info(f"Adopted shared {label} weights ({component_hash[:12]}) from a sibling process.")
+            elif client.publish(component_hash, state_dict):
+                logger.debug(f"Published {label} weights ({component_hash[:12]}) for sibling processes.")
+        except Exception as share_error:
+            logger.debug(f"Component sharing skipped for {label} ({share_error})")

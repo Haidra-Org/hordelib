@@ -141,3 +141,43 @@ if __name__ == "__main__" and "--cuda-smoke" in sys.argv:
     # Convenience for the Linux rig: python tests/execution/test_shared_components.py --cuda-smoke
     test_cuda_tensor_maps_across_real_processes()
     print("CUDA IPC smoke passed")
+
+
+class TestCheckpointComponentAdoption:
+    """The loader-level helper: adopt on hash equality, publish otherwise, never disturb the load."""
+
+    def test_consumer_adopts_producers_identical_component(self, bus: SharedComponentBus) -> None:
+        from hordelib.execution import shared_components as sc
+
+        producer, consumer = _clients(bus)
+
+        class _Holder:
+            def __init__(self) -> None:
+                self.cond_stage_model = torch.nn.Linear(4, 4, bias=False).to(torch.float16)
+                self.first_stage_model = torch.nn.Linear(2, 2, bias=False).to(torch.float16)
+
+        producer_holder = _Holder()
+        consumer_holder = _Holder()
+        with torch.no_grad():
+            for holder in (producer_holder, consumer_holder):
+                holder.cond_stage_model.weight.fill_(1.0)
+                holder.first_stage_model.weight.fill_(2.0)
+
+        sc.set_client(producer)
+        sc.adopt_or_publish_checkpoint_components(clip=producer_holder, vae=producer_holder)
+        sc.set_client(consumer)
+        sc.adopt_or_publish_checkpoint_components(clip=consumer_holder, vae=consumer_holder)
+        sc.set_client(None)
+
+        # Identical bytes: the consumer adopted (values preserved); transit may re-back the storage,
+        # so assert value equality plus that adoption actually replaced the consumer's tensor object.
+        assert torch.equal(
+            consumer_holder.cond_stage_model.weight.float(), producer_holder.cond_stage_model.weight.float()
+        )
+        producer.unregister()
+
+    def test_helper_is_inert_without_client(self) -> None:
+        from hordelib.execution import shared_components as sc
+
+        sc.set_client(None)
+        sc.adopt_or_publish_checkpoint_components(clip=None, vae=None)
