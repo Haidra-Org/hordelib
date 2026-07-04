@@ -31,6 +31,13 @@ Sharing contract (contamination safety):
   process-long. Producer death invalidates consumers' mappings; consumers must treat fetch results
   as best-effort and fall back to loading normally (the registry entry is dropped when the producer
   is unregistered).
+
+Descriptor pressure: shipping tensors over ``torch.multiprocessing`` caches a file descriptor per shared
+storage under PyTorch's default ``file_descriptor`` strategy, so publishing and adopting components adds to
+each process's open-descriptor count. The sanctioned guard (per the PyTorch multiprocessing notes) is to
+keep that strategy and raise ``RLIMIT_NOFILE``; the bus does so when it is constructed, so every child
+spawned afterwards inherits the higher ceiling (:mod:`hordelib.utils.fd_limits`). This is a POSIX concern
+only; the whole module is a no-op on Windows/WDDM.
 """
 
 from __future__ import annotations
@@ -117,6 +124,13 @@ class SharedComponentBus:
 
     def __init__(self, ctx: multiprocessing.context.BaseContext, process_ids: list[int]) -> None:
         """Create per-child queues and the metadata registry for the given child process ids."""
+        # Raise the descriptor ceiling before the sharing children are spawned: they inherit it, so the
+        # per-shared-storage descriptors PyTorch caches under the default file_descriptor strategy have far
+        # more headroom. The PyTorch-preferred mitigation, and torch-free (stdlib resource only).
+        from hordelib.utils.fd_limits import raise_open_file_soft_limit
+
+        raise_open_file_soft_limit()
+
         self._manager = ctx.Manager()
         self._registry = self._manager.dict()
         self._request_queues = {pid: ctx.Queue() for pid in process_ids}
@@ -155,6 +169,12 @@ class SharedComponentClient:
         """Wrap the endpoint; ``enabled`` overrides the platform gate (tests use CPU tensors anywhere)."""
         self._endpoint = endpoint
         self._enabled = is_cuda_ipc_supported() if enabled is None else enabled
+        if self._enabled:
+            # Belt for a child that did not inherit the bus's raised ceiling (idempotent: a no-op once the
+            # soft limit already equals the hard limit). This process is about to map shared storages.
+            from hordelib.utils.fd_limits import raise_open_file_soft_limit
+
+            raise_open_file_soft_limit()
         self._published: dict[str, _Published] = {}
         self._serve_thread: threading.Thread | None = None
         self._stop_event = threading.Event()
