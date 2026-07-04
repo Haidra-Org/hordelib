@@ -66,6 +66,14 @@ class FeatureImpact(BaseModel):
     vram_delta_mb: int
     vram_delta_per_megapixel_mb: int = 0
     """Activation-scaling component, applied per output megapixel."""
+    vram_delta_per_upscale_factor_sq_mb: int = 0
+    """Tiled-upscaler activation scaling, charged per ``factor**2`` and flat with generation size.
+
+    Tiled execution backends process fixed-size tiles, so an upscaler's peak activation depends on the
+    upscale factor (a 4x tile output is 16x the pixels of its input tile) but not on the job's output
+    resolution. Unlike :attr:`vram_delta_per_megapixel_mb` this term is not multiplied by the job's
+    megapixels, matching the measured envelope where upscaler peaks are size-flat (see
+    :mod:`hordelib.profiling`)."""
     ram_delta_mb: int
     download: DownloadTrigger
     phase: FEATURE_PHASE = FEATURE_PHASE.sampling
@@ -356,20 +364,31 @@ _FEATURE_SEEDS: list[FeatureImpact] = [
     ),
     FeatureImpact(
         feature=FEATURE_KIND.post_processing_upscale,
-        vram_delta_mb=2000,
-        vram_delta_per_megapixel_mb=300,
+        vram_delta_mb=70,
+        vram_delta_per_upscale_factor_sq_mb=220,
         ram_delta_mb=2000,
         download=DownloadTrigger(triggered=True, typical_size_mb=70),
         phase=FEATURE_PHASE.post_processing,
-        notes="ESRGAN-family upscalers; model is small but activations on large outputs are not.",
+        notes=(
+            "ESRGAN-family upscalers. The weight is a small (~70 MB) resident model; the peak is "
+            "activation-dominated but flat with generation size because the backend tiles it, so it is "
+            "charged per factor**2 (measured ~0.9 GB at 2x, ~3.6 GB at 4x on a consumer card)."
+        ),
     ),
     FeatureImpact(
         feature=FEATURE_KIND.post_processing_facefix,
-        vram_delta_mb=1500,
+        vram_delta_mb=2000,
+        vram_delta_per_megapixel_mb=800,
         ram_delta_mb=2000,
         download=DownloadTrigger(triggered=True, typical_size_mb=350),
         phase=FEATURE_PHASE.post_processing,
-        notes="GFPGAN/CodeFormer weights.",
+        notes=(
+            "GFPGAN/CodeFormer. Sized to the heavier CodeFormer, whose peak scales with the *input* "
+            "megapixels (whole-image face detection): measured ~2.0 GB at 0.25 MP rising to ~3.9 GB at "
+            "2.4 MP on a consumer card. Charged per generation megapixel (conservative for the lighter, "
+            "flatter GFPGAN); a face-fix chained after an upscale runs on the enlarged image, which the "
+            "estimate does not itself inflate by the upscale factor."
+        ),
     ),
     FeatureImpact(
         feature=FEATURE_KIND.strip_background,
@@ -421,10 +440,11 @@ def estimate_job_burden(
     conservative seed.
 
     ``post_processing_upscale_factor`` is the linear scale of the requested upscaler (see
-    :func:`hordelib.pipeline.constants.max_upscale_factor`). The upscale activation peak scales with the
-    *output* megapixels, so the ``post_processing_upscale`` feature's per-megapixel term is applied against
-    ``factor**2`` the generation megapixels: a 4x upscale of a 1 MP image works a 16 MP tensor, the dominant
-    cost of the post-processing phase. The default of 1.0 leaves the activation at generation resolution.
+    :func:`hordelib.pipeline.constants.max_upscale_factor`). The execution backend tiles the upscale, so the
+    activation peak is flat with the generation resolution and instead scales with ``factor**2`` (a 4x tile
+    output is 16x the pixels of its input tile). The ``post_processing_upscale`` feature's
+    ``vram_delta_per_upscale_factor_sq_mb`` term is charged against ``factor**2``; the default of 1.0 gives
+    the base tile cost.
 
     Never raises on unknown baselines: pre-flight callers need an answer for every
     job, so unknown baselines use a heavy fallback seed and are flagged via
@@ -452,12 +472,14 @@ def estimate_job_burden(
             weight_mb = round(aux_model_weights_mb[kind])
         else:
             weight_mb = impact.vram_delta_mb
-        # The upscaler enlarges the image, so its activation peak scales with the *output* megapixels
-        # (factor**2 the generation megapixels); every other feature works at generation resolution.
-        activation_megapixels = megapixels
-        if kind == FEATURE_KIND.post_processing_upscale and post_processing_upscale_factor > 1.0:
-            activation_megapixels = megapixels * (post_processing_upscale_factor**2)
-        vram_delta = weight_mb + round(impact.vram_delta_per_megapixel_mb * activation_megapixels)
+        if kind == FEATURE_KIND.post_processing_upscale:
+            # Tiled upscalers process fixed-size tiles, so the activation peak is flat with the generation
+            # resolution and grows with the upscale factor (a 4x tile output is 16x the pixels of its input
+            # tile). Charge it per factor**2, independent of the job's megapixels.
+            activation_mb = round(impact.vram_delta_per_upscale_factor_sq_mb * post_processing_upscale_factor**2)
+        else:
+            activation_mb = round(impact.vram_delta_per_megapixel_mb * megapixels)
+        vram_delta = weight_mb + activation_mb
         if impact.phase == FEATURE_PHASE.post_processing:
             vram_post_processing_mb += vram_delta
         else:

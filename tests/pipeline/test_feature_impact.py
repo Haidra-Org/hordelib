@@ -217,24 +217,31 @@ class TestPhaseSplit:
 
 class TestAuxModelWeightOverride:
     def test_override_replaces_flat_weight_but_keeps_activation(self) -> None:
-        """A supplied real upscaler weight replaces the flat delta; the per-megapixel term stays."""
+        """A supplied real upscaler weight replaces the flat delta; the factor**2 activation term stays."""
+        upscale = get_feature_impact_registry().features[FEATURE_KIND.post_processing_upscale]
         seeded = estimate_job_burden(
             baseline="stable_diffusion_xl",
             width=1024,
             height=1024,
             features=[FEATURE_KIND.post_processing_upscale],
+            post_processing_upscale_factor=4.0,
         )
-        # The seed flat weight is 2000 MB; a tiny real ESRGAN is ~70 MB, so the override lowers the peak.
+        # Override the small seed weight with a heavier hypothetical; only the weight term should move.
+        override_weight = 900
         overridden = estimate_job_burden(
             baseline="stable_diffusion_xl",
             width=1024,
             height=1024,
             features=[FEATURE_KIND.post_processing_upscale],
-            aux_model_weights_mb={FEATURE_KIND.post_processing_upscale: 70},
+            post_processing_upscale_factor=4.0,
+            aux_model_weights_mb={FEATURE_KIND.post_processing_upscale: override_weight},
         )
-        assert overridden.vram_post_processing_mb < seeded.vram_post_processing_mb
-        # Activation term (per-megapixel) is still counted, so it is not merely the weight.
-        assert overridden.vram_post_processing_mb > 70
+        # The estimate shifts by exactly the weight delta, leaving the activation term untouched.
+        assert overridden.vram_post_processing_mb == seeded.vram_post_processing_mb + (
+            override_weight - upscale.vram_delta_mb
+        )
+        # The activation term is still counted, so the peak is more than just the overridden weight.
+        assert overridden.vram_post_processing_mb > override_weight
 
     def test_override_for_absent_feature_is_ignored(self) -> None:
         base = estimate_job_burden(
@@ -254,13 +261,13 @@ class TestAuxModelWeightOverride:
 
 
 class TestUpscaleFactorActivation:
-    """The upscaler's scale factor inflates the post-processing activation by factor**2 (output pixels)."""
+    """The tiled upscaler's peak is flat with generation size and scales with factor**2 (tile pixels)."""
 
-    def _upscale_burden(self, factor: float) -> int:
+    def _upscale_burden(self, factor: float, edge: int = 1024) -> int:
         return estimate_job_burden(
             baseline="stable_diffusion_xl",
-            width=1024,
-            height=1024,
+            width=edge,
+            height=edge,
             features=[FEATURE_KIND.post_processing_upscale],
             post_processing_upscale_factor=factor,
         ).vram_post_processing_mb
@@ -269,25 +276,16 @@ class TestUpscaleFactorActivation:
         assert self._upscale_burden(1.0) < self._upscale_burden(2.0) < self._upscale_burden(4.0)
 
     def test_factor_scales_activation_by_square(self) -> None:
-        """A 4x upscale works 16x the output pixels, so its activation term is 16x the 1x activation term."""
-        # 1000x1000 is exactly 1.0 MP, so the per-megapixel arithmetic is exact: weight (flat 2000) plus
-        # 300 MB/MP * (factor**2 * 1 MP). 1x -> 2000 + 300; 4x -> 2000 + 300*16.
-        one_x = estimate_job_burden(
-            baseline="stable_diffusion_xl",
-            width=1000,
-            height=1000,
-            features=[FEATURE_KIND.post_processing_upscale],
-            post_processing_upscale_factor=1.0,
-        ).vram_post_processing_mb
-        four_x = estimate_job_burden(
-            baseline="stable_diffusion_xl",
-            width=1000,
-            height=1000,
-            features=[FEATURE_KIND.post_processing_upscale],
-            post_processing_upscale_factor=4.0,
-        ).vram_post_processing_mb
-        assert one_x == 2000 + 300
-        assert four_x == 2000 + 300 * 16
+        """The activation term is weight plus ``per_factor_sq * factor**2``, independent of generation size."""
+        upscale = get_feature_impact_registry().features[FEATURE_KIND.post_processing_upscale]
+        one_x = self._upscale_burden(1.0)
+        four_x = self._upscale_burden(4.0)
+        assert one_x == upscale.vram_delta_mb + upscale.vram_delta_per_upscale_factor_sq_mb * 1
+        assert four_x == upscale.vram_delta_mb + upscale.vram_delta_per_upscale_factor_sq_mb * 16
+
+    def test_peak_is_flat_with_generation_size(self) -> None:
+        """Tiling caps the activation, so the same factor costs the same at 512 and 1536 square."""
+        assert self._upscale_burden(4.0, edge=512) == self._upscale_burden(4.0, edge=1536)
 
     def test_factor_does_not_affect_facefix(self) -> None:
         without = estimate_job_burden(
