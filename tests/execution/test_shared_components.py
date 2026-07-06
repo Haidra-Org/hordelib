@@ -1,40 +1,14 @@
-"""Tests for cross-process shared model components.
+"""Tests for the loaded-component content hash (:func:`hordelib.execution.shared_components.hash_state_dict`).
 
-The transport/registry logic is validated here with CPU tensors (runs on any platform, exercising
-the exact queue/registry/serve-thread paths); the CUDA IPC mapping itself only exists on Linux with
-CUDA, so the true zero-copy test is gated to that environment and is expected to run on a Linux rig.
+The hash keys on tensor bytes, shapes and dtypes, so byte-identical components hash equal and any
+semantic difference (data, shape, or dtype) changes the digest.
 """
 
 from __future__ import annotations
 
-import multiprocessing
-import sys
-
-import pytest
 import torch
 
-from hordelib.execution.shared_components import (
-    SharedComponentBus,
-    SharedComponentClient,
-    assert_unchanged,
-    hash_state_dict,
-    is_cuda_ipc_supported,
-)
-
-
-@pytest.fixture()
-def bus() -> SharedComponentBus:  # type: ignore[misc]
-    made = SharedComponentBus(multiprocessing.get_context("spawn"), [1, 2])
-    yield made
-    made.shutdown()
-
-
-def _clients(bus: SharedComponentBus) -> tuple[SharedComponentClient, SharedComponentClient]:
-    # enabled=True forces the platform gate open so CPU tensors exercise the full path anywhere.
-    return (
-        SharedComponentClient(bus.endpoint_for(1), enabled=True),
-        SharedComponentClient(bus.endpoint_for(2), enabled=True),
-    )
+from hordelib.execution.shared_components import hash_state_dict
 
 
 class TestHashing:
@@ -51,133 +25,12 @@ class TestHashing:
         assert hash_state_dict({"w": torch.zeros(16)}) != hash_state_dict(base)
         assert hash_state_dict({"w": torch.zeros(4, 4, dtype=torch.float16)}) != hash_state_dict(base)
 
+    def test_hashes_zero_dim_scalar(self) -> None:
+        # A 0-dim scalar (e.g. an fp8 scale factor baked into a Qwen text encoder) must hash without raising:
+        # view(torch.uint8) rejects a 0-dim tensor, so the hash flattens first.
+        assert hash_state_dict({"scale": torch.tensor(1.5)}) != hash_state_dict({"scale": torch.tensor(2.5)})
 
-class TestPublishFetch:
-    """The registry/serve/fetch protocol, with CPU tensors standing in for CUDA ones."""
-
-    def test_fetch_returns_published_tensors(self, bus: SharedComponentBus) -> None:
-        producer, consumer = _clients(bus)
-        tensors = {"weight": torch.full((2, 2), 7.0)}
-        assert producer.publish("hash-a", tensors) is True
-
-        fetched = consumer.fetch("hash-a")
-
-        assert fetched is not None
-        assert torch.equal(fetched["weight"], tensors["weight"])
-        producer.unregister()
-
-    def test_fetch_unknown_hash_is_none(self, bus: SharedComponentBus) -> None:
-        _producer, consumer = _clients(bus)
-        assert consumer.fetch("nope") is None
-
-    def test_own_publication_is_not_fetched(self, bus: SharedComponentBus) -> None:
-        producer, _consumer = _clients(bus)
-        producer.publish("hash-a", {"w": torch.zeros(1)})
-        assert producer.fetch("hash-a") is None
-        producer.unregister()
-
-    def test_unregister_withdraws_offer(self, bus: SharedComponentBus) -> None:
-        producer, consumer = _clients(bus)
-        producer.publish("hash-a", {"w": torch.zeros(1)})
-        producer.unregister()
-        assert consumer.fetch("hash-a") is None
-
-    def test_disabled_client_noops(self, bus: SharedComponentBus) -> None:
-        client = SharedComponentClient(bus.endpoint_for(1), enabled=False)
-        assert client.publish("hash-a", {"w": torch.zeros(1)}) is False
-        assert client.fetch("hash-a") is None
-
-    def test_published_tensors_are_grad_free(self, bus: SharedComponentBus) -> None:
-        producer, consumer = _clients(bus)
-        producer.publish("hash-a", {"w": torch.zeros(2, requires_grad=True)})
-        fetched = consumer.fetch("hash-a")
-        assert fetched is not None
-        assert fetched["w"].requires_grad is False
-        producer.unregister()
-
-
-class TestContaminationGuard:
-    def test_assert_unchanged_detects_write_through(self) -> None:
-        tensors = {"w": torch.ones(4)}
-        fingerprints = {"w": float(tensors["w"].sum().item())}
-        assert assert_unchanged(tensors, fingerprints) is True
-        tensors["w"] += 1.0
-        assert assert_unchanged(tensors, fingerprints) is False
-
-
-def _cuda_child(endpoint, result_queue) -> None:
-    import torch as child_torch
-
-    client = SharedComponentClient(endpoint, enabled=True)
-    fetched = client.fetch("cuda-hash")
-    ok = (
-        fetched is not None
-        and fetched["w"].is_cuda
-        and bool(child_torch.equal(fetched["w"].cpu(), child_torch.full((8,), 3.0)))
-    )
-    result_queue.put(ok)
-
-
-@pytest.mark.skipif(not is_cuda_ipc_supported(), reason="CUDA IPC requires Linux with CUDA (run on the Linux rig)")
-def test_cuda_tensor_maps_across_real_processes() -> None:
-    """END-TO-END (Linux+CUDA only): a child process maps the parent's CUDA tensor via IPC."""
-    ctx = multiprocessing.get_context("spawn")
-    bus = SharedComponentBus(ctx, [1, 2])
-    try:
-        producer = SharedComponentClient(bus.endpoint_for(1), enabled=True)
-        producer.publish("cuda-hash", {"w": torch.full((8,), 3.0, device="cuda")})
-
-        result_queue = ctx.Queue()
-        child = ctx.Process(target=_cuda_child, args=(bus.endpoint_for(2), result_queue))
-        child.start()
-        assert result_queue.get(timeout=30) is True
-        child.join(timeout=10)
-        producer.unregister()
-    finally:
-        bus.shutdown()
-
-
-if __name__ == "__main__" and "--cuda-smoke" in sys.argv:
-    # Convenience for the Linux rig: python tests/execution/test_shared_components.py --cuda-smoke
-    test_cuda_tensor_maps_across_real_processes()
-    print("CUDA IPC smoke passed")
-
-
-class TestCheckpointComponentAdoption:
-    """The loader-level helper: adopt on hash equality, publish otherwise, never disturb the load."""
-
-    def test_consumer_adopts_producers_identical_component(self, bus: SharedComponentBus) -> None:
-        from hordelib.execution import shared_components as sc
-
-        producer, consumer = _clients(bus)
-
-        class _Holder:
-            def __init__(self) -> None:
-                self.cond_stage_model = torch.nn.Linear(4, 4, bias=False).to(torch.float16)
-                self.first_stage_model = torch.nn.Linear(2, 2, bias=False).to(torch.float16)
-
-        producer_holder = _Holder()
-        consumer_holder = _Holder()
-        with torch.no_grad():
-            for holder in (producer_holder, consumer_holder):
-                holder.cond_stage_model.weight.fill_(1.0)
-                holder.first_stage_model.weight.fill_(2.0)
-
-        sc.set_client(producer)
-        sc.adopt_or_publish_checkpoint_components(clip=producer_holder, vae=producer_holder)
-        sc.set_client(consumer)
-        sc.adopt_or_publish_checkpoint_components(clip=consumer_holder, vae=consumer_holder)
-        sc.set_client(None)
-
-        # Identical bytes: the consumer adopted (values preserved); transit may re-back the storage,
-        # so assert value equality plus that adoption actually replaced the consumer's tensor object.
-        assert torch.equal(
-            consumer_holder.cond_stage_model.weight.float(), producer_holder.cond_stage_model.weight.float()
-        )
-        producer.unregister()
-
-    def test_helper_is_inert_without_client(self) -> None:
-        from hordelib.execution import shared_components as sc
-
-        sc.set_client(None)
-        sc.adopt_or_publish_checkpoint_components(clip=None, vae=None)
+    def test_non_tensor_entries_are_ignored(self) -> None:
+        # Non-tensor state dict values do not contribute to (or break) the digest.
+        base = {"w": torch.zeros(2, 2)}
+        assert hash_state_dict({"w": torch.zeros(2, 2), "meta": "unused"}) == hash_state_dict(base)
