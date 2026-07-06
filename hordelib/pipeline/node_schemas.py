@@ -24,8 +24,16 @@ from pathlib import Path
 NODE_INPUTS_FILE = Path(__file__).parent / "comfy_node_inputs.json"
 """The committed snapshot of node input names per class_type."""
 
-_EXTRA_SNAPSHOT_CLASSES = ("HordeLoraLoader",)
-"""Classes absent from the packaged graph files but inserted by patch steps at runtime."""
+_EXTRA_SNAPSHOT_CLASSES = (
+    "HordeLoraLoader",
+    "HordeConditioningOutput",
+    "HordeConditioningInput",
+    "HordeLatentOutput",
+    "HordeLatentInput",
+)
+"""Classes absent from the packaged graph files but inserted at runtime: ``HordeLoraLoader`` by the
+LoRA patch step, and the disaggregated-stage IO nodes (:mod:`hordelib.nodes.node_stage_io`) by the
+stage-graph cut helpers (:mod:`hordelib.execution.stage_graph`)."""
 
 
 @dataclass(frozen=True)

@@ -147,8 +147,23 @@
       "file_type"
     ],
     "optional": [
-      "weight_dtype"
+      "weight_dtype",
+      "output_model",
+      "output_vae",
+      "output_clip"
     ]
+  },
+  "HordeConditioningInput": {
+    "required": [
+      "conditioning_bytes"
+    ],
+    "optional": []
+  },
+  "HordeConditioningOutput": {
+    "required": [
+      "conditioning"
+    ],
+    "optional": []
   },
   "HordeImageLoader": {
     "required": [
@@ -159,6 +174,18 @@
   "HordeImageOutput": {
     "required": [
       "images"
+    ],
+    "optional": []
+  },
+  "HordeLatentInput": {
+    "required": [
+      "latent_bytes"
+    ],
+    "optional": []
+  },
+  "HordeLatentOutput": {
+    "required": [
+      "samples"
     ],
     "optional": []
   },

@@ -7,6 +7,7 @@ from horde_model_reference.model_reference_records import ImageGenerationModelRe
 from hordelib.feature_impact import (
     FEATURE_KIND,
     FEATURE_PHASE,
+    BurdenEstimate,
     estimate_job_burden,
     get_baseline_burden,
     get_feature_impact_registry,
@@ -258,6 +259,65 @@ class TestAuxModelWeightOverride:
             aux_model_weights_mb={FEATURE_KIND.post_processing_facefix: 9999},
         )
         assert with_unused_override.vram_mb == base.vram_mb
+
+
+class TestDecodeSpike:
+    """The image-lane tiled VAE-decode transient (``vram_decode_spike_mb``)."""
+
+    @pytest.mark.parametrize(
+        ("baseline", "width", "height"),
+        [
+            ("stable_diffusion_xl", 1024, 1024),
+            ("stable_diffusion_1", 512, 512),
+        ],
+    )
+    def test_populated_and_smaller_than_monolithic_decode_inclusive(
+        self, baseline: str, width: int, height: int
+    ) -> None:
+        estimate = estimate_job_burden(baseline=baseline, width=width, height=height)
+        # Live estimates always populate it.
+        assert estimate.vram_decode_spike_mb > 0
+        # The lane's tiled decode is below the whole-job figure, which folds in the full-resolution decode
+        # transient the tiled bound replaces.
+        assert estimate.vram_decode_spike_mb < estimate.vram_sampling_mb
+
+    def test_sdxl_tiled_bound_materially_below_whole_job(self) -> None:
+        """On SDXL, where the full-resolution decode transient dominates, the tiled lane charge is a fraction."""
+        estimate = estimate_job_burden(baseline="stable_diffusion_xl", width=1024, height=1024)
+        assert estimate.vram_decode_spike_mb < estimate.vram_sampling_mb // 2
+
+    def test_matches_the_baseline_seed(self) -> None:
+        """The estimate reports the seeded per-family tiled-decode figure."""
+        burden = get_baseline_burden("stable_diffusion_xl")
+        assert burden is not None
+        estimate = estimate_job_burden(baseline="stable_diffusion_xl", width=1024, height=1024)
+        assert estimate.vram_decode_spike_mb == burden.decode_spike_estimate_mb()
+
+    def test_flat_with_output_resolution(self) -> None:
+        """Tiling bounds the decode working set, so the figure does not grow with output size."""
+        small = estimate_job_burden(baseline="stable_diffusion_xl", width=1024, height=1024)
+        large = estimate_job_burden(baseline="stable_diffusion_xl", width=2048, height=2048)
+        assert small.vram_decode_spike_mb == large.vram_decode_spike_mb
+
+    def test_unseeded_baseline_falls_back_conservatively(self) -> None:
+        """An unseeded baseline uses the conservative default rather than reading as zero."""
+        burden = get_baseline_burden("stable_diffusion_1")
+        assert burden is not None
+        assert burden.vram_decode_spike_mb == 2500
+
+        estimate = estimate_job_burden(baseline="not_a_baseline", width=512, height=512)
+        assert estimate.vram_decode_spike_mb > 0
+
+    def test_optional_safe_for_older_callers(self) -> None:
+        """A BurdenEstimate built without the field is constructible and defaults it (older producer)."""
+        estimate = BurdenEstimate(
+            vram_mb=1000,
+            ram_mb=1000,
+            disk_bytes_needed=0,
+            downloads_expected=[],
+            baseline_known=True,
+        )
+        assert estimate.vram_decode_spike_mb == 0
 
 
 class TestUpscaleFactorActivation:

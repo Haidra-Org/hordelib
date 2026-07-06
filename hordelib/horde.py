@@ -19,6 +19,12 @@ from pydantic import BaseModel
 
 from hordelib.execution.in_process import InProcessComfyBackend
 from hordelib.execution.interface import OutputSpec
+from hordelib.execution.stage_graph import (
+    cut_decode_stage,
+    cut_encode_text_stage,
+    cut_sample_stage,
+    cut_vae_encode_stage,
+)
 from hordelib.pipeline import constants as pipeline_constants
 from hordelib.pipeline.context import ModelContext
 from hordelib.pipeline.definition import PipelineDefinition
@@ -256,6 +262,115 @@ class HordeLib:
             )
 
         return definition
+
+    # ------------------------------------------------------------------------------------------
+    # Disaggregated stage entry points.
+    #
+    # Each materializes the full family graph (so LoRA/TI/hires/SDXL-conditioning wiring is reused
+    # verbatim), then hands it to a cut helper in hordelib.execution.stage_graph, which points the
+    # loader at only the component the stage runs, drops the original image output, and adds/rewires
+    # the stage IO nodes so ancestor-only execution runs just that stage. Those helpers validate the
+    # graph shape structurally and raise StageGraphUnsupportedError for families they cannot cut.
+    # Canonical node titles come from pipeline/families/image_gen/bindings.py (model_loader, prompt,
+    # negative_prompt, sampler, vae_encode, vae_decode, output_image). v1 families only
+    # (txt2img/img2img/hires/LoRA/TI); controlnet/inpaint/cascade, whose graphs differ, stay on the
+    # monolithic path.
+    # ------------------------------------------------------------------------------------------
+
+    def _materialize_stage_graph(
+        self,
+        params: ImageGenerationParameters,
+    ) -> tuple[ComfyGraph, tuple[OutputSpec, ...], list[GenMetadataEntry]]:
+        """Materialize the full family graph for a job, ready to be cut into a single stage."""
+        from hordelib.pipeline.horde_compat import apply_model_compat
+        from hordelib.pipeline.resolution import resolve_image_model
+        from hordelib.pipeline.sdk_adapter import to_image_gen_payload
+
+        typed, conversion_faults = to_image_gen_payload(params)
+        context = resolve_image_model(typed.model)
+        typed, compat_faults = apply_model_compat(typed, context)
+        graph, _typed, _context, faults, outputs = self._finalize_and_materialize(
+            typed,
+            context,
+            conversion_faults + compat_faults,
+            pipeline=AUTO_PIPELINE,
+        )
+        return graph, outputs, faults
+
+    def encode_text_stage(self, params: ImageGenerationParameters) -> tuple[bytes, bytes]:
+        """Encode a job's prompts to (positive, negative) CONDITIONING blobs (loads only the CLIP).
+
+        Supported only on the v1 family graph shape: a combined ``model_loader``
+        (``HordeCheckpointLoader``) and ``prompt``/``negative_prompt`` CLIPTextEncode nodes. Raises
+        :class:`~hordelib.execution.interface.StageGraphUnsupportedError` for any other shape
+        (split-loader families such as Qwen/Z-Image, where the loader-subset flags are no-ops).
+        """
+        graph, _outputs, _faults = self._materialize_stage_graph(params)
+        outputs = cut_encode_text_stage(graph)
+        artifacts = self.backend.run_pipeline(graph.to_api_dict(), outputs=outputs)
+        by_node = {a.source_node: a.data.getvalue() for a in artifacts}
+        return by_node["cond_positive_output"], by_node["cond_negative_output"]
+
+    def sample_stage(
+        self,
+        params: ImageGenerationParameters,
+        *,
+        positive_conditioning_bytes: bytes,
+        negative_conditioning_bytes: bytes,
+        source_latent_bytes: bytes | None = None,
+    ) -> bytes:
+        """Sample a LATENT from injected conditioning (loads only the UNet).
+
+        ``source_latent_bytes`` injects an img2img/remix start latent (VAE-encoded by the image
+        lane) in place of the graph's own VAE-encode; None runs txt2img from the empty latent.
+
+        Supported only on the v1 family graph shape: a combined ``model_loader`` and a ``sampler``
+        KSampler (plus an optional hires ``upscale_sampler``). Raises
+        :class:`~hordelib.execution.interface.StageGraphUnsupportedError` for any other shape (Flux's
+        ``SamplerCustomAdvanced`` sampler, split-loader families), when the job's graph is img2img
+        (VAE-encode feeds the sampler) but ``source_latent_bytes`` was not supplied, or when the
+        conditioning injection fails to displace the graph's text encoders.
+        """
+        graph, _outputs, _faults = self._materialize_stage_graph(params)
+        outputs = cut_sample_stage(
+            graph,
+            positive_bytes=positive_conditioning_bytes,
+            negative_bytes=negative_conditioning_bytes,
+            source_latent_bytes=source_latent_bytes,
+        )
+        artifacts = self.backend.run_pipeline(graph.to_api_dict(), outputs=outputs)
+        return artifacts[0].data.getvalue()
+
+    def vae_encode_stage(self, params: ImageGenerationParameters) -> bytes:
+        """VAE-encode a job's source image to a LATENT (loads only the VAE), for img2img/remix.
+
+        Supported only on the v1 family graph shape with a ``vae_encode`` node present (a txt2img
+        graph has none). Raises :class:`~hordelib.execution.interface.StageGraphUnsupportedError`
+        otherwise (a txt2img graph, or a split-loader family).
+        """
+        graph, _outputs, _faults = self._materialize_stage_graph(params)
+        outputs = cut_vae_encode_stage(graph)
+        artifacts = self.backend.run_pipeline(graph.to_api_dict(), outputs=outputs)
+        return artifacts[0].data.getvalue()
+
+    def decode_stage(
+        self,
+        params: ImageGenerationParameters,
+        *,
+        latent_bytes: bytes,
+    ) -> tuple[list[ResultingImageReturn], list[GenMetadataEntry]]:
+        """Decode an injected LATENT to images (loads only the VAE), reusing the graph's image output.
+
+        Supported only on the v1 family graph shape: a combined ``model_loader`` and a ``vae_decode``
+        node feeding the reused image output. Raises
+        :class:`~hordelib.execution.interface.StageGraphUnsupportedError` for any other shape
+        (split-loader families).
+        """
+        graph, outputs, faults = self._materialize_stage_graph(params)
+        cut_decode_stage(graph, latent_bytes=latent_bytes)
+        artifacts = self.backend.run_pipeline(graph.to_api_dict(), outputs=outputs)
+        results = [ResultingImageReturn(image=Image.open(a.data), rawpng=a.data, faults=faults) for a in artifacts]
+        return results, faults
 
     @logfire.instrument("horde.inference", extract_args=False)
     def _inference(

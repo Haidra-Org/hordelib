@@ -408,6 +408,11 @@ _last_pipeline_settings_hash = ""
 def default_json_serializer_pil_image(obj):
     if isinstance(obj, PIL.Image.Image):
         return str(hash(obj.__str__()))
+    if isinstance(obj, (bytes, bytearray)):
+        # Disaggregated-stage intermediates (serialized CONDITIONING/LATENT) ride the graph as raw
+        # bytes; the IS_CHANGED settings hash needs a stable content-derived stand-in for them, not
+        # the raw buffer (which json cannot encode and would treat as a self-referential cycle).
+        return hashlib.sha256(bytes(obj)).hexdigest()
     return obj
 
 

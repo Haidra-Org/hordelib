@@ -31,6 +31,8 @@ HORDE_NODE_REPLACEMENTS = {
 
 HORDE_OUTPUT_CLASS_TYPES: Mapping[OutputKind, frozenset[str]] = {
     OutputKind.IMAGE: frozenset({"HordeImageOutput"}),
+    OutputKind.CONDITIONING: frozenset({"HordeConditioningOutput"}),
+    OutputKind.LATENT: frozenset({"HordeLatentOutput"}),
 }
 """The (post-replacement) node class types results of each kind are collected from."""
 

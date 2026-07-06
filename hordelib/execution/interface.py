@@ -18,12 +18,28 @@ ProgressCallback = Callable[[ComfyUIProgress, str], None]
 """Callback invoked with progress updates and the latest output message during a pipeline run."""
 
 
+class StageGraphUnsupportedError(RuntimeError):
+    """A disaggregated stage was asked to cut a graph whose shape it does not support.
+
+    The stage entry points cut a materialized family graph at a fixed set of canonical nodes
+    (a combined ``model_loader``, ``prompt``/``negative_prompt``, ``sampler``, ``vae_encode``,
+    ``vae_decode``). Families whose graph differs (Flux's ``SamplerCustomAdvanced``, Qwen/Z-Image's
+    split ``CLIPLoader``/``VAELoader``, controlnet/inpaint/cascade) do not present that shape;
+    raising here keeps them off the disaggregated path instead of running mis-wired.
+    """
+
+
 class OutputKind(StrEnum):
     """The modality of a pipeline output."""
 
     IMAGE = auto()
     # Future modalities (VIDEO, AUDIO, TEXT) are added here; collection is keyed by the
     # declared output node, so new kinds need no changes to the collection path.
+    CONDITIONING = auto()
+    LATENT = auto()
+    # CONDITIONING/LATENT are the disaggregated-stage intermediates (text-encode -> sample ->
+    # decode). They ride the same output-collection path as images: the stage output nodes emit
+    # a bytes blob under the standard ui-entry contract; only the OutputSpec.kind differs.
 
 
 @dataclass(frozen=True)

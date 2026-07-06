@@ -61,6 +61,12 @@ class HordeCheckpointLoader:
             },
             "optional": {
                 "weight_dtype": (["default", "fp8_e4m3fn", "fp8_e4m3fn_fast", "fp8_e5m2"],),  # Unet model type
+                # Disaggregated stages load only the component they run: a sample stage loads the UNet
+                # (output_clip/output_vae False), a text-encode stage the CLIP (output_model/output_vae
+                # False), an image lane the VAE. Absent flags default to a full checkpoint load.
+                "output_model": ("<bool>",),
+                "output_vae": ("<bool>",),
+                "output_clip": ("<bool>",),
             },
         }
 
@@ -78,6 +84,7 @@ class HordeCheckpointLoader:
         ckpt_name: str | None = None,
         file_type: str | None = None,
         weight_dtype: str | None = None,
+        output_model=True,  # False for a text-encode/decode stage that skips the UNet
         output_vae=True,  # this arg is required by comfyui internals
         output_clip=True,  # this arg is required by comfyui internals
         preloading=False,
@@ -218,8 +225,9 @@ class HordeCheckpointLoader:
                 with logfire.span("model.load_checkpoint_guess_config"):
                     result = comfy.sd.load_checkpoint_guess_config(
                         ckpt_path,
-                        output_vae=True,
-                        output_clip=True,
+                        output_model=output_model,
+                        output_vae=output_vae,
+                        output_clip=output_clip,
                         embedding_directory=folder_paths.get_folder_paths("embeddings"),
                     )
 
@@ -248,13 +256,18 @@ class HordeCheckpointLoader:
             # No tiling to apply here as these are handled differently
             pass
         elif seamless_tiling_enabled:
-            # For full checkpoints, result is a tuple: (model, clip, vae)
-            result[0].model.apply(make_circular)
-            make_circular_vae(result[2])
+            # For full checkpoints, result is a tuple: (model, clip, vae). A disaggregated stage may
+            # have loaded only a subset, so a component can be None; tiling only touches what is present.
+            if result[0] is not None:
+                result[0].model.apply(make_circular)
+            if result[2] is not None:
+                make_circular_vae(result[2])
         else:
             # For full checkpoints, apply regular tiling
-            result[0].model.apply(make_regular)
-            make_regular_vae(result[2])
+            if result[0] is not None:
+                result[0].model.apply(make_regular)
+            if result[2] is not None:
+                make_regular_vae(result[2])
 
         log_free_ram()
         logger.debug(result)
