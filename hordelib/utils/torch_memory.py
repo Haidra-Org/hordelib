@@ -186,6 +186,144 @@ def get_torch_device_free_vram_mb() -> int:
     return round(_torch_fallback_vram_bytes(free=True) / _MB)
 
 
+def _get_aimdo_usage_mb() -> int:
+    """This process's device memory held by the engine's direct-IO weight pool, in MB (0 unless it is initialised).
+
+    ComfyUI's ``comfy_aimdo`` subsystem *can* load model weights through native direct-IO into device memory
+    it reserves itself (``vrambuf_create``/``vrambuf_grow``), bypassing the torch caching allocator entirely;
+    such memory would be invisible to :func:`torch.cuda.memory_reserved`. This captures that pool *if the
+    subsystem is initialised*: ``comfy_aimdo.control`` exposes its own byte-count (summed across the device
+    contexts it initialised), which this returns in MB.
+
+    In hordelib's embedding the subsystem is inert, so this is normally 0: nothing calls ``comfy_aimdo.control``'s
+    native init (only ComfyUI's ``main.py`` does), so ``control.lib`` stays ``None`` and the byte-count is 0.
+    Weights therefore flow through the torch caching allocator and are counted by ``reserved_mb`` in the current
+    build. The field is kept as a future-proof complement should comfy's embedding ever initialise the pool: it
+    is disjoint from ``reserved_mb`` (``comfy_aimdo`` does not install its ``CUDAPluggableAllocator`` as torch's,
+    so the two pools never count the same bytes). Returns 0 when the package is absent, its native library is
+    uninitialised (the default), or any probe error occurs, so it never raises and is safe on the safety process
+    or a CPU build.
+    """
+    try:
+        from comfy_aimdo import control as aimdo_control
+
+        return round(aimdo_control.get_total_vram_usage() / _MB)
+    except Exception as e:
+        logger.debug(f"comfy_aimdo VRAM usage unavailable: {e}")
+        return 0
+
+
+class ProcessVramStats(BaseModel):
+    """This process's own committed device memory (MB), read from the torch allocator and the direct-IO pool.
+
+    ``torch.cuda.memory_reserved()`` is a byte-exact, platform-independent attribution of *this* process's
+    committed device memory (its live allocations plus the allocator's cached free blocks), and it excludes
+    the fixed CUDA context overhead. It moves only for the process that allocates: a sibling process's
+    allocations never appear here, verified identical on both Windows/WDDM and native Linux. That makes it the
+    honest per-process VRAM charge the device-wide ``mem_get_info`` reading cannot give on Windows (where
+    ``mem_get_info`` is a per-process view, not a device view).
+
+    ``aimdo_mb`` is the complement the torch allocator cannot see: the engine's native direct-IO
+    weight pool (see :func:`_get_aimdo_usage_mb`). It captures that pool only *if* the subsystem is
+    initialised, which nothing does in hordelib's embedding, so it is normally 0 and weights are counted by
+    ``reserved_mb`` instead. It is kept as a future-proof, disjoint complement: a process's full device
+    footprint is ``context_constant + reserved_mb + aimdo_mb``, the context constant being resolved per
+    platform by the consumer, and the two memory terms never counting the same bytes.
+
+    ``allocated_mb`` is the live (in-use) subset of ``reserved_mb``; ``peak_reserved_mb`` is the reserved
+    high-water since the allocator's peak counters were last reset (see :func:`get_process_vram_stats`).
+    """
+
+    allocated_mb: int
+    reserved_mb: int
+    peak_reserved_mb: int
+    aimdo_mb: int
+
+
+def get_process_vram_stats(*, reset_peak: bool = True) -> ProcessVramStats | None:
+    """Return this process's own committed VRAM (MB) from the torch allocator, or None when unavailable.
+
+    Byte-exact per-process attribution that is independent of platform and of siblings' usage, unlike the
+    device-wide/per-process-view ``mem_get_info`` figure. Returns None cleanly when there is no CUDA/ROCm (or
+    XPU) allocator to read (CPU/MPS builds, or any probe error), so a caller can guard on None without
+    catching. When ``reset_peak`` is set the allocator's peak counter is reset after it is read, so each
+    successive call's ``peak_reserved_mb`` is the high-water *since the previous call* (the report interval).
+    """
+    try:
+        import torch
+    except Exception as e:
+        logger.debug(f"process VRAM stats unavailable (torch import failed): {e}")
+        return None
+
+    kind = _active_torch_kind()
+    try:
+        if kind in (AcceleratorKind.cuda, AcceleratorKind.rocm):
+            allocated = torch.cuda.memory_allocated()
+            reserved = torch.cuda.memory_reserved()
+            peak_reserved = torch.cuda.max_memory_reserved()
+            if reset_peak:
+                torch.cuda.reset_peak_memory_stats()
+            return ProcessVramStats(
+                allocated_mb=round(allocated / _MB),
+                reserved_mb=round(reserved / _MB),
+                peak_reserved_mb=round(peak_reserved / _MB),
+                aimdo_mb=_get_aimdo_usage_mb(),
+            )
+        if kind is AcceleratorKind.xpu and hasattr(torch, "xpu") and hasattr(torch.xpu, "memory_reserved"):
+            allocated = torch.xpu.memory_allocated()
+            reserved = torch.xpu.memory_reserved()
+            max_reserved = getattr(torch.xpu, "max_memory_reserved", None)
+            peak_reserved = max_reserved() if max_reserved is not None else reserved
+            reset_peak_stats = getattr(torch.xpu, "reset_peak_memory_stats", None)
+            if reset_peak and reset_peak_stats is not None:
+                reset_peak_stats()
+            return ProcessVramStats(
+                allocated_mb=round(allocated / _MB),
+                reserved_mb=round(reserved / _MB),
+                peak_reserved_mb=round(peak_reserved / _MB),
+                aimdo_mb=_get_aimdo_usage_mb(),
+            )
+    except Exception as e:
+        logger.debug(f"process VRAM stats probe failed for {kind}: {e}")
+        return None
+    return None
+
+
+def offthread_vram_sampling_ready() -> bool:
+    """Whether a background thread may sample device VRAM without itself triggering a lazy device init.
+
+    A dedicated reporter thread that reads per-process/device VRAM must never be the caller that *creates*
+    the device context: several torch query primitives lazily initialise CUDA on the calling thread when no
+    context exists yet (verified: ``torch.cuda.mem_get_info`` and ``torch.cuda.reset_peak_memory_stats``, the
+    latter used by :func:`get_process_vram_stats`, both flip ``torch.cuda.is_initialized()`` to True when
+    called first). Initialising the context off the main thread is the hazard this guards against. Once the
+    context exists (the main thread has loaded a model / read VRAM), those same primitives are ordinary
+    runtime queries that are safe to call from any thread, so this returns True and the sampler proceeds.
+
+    Reads only the runtime's already-initialised flag (``torch.cuda.is_initialized`` / the XPU equivalent),
+    which never creates a context. Returns True on CPU/MPS backends, where VRAM sampling falls back to psutil
+    and there is no device context to lazily create, and False on any probe error (conservatively withholding
+    an off-thread sample rather than risking an init). The caller reports Nones for VRAM until this is True.
+    """
+    try:
+        import torch
+    except Exception:
+        return False
+
+    kind = _active_torch_kind()
+    try:
+        if kind in (AcceleratorKind.cuda, AcceleratorKind.rocm):
+            return bool(torch.cuda.is_initialized())
+        if kind is AcceleratorKind.xpu and hasattr(torch, "xpu"):
+            xpu_is_initialized = getattr(torch.xpu, "is_initialized", None)
+            return bool(xpu_is_initialized()) if xpu_is_initialized is not None else True
+    except Exception as e:
+        logger.debug(f"offthread VRAM sampling readiness probe failed for {kind}: {e}")
+        return False
+    # CPU/MPS: no lazy device context to create; sampling falls back to psutil.
+    return True
+
+
 def get_free_ram_mb() -> int:
     """Available system RAM, in MB."""
     return round(psutil.virtual_memory().available / _MB)

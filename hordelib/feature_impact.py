@@ -23,6 +23,11 @@ from pydantic import BaseModel
 
 _BYTES_PER_GB = 1024**3
 
+_FALLBACK_DECODE_SPIKE_MB = 3500
+"""Conservative tiled VAE-decode transient (MB) charged to the image lane for a baseline with no seeded
+figure. Errs high: the newer 16-channel VAEs are the heaviest known lane decodes, so an unseeded family
+is charged as if it were one."""
+
 
 class FEATURE_KIND(StrEnum):
     """Inference features with a non-trivial resource or download impact."""
@@ -115,6 +120,17 @@ class BaselineBurden(BaseModel):
     the whole set: judging card fit by the core weights alone under-counts a multi-component checkpoint
     by the full text-encoder size. Zero means unmeasured (the footprint falls back to the core figure)."""
 
+    vram_decode_spike_mb: int = 0
+    """Transient VRAM working set (MB) of the final VAE decode as executed on the serialized image lane.
+
+    The image lane decodes the sampler's latent to pixels under hordelib's VAE working-memory clamp and
+    tiled-decode fallback (:mod:`hordelib.execution.comfy_patches`). Tiled decode is the bounding mechanism:
+    the lane's peak is the tiled working set (one tile at a time), not the full-resolution decode transient,
+    which is several times larger and never realized on the lane. A scheduler charges this against the image
+    lane's headroom, distinct from the sampler's. Because tiling bounds the working set to a fixed tile, the
+    figure is roughly flat with output resolution and varies by VAE family. Zero means unseeded, in which case
+    :meth:`decode_spike_estimate_mb` falls back to a conservative default."""
+
     def resident_weight_estimate_mb(self) -> int:
         """Return the core (diffusion) resident weight footprint (MB), falling back when unseeded."""
         return self.vram_weights_mb or self.vram_base_mb
@@ -127,6 +143,15 @@ class BaselineBurden(BaseModel):
         job, so room granted against a smaller number is room that does not exist.
         """
         return self.resident_weight_estimate_mb() + self.vram_support_weights_mb
+
+    def decode_spike_estimate_mb(self) -> int:
+        """Return the tiled VAE-decode transient (MB) charged to the image lane, falling back when unseeded.
+
+        This is the tiled decode working set (see :attr:`vram_decode_spike_mb`), the bound a disaggregated
+        image lane realizes, not the full-resolution decode transient. Unseeded baselines take a conservative
+        default that errs toward the heaviest known lane decode.
+        """
+        return self.vram_decode_spike_mb or _FALLBACK_DECODE_SPIKE_MB
 
 
 class BurdenEstimate(BaseModel):
@@ -144,6 +169,27 @@ class BurdenEstimate(BaseModel):
 
     This is the figure a scheduler reserves against concurrent dispatch, since it lands while the slot has
     already been released for the next job. Zero when the job has no post-processing features."""
+    vram_sampler_only_mb: int = 0
+    """VRAM peak of a UNet-only sampler process under pipeline disaggregation.
+
+    When text-encode and VAE run in separate processes (a disaggregated sampler consumes injected
+    conditioning and produces a latent), a sampler holds only the core diffusion weights plus sampling
+    activation: not the text encoders / VAE (those live in the encode service and image lane), and not the
+    decode spike (the lane). It replaces the activation-inflated, support-bundled ``vram_base_mb`` with the
+    core streaming-weight figure, so a scheduler charging a disaggregated sampler this figure (instead of
+    ``vram_sampling_mb``) keeps two samplers co-resident where the whole-job charge would collapse them.
+    Zero when unpopulated (older producer); live estimates always set it. The support-weight spike it
+    excludes is charged to the encode service; the decode spike it excludes is reported separately as
+    :attr:`vram_decode_spike_mb` and charged to the image lane."""
+    vram_decode_spike_mb: int = 0
+    """Transient VRAM working set (MB) of the final VAE decode charged to the serialized image lane.
+
+    Under pipeline disaggregation the latent-to-pixel decode runs on the image lane, not the sampler.
+    hordelib clamps the VAE decode working memory and falls back to tiled decode on OOM
+    (:mod:`hordelib.execution.comfy_patches`), so tiled decode is the bounding mechanism and this figure is the
+    tiled working set: far below the full-resolution decode transient the whole-job ``vram_sampling_mb`` bakes
+    in. A scheduler charges it against the image lane's headroom rather than the sampler's. Zero when
+    unpopulated (older producer); live estimates from :func:`estimate_job_burden` always set it."""
     ram_mb: int
     disk_bytes_needed: int
     downloads_expected: list[DownloadTrigger]
@@ -188,6 +234,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=4000,
         max_recommended_batch=8,
         typical_disk_gb=2.1,
+        vram_decode_spike_mb=2500,
     ),
     BaselineBurden(
         baseline="stable_diffusion_2_512",
@@ -198,6 +245,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=4000,
         max_recommended_batch=8,
         typical_disk_gb=2.5,
+        vram_decode_spike_mb=2500,
     ),
     BaselineBurden(
         baseline="stable_diffusion_2_768",
@@ -208,6 +256,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=5000,
         max_recommended_batch=6,
         typical_disk_gb=2.5,
+        vram_decode_spike_mb=2500,
     ),
     BaselineBurden(
         baseline="stable_diffusion_xl",
@@ -220,6 +269,9 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         typical_disk_gb=6.9,
         vram_weights_mb=4900,
         vram_support_weights_mb=1700,
+        # The SDXL KL-f8 VAE decodes 1024sq with a full-resolution transient several times this; the lane's
+        # tiled-decode clamp bounds the realized peak to the tiled working set, so the lane is charged that.
+        vram_decode_spike_mb=2500,
     ),
     BaselineBurden(
         baseline="stable_cascade",
@@ -231,6 +283,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         max_recommended_batch=2,
         typical_disk_gb=9.0,
         vram_weights_mb=8000,
+        vram_decode_spike_mb=3000,
     ),
     BaselineBurden(
         baseline="flux_1",
@@ -243,6 +296,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         typical_disk_gb=17.0,
         vram_weights_mb=11500,
         vram_support_weights_mb=4900,
+        vram_decode_spike_mb=3500,
     ),
     BaselineBurden(
         baseline="flux_schnell",
@@ -255,6 +309,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         typical_disk_gb=17.0,
         vram_weights_mb=11500,
         vram_support_weights_mb=4900,
+        vram_decode_spike_mb=3500,
     ),
     BaselineBurden(
         baseline="flux_dev",
@@ -267,6 +322,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         typical_disk_gb=17.0,
         vram_weights_mb=11500,
         vram_support_weights_mb=4900,
+        vram_decode_spike_mb=3500,
     ),
     BaselineBurden(
         baseline="qwen_image",
@@ -284,6 +340,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         # alone exceeds a 24GB card's usable VRAM, so the forecast correctly treats it as whole-card/streaming.
         vram_weights_mb=19500,
         vram_support_weights_mb=8200,
+        vram_decode_spike_mb=3500,
     ),
     BaselineBurden(
         baseline="z_image_turbo",
@@ -300,6 +357,7 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         # core diffusion weights and the support components each carried separately.
         vram_weights_mb=11800,
         vram_support_weights_mb=7900,
+        vram_decode_spike_mb=3200,
     ),
 ]
 
@@ -494,10 +552,26 @@ def estimate_job_burden(
         disk_bytes = round(burden.typical_disk_gb * _BYTES_PER_GB)
     disk_bytes += sum((trigger.typical_size_mb or 0) * 1024 * 1024 for trigger in downloads_expected)
 
+    # Disaggregated sampler charge: the core streaming weights plus the sampling activation the whole-job
+    # figure adds beyond its (support-bundled, activation-inflated) base. This drops the text-encoder/VAE
+    # residency and the decode headroom baked into vram_base_mb, which is what lets two UNet-only samplers
+    # co-reside where the whole-job charge collapses them. Never below the core weights.
+    vram_sampler_only_mb = max(
+        burden.resident_weight_estimate_mb(),
+        burden.resident_weight_estimate_mb() + (vram_sampling_mb - burden.vram_base_mb),
+    )
+
+    # Image-lane decode charge: the tiled VAE-decode working set, which the lane realizes under hordelib's
+    # decode working-memory clamp and tiled-decode fallback. Bounded by the tile, so it is flat with output
+    # size and far below the full-resolution decode transient folded into vram_sampling_mb.
+    vram_decode_spike_mb = burden.decode_spike_estimate_mb()
+
     return BurdenEstimate(
         vram_mb=vram_sampling_mb + vram_post_processing_mb,
         vram_sampling_mb=vram_sampling_mb,
         vram_post_processing_mb=vram_post_processing_mb,
+        vram_sampler_only_mb=vram_sampler_only_mb,
+        vram_decode_spike_mb=vram_decode_spike_mb,
         ram_mb=ram_mb,
         disk_bytes_needed=disk_bytes,
         downloads_expected=downloads_expected,

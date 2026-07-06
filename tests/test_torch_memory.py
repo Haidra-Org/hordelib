@@ -17,6 +17,7 @@ from hordelib.utils.torch_memory import (
     AcceleratorKind,
     clear_accelerator_cache,
     enumerate_accelerators,
+    get_process_vram_stats,
     get_torch_device_free_vram_mb,
     get_torch_free_vram_mb,
     get_torch_total_vram_mb,
@@ -84,6 +85,130 @@ def test_fallback_cpu_vram_reports_system_ram(no_comfy: None, cpu_only_torch: No
 def test_fallback_clear_cache_is_noop_on_cpu(no_comfy: None, cpu_only_torch: None) -> None:
     # Must not raise and must not import torch.cuda.empty_cache unconditionally.
     clear_accelerator_cache()
+
+
+def test_process_vram_stats_none_without_cuda(no_comfy: None, cpu_only_torch: None) -> None:
+    """With no CUDA/XPU allocator there is no per-process figure to read, so None is returned cleanly."""
+    assert get_process_vram_stats() is None
+
+
+def test_process_vram_stats_reads_allocator_and_resets_peak(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The CUDA path reports allocated/reserved/peak-reserved (MB) and resets the peak counter after reading.
+
+    ``memory_reserved`` is the byte-exact, sibling-independent per-process attribution; ``max_memory_reserved``
+    is the interval high-water, which is reset so each report's peak is since the previous one.
+    """
+    import torch
+
+    monkeypatch.setattr(torch_memory, "_active_torch_kind", lambda: AcceleratorKind.cuda)
+    monkeypatch.setattr(torch.cuda, "memory_allocated", lambda *a, **k: 5000 * _MB, raising=False)
+    monkeypatch.setattr(torch.cuda, "memory_reserved", lambda *a, **k: 6000 * _MB, raising=False)
+    monkeypatch.setattr(torch.cuda, "max_memory_reserved", lambda *a, **k: 6500 * _MB, raising=False)
+    reset_calls: list[bool] = []
+    monkeypatch.setattr(
+        torch.cuda,
+        "reset_peak_memory_stats",
+        lambda *a, **k: reset_calls.append(True),
+        raising=False,
+    )
+
+    stats = get_process_vram_stats(reset_peak=True)
+
+    assert stats is not None
+    assert stats.allocated_mb == 5000
+    assert stats.reserved_mb == 6000
+    assert stats.peak_reserved_mb == 6500
+    assert reset_calls == [True]
+
+
+def test_offthread_vram_sampling_ready_true_on_cpu(no_comfy: None, cpu_only_torch: None) -> None:
+    """On a CPU backend there is no lazy device context to create, so a background sample is always safe."""
+    assert torch_memory.offthread_vram_sampling_ready() is True
+
+
+def test_offthread_vram_sampling_ready_tracks_cuda_initialised(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The CUDA path reports readiness only once the context is initialised, never creating it itself."""
+    import torch
+
+    monkeypatch.setattr(torch_memory, "_active_torch_kind", lambda: AcceleratorKind.cuda)
+
+    monkeypatch.setattr(torch.cuda, "is_initialized", lambda: False, raising=False)
+    assert torch_memory.offthread_vram_sampling_ready() is False
+
+    monkeypatch.setattr(torch.cuda, "is_initialized", lambda: True, raising=False)
+    assert torch_memory.offthread_vram_sampling_ready() is True
+
+
+def test_aimdo_usage_is_zero_when_package_absent(monkeypatch: pytest.MonkeyPatch) -> None:
+    """With ``comfy_aimdo`` not importable the direct-IO residency figure is a clean 0, never a raise."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _no_aimdo(name: str, *args: object, **kwargs: object) -> object:
+        if name.startswith("comfy_aimdo"):
+            raise ImportError("comfy_aimdo not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _no_aimdo)
+    assert torch_memory._get_aimdo_usage_mb() == 0
+
+
+def test_aimdo_usage_converts_native_bytes_to_mb(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The native ``get_total_vram_usage`` byte-count (raw ``vrambuf`` device pool) is reported in MB."""
+    fake_control = types.ModuleType("comfy_aimdo.control")
+    fake_control.get_total_vram_usage = lambda: 10240 * _MB  # type: ignore[attr-defined]
+    fake_pkg = types.ModuleType("comfy_aimdo")
+    fake_pkg.control = fake_control  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "comfy_aimdo", fake_pkg)
+    monkeypatch.setitem(sys.modules, "comfy_aimdo.control", fake_control)
+
+    assert torch_memory._get_aimdo_usage_mb() == 10240
+
+
+def test_process_vram_stats_includes_aimdo_pool(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The per-process figure carries the direct-IO residency pool the torch allocator cannot see.
+
+    An INFERENCE child can hold model weights entirely in ``comfy_aimdo``'s native device pool while its
+    ``reserved_mb`` stays near zero, so ``aimdo_mb`` is the term that closes the attribution gap.
+    """
+    import torch
+
+    monkeypatch.setattr(torch_memory, "_active_torch_kind", lambda: AcceleratorKind.cuda)
+    monkeypatch.setattr(torch.cuda, "memory_allocated", lambda *a, **k: 24 * _MB, raising=False)
+    monkeypatch.setattr(torch.cuda, "memory_reserved", lambda *a, **k: 24 * _MB, raising=False)
+    monkeypatch.setattr(torch.cuda, "max_memory_reserved", lambda *a, **k: 24 * _MB, raising=False)
+    monkeypatch.setattr(torch.cuda, "reset_peak_memory_stats", lambda *a, **k: None, raising=False)
+    monkeypatch.setattr(torch_memory, "_get_aimdo_usage_mb", lambda: 10000)
+
+    stats = get_process_vram_stats()
+
+    assert stats is not None
+    assert stats.reserved_mb == 24
+    assert stats.aimdo_mb == 10000
+
+
+def test_process_vram_stats_can_skip_peak_reset(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``reset_peak=False`` reads the peak without clearing the allocator's high-water counter."""
+    import torch
+
+    monkeypatch.setattr(torch_memory, "_active_torch_kind", lambda: AcceleratorKind.cuda)
+    monkeypatch.setattr(torch.cuda, "memory_allocated", lambda *a, **k: 0, raising=False)
+    monkeypatch.setattr(torch.cuda, "memory_reserved", lambda *a, **k: 0, raising=False)
+    monkeypatch.setattr(torch.cuda, "max_memory_reserved", lambda *a, **k: 100 * _MB, raising=False)
+    reset_calls: list[bool] = []
+    monkeypatch.setattr(
+        torch.cuda,
+        "reset_peak_memory_stats",
+        lambda *a, **k: reset_calls.append(True),
+        raising=False,
+    )
+
+    stats = get_process_vram_stats(reset_peak=False)
+
+    assert stats is not None
+    assert stats.peak_reserved_mb == 100
+    assert reset_calls == []
 
 
 def test_comfy_path_enumerates_via_comfy(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -164,7 +289,7 @@ def test_device_free_vram_excludes_comfy_reclaimable_cache(monkeypatch: pytest.M
     monkeypatch.setattr(
         torch_memory,
         "_torch_fallback_vram_bytes",
-        lambda *, free: (11000 * _MB if free else 16000 * _MB),
+        lambda *, free: 11000 * _MB if free else 16000 * _MB,
     )
 
     # Comfy's helper still reports the inflated figure (it serves comfy's own in-process allocation).
