@@ -137,16 +137,38 @@ class HordeCheckpointLoader:
                 logger.debug("Model file was previously loaded, returning it: file_type={}", file_type)
                 log_free_ram()
                 return same_loaded_model[0]
-            if seamless_tiling_enabled:
-                same_loaded_model[0][0].model.apply(make_circular)
-                make_circular_vae(same_loaded_model[0][2])
-            else:
-                same_loaded_model[0][0].model.apply(make_regular)
-                make_regular_vae(same_loaded_model[0][2])
+            # A component-subset load (output_model/output_clip/output_vae False) caches a tuple with None in
+            # the omitted slots, so the cached entry only satisfies a request whose needs it covers; anything
+            # broader reloads from disk and replaces the cache with the fuller tuple.
+            # Indexed access, not unpacking: the cached tuple mirrors load_checkpoint_guess_config's return,
+            # which carries trailing elements beyond (model, clip, vae) that this reuse path never touches.
+            cached_model = same_loaded_model[0][0]
+            cached_clip = same_loaded_model[0][1]
+            cached_vae = same_loaded_model[0][2]
+            satisfies_request = (
+                (not output_model or cached_model is not None)
+                and (not output_clip or cached_clip is not None)
+                and (not output_vae or cached_vae is not None)
+            )
+            if satisfies_request:
+                if seamless_tiling_enabled:
+                    if cached_model is not None:
+                        cached_model.model.apply(make_circular)
+                    if cached_vae is not None:
+                        make_circular_vae(cached_vae)
+                else:
+                    if cached_model is not None:
+                        cached_model.model.apply(make_regular)
+                    if cached_vae is not None:
+                        make_regular_vae(cached_vae)
 
-            logger.debug("Model was previously loaded, returning it.")
-            log_free_ram()
-            return same_loaded_model[0]
+                logger.debug("Model was previously loaded, returning it.")
+                log_free_ram()
+                return same_loaded_model[0]
+            logger.info(
+                "Cached load of {} lacks a component this request needs; reloading from disk.",
+                horde_in_memory_name,
+            )
 
         if not ckpt_name:
             if not SharedModelManager.manager.compvis.is_model_available(horde_model_name):
