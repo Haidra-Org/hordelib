@@ -14,6 +14,8 @@ import pytest
 
 from hordelib.execution.interface import OutputKind, StageGraphUnsupportedError
 from hordelib.execution.stage_graph import (
+    _class_type,
+    _live_ancestors,
     cut_decode_stage,
     cut_encode_text_stage,
     cut_sample_stage,
@@ -58,14 +60,46 @@ def _sd_txt2img() -> ComfyGraph:
     return ComfyGraph(graph)
 
 
-def _sd_img2img() -> ComfyGraph:
+def _sd_img2img(*, source_image: object = "<PIL>") -> ComfyGraph:
     graph = _sd_txt2img()
-    graph.raw["image_loader"] = _node("HordeImageLoader", {"image": "<PIL>"}, "image_loader")
+    graph.raw["image_loader"] = _node("HordeImageLoader", {"image": source_image}, "image_loader")
     graph.raw["vae_encode"] = _node(
         "VAEEncode", {"vae": ["model_loader", 2], "pixels": ["image_loader", 0]}, "vae_encode"
     )
     graph.raw["sampler"]["inputs"]["latent_image"] = ["vae_encode", 0]
     return graph
+
+
+def _clip_skip(graph: ComfyGraph) -> ComfyGraph:
+    """Route both CLIPTextEncode nodes through a ``CLIPSetLastLayer`` (clip_skip > 1), as materialization does."""
+    graph.raw["clip_skip"] = _node(
+        "CLIPSetLastLayer", {"clip": ["model_loader", 1], "stop_at_clip_layer": -2}, "clip_skip"
+    )
+    graph.raw["prompt"]["inputs"]["clip"] = ["clip_skip", 0]
+    graph.raw["negative_prompt"]["inputs"]["clip"] = ["clip_skip", 0]
+    return graph
+
+
+def _sd_transparency_decode(graph: ComfyGraph) -> ComfyGraph:
+    """Interpose a transparency decode node that reads the sample latent AND the decoded image.
+
+    Mirrors the layerdiffuse shape where the reused image output is fed by a node that consumes the
+    sampler latent through a second edge (``samples``), so a decode cut that only repoints
+    ``vae_decode.samples`` would leave the sampler (and its CLIP-side ancestors) live.
+    """
+    graph.raw["transparency_decode"] = _node(
+        "LayeredDiffusionDecodeRGBA",
+        {"samples": ["sampler", 0], "images": ["vae_decode", 0]},
+        "transparency_decode",
+    )
+    graph.raw["output_image"]["inputs"]["images"] = ["transparency_decode", 0]
+    return graph
+
+
+def _clip_side_live(graph: ComfyGraph, roots: list[str]) -> list[str]:
+    return sorted(
+        t for t in _live_ancestors(graph, roots) if _class_type(graph, t) in ("CLIPTextEncode", "CLIPSetLastLayer")
+    )
 
 
 def _sd_hires() -> ComfyGraph:
@@ -181,6 +215,11 @@ class TestSampleCut:
         with pytest.raises(StageGraphUnsupportedError, match="source_latent_bytes"):
             cut_sample_stage(_sd_img2img(), positive_bytes=b"p", negative_bytes=b"n", source_latent_bytes=None)
 
+    def test_txt2img_with_source_latent_rejected(self) -> None:
+        # A txt2img job must never have its empty latent displaced by an injected source latent.
+        with pytest.raises(StageGraphUnsupportedError, match="txt2img-shaped"):
+            cut_sample_stage(_sd_txt2img(), positive_bytes=b"p", negative_bytes=b"n", source_latent_bytes=b"L")
+
     def test_flux_sampler_rejected(self) -> None:
         with pytest.raises(StageGraphUnsupportedError, match="sampler"):
             cut_sample_stage(_flux(), positive_bytes=b"p", negative_bytes=b"n", source_latent_bytes=None)
@@ -204,6 +243,12 @@ class TestVaeEncodeCut:
         with pytest.raises(StageGraphUnsupportedError, match="VAEEncode"):
             cut_vae_encode_stage(_sd_txt2img())
 
+    def test_effective_txt2img_no_source_image_rejected(self) -> None:
+        # Materialization keeps a vae_encode node even for effective txt2img (img2img routing with no
+        # source image); the image loader input is None, so the encode has no usable source to run on.
+        with pytest.raises(StageGraphUnsupportedError, match="no usable source image"):
+            cut_vae_encode_stage(_sd_img2img(source_image=None))
+
 
 class TestDecodeCut:
     def test_cut_keeps_image_output(self) -> None:
@@ -219,3 +264,25 @@ class TestDecodeCut:
     def test_split_loader_rejected(self) -> None:
         with pytest.raises(StageGraphUnsupportedError, match="split component loaders"):
             cut_decode_stage(_qwen_split_loader(), latent_bytes=b"L")
+
+    def test_clip_skip_txt2img_orphans_clip_side(self) -> None:
+        # With clip_skip > 1 a CLIPSetLastLayer sits between the loader and the encoders; the decode
+        # cut must leave none of the CLIP-side chain a live ancestor of the reused image output.
+        graph = _clip_skip(_sd_txt2img())
+        cut_decode_stage(graph, latent_bytes=b"L")
+
+        assert graph.node("vae_decode")["inputs"]["samples"] == ["inject_latent", 0]
+        assert _clip_side_live(graph, ["output_image"]) == []
+
+    def test_transparency_decode_detaches_second_latent_consumer(self) -> None:
+        # The reused image output reaches the sampler through the transparency node's ``samples`` edge;
+        # a decode cut that only repoints vae_decode would leave clip_skip live against a null CLIP.
+        graph = _sd_transparency_decode(_clip_skip(_sd_txt2img()))
+        cut_decode_stage(graph, latent_bytes=b"L")
+
+        assert graph.node("vae_decode")["inputs"]["samples"] == ["inject_latent", 0]
+        assert graph.node("transparency_decode")["inputs"]["samples"] == ["inject_latent", 0]
+        # The transparency node still composites over the decoded image, but no longer via the sampler.
+        assert graph.node("transparency_decode")["inputs"]["images"] == ["vae_decode", 0]
+        assert _clip_side_live(graph, ["output_image"]) == []
+        assert "sampler" not in _live_ancestors(graph, ["output_image"])

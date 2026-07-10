@@ -47,6 +47,7 @@ def _params(
     prompt: str = "an ancient llamia monster",
     denoising_strength: float = 1.0,
     source_processing: str = "txt2img",
+    clip_skip: int = 1,
     components: list | None = None,
 ) -> ImageGenerationParameters:
     base = BasicImageGenerationParameters(
@@ -59,7 +60,7 @@ def _params(
         cfg_scale=7.5,
         sampler_name="k_dpmpp_2m",
         scheduler="normal",
-        clip_skip=1,
+        clip_skip=clip_skip,
         denoising_strength=denoising_strength,
     )
     return ImageGenerationParameters(
@@ -106,9 +107,9 @@ def _assert_stage_identity(
     On divergence, both images are written to a temp directory (so the mismatch can be inspected by
     eye) and the failure carries the cosine metric; thresholds are never relaxed to make a case pass.
     """
-    assert len(staged) == len(
-        monolithic
-    ), f"{case_name}: stage path produced {len(staged)} image(s), monolithic produced {len(monolithic)}"
+    assert len(staged) == len(monolithic), (
+        f"{case_name}: stage path produced {len(staged)} image(s), monolithic produced {len(monolithic)}"
+    )
 
     for index, (mono, stage) in enumerate(zip(monolithic, staged, strict=True)):
         assert isinstance(mono.image, Image.Image)
@@ -142,6 +143,24 @@ class TestStageDisaggregationPerceptualIdentity:
         staged = _run_stage_pipeline(hordelib_instance, params)
 
         _assert_stage_identity("sd15_txt2img", monolithic, staged)
+
+    @pytest.mark.slow
+    @pytest.mark.default_sd15_model
+    def test_clip_skip_txt2img_stages_match_monolithic(
+        self,
+        hordelib_instance: HordeLib,
+        stable_diffusion_model_name_for_testing: str,
+    ) -> None:
+        # clip_skip > 1 inserts a CLIPSetLastLayer between the loader and the encoders; the decode
+        # stage disables the CLIP subset, so the cut must keep that node off the reused image output.
+        params = _params(stable_diffusion_model_name_for_testing, seed="123456789", clip_skip=2)
+
+        monolithic = hordelib_instance.generate(params, pipeline=AUTO_PIPELINE)
+        assert len(monolithic) == 1
+
+        staged = _run_stage_pipeline(hordelib_instance, params)
+
+        _assert_stage_identity("sd15_clip_skip", monolithic, staged)
 
     @pytest.mark.slow
     @pytest.mark.default_sdxl_model

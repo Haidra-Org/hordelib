@@ -85,6 +85,16 @@ introduces (`facerestore_models`), because the setter API cannot; it is confined
 `model_dirs.py`. `invalidate_filename_cache` covers the mid-process rescan needed when
 files (textual inversions) appear between jobs.
 
+## Checkpoint RAM cache
+
+`SharedModelManager._models_in_ram` keeps the last loaded tuple `(model, clip, vae)` per model
+name (suffixed `:file_type` for component files). A cached entry is only reused when it covers
+every component the current request asks for: component-subset loads (a text-encode stage loads
+only the CLIP, an image lane only the VAE) cache `None` in the omitted slots, and a later,
+broader request treats such an entry as a miss, reloading from disk and replacing the cache with
+the fuller tuple. Seamless-tiling state is re-applied on reuse to whichever of the UNet and VAE
+are present.
+
 ## The monkeypatches
 
 Five ComfyUI internals are patched at import time (`hordelib/execution/comfy_patches.py`),
@@ -93,9 +103,12 @@ all policy injections with no native hook:
 - `load_models_gpu` and `ModelPatcher.load`: force full GPU loads (with VRAM-overflow and
   model-class guards) so sibling worker processes sharing a GPU behave predictably. Small
   support-model loads (VAEs) additionally have their caller-supplied working-memory estimate
-  clamped: ComfyUI otherwise frees the full worst-case decode estimate up front, evicting a
-  co-resident diffusion model (a multi-second PCIe round-trip each way, every job) to host a
-  few hundred MB of autoencoder, when a genuine shortfall would only mean a tiled decode.
+  clamped *and* the free-memory target capped near their own weights for the duration of the
+  load: ComfyUI otherwise frees the worst-case decode estimate (or, failing that, its ~1GB
+  inference-reserve floor) up front, evicting a co-resident diffusion model (a multi-second
+  PCIe round-trip each way, every job) to host a few hundred MB of autoencoder, when a genuine
+  shortfall would only mean a tiled decode. Eviction remains possible when free VRAM cannot
+  host even the support weights themselves.
 - `text_encoder_initial_device`: load text encoders on CPU first.
 - `comfy.lora.calculate_weight`: repair malformed "diff" patch tuples.
 - `IsChangedCache.get`: prompt-change logging.
