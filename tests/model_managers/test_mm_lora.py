@@ -4,6 +4,8 @@ import pytest
 
 from hordelib.model_manager.lora import LoraModelManager
 
+pytestmark = pytest.mark.slow
+
 
 class TestModelManagerLora:
     @pytest.fixture(autouse=True)
