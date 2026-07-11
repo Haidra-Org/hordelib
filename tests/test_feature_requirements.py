@@ -11,7 +11,9 @@ import pytest
 
 from hordelib.feature_impact import FEATURE_KIND
 from hordelib.feature_requirements import (
+    MissingFeatureDependencyError,
     available_features,
+    ensure_feature_available,
     feature_available,
     get_feature_requirement,
     get_feature_requirement_registry,
@@ -96,3 +98,33 @@ def test_registry_is_subset_of_feature_kinds() -> None:
     registry = get_feature_requirement_registry()
     assert set(registry).issubset(set(FEATURE_KIND))
     assert all(req.feature == key for key, req in registry.items())
+
+
+def test_missing_feature_dependency_error_is_importerror() -> None:
+    # Consumers that already catch a missing optional dependency (ImportError) catch this too.
+    assert issubclass(MissingFeatureDependencyError, ImportError)
+
+
+def test_ensure_feature_available_raises_with_structured_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present=set()))
+
+    with pytest.raises(MissingFeatureDependencyError) as exc_info:
+        ensure_feature_available(FEATURE_KIND.strip_background)
+
+    error = exc_info.value
+    assert error.feature is FEATURE_KIND.strip_background
+    assert error.missing_packages == ("rembg",)
+    assert error.extra == "rembg"
+    assert "horde-engine[rembg]" in str(error)
+
+
+def test_ensure_feature_available_passes_when_present(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present={"rembg", "onnxruntime"}))
+
+    ensure_feature_available(FEATURE_KIND.strip_background)
+    ensure_feature_available(FEATURE_KIND.controlnet)
+
+
+def test_ensure_feature_available_is_a_noop_for_requirementless_feature() -> None:
+    # A pure-torch feature has no requirement entry and must never raise, regardless of the environment.
+    ensure_feature_available(FEATURE_KIND.post_processing_upscale)

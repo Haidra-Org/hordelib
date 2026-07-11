@@ -16,6 +16,12 @@ Features with no entry here have no optional dependency and are always considere
 fixers are all pure PyTorch and run on every backend). Detection only: this module never
 installs anything; extras are resolved at lock/sync time by the packaging tool.
 
+An in-graph call site that would otherwise degrade or fail deep inside execution when its extra is
+absent calls :func:`ensure_feature_available` up front, which raises the typed
+:class:`MissingFeatureDependencyError` before any graph runs. That error carries the failing feature,
+the missing package names, and the extra that installs them, so a consumer can catch it and act on the
+structured fields rather than parsing a message.
+
 This module is comfy-free and import-safe before ``hordelib.initialise()``; it is part of the
 public API surface re-exported from :mod:`hordelib.api`.
 """
@@ -25,15 +31,54 @@ import importlib.util
 from pydantic import BaseModel
 
 from hordelib.feature_impact import FEATURE_KIND
+from hordelib.utils.optional_deps import _DISTRIBUTION_NAME
 
 __all__ = [
     "FeatureRequirement",
+    "MissingFeatureDependencyError",
     "available_features",
+    "ensure_feature_available",
     "feature_available",
     "get_feature_requirement",
     "get_feature_requirement_registry",
     "missing_packages",
 ]
+
+
+class MissingFeatureDependencyError(ImportError):
+    """Raised when an optional feature is invoked but its backing packages are not installed.
+
+    The typed fields let a consumer branch on exactly which feature failed and which extra would
+    satisfy it, instead of parsing the message. It subclasses ``ImportError`` (like the lazy
+    :class:`~hordelib.utils.optional_deps.MissingOptionalDependency`) so a caller that already handles
+    a missing optional dependency catches this earlier, pre-run variant with the same ``except``.
+    """
+
+    def __init__(
+        self,
+        *,
+        feature: FEATURE_KIND,
+        missing_packages: tuple[str, ...],
+        extra: str,
+        label: str,
+    ) -> None:
+        """Build the error from the failing feature's requirement.
+
+        Args:
+            feature: The feature whose optional dependency is missing.
+            missing_packages: The requirement's import names that are not importable.
+            extra: The ``horde-engine`` extra that installs the missing packages.
+            label: Human-readable feature name, used in the message.
+        """
+        self.feature = feature
+        self.missing_packages = missing_packages
+        self.extra = extra
+        self.label = label
+        joined = ", ".join(missing_packages)
+        super().__init__(
+            f"{label} requires the optional package(s) {joined}, which are not installed. "
+            f"Install them with: pip install {_DISTRIBUTION_NAME}[{extra}]",
+        )
 
 
 class FeatureRequirement(BaseModel):
@@ -113,3 +158,30 @@ def feature_available(feature: FEATURE_KIND) -> bool:
 def available_features() -> set[FEATURE_KIND]:
     """Return the set of features runnable in this environment (always-available ones included)."""
     return {feature for feature in FEATURE_KIND if feature_available(feature)}
+
+
+def ensure_feature_available(feature: FEATURE_KIND) -> None:
+    """Raise if *feature*'s optional dependency is absent, probing via ``find_spec``.
+
+    A feature with no requirement entry, or one whose packages are all importable, returns without
+    raising. This is the fail-fast guard an in-graph call site invokes before it starts work, so a
+    missing extra surfaces as :class:`MissingFeatureDependencyError` up front rather than as an obscure
+    failure mid-run. The probe only checks importability; it never imports the package.
+
+    Args:
+        feature: The feature to check.
+
+    Raises:
+        MissingFeatureDependencyError: If any package the feature requires is not importable.
+    """
+    requirement = _REGISTRY.get(feature)
+    if requirement is None:
+        return
+    missing = tuple(package for package in requirement.packages if not _is_importable(package))
+    if missing:
+        raise MissingFeatureDependencyError(
+            feature=feature,
+            missing_packages=missing,
+            extra=requirement.extra,
+            label=requirement.label,
+        )

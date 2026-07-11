@@ -143,6 +143,9 @@ cpu = ["torch", "torchvision"]
 #
 # A call site that needs one of these guards its import via hordelib.utils.optional_deps so a missing
 # extra produces an actionable "pip install horde-engine[<extra>]" error instead of a bare ImportError.
+# In-graph features (controlnet openpose/DWPose, strip_background) additionally fail fast up front via
+# hordelib.feature_requirements.ensure_feature_available, raising the typed MissingFeatureDependencyError
+# before graph execution rather than degrading or erroring mid-run.
 #
 layerdiffuse = ["diffusers>=0.25.0"]  # transparent/RGBA generation via the comfyui_layerdiffuse node
 upscale-extra = ["spandrel-extra-arches>=0.2.0"]  # extra (non-commercial) upscaler archs; comfy adds them if present

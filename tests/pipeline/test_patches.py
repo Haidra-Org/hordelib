@@ -1,12 +1,16 @@
 """Golden-graph tests for the pure patch operations. No GPU required."""
 
+import importlib.util
 import json
 from pathlib import Path
 
 import PIL.Image
+import pytest
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 
 from hordelib.execution.graph_utils import fix_node_names
+from hordelib.feature_impact import FEATURE_KIND
+from hordelib.feature_requirements import MissingFeatureDependencyError
 from hordelib.pipeline.patches import (
     RemixImage,
     ResolvedLora,
@@ -35,6 +39,15 @@ def _sd_graph() -> dict:
 
 def _flux_graph() -> dict:
     return _graph("flux")
+
+
+def _fake_find_spec(present: set[str]):
+    """Return a ``find_spec`` replacement reporting only *present* top-level packages as importable."""
+
+    def _find_spec(name: str, package: str | None = None) -> object | None:
+        return object() if name.split(".", 1)[0] in present else None
+
+    return _find_spec
 
 
 class TestInsertLoraChain:
@@ -173,6 +186,64 @@ class TestConfigureControlnet:
             height=512,
         )
         assert graph["output_image"]["inputs"]["images"][0] == "preprocessor"
+
+    def test_openpose_raises_when_onnxruntime_absent(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present=set()))
+        graph = _graph("controlnet")
+        with pytest.raises(MissingFeatureDependencyError) as exc_info:
+            configure_controlnet(
+                graph,
+                control_type="openpose",
+                image_is_control=False,
+                return_control_map=False,
+                width=512,
+                height=512,
+            )
+        error = exc_info.value
+        assert error.feature is FEATURE_KIND.controlnet
+        assert error.missing_packages == ("onnxruntime",)
+        assert error.extra == "controlnet"
+
+    def test_openpose_with_premade_map_does_not_raise(self, monkeypatch: pytest.MonkeyPatch):
+        # image_is_control means the preprocessor is "none" and never runs, so the gated dep is not needed.
+        monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present=set()))
+        graph = _graph("controlnet")
+        params = configure_controlnet(
+            graph,
+            control_type="openpose",
+            image_is_control=True,
+            return_control_map=False,
+            width=512,
+            height=512,
+        )
+        assert params["preprocessor.preprocessor"] == "none"
+
+    def test_openpose_does_not_raise_when_onnxruntime_present(self, monkeypatch: pytest.MonkeyPatch):
+        monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present={"onnxruntime"}))
+        graph = _graph("controlnet")
+        params = configure_controlnet(
+            graph,
+            control_type="openpose",
+            image_is_control=False,
+            return_control_map=False,
+            width=512,
+            height=512,
+        )
+        assert params["preprocessor.preprocessor"] == "OpenposePreprocessor"
+
+    def test_canny_does_not_raise_when_onnxruntime_absent(self, monkeypatch: pytest.MonkeyPatch):
+        # Canny is pure-cv2; it has no gated dependency and must run on a lean base install.
+        monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present=set()))
+        graph = _graph("controlnet")
+        params = configure_controlnet(
+            graph,
+            control_type="canny",
+            image_is_control=False,
+            return_control_map=False,
+            width=512,
+            height=512,
+        )
+        assert params["preprocessor.preprocessor"] == "CannyEdgePreprocessor"
 
 
 class TestApplyLayerdiffuse:
