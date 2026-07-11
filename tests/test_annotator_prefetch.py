@@ -20,10 +20,18 @@ import hordelib.preload as preload
 class _FakeFile:
     """A structural stand-in for ``horde_model_reference.annotator_catalog.AnnotatorFile``."""
 
-    def __init__(self, filename: str, *, sha256: str | None = None, preprocessors: tuple[str, ...] = ()) -> None:
+    def __init__(
+        self,
+        filename: str,
+        *,
+        sha256: str | None = None,
+        preprocessors: tuple[str, ...] = (),
+        control_types: tuple[str, ...] = (),
+    ) -> None:
         self.filename = filename
         self.sha256 = sha256
         self.preprocessors = preprocessors
+        self.control_types = control_types
 
     @property
     def relative_path(self) -> str:
@@ -57,15 +65,19 @@ def test_filter_keeps_all_when_controlnet_feature_available(monkeypatch):
     assert kept == {"a.pth", "b.pth"}
 
 
-def test_filter_drops_onnxruntime_gated_files_on_lean_install(monkeypatch):
-    """Without the controlnet extra, files served only by an onnxruntime-gated preprocessor are skipped."""
+def test_filter_keeps_all_when_no_preprocessor_is_gated(monkeypatch):
+    """With no preprocessor gated behind a blocker dep, the filter branch keeps every catalog file.
+
+    Even forcing the controlnet feature probe to report unavailable, the lean-install filter drops a file
+    only when every preprocessor that loads it is gated away; the gated set is empty, so nothing is.
+    """
     monkeypatch.setattr("hordelib.feature_requirements.feature_available", lambda kind: False)
     hed = _FakeFile("ControlNetHED.pth", preprocessors=("HEDPreprocessor", "FakeScribblePreprocessor"))
     openpose = _FakeFile("body_pose_model.pth", preprocessors=("OpenposePreprocessor",))
 
     kept = {entry.filename for entry in preload._annotator_files_to_prefetch([hed, openpose])}
 
-    assert kept == {"ControlNetHED.pth"}  # OpenposePreprocessor is the onnxruntime-gated one
+    assert kept == {"ControlNetHED.pth", "body_pose_model.pth"}
 
 
 def test_prefetch_places_missing_and_skips_present(monkeypatch, tmp_path):
@@ -108,3 +120,17 @@ def test_prefetch_is_exception_safe(monkeypatch, tmp_path):
     preload._prefetch_annotator_files(tmp_path)  # must not raise
 
     assert not (tmp_path / "lllyasviel" / "Annotators" / "x.pth").exists()
+
+
+def test_prefetch_orders_legacy_control_types_first():
+    """Classic-type weights sort ahead of extended ones so a fresh install serves legacy jobs early."""
+    files = [
+        _FakeFile("sk_model.pth", control_types=("lineart",)),
+        _FakeFile("ControlNetHED.pth", control_types=("hed", "fakescribbles")),
+        _FakeFile("7_model.pth", control_types=("teed",)),
+        _FakeFile("mlsd_large_512_fp32.pth", control_types=("mlsd",)),
+    ]
+
+    ordered = [entry.filename for entry in preload._ordered_prefetch_entries(files)]
+
+    assert ordered == ["ControlNetHED.pth", "mlsd_large_512_fp32.pth", "sk_model.pth", "7_model.pth"]

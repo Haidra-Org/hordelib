@@ -93,11 +93,15 @@ class FeatureRequirement(BaseModel):
     """Human-readable feature name, used in "install this extra" messages."""
 
 
-# Only the backend-constrained features appear here. controlnet gates on onnxruntime alone: of the
-# preprocessors hordelib exposes as horde control_types (CONTROLNET_IMAGE_PREPROCESSOR_MAP), only
-# Openpose (DWPose) needs a blocker dep, and that dep is onnxruntime. mediapipe backs only
-# mediapipe_face / mesh_graphormer, which are not horde control_types, so it is shipped in the
-# `controlnet` extra for node parity but is not required to serve controlnet jobs.
+# Every preprocessor hordelib exposes as a horde control_type (CONTROLNET_IMAGE_PREPROCESSOR_MAP) is
+# pure torch, so serving a controlnet job needs no backend-constrained package (its `packages` are
+# empty and it is therefore always available). The onnxruntime-backed detectors (DWPose) and the
+# mediapipe-backed nodes (mediapipe_face / mesh_graphormer) are not exposed as horde control_types;
+# they ship in the `controlnet` extra for comfyui_controlnet_aux node parity only. The requirement is
+# retained (rather than dropped) so the `controlnet` extra stays present in this registry, which the
+# worker mirrors as the source of truth for its provisioned feature extras. onnxruntime enters the
+# environment only as a transitive dependency of rembg, so `strip_background` below is the sole
+# feature whose availability actually turns on it.
 _REQUIREMENT_SEEDS: list[FeatureRequirement] = [
     FeatureRequirement(
         feature=FEATURE_KIND.strip_background,
@@ -107,7 +111,7 @@ _REQUIREMENT_SEEDS: list[FeatureRequirement] = [
     ),
     FeatureRequirement(
         feature=FEATURE_KIND.controlnet,
-        packages=("onnxruntime",),
+        packages=(),
         extra="controlnet",
         label="controlnet preprocessing (annotators)",
     ),

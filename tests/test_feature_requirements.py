@@ -38,11 +38,13 @@ def test_strip_background_requires_rembg() -> None:
     assert requirement.extra == "rembg"
 
 
-def test_controlnet_gates_on_onnxruntime_only() -> None:
-    # mediapipe ships in the extra for node parity but is not a horde control_type dependency.
+def test_controlnet_has_no_blocking_packages() -> None:
+    # Every exposed horde control_type preprocessor is pure torch, so controlnet gates on no package.
+    # The requirement is kept only so the `controlnet` extra (node-parity onnxruntime/mediapipe) stays
+    # named in the registry the worker mirrors for provisioning.
     requirement = get_feature_requirement(FEATURE_KIND.controlnet)
     assert requirement is not None
-    assert requirement.packages == ("onnxruntime",)
+    assert requirement.packages == ()
     assert requirement.extra == "controlnet"
 
 
@@ -62,25 +64,27 @@ def test_feature_unavailable_when_package_absent(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present=set()))
 
     assert feature_available(FEATURE_KIND.strip_background) is False
-    assert feature_available(FEATURE_KIND.controlnet) is False
+    # controlnet has no blocking package, so it is available even with nothing importable.
+    assert feature_available(FEATURE_KIND.controlnet) is True
     assert missing_packages(FEATURE_KIND.strip_background) == ("rembg",)
-    assert missing_packages(FEATURE_KIND.controlnet) == ("onnxruntime",)
+    assert missing_packages(FEATURE_KIND.controlnet) == ()
 
 
 def test_feature_available_when_package_present(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present={"rembg", "onnxruntime"}))
+    monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present={"rembg"}))
 
     assert feature_available(FEATURE_KIND.strip_background) is True
     assert feature_available(FEATURE_KIND.controlnet) is True
     assert missing_packages(FEATURE_KIND.strip_background) == ()
 
 
-def test_available_features_excludes_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present={"rembg"}))
+def test_available_features_includes_unblocked_controlnet(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present=set()))
 
     available = available_features()
-    assert FEATURE_KIND.strip_background in available
-    assert FEATURE_KIND.controlnet not in available
+    # strip_background is gated on rembg and drops out; controlnet has no blocking package and stays.
+    assert FEATURE_KIND.strip_background not in available
+    assert FEATURE_KIND.controlnet in available
     # An always-available pure-torch feature is still present.
     assert FEATURE_KIND.post_processing_upscale in available
 

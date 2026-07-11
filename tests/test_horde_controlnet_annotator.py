@@ -8,20 +8,37 @@ from hordelib.shared_model_manager import SharedModelManager
 
 from .testing_shared_functions import check_single_inference_image_similarity
 
+_CONTROL_TYPES = list(HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys())
+
+# Control types the annotator inference test cannot exercise on a natural source image, mapped to the reason.
+# ScribblePreprocessor expects an already-drawn scribble map as input, not a photograph.
+_ANNOTATOR_SKIP_REASONS = {
+    "scribble": "ScribblePreprocessor expects a pre-drawn scribble map, not a natural source image",
+}
+
 
 class TestControlnetAnnotator:
-    @pytest.fixture(autouse=True)
-    def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
+    @pytest.fixture(scope="class", autouse=True)
+    def preload_controlnet_annotators(self, shared_model_manager: type[SharedModelManager]):
+        # Amortized once per class: the shared HordeLib/model-manager singletons are session-scoped, so the
+        # per-type tests below reuse a single download+preload rather than repeating it on every parameter.
         assert shared_model_manager.manager.controlnet
-        for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
+        for preproc in _CONTROL_TYPES:
             shared_model_manager.manager.controlnet.download_control_type(preproc, ["stable diffusion 1"])
         assert shared_model_manager.preload_annotators()
 
+    @pytest.mark.parametrize("preproc", _CONTROL_TYPES)
     def test_controlnet_annotator(
         self,
         hordelib_instance: HordeLib,
         shared_model_manager: type[SharedModelManager],
+        preproc: str,
     ):
+        if preproc in _ANNOTATOR_SKIP_REASONS:
+            pytest.skip(_ANNOTATOR_SKIP_REASONS[preproc])
+
+        assert shared_model_manager.manager.controlnet
+
         image = PIL.Image.open("images/test_annotator.jpg")
         width, height = image.size
         data = {
@@ -35,7 +52,7 @@ class TestControlnetAnnotator:
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
-            "control_type": "",
+            "control_type": preproc,
             "image_is_control": False,
             "return_control_map": True,
             "prompt": "this is not used here",
@@ -46,18 +63,14 @@ class TestControlnetAnnotator:
             "source_processing": "img2img",
         }
 
-        for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
-            if preproc == "scribble":
-                # Not valid for normal image input test
-                continue
-            assert shared_model_manager.manager.controlnet
-            data["control_type"] = preproc
-            pil_image = hordelib_instance.basic_inference_single_image(data).image
-            assert pil_image is not None
-            assert isinstance(pil_image, PIL.Image.Image)
-            img_filename = f"annotator_{preproc}.png"
-            pil_image.save(f"images/{img_filename}", quality=100)
-            assert check_single_inference_image_similarity(
-                f"images_expected/{img_filename}",
-                pil_image,
-            )
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image is not None
+        assert isinstance(pil_image, PIL.Image.Image)
+        img_filename = f"annotator_{preproc}.png"
+        pil_image.save(f"images/{img_filename}", quality=100)
+        # M-LSD ("hough") is run-to-run flaky (~0.90 cosine); the similarity helper lands that in its warn band
+        # and pytest.skip()s only this parameter, so the flaky detector never masks the other control types.
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )

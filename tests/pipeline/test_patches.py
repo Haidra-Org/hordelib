@@ -9,8 +9,6 @@ import pytest
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 
 from hordelib.execution.graph_utils import fix_node_names
-from hordelib.feature_impact import FEATURE_KIND
-from hordelib.feature_requirements import MissingFeatureDependencyError
 from hordelib.pipeline.patches import (
     RemixImage,
     ResolvedLora,
@@ -187,25 +185,23 @@ class TestConfigureControlnet:
         )
         assert graph["output_image"]["inputs"]["images"][0] == "preprocessor"
 
-    def test_openpose_raises_when_onnxruntime_absent(self, monkeypatch: pytest.MonkeyPatch):
+    def test_openpose_runs_without_onnxruntime(self, monkeypatch: pytest.MonkeyPatch):
+        # The exposed openpose preprocessor is the classic torch-only detector chain (DWPose is not a
+        # horde control_type), so it configures on a lean base install with nothing importable.
         monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present=set()))
         graph = _graph("controlnet")
-        with pytest.raises(MissingFeatureDependencyError) as exc_info:
-            configure_controlnet(
-                graph,
-                control_type="openpose",
-                image_is_control=False,
-                return_control_map=False,
-                width=512,
-                height=512,
-            )
-        error = exc_info.value
-        assert error.feature is FEATURE_KIND.controlnet
-        assert error.missing_packages == ("onnxruntime",)
-        assert error.extra == "controlnet"
+        params = configure_controlnet(
+            graph,
+            control_type="openpose",
+            image_is_control=False,
+            return_control_map=False,
+            width=512,
+            height=512,
+        )
+        assert params["preprocessor.preprocessor"] == "OpenposePreprocessor"
 
-    def test_openpose_with_premade_map_does_not_raise(self, monkeypatch: pytest.MonkeyPatch):
-        # image_is_control means the preprocessor is "none" and never runs, so the gated dep is not needed.
+    def test_openpose_with_premade_map_passes_through(self, monkeypatch: pytest.MonkeyPatch):
+        # image_is_control means the preprocessor is "none" and never runs.
         monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present=set()))
         graph = _graph("controlnet")
         params = configure_controlnet(
@@ -218,7 +214,7 @@ class TestConfigureControlnet:
         )
         assert params["preprocessor.preprocessor"] == "none"
 
-    def test_openpose_does_not_raise_when_onnxruntime_present(self, monkeypatch: pytest.MonkeyPatch):
+    def test_openpose_configures_with_packages_present(self, monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(importlib.util, "find_spec", _fake_find_spec(present={"onnxruntime"}))
         graph = _graph("controlnet")
         params = configure_controlnet(

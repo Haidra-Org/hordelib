@@ -49,6 +49,7 @@ class _AnnotatorFileLike(Protocol):
     filename: str
     sha256: str | None
     preprocessors: tuple[str, ...]
+    control_types: tuple[str, ...]
 
     @property
     def relative_path(self) -> str:
@@ -78,6 +79,27 @@ _PRELOAD_MARKER_NAME = ".hordelib_preload_complete"
 # base install (no `controlnet` extra) these preprocessors never register, so the preload drops them;
 # running one would abort the whole run.
 _ONNXRUNTIME_GATED_PREPROCESSORS = ONNXRUNTIME_GATED_PREPROCESSORS
+
+# The classic control types every worker bridge can render. Their annotator weights are prefetched ahead
+# of the extended set so a fresh install can serve legacy controlnet jobs while the (much larger) extended
+# weights are still arriving. Both spellings of the line detector are listed; the catalog uses `mlsd`.
+_LEGACY_CONTROL_TYPES = frozenset(
+    ("canny", "hed", "depth", "normal", "openpose", "seg", "scribble", "fakescribbles", "hough", "mlsd"),
+)
+
+
+def _serves_legacy_control_type(entry: _AnnotatorFileLike) -> bool:
+    """Return whether *entry* backs at least one classic control type."""
+    return any(control_type in _LEGACY_CONTROL_TYPES for control_type in entry.control_types)
+
+
+def _ordered_prefetch_entries(entries: Iterable[_AnnotatorFileLike]) -> list[_AnnotatorFileLike]:
+    """Order prefetch entries legacy-first so a fresh install can serve classic controlnet jobs early.
+
+    The extended set (much larger) downloads behind the classic weights. The sort is stable, preserving
+    catalog order within each group.
+    """
+    return sorted(entries, key=lambda entry: not _serves_legacy_control_type(entry))
 
 
 def _annotator_files_to_prefetch(all_files: Iterable[_AnnotatorFileLike]) -> list[_AnnotatorFileLike]:
@@ -132,7 +154,7 @@ def _prefetch_annotator_files(ckpts_dir: Path) -> None:
     except Exception as e:
         logger.debug("Could not resolve gated-mirror settings; annotator prefetch uses origin only: error={}", e)
 
-    for entry in _annotator_files_to_prefetch(annotator_catalog.ANNOTATOR_FILES):
+    for entry in _ordered_prefetch_entries(_annotator_files_to_prefetch(annotator_catalog.ANNOTATOR_FILES)):
         destination = ckpts_dir / Path(entry.relative_path)
         if destination.is_file():
             continue
