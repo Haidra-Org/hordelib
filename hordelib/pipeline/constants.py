@@ -28,6 +28,7 @@ SAMPLERS_MAP = {
 
 # Horde control_type on the left, comfyui_controlnet_aux preprocessor on the right
 CONTROLNET_IMAGE_PREPROCESSOR_MAP = {
+    "binary": "BinaryPreprocessor",
     "canny": "CannyEdgePreprocessor",
     "hed": "HEDPreprocessor",
     "depth": "LeReS-DepthMapPreprocessor",
@@ -38,15 +39,34 @@ CONTROLNET_IMAGE_PREPROCESSOR_MAP = {
     "fakescribbles": "FakeScribblePreprocessor",
     "hough": "M-LSDPreprocessor",  # horde backward compatibility
     "mlsd": "M-LSDPreprocessor",
+    "standard_lineart": "LineartStandardPreprocessor",
+    "lineart": "LineArtPreprocessor",
+    "lineart_anime": "AnimeLineArtPreprocessor",
+    "lineart_anime_denoise": "Manga2Anime_LineArt_Preprocessor",
+    "pidinet": "PiDiNetPreprocessor",
+    "scribble_xdog": "Scribble_XDoG_Preprocessor",
+    "scribble_pidinet": "Scribble_PiDiNet_Preprocessor",
+    "teed": "TEEDPreprocessor",
+    "pyracanny": "PyraCannyPreprocessor",
+    "midas_depth": "MiDaS-DepthMapPreprocessor",
+    "zoe_depth": "Zoe-DepthMapPreprocessor",
+    "depth_anything": "DepthAnythingPreprocessor",
+    "depth_anything_v2": "DepthAnythingV2Preprocessor",
+    "normal_bae": "BAE-NormalMapPreprocessor",
+    "oneformer_ade20k": "OneFormer-ADE20K-SemSegPreprocessor",
+    "oneformer_coco": "OneFormer-COCO-SemSegPreprocessor",
+    "recolor_luminance": "ImageLuminanceDetector",
+    "recolor_intensity": "ImageIntensityDetector",
+    "tile": "TilePreprocessor",
+    "tile_ttplanet_guided": "TTPlanet_TileGF_Preprocessor",
+    "tile_ttplanet_simple": "TTPlanet_TileSimple_Preprocessor",
 }
 
-ONNXRUNTIME_GATED_PREPROCESSORS = frozenset({"OpenposePreprocessor"})
+ONNXRUNTIME_GATED_PREPROCESSORS: frozenset[str] = frozenset()
 """comfyui_controlnet_aux preprocessors that need the onnxruntime-backed ``controlnet`` extra to run.
 
-Openpose's DWPose detector is the only horde-exposed preprocessor that requires onnxruntime; without the
-extra its node_wrapper does not register, so selecting it would fail inside graph execution. Shared as one
-source of truth by the preload (which drops it on a lean base install) and the in-graph controlnet guard
-(which raises early). Keep aligned with the values of :data:`CONTROLNET_IMAGE_PREPROCESSOR_MAP`.
+No currently exposed preprocessor requires ONNX Runtime. ``OpenposePreprocessor`` is the classic Torch
+implementation at the pinned auxiliary-node revision; DWPose is a separate, unexposed node.
 """
 
 CONTROLNET_MODEL_MAP = {
@@ -61,6 +81,28 @@ CONTROLNET_MODEL_MAP = {
     "fakescribbles": "control_scribble_fp16.safetensors",
     "mlsd": "control_mlsd_fp16.safetensors",
     "hough": "control_mlsd_fp16.safetensors",
+    "binary": "control_scribble_fp16.safetensors",
+    "standard_lineart": "control_v11p_sd15_lineart_fp16.safetensors",
+    "lineart": "control_v11p_sd15_lineart_fp16.safetensors",
+    "lineart_anime": "control_v11p_sd15s2_lineart_anime_fp16.safetensors",
+    "lineart_anime_denoise": "control_v11p_sd15s2_lineart_anime_fp16.safetensors",
+    "pidinet": "diff_control_sd15_hed_fp16.safetensors",
+    "scribble_xdog": "control_scribble_fp16.safetensors",
+    "scribble_pidinet": "control_scribble_fp16.safetensors",
+    "teed": "diff_control_sd15_hed_fp16.safetensors",
+    "pyracanny": "diff_control_sd15_canny_fp16.safetensors",
+    "midas_depth": "diff_control_sd15_depth_fp16.safetensors",
+    "zoe_depth": "diff_control_sd15_depth_fp16.safetensors",
+    "depth_anything": "diff_control_sd15_depth_fp16.safetensors",
+    "depth_anything_v2": "diff_control_sd15_depth_fp16.safetensors",
+    "normal_bae": "control_v11p_sd15_normalbae_fp16.safetensors",
+    "oneformer_ade20k": "control_seg_fp16.safetensors",
+    "oneformer_coco": "control_seg_fp16.safetensors",
+    "recolor_luminance": "ioclab_sd15_recolor.safetensors",
+    "recolor_intensity": "ioclab_sd15_recolor.safetensors",
+    "tile": "control_v11f1e_sd15_tile_fp16.safetensors",
+    "tile_ttplanet_guided": "control_v11f1e_sd15_tile_fp16.safetensors",
+    "tile_ttplanet_simple": "control_v11f1e_sd15_tile_fp16.safetensors",
 }
 """Horde control_type to controlnet model filename."""
 
@@ -75,12 +117,34 @@ CONTROLNET_ANNOTATOR_DOWNLOAD_BYTES = {
     "hed": 56 * 1024**2,  # ControlNetHED.pth
     "depth": 800 * 1024**2,  # LeReS: res101.pth (~470MB) + latest_net_G.pth (~320MB)
     "normal": 470 * 1024**2,  # Intel/dpt-hybrid-midas pytorch_model.bin
-    "openpose": 200 * 1024**2,  # body/hand/face pose models (needs the controlnet/onnxruntime extra)
+    "openpose": 200 * 1024**2,  # body/hand/face pose models (pure Torch at the pinned aux revision)
     "seg": 170 * 1024**2,  # UniFormer segmentation
     "scribble": 0,
     "fakescribbles": 56 * 1024**2,  # FakeScribble runs the HED detector underneath
     "hough": 6 * 1024**2,  # M-LSD
     "mlsd": 6 * 1024**2,
+    "binary": 0,
+    "standard_lineart": 0,
+    "lineart": 35 * 1024**2,
+    "lineart_anime": 208 * 1024**2,
+    "lineart_anime_denoise": 165 * 1024**2,
+    "pidinet": 3 * 1024**2,
+    "scribble_xdog": 0,
+    "scribble_pidinet": 3 * 1024**2,
+    "teed": 1024**2,
+    "pyracanny": 0,
+    "midas_depth": 470 * 1024**2,
+    "zoe_depth": 1_400 * 1024**2,
+    "depth_anything": 1_400 * 1024**2,
+    "depth_anything_v2": 1_280 * 1024**2,
+    "normal_bae": 280 * 1024**2,
+    "oneformer_ade20k": 850 * 1024**2,
+    "oneformer_coco": 850 * 1024**2,
+    "recolor_luminance": 0,
+    "recolor_intensity": 0,
+    "tile": 0,
+    "tile_ttplanet_guided": 0,
+    "tile_ttplanet_simple": 0,
 }
 """Horde control_type to an estimated annotator-checkpoint download size in bytes (ROM)."""
 

@@ -8,21 +8,41 @@ from hordelib.shared_model_manager import SharedModelManager
 
 from .testing_shared_functions import check_single_inference_image_similarity
 
+_CONTROL_TYPES = list(HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys())
+
+# Control types deselected from the per-type inference sweep, mapped to the reason.
+# ScribblePreprocessor expects an already-drawn scribble map rather than a natural source image; the raw
+# M-LSD detector ("mlsd") is run-to-run flaky, and its output is already covered via the "hough" alias.
+_INFERENCE_SKIP_REASONS = {
+    "scribble": "ScribblePreprocessor expects a pre-drawn scribble map, not a natural source image",
+    "mlsd": "M-LSD detector is run-to-run flaky; its control map is covered by the 'hough' alias",
+}
+
 
 class TestHordeInferenceControlnet:
-    @pytest.fixture(autouse=True)
-    def setup_and_teardown(self, shared_model_manager: type[SharedModelManager]):
+    @pytest.fixture(scope="class", autouse=True)
+    def download_controlnets(self, shared_model_manager: type[SharedModelManager]):
+        # Amortized once per class: the shared HordeLib/model-manager singletons are session-scoped, so the
+        # parametrized per-type tests reuse a single controlnet download pass rather than repeating it.
         assert shared_model_manager.manager.controlnet is not None
-        for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
+        for preproc in _CONTROL_TYPES:
             shared_model_manager.manager.controlnet.download_control_type(preproc, ["stable diffusion 1"])
 
     @pytest.mark.default_sd15_model
+    @pytest.mark.parametrize("preproc", _CONTROL_TYPES)
     def test_controlnet_sd1(
         self,
         shared_model_manager: type[SharedModelManager],
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        preproc: str,
     ):
+        if preproc in _INFERENCE_SKIP_REASONS:
+            pytest.skip(_INFERENCE_SKIP_REASONS[preproc])
+
+        assert hordelib_instance is not None
+        assert shared_model_manager.manager.controlnet is not None
+
         data = {
             "sampler_name": "k_dpmpp_2m",
             "cfg_scale": 7.5,
@@ -34,7 +54,7 @@ class TestHordeInferenceControlnet:
             "tiling": False,
             "hires_fix": False,
             "clip_skip": 1,
-            "control_type": "",
+            "control_type": preproc,
             "image_is_control": False,
             "return_control_map": False,
             "prompt": "a man walking in the snow",
@@ -44,30 +64,19 @@ class TestHordeInferenceControlnet:
             "source_image": Image.open("images/test_db0.jpg"),
             "source_processing": "img2img",
         }
-        assert hordelib_instance is not None
-        assert shared_model_manager.manager.controlnet is not None
 
-        images_to_compare: list[tuple[str, Image.Image]] = []
-        for preproc in HordeLib.CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys():
-            if preproc == "scribble" or preproc == "mlsd":
-                # Skip
-                continue
+        pil_image = hordelib_instance.basic_inference_single_image(data).image
+        assert pil_image is not None, f"Failed to generate image for {preproc}"
 
-            data["control_type"] = preproc
+        img_filename = f"controlnet_{preproc}.png"
 
-            pil_image = hordelib_instance.basic_inference_single_image(data).image
-            assert pil_image is not None, f"Failed to generate image for {preproc}"
+        assert isinstance(pil_image, Image.Image)
 
-            img_filename = f"controlnet_{preproc}.png"
-
-            assert isinstance(pil_image, Image.Image)
-
-            pil_image.save(f"images/{img_filename}", quality=100)
-            images_to_compare.append((f"images_expected/{img_filename}", pil_image))
-            assert check_single_inference_image_similarity(
-                f"images_expected/{img_filename}",
-                pil_image,
-            )
+        pil_image.save(f"images/{img_filename}", quality=100)
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
 
     @pytest.mark.default_sd15_model
     def test_controlnet_fake_cn(
