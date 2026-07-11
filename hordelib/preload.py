@@ -33,6 +33,8 @@ from typing import Protocol
 
 from loguru import logger
 
+from hordelib.pipeline.constants import ONNXRUNTIME_GATED_PREPROCESSORS
+
 
 class _AnnotatorFileLike(Protocol):
     """The shape the prefetch reads from a ``horde_model_reference.annotator_catalog.AnnotatorFile``.
@@ -72,11 +74,10 @@ _ANNOTATOR_NODE_NAME = "comfyui_controlnet_aux"
 # pinned annotator commit so later processes can skip it. See module docstring.
 _PRELOAD_MARKER_NAME = ".hordelib_preload_complete"
 
-# comfyui_controlnet_aux preprocessors that cannot import without an optional `controlnet`-extra
-# package, so they must be dropped from the preload on a lean base install (their node_wrapper is
-# guarded and simply does not register). Openpose's DWPose detector is the only horde-exposed
-# preprocessor that needs onnxruntime; running it without the extra would abort the whole preload.
-_ONNXRUNTIME_GATED_PREPROCESSORS = frozenset({"OpenposePreprocessor"})
+# Backwards-compatible alias for the shared source of truth in hordelib.pipeline.constants. On a lean
+# base install (no `controlnet` extra) these preprocessors never register, so the preload drops them;
+# running one would abort the whole run.
+_ONNXRUNTIME_GATED_PREPROCESSORS = ONNXRUNTIME_GATED_PREPROCESSORS
 
 
 def _annotator_files_to_prefetch(all_files: Iterable[_AnnotatorFileLike]) -> list[_AnnotatorFileLike]:

@@ -25,6 +25,8 @@ from hordelib.execution.stage_graph import (
     cut_sample_stage,
     cut_vae_encode_stage,
 )
+from hordelib.feature_impact import FEATURE_KIND
+from hordelib.feature_requirements import ensure_feature_available
 from hordelib.pipeline import constants as pipeline_constants
 from hordelib.pipeline.context import ModelContext
 from hordelib.pipeline.definition import PipelineDefinition
@@ -661,6 +663,8 @@ class HordeLib:
                             elif pp_kind is PostProcessorKind.strip_background:
                                 with logfire.span("pp.strip_background", image_index=img_idx):
                                     if final_image is not None:
+                                        # Fail fast if rembg's extra is absent, before starting this step.
+                                        ensure_feature_available(FEATURE_KIND.strip_background)
                                         # The pre-strip rawpng is intentionally kept (legacy parity)
                                         final_image = self.post_process(
                                             StripBackgroundPayload(source_image=final_image),
@@ -888,6 +892,9 @@ class HordeLib:
             payload = post_processing_payload_from_horde_dict(payload)
 
         if isinstance(payload, StripBackgroundPayload):
+            # Fail fast if rembg's extra is absent, before touching the image, rather than surfacing the
+            # missing dependency from ImageUtils.strip_background's lazy import mid-post-processing.
+            ensure_feature_available(FEATURE_KIND.strip_background)
             return ResultingImageReturn(
                 image=ImageUtils.strip_background(payload.source_image),
                 rawpng=None,

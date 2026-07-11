@@ -36,7 +36,9 @@ from hordelib.feature_impact import (
 )
 from hordelib.feature_requirements import (
     FeatureRequirement,
+    MissingFeatureDependencyError,
     available_features,
+    ensure_feature_available,
     feature_available,
     get_feature_requirement,
     get_feature_requirement_registry,
@@ -135,6 +137,7 @@ __all__ = [
     "ImagePipeline",
     "JobPhaseMetrics",
     "MetricsCollector",
+    "MissingFeatureDependencyError",
     "ModelLoadEvent",
     "OutputArtifact",
     "PostProcessingPayload",
@@ -157,6 +160,7 @@ __all__ = [
     "compute_weight_budget_mb",
     "controlnet_annotator_download_bytes",
     "controlnet_annotators_present",
+    "ensure_feature_available",
     "enumerate_accelerators",
     "estimate_job_burden",
     "feature_available",

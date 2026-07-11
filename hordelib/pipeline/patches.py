@@ -13,7 +13,13 @@ from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 from loguru import logger
 
 from hordelib.execution.graph_utils import GraphDict, reconnect_input
-from hordelib.pipeline.constants import CONTROLNET_IMAGE_PREPROCESSOR_MAP, CONTROLNET_MODEL_MAP
+from hordelib.feature_impact import FEATURE_KIND
+from hordelib.feature_requirements import ensure_feature_available
+from hordelib.pipeline.constants import (
+    CONTROLNET_IMAGE_PREPROCESSOR_MAP,
+    CONTROLNET_MODEL_MAP,
+    ONNXRUNTIME_GATED_PREPROCESSORS,
+)
 from hordelib.utils.image_utils import ImageUtils
 
 
@@ -173,6 +179,12 @@ def configure_controlnet(
     aux_preprocessor = CONTROLNET_IMAGE_PREPROCESSOR_MAP.get(control_type)
     if not aux_preprocessor:
         logger.error("Controlnet preprocessor not found: control_type={}", control_type)
+
+    # A preprocessor that needs an optional backend which is not installed never registered its
+    # comfyui_controlnet_aux node, so letting the job proceed would fail with an obscure error deep in
+    # graph execution. Fail fast here instead. A premade control map ("none") runs no preprocessor.
+    if not image_is_control and aux_preprocessor in ONNXRUNTIME_GATED_PREPROCESSORS:
+        ensure_feature_available(FEATURE_KIND.controlnet)
 
     # "none" makes the AIO_Preprocessor node pass the (already-control-map) image through
     params["preprocessor.preprocessor"] = "none" if image_is_control else aux_preprocessor

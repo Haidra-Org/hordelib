@@ -40,6 +40,15 @@ CONTROLNET_IMAGE_PREPROCESSOR_MAP = {
     "mlsd": "M-LSDPreprocessor",
 }
 
+ONNXRUNTIME_GATED_PREPROCESSORS = frozenset({"OpenposePreprocessor"})
+"""comfyui_controlnet_aux preprocessors that need the onnxruntime-backed ``controlnet`` extra to run.
+
+Openpose's DWPose detector is the only horde-exposed preprocessor that requires onnxruntime; without the
+extra its node_wrapper does not register, so selecting it would fail inside graph execution. Shared as one
+source of truth by the preload (which drops it on a lean base install) and the in-graph controlnet guard
+(which raises early). Keep aligned with the values of :data:`CONTROLNET_IMAGE_PREPROCESSOR_MAP`.
+"""
+
 CONTROLNET_MODEL_MAP = {
     "canny": "diff_control_sd15_canny_fp16.safetensors",
     "hed": "diff_control_sd15_hed_fp16.safetensors",
