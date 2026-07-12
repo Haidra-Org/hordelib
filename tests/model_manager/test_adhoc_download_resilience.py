@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import builtins
 import errno
+import hashlib
+import os
 import threading
 import time
 from types import SimpleNamespace
@@ -72,7 +74,9 @@ def test_enospc_write_is_terminal_and_not_retried(tmp_path: Any, monkeypatch: py
 
     def _open_no_space(file: Any, *args: Any, **kwargs: Any) -> Any:
         # Only the weight-file write hits the full disk; everything else (logging, etc.) is unaffected.
-        if str(file).endswith("big.safetensors"):
+        # The weight bytes are staged to a "big.safetensors.tmp-*" sibling before being renamed into
+        # place, so the disk-full failure surfaces on that temp write.
+        if ".safetensors" in str(file) and "wb" in args:
             raise OSError(errno.ENOSPC, "No space left on device")
         return real_open(file, *args, **kwargs)
 
@@ -103,7 +107,7 @@ def test_non_disk_oserror_still_retries(tmp_path: Any, monkeypatch: pytest.Monke
     real_open = builtins.open
 
     def _open_eacces(file: Any, *args: Any, **kwargs: Any) -> Any:
-        if str(file).endswith("big.safetensors"):
+        if ".safetensors" in str(file) and "wb" in args:
             raise OSError(errno.EACCES, "Permission denied")
         return real_open(file, *args, **kwargs)
 
@@ -312,6 +316,95 @@ def test_cancel_active_downloads_bumps_generation_and_clears_queue() -> None:
     assert manager._download_generation == 1
     assert len(manager._download_queue) == 0
     assert manager._stop_all_threads is False, "cancel must not permanently shut the pool down"
+
+
+def test_successful_download_lands_weight_and_sidecar_with_no_temp_residue(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful download leaves the final weight file, its sidecar, and no leftover temp file."""
+    target = DownloadTarget(filename="ok.safetensors", url="http://example/ok", size_mb=1, sha256=None)
+    manager = _bare_manager(tmp_path, target)
+
+    payload = b"weight-bytes"
+
+    def _fake_get(url: str, timeout: float | None = None) -> Any:
+        return SimpleNamespace(content=payload, url=url, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    record = SimpleNamespace(name="ok lora")
+    manager._process_download(_QueuedDownload(record=record), civitai_adhoc.logger.bind(manager="lora"))
+
+    assert (tmp_path / "ok.safetensors").read_bytes() == payload
+    sidecar = (tmp_path / "ok.sha256").read_text()
+    assert sidecar.split()[0] == hashlib.sha256(payload).hexdigest()
+    assert sidecar.split()[1] == "*ok.safetensors"
+    assert list(tmp_path.glob("*.tmp-*")) == [], "a successful download must not leave a temp file behind"
+    manager._record_download_event.assert_called_once()  # pyrefly: ignore
+    assert manager._record_download_event.call_args.kwargs["success"] is True  # pyrefly: ignore
+
+
+def test_replace_failure_leaves_no_partial_final_file(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When the rename into place fails, no partial final file and no leaked temp file remain."""
+    target = DownloadTarget(filename="fail.safetensors", url="http://example/fail", size_mb=1, sha256=None)
+    manager = _bare_manager(tmp_path, target)
+    manager.RETRY_DELAY = 0.0
+
+    def _fake_get(url: str, timeout: float | None = None) -> Any:
+        return SimpleNamespace(content=b"weight-bytes", url=url, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    def _boom_replace(src: Any, dst: Any) -> None:
+        raise OSError(errno.EIO, "I/O error")
+
+    monkeypatch.setattr(civitai_adhoc.os, "replace", _boom_replace)
+
+    record = SimpleNamespace(name="fail lora")
+    manager._process_download(_QueuedDownload(record=record), civitai_adhoc.logger.bind(manager="lora"))
+
+    assert not (tmp_path / "fail.safetensors").exists(), "a failed replace must not leave a partial final file"
+    assert list(tmp_path.glob("*.tmp-*")) == [], "a failed replace must not leak a temp file"
+    manager._record_download_event.assert_called_once()  # pyrefly: ignore
+    assert manager._record_download_event.call_args.kwargs["success"] is False  # pyrefly: ignore
+
+
+def test_weight_is_exposed_only_by_the_atomic_replace(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The final weight name appears only via os.replace; the bytes are staged to a temp sibling first.
+
+    A reader listing the folder mid-write can therefore never observe a torn file at the final path:
+    at the instant the rename runs the final path does not yet exist, and the source is a temp file.
+    """
+    target = DownloadTarget(filename="atomic.safetensors", url="http://example/atomic", size_mb=1, sha256=None)
+    manager = _bare_manager(tmp_path, target)
+
+    payload = b"weight-bytes"
+
+    def _fake_get(url: str, timeout: float | None = None) -> Any:
+        return SimpleNamespace(content=payload, url=url, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    weight_path = str(tmp_path / "atomic.safetensors")
+    real_replace = os.replace
+    replace_calls: list[tuple[str, str]] = []
+
+    def _spy_replace(src: Any, dst: Any) -> None:
+        if str(dst) == weight_path:
+            assert not os.path.exists(weight_path), "the final weight path must not exist before the atomic replace"
+            assert ".tmp-" in str(src), "the weight bytes must be staged to a temp file before being renamed"
+        replace_calls.append((str(src), str(dst)))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(civitai_adhoc.os, "replace", _spy_replace)
+
+    record = SimpleNamespace(name="atomic lora")
+    manager._process_download(_QueuedDownload(record=record), civitai_adhoc.logger.bind(manager="lora"))
+
+    weight_replaces = [call for call in replace_calls if call[1] == weight_path]
+    assert len(weight_replaces) == 1, "the weight file must be exposed by exactly one atomic replace"
+    assert (tmp_path / "atomic.safetensors").read_bytes() == payload
 
 
 def test_read_timeout_still_retries_and_is_not_cached(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:

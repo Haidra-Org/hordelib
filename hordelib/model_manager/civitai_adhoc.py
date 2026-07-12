@@ -77,6 +77,15 @@ lets the rename land once the transient read handle closes.
 REFERENCE_REPLACE_RETRY_DELAY = 0.05
 """Delay between atomic-rename retries, in seconds."""
 
+ORPHAN_TEMP_MIN_AGE_SECONDS = 3600
+"""Only prune an atomic-write temp file whose mtime is older than this many seconds.
+
+A temp file younger than this may belong to a writer in another process still transferring bytes: a
+weight download can run for the whole of a large transfer. A live writer finishes (its rename) or
+fails (its own cleanup) well inside this window, so only a crashed writer's temp survives past it.
+Age-gating the prune reclaims leaked disk without ever deleting an in-flight write.
+"""
+
 DEFAULT_MIN_FREE_DISK_MB = 1024
 """Keep at least this many MB free on the cache volume; ad-hoc downloads evict (then refuse) below it.
 
@@ -331,6 +340,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         if not self.read_only:
             os.makedirs(self.model_folder_path, exist_ok=True)
             os.makedirs(self.models_db_path.parent, exist_ok=True)
+            self._prune_orphan_temp_files()
 
         if not self.models_db_path.exists():
             manager_logger.info("adhoc.reference_missing", database_name=self.models_db_name)
@@ -380,6 +390,33 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 )
         return reference
 
+    def _prune_orphan_temp_files(self) -> None:
+        """Remove atomic-write temp files left by a writer that crashed mid-download.
+
+        A temp file is inert: it is never loaded and never matches the weight-file scan, so it only
+        wastes disk. Only files older than :data:`ORPHAN_TEMP_MIN_AGE_SECONDS` are removed, because a
+        younger temp may belong to a writer in another process still transferring bytes (a fresh
+        manager on this host can be constructed while the download process is mid-fetch), and deleting
+        it would fail that in-flight write. Never called for a read-only manager, which never writes
+        weights and so never orphans a temp file.
+        """
+        cutoff = time.time() - ORPHAN_TEMP_MIN_AGE_SECONDS
+        for temp_file in glob.glob(os.path.join(self.model_folder_path, "*.tmp-*")):
+            try:
+                mtime = os.stat(temp_file).st_mtime
+            except OSError:
+                # The file vanished between the glob and the stat (its writer completed the rename, or
+                # another pruner won the race); there is nothing left to remove.
+                continue
+            if mtime > cutoff:
+                continue
+            try:
+                os.remove(temp_file)
+            except OSError as remove_error:
+                logger.bind(manager=self.METRIC_PREFIX).warning(
+                    "adhoc.temp_file_prune_failed", temp_path=temp_file, error=str(remove_error)
+                )
+
     def _prune_missing_files(self) -> None:
         """Drop cache entries whose weight file is no longer present on disk."""
         for entry in list(self._iter_cache_entries()):
@@ -409,20 +446,25 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
             tmp_path = f"{self.models_db_path}.tmp-{uuid.uuid4().hex[:8]}"
             with open(tmp_path, "w", encoding="utf-8", errors="ignore") as outfile:
                 outfile.write(payload)
-            self._replace_reference_file(tmp_path)
+            self._replace_file_with_retry(tmp_path, self.models_db_path)
             self._record_reference_stamp()
             if self._using_multiprocessing:
                 self.cleanup_reference_backup_files()
 
-    def _replace_reference_file(self, tmp_path: str) -> None:
-        """Rename *tmp_path* onto the reference file, retrying a transient Windows sharing violation.
+    def _replace_file_with_retry(self, tmp_path: str, dest_path: str | Path) -> None:
+        """Rename *tmp_path* onto *dest_path*, retrying a transient Windows sharing violation.
+
+        On Windows a rename onto a file another process holds open (a lock-free reader mid-read) fails
+        with a sharing violation even though that reader still sees the intact previous file. A brief
+        bounded retry lets the rename land once the transient read handle closes. On final failure the
+        temp file is removed so a blocked replace leaves nothing behind.
 
         Raises:
             PermissionError: If the rename is still blocked after :data:`REFERENCE_REPLACE_ATTEMPTS`.
         """
         for attempt in range(REFERENCE_REPLACE_ATTEMPTS):
             try:
-                os.replace(tmp_path, self.models_db_path)
+                os.replace(tmp_path, dest_path)
                 return
             except PermissionError:
                 if attempt == REFERENCE_REPLACE_ATTEMPTS - 1:
@@ -432,6 +474,31 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                         pass
                     raise
                 time.sleep(REFERENCE_REPLACE_RETRY_DELAY)
+
+    def _atomic_write_bytes(self, dest_path: str, data: bytes) -> None:
+        """Write *data* to *dest_path* atomically via a sibling temp file and a hardened rename.
+
+        The bytes are staged to a uniquely named temp file in the same directory as *dest_path* (same
+        filesystem, so the rename is atomic) and then moved into place with
+        :meth:`_replace_file_with_retry`. A concurrent reader listing the folder only ever observes the
+        temp name or the fully placed final file, never a truncated write at *dest_path*. The temp file
+        is removed on any failure, so an error mid-write leaves neither a partial final file nor a
+        leaked temp file.
+
+        Raises:
+            OSError: If the temp write or the rename fails (e.g. a full disk or a persistent lock).
+        """
+        tmp_path = f"{dest_path}.tmp-{uuid.uuid4().hex[:8]}"
+        try:
+            with open(tmp_path, "wb") as tmp_file:
+                tmp_file.write(data)
+            self._replace_file_with_retry(tmp_path, dest_path)
+        finally:
+            if os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
 
     def reload_reference_from_disk(self) -> None:
         """Reload the reference from disk, rebuild the indices and available list, and restamp the file."""
@@ -788,10 +855,13 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                     time.sleep(self.RETRY_DELAY)
                     continue
 
-                with open(filepath, "wb") as weight_file:
-                    weight_file.write(response.content)
-                with open(hashpath, "w") as hash_file:
-                    hash_file.write(f"{sha256} *{target.filename}")
+                # Stage the weight bytes to a temp file and rename into place so a concurrent reader
+                # (another process loading this model) never observes a torn or truncated file at the
+                # final path. The sidecar lands only after the weight file is fully placed, so a present
+                # sidecar always describes a complete weight file; a weight file without a sidecar is
+                # harmlessly re-verified or re-downloaded.
+                self._atomic_write_bytes(filepath, response.content)
+                self._atomic_write_bytes(hashpath, f"{sha256} *{target.filename}".encode())
 
                 self._commit_download(record, target, downloaded=True)
                 self._metric_download_duration.record(time.perf_counter() - download_start)

@@ -17,6 +17,7 @@ from __future__ import annotations
 import json
 import os
 import threading
+import time
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Any
@@ -169,6 +170,30 @@ class TestAtomicSave:
 
         assert not reader_errors, f"a reader must never observe a partially written reference: {reader_errors}"
         assert isinstance(json.loads(db_path.read_text()), dict)
+
+
+class TestOrphanTempFilePrune:
+    def test_load_prunes_only_aged_temp_files(self, tmp_path: Path) -> None:
+        """load_model_database removes a stale orphan temp but spares a fresh one a live writer may own.
+
+        A fresh temp file may belong to the download process still transferring bytes when a sibling
+        manager is constructed on the same host; deleting it would fail that in-flight fetch. Only a
+        temp older than the age gate (a crashed writer's leak) is pruned.
+        """
+        db_path = tmp_path / "lora.json"
+        manager = _lora_shell(tmp_path, db_path)
+
+        fresh_temp = tmp_path / "fresh.safetensors.tmp-aaaaaaaa"
+        stale_temp = tmp_path / "stale.safetensors.tmp-bbbbbbbb"
+        fresh_temp.write_bytes(b"in-flight")
+        stale_temp.write_bytes(b"crashed")
+        aged = time.time() - (civitai_adhoc.ORPHAN_TEMP_MIN_AGE_SECONDS + 60)
+        os.utime(stale_temp, (aged, aged))
+
+        manager.load_model_database()
+
+        assert fresh_temp.exists(), "a fresh temp (a possibly live writer's in-flight file) must survive the prune"
+        assert not stale_temp.exists(), "a temp older than the age gate (a crashed writer's leak) must be pruned"
 
 
 class TestRefreshReferenceIfStale:
