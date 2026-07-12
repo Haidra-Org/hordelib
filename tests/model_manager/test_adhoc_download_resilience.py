@@ -28,6 +28,8 @@ def _bare_manager(tmp_path: Any, target: DownloadTarget | None) -> LoraModelMana
     manager = object.__new__(LoraModelManager)
     manager.model_folder_path = str(tmp_path)
     manager._civitai_api_token = None
+    manager.read_only = False
+    manager.eviction_pins = set()
     manager.total_retries_attempted = 0
     manager.stop_downloading = False
     manager.min_free_disk_mb = 0

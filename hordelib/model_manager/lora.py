@@ -68,6 +68,8 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         multiprocessing_lock: multiprocessing_lock | None = None,
         civitai_api_token: str | None = None,
         reference_backups: bool | None = None,
+        *,
+        read_only: bool = False,
     ) -> None:
         """Create the LoRA manager.
 
@@ -82,6 +84,8 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             multiprocessing_lock: Optional cross-process lock guarding on-disk reference writes.
             civitai_api_token: Optional CivitAI API token.
             reference_backups: Whether to write timestamped reference backups on each save.
+            read_only: When ``True``, the manager is a pure reader that never writes, downloads, or
+                evicts; mutating calls raise :class:`~hordelib.model_manager.civitai_adhoc.ReadOnlyModelManagerError`.
         """
         self._index_version_ids: dict[str, str] = {}
         self._default_lora_ids: list = []
@@ -116,6 +120,7 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             max_top_disk=allowed_top_lora_storage,
             max_adhoc_disk=adhoc_storage,
             min_free_disk_mb=min_free_disk_mb,
+            read_only=read_only,
         )
 
     def ensure_is_version(self, lora_version: int | str) -> str | None:
@@ -234,7 +239,11 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         return self.is_model_available(lora_name)
 
     def _touch_lora(self, lora_name: str | int, is_version: bool = False) -> None:
-        """Mark the latest (or specified) version of *lora_name* as used now, and persist."""
+        """Mark the latest (or specified) version of *lora_name* as used now, and persist.
+
+        In read-only mode the in-memory timestamp is still updated but nothing is written to disk, so
+        availability checks stay pure reads.
+        """
         record = self.get_model_reference_info(lora_name, is_version)
         if not record:
             return
@@ -242,7 +251,8 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         if version_id is None or version_id not in record.versions:
             return
         record.versions[version_id].last_used = now_timestamp()
-        self.save_reference_to_disk()
+        if not self.read_only:
+            self.save_reference_to_disk()
 
     def get_lora_last_use(self, lora_name: str | int, is_version: bool = False) -> datetime | None:
         """Return when the latest (or specified) version of *lora_name* was last used, or ``None``."""
@@ -442,7 +452,12 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
 
     @override
     def _delete_model_entry(self, model_key: str, version_key: str | None) -> None:
-        """Delete a single LoRA version's file, forget it, and persist."""
+        """Delete a single LoRA version's file, forget it, and persist.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
+        """
+        self._ensure_writable()
         record = self.model_reference.get(model_key)
         if record is None or version_key is None or version_key not in record.versions:
             return
@@ -543,7 +558,12 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
                 self._enqueue_download(record, {"trigger_source": "adhoc_queue" if adhoc else "default_queue"})
 
     def reset_adhoc_cache(self) -> None:
-        """Wait for in-flight downloads, then evict ad-hoc entries back within budget."""
+        """Wait for in-flight downloads, then evict ad-hoc entries back within budget.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
+        """
+        self._ensure_writable()
         while not self.are_downloads_complete():
             if self._stop_all_threads:
                 return
@@ -586,7 +606,11 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
 
         If *timeout* is set, blocks until the download completes and returns the reference key;
         otherwise starts the download and returns ``None`` immediately.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
         """
+        self._ensure_writable()
         if is_version and not (isinstance(lora_name, int) or str(lora_name).isdigit()):
             return None
         if isinstance(lora_name, int) or str(lora_name).isdigit():
