@@ -11,6 +11,7 @@ from loguru import logger
 
 # from hordelib.model_manager.diffusers import DiffusersModelManager
 from hordelib.model_manager.base import BaseModelManager
+from hordelib.model_manager.civitai_adhoc import CivitaiAdhocModelManager
 from hordelib.model_manager.codeformer import CodeFormerModelManager
 from hordelib.model_manager.compvis import CompVisModelManager
 from hordelib.model_manager.controlnet import ControlNetModelManager
@@ -201,6 +202,7 @@ class ModelManager:
         managers_to_load: Iterable[str | MODEL_REFERENCE_CATEGORY | type[BaseModelManager]],
         multiprocessing_lock: multiprocessing_lock | None = None,
         lora_reference_backups: bool | None = None,
+        adhoc_read_only: bool = False,
     ) -> None:
         for raw_manager_to_load in managers_to_load:
             manager_to_load = resolve_manager_alias(raw_manager_to_load)
@@ -234,6 +236,9 @@ class ModelManager:
             }
             if resolve_manager_to_load_type is LoraModelManager and lora_reference_backups is not None:
                 manager_kwargs["reference_backups"] = lora_reference_backups
+            # read_only is an ad-hoc CivitAI concept only; the other managers do not accept it.
+            if issubclass(resolve_manager_to_load_type, CivitaiAdhocModelManager):
+                manager_kwargs["read_only"] = adhoc_read_only
 
             self.active_model_managers.append(resolve_manager_to_load_type(**manager_kwargs))
 

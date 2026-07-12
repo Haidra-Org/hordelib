@@ -82,6 +82,7 @@ class SharedModelManager:
         multiprocessing_lock: multiprocessing_lock | None = None,
         lora_reference_backups: bool | None = None,
         reference_offline: bool | None = None,
+        adhoc_read_only: bool = False,
     ):
         """Load the model managers specified.
 
@@ -98,6 +99,11 @@ class SharedModelManager:
             reference_offline (bool | None, optional): If True, construct the reference manager in \
                 offline mode (read references from local disk only, never download). If None, defers \
                 to the process-wide override / ``HORDE_MODEL_REFERENCE_OFFLINE``. Defaults to None.
+            adhoc_read_only (bool, optional): When True, the ad-hoc CivitAI managers (LoRA and TI) are \
+                constructed read-only. A read-only ad-hoc manager never writes its reference, downloads \
+                weights, or evicts, and construction itself performs no writes; any mutating call raises \
+                ReadOnlyModelManagerError. Lets a consumer process that must never write (an inference \
+                child) get that enforcement. Non-ad-hoc managers are unaffected. Defaults to False.
         """
         if cls.manager is None:
             cls.manager = ModelManager()
@@ -137,6 +143,7 @@ class SharedModelManager:
             managers_to_load,
             multiprocessing_lock=multiprocessing_lock,
             lora_reference_backups=lora_reference_backups,
+            adhoc_read_only=adhoc_read_only,
         )
 
         cls._register_civitai_provider()
