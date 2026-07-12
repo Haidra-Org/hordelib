@@ -43,6 +43,8 @@ def _make_record(key: str, version_id: int, size_mb: float, *, adhoc: bool = Tru
 def _make_manager(*, max_adhoc_disk: int, min_free_disk_mb: int = DEFAULT_MIN_FREE_DISK_MB) -> LoraModelManager:
     """Build a LoraModelManager shell (no __init__) wired only for in-memory cache accounting."""
     manager = object.__new__(LoraModelManager)
+    manager.read_only = False
+    manager.eviction_pins = set()
     manager.max_adhoc_disk = max_adhoc_disk
     manager._max_top_disk = max_adhoc_disk
     manager.min_free_disk_mb = min_free_disk_mb

@@ -66,6 +66,17 @@ ad-hoc downloader treats these as terminal so the queue drains promptly instead 
 A1111_TRIGGER_PATTERN = re.compile(r"<(?:lora|ti):(.*):.*>")
 """Matches A1111-style inline trigger syntax so it can be reduced to the bare trigger word."""
 
+REFERENCE_REPLACE_ATTEMPTS = 20
+"""How many times an atomic reference rename is retried before giving up.
+
+On Windows a rename onto a file another process holds open (a lock-free reader mid-read) fails with a
+sharing violation, even though that reader still sees the intact previous file. A brief bounded retry
+lets the rename land once the transient read handle closes.
+"""
+
+REFERENCE_REPLACE_RETRY_DELAY = 0.05
+"""Delay between atomic-rename retries, in seconds."""
+
 DEFAULT_MIN_FREE_DISK_MB = 1024
 """Keep at least this many MB free on the cache volume; ad-hoc downloads evict (then refuse) below it.
 
@@ -143,6 +154,15 @@ class SkipDownload(Exception):
     """
 
 
+class ReadOnlyModelManagerError(RuntimeError):
+    """Raised when a write, download, or eviction is attempted on a read-only manager.
+
+    A read-only manager is a pure reader of the on-disk reference: it never writes the reference,
+    never downloads weights, and never evicts. Any code path that would mutate disk state raises this
+    so misuse is loud, while the read APIs (lookups, availability checks, refresh) never trip it.
+    """
+
+
 @dataclass
 class _QueuedDownload[R]:
     """An item on the download queue: the record to download plus contextual logging metadata."""
@@ -216,6 +236,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         max_top_disk: int,
         max_adhoc_disk: int,
         min_free_disk_mb: int = DEFAULT_MIN_FREE_DISK_MB,
+        read_only: bool = False,
     ) -> None:
         """Create an ad-hoc CivitAI model manager.
 
@@ -232,7 +253,14 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
             max_adhoc_disk: The ad-hoc cache budget, in megabytes.
             min_free_disk_mb: Keep at least this much free space (in megabytes) on the cache volume;
                 ad-hoc downloads evict to make room and refuse rather than cross the floor.
+            read_only: When ``True``, the manager is a pure reader: it never writes the reference,
+                downloads weights, or evicts. Construction loads the reference without writing it back,
+                and any mutating path raises :class:`ReadOnlyModelManagerError`.
         """
+        self.read_only = read_only
+        self.eviction_pins: set[str] = set()
+        self._reference_stamp: tuple[int, int] | None = None
+
         self._max_top_disk = max_top_disk
         self.max_adhoc_disk = max_adhoc_disk
         self.min_free_disk_mb = max(0, min_free_disk_mb)
@@ -294,15 +322,21 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
 
     @override
     def load_model_database(self) -> None:
-        """Load the cached reference from disk, dropping entries whose weight file is missing."""
+        """Load the cached reference from disk, dropping entries whose weight file is missing.
+
+        A read-only manager loads without any disk mutation: it neither creates folders, prunes
+        missing-file entries, nor writes the reference back.
+        """
         manager_logger = logger.bind(manager=self.METRIC_PREFIX)
-        os.makedirs(self.model_folder_path, exist_ok=True)
-        os.makedirs(self.models_db_path.parent, exist_ok=True)
+        if not self.read_only:
+            os.makedirs(self.model_folder_path, exist_ok=True)
+            os.makedirs(self.models_db_path.parent, exist_ok=True)
 
         if not self.models_db_path.exists():
             manager_logger.info("adhoc.reference_missing", database_name=self.models_db_name)
             self.model_reference = {}
-            self.save_reference_to_disk()
+            if not self.read_only:
+                self.save_reference_to_disk()
             return
 
         with self._file_mutex, self._file_lock:
@@ -310,12 +344,15 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 raw = json.loads(self.models_db_path.read_text())
             except json.JSONDecodeError:
                 raw = self._load_reference_backup()
+            self._record_reference_stamp()
 
         self.model_reference = self._deserialise_reference(raw)
-        self._prune_missing_files()
+        if not self.read_only:
+            self._prune_missing_files()
         self._rebuild_indices()
         self.available_models = list(self.model_reference.keys())
-        self.save_reference_to_disk()
+        if not self.read_only:
+            self.save_reference_to_disk()
         manager_logger.info("adhoc.reference_loaded", model_count=len(self.model_reference))
 
     def _load_reference_backup(self) -> dict:
@@ -350,7 +387,17 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 self._drop_entry(entry.model_key, entry.version_key)
 
     def save_reference_to_disk(self) -> None:
-        """Persist the in-memory reference to disk, optionally writing a timestamped backup first."""
+        """Persist the in-memory reference to disk atomically, writing a backup first if configured.
+
+        The payload is written to a sibling temporary file and then renamed onto the target with
+        :func:`os.replace`, so a concurrent reader always observes either the previous or the new
+        complete file, never a partially written one. In multiprocessing mode a timestamped backup is
+        still written first as recovery insurance.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
+        """
+        self._ensure_writable()
         serialised = {key: record.model_dump(mode="json") for key, record in self.model_reference.items()}
         payload = json.dumps(serialised, indent=4)
         os.makedirs(self.models_db_path.parent, exist_ok=True)
@@ -359,17 +406,81 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 backup_path = f"{self.models_db_path}-backup-{uuid.uuid4().hex[:8]}.json"
                 with open(backup_path, "w", encoding="utf-8", errors="ignore") as backup_file:
                     backup_file.write(payload)
-            with open(self.models_db_path, "w", encoding="utf-8", errors="ignore") as outfile:
+            tmp_path = f"{self.models_db_path}.tmp-{uuid.uuid4().hex[:8]}"
+            with open(tmp_path, "w", encoding="utf-8", errors="ignore") as outfile:
                 outfile.write(payload)
+            self._replace_reference_file(tmp_path)
+            self._record_reference_stamp()
             if self._using_multiprocessing:
                 self.cleanup_reference_backup_files()
 
+    def _replace_reference_file(self, tmp_path: str) -> None:
+        """Rename *tmp_path* onto the reference file, retrying a transient Windows sharing violation.
+
+        Raises:
+            PermissionError: If the rename is still blocked after :data:`REFERENCE_REPLACE_ATTEMPTS`.
+        """
+        for attempt in range(REFERENCE_REPLACE_ATTEMPTS):
+            try:
+                os.replace(tmp_path, self.models_db_path)
+                return
+            except PermissionError:
+                if attempt == REFERENCE_REPLACE_ATTEMPTS - 1:
+                    try:
+                        os.remove(tmp_path)
+                    except OSError:
+                        pass
+                    raise
+                time.sleep(REFERENCE_REPLACE_RETRY_DELAY)
+
     def reload_reference_from_disk(self) -> None:
-        """Reload the reference from disk and rebuild the in-memory indices."""
+        """Reload the reference from disk, rebuild the indices and available list, and restamp the file."""
         with self._file_mutex, self._file_lock:
             raw = json.loads(self.models_db_path.read_text())
+            self._record_reference_stamp()
         self.model_reference = self._deserialise_reference(raw)
         self._rebuild_indices()
+        self.available_models = list(self.model_reference.keys())
+
+    def _current_reference_stamp(self) -> tuple[int, int] | None:
+        """Return the reference file's ``(mtime_ns, size)`` identity, or ``None`` if it is absent."""
+        try:
+            stat_result = os.stat(self.models_db_path)
+        except OSError:
+            return None
+        return (stat_result.st_mtime_ns, stat_result.st_size)
+
+    def _record_reference_stamp(self) -> None:
+        """Remember the reference file's current identity so a later refresh can detect a change."""
+        self._reference_stamp = self._current_reference_stamp()
+
+    def refresh_reference_if_stale(self) -> bool:
+        """Reload the reference only if the file changed on disk since the last load or save.
+
+        Cheap enough to call before every job: when the file is unchanged this stats it once and
+        returns without parsing. A change (another process wrote the reference) triggers a full reload,
+        re-validation, and index rebuild.
+
+        Returns:
+            ``True`` if the reference was reloaded, ``False`` if it was already current (or absent).
+        """
+        stamp = self._current_reference_stamp()
+        if stamp is None or stamp == self._reference_stamp:
+            return False
+        with self._mutex:
+            self.reload_reference_from_disk()
+        return True
+
+    def _ensure_writable(self) -> None:
+        """Raise if this manager is read-only.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
+        """
+        if self.read_only:
+            raise ReadOnlyModelManagerError(
+                f"{self.METRIC_PREFIX} model manager is read-only; downloads, writes, and eviction are disabled",
+            )
 
     def get_all_backup_files(self) -> list[Path]:
         """Return existing reference backup files, newest first."""
@@ -467,7 +578,12 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     # ------------------------------------------------------------------
 
     def _enqueue_download(self, record: RecordT, context: dict | None = None) -> None:
-        """Ensure the worker pool is running and append *record* to the download queue."""
+        """Ensure the worker pool is running and append *record* to the download queue.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
+        """
+        self._ensure_writable()
         with self._download_mutex:
             if len(self._download_threads) < self.MAX_DOWNLOAD_THREADS:
                 while len(self._download_threads) < self.MAX_DOWNLOAD_THREADS:
@@ -894,34 +1010,77 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
             return 0
         return 1 + int((self.calculate_adhoc_cache() - self.max_adhoc_disk) / 4096)
 
+    def set_eviction_pins(self, keys: set[str]) -> None:
+        """Protect the reference *keys* in *keys* from every eviction and deletion path.
+
+        Keys are the sanitised reference keys already used to index :attr:`model_reference`; resolving
+        a request such as ``(name, is_version)`` to its key is the caller's job via the existing lookup
+        APIs. Passing an empty set clears all pins and restores unrestricted eviction.
+        """
+        with self._mutex:
+            self.eviction_pins = set(keys)
+
     def find_oldest_adhoc_entry(self) -> CacheEntry | None:
-        """Return the least-recently-used ad-hoc cache entry, or ``None`` if there are none."""
+        """Return the least-recently-used unpinned ad-hoc cache entry, or ``None`` if there are none.
+
+        Entries whose model key is in :attr:`eviction_pins` are never returned, so they are never
+        chosen as an eviction victim.
+        """
         oldest: CacheEntry | None = None
         for entry in self._iter_cache_entries():
             if not entry.adhoc:
+                continue
+            if entry.model_key in self.eviction_pins:
                 continue
             if oldest is None or (entry.last_used or datetime.now()) < (oldest.last_used or datetime.now()):
                 oldest = entry
         return oldest
 
     def delete_oldest(self) -> None:
-        """Evict the least-recently-used ad-hoc cache entry, if any."""
+        """Evict the least-recently-used unpinned ad-hoc cache entry, if any.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
+        """
         oldest = self.find_oldest_adhoc_entry()
         if oldest is None:
             return
         self._delete_model_entry(oldest.model_key, oldest.version_key)
 
+    def _note_eviction_yielded(self) -> None:
+        """Log that eviction found no unpinned victim while pinned ad-hoc entries remain."""
+        if self.find_adhoc_models():
+            logger.bind(manager=self.METRIC_PREFIX).info(
+                "adhoc.eviction_yielded_all_pinned",
+                pinned_keys=len(self.eviction_pins),
+            )
+
     def _evict_adhoc_over_limit(self) -> None:
-        """Evict ad-hoc entries until the ad-hoc cache is back within budget."""
+        """Evict unpinned ad-hoc entries until the ad-hoc cache is back within budget.
+
+        Yields without deleting once no unpinned victim remains (every candidate is pinned).
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
+        """
+        self._ensure_writable()
         for _eviction in range(self.amount_of_adhoc_to_delete()):
-            self.delete_oldest()
+            oldest = self.find_oldest_adhoc_entry()
+            if oldest is None:
+                self._note_eviction_yielded()
+                return
+            self._delete_model_entry(oldest.model_key, oldest.version_key)
 
     def enforce_adhoc_budget(self) -> None:
         """Evict ad-hoc entries back within :attr:`max_adhoc_disk` and persist, if over budget.
 
         The public entry point for callers (e.g. the worker) that have just lowered
         ``max_adhoc_disk`` to constrain the cache and want the eviction applied immediately.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
         """
+        self._ensure_writable()
         if self.is_adhoc_cache_full():
             self._evict_adhoc_over_limit()
             self.save_reference_to_disk()
@@ -951,8 +1110,13 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
 
         Returns:
             ``True`` once free space meets the target (or the volume can't be sampled), ``False`` if
-            the ad-hoc entries are exhausted and the target still isn't met (an "unsolvable" disk).
+            the unpinned ad-hoc entries are exhausted and the target still isn't met (an "unsolvable"
+            disk, which also covers the case where every remaining ad-hoc entry is pinned).
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
         """
+        self._ensure_writable()
         target_mb = self.min_free_disk_mb + max(required_mb, 0.0)
         evicted_any = False
         while True:
@@ -963,6 +1127,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 return True
             oldest = self.find_oldest_adhoc_entry()
             if oldest is None:
+                self._note_eviction_yielded()
                 if evicted_any:
                     self.save_reference_to_disk()
                 return False
@@ -972,9 +1137,13 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     def _ensure_room_for_download(self, target: DownloadTarget) -> bool:
         """Return whether *target* can be written without crossing the disk floor, evicting if needed.
 
-        Evicts oldest ad-hoc entries to make room. Returns ``False`` when even an empty ad-hoc cache
-        would leave the volume below the floor (a download that must be skipped).
+        Evicts oldest unpinned ad-hoc entries to make room. Returns ``False`` when even an empty ad-hoc
+        cache would leave the volume below the floor (a download that must be skipped).
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
         """
+        self._ensure_writable()
         free = self.disk_free_mb()
         if free is None:
             return True  # Can't sample the volume; defer to the normal ENOSPC handling on write.
@@ -999,9 +1168,13 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     def delete_unused_models(self, timeout: float = 0) -> set[str]:
         """Delete on-disk weight files not referenced by any record once downloads are complete.
 
+        Pinned entries are always referenced, so their files are never in the unused set.
+
         Raises:
             TimeoutError: If downloads do not complete within *timeout* seconds.
+            ReadOnlyModelManagerError: If the manager is read-only.
         """
+        self._ensure_writable()
         waited = 0.0
         while not self.are_downloads_complete():
             if waited >= timeout:

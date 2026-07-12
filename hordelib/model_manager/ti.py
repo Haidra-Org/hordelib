@@ -62,6 +62,8 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
         download_reference: bool = False,
         multiprocessing_lock: multiprocessing_lock | None = None,
         civitai_api_token: str | None = None,
+        *,
+        read_only: bool = False,
         **kwargs,
     ) -> None:
         """Create the textual inversion manager.
@@ -70,6 +72,9 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
             download_reference: Accepted for parity; ad-hoc managers build their reference on demand.
             multiprocessing_lock: Optional cross-process lock guarding on-disk reference writes.
             civitai_api_token: Optional CivitAI API token.
+            read_only: When ``True``, the manager is a pure reader that never writes, downloads, or
+                evicts; mutating calls raise
+                :class:`~hordelib.model_manager.civitai_adhoc.ReadOnlyModelManagerError`.
             **kwargs: Ignored; accepted for uniform construction across managers.
         """
         models_db_path = horde_model_reference_paths.legacy_path.joinpath("ti.json").resolve()
@@ -81,6 +86,7 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
             multiprocessing_lock=multiprocessing_lock,
             max_top_disk=TI_CACHE_SIZE_DEFAULT_MB,
             max_adhoc_disk=TI_CACHE_SIZE_DEFAULT_MB,
+            read_only=read_only,
         )
 
     # ------------------------------------------------------------------
@@ -307,7 +313,12 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
 
     @override
     def _delete_model_entry(self, model_key: str, version_key: str | None) -> None:
-        """Delete an embedding's weight file, forget it, and persist."""
+        """Delete an embedding's weight file, forget it, and persist.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
+        """
+        self._ensure_writable()
         record = self.model_reference.get(model_key)
         if record is None:
             return
@@ -334,7 +345,11 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
         """Ensure an embedding is available, downloading it from CivitAI/Hordeling on demand.
 
         Returns the reference key on success, or ``None`` if it could not be found or downloaded.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
         """
+        self._ensure_writable()
         if isinstance(ti_name, int) or str(ti_name).isdigit():
             # CivitAI returns 500 (not 404) for ids beyond its id space; reject impossible ids early.
             if int(ti_name) >= 2**32:
