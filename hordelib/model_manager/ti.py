@@ -9,8 +9,8 @@ previous bespoke implementation, the TI cache is now genuinely size-bounded.
 
 from __future__ import annotations
 
-import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
+from enum import auto
 from multiprocessing.synchronize import Lock as multiprocessing_lock
 from typing import override
 
@@ -20,6 +20,7 @@ from fuzzywuzzy import fuzz
 from horde_model_reference import horde_model_reference_paths
 from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY
 from horde_model_reference.model_reference_records import DownloadRecord
+from strenum import StrEnum
 
 from hordelib.model_manager.civitai_adhoc import (
     CacheEntry,
@@ -38,6 +39,17 @@ MAX_ADHOC_TI_SIZE_KB = 20000
 
 TI_CACHE_SIZE_DEFAULT_MB = 1024
 """The default cache budget in megabytes; embeddings are tiny, so this rarely binds."""
+
+
+class TIRejectionReason(StrEnum):
+    """Reasons a textual inversion is permanently rejected from ad-hoc download."""
+
+    NOT_FOUND = auto()
+    """No embedding matched the request (CivitAI returned no items, or Hordeling reported a 404)."""
+    UNEXPECTED_TYPE = auto()
+    """Hordeling reported the resolved file is the wrong type or its hash does not match."""
+    INVALID = auto()
+    """The embedding's metadata is invalid or incomplete (impossible id, missing checksum, etc.)."""
 
 
 class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversionModelRecord]):
@@ -77,6 +89,9 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
                 :class:`~hordelib.model_manager.civitai_adhoc.ReadOnlyModelManagerError`.
             **kwargs: Ignored; accepted for uniform construction across managers.
         """
+        # Terminal Hordeling rejections observed by download workers in _prepare_download, keyed by
+        # CivitAI id and drained on read so a reason from one fetch cannot leak into a later one.
+        self._adhoc_rejection_reasons: dict[int, TIRejectionReason] = {}
         models_db_path = horde_model_reference_paths.legacy_path.joinpath("ti.json").resolve()
         super().__init__(
             model_category=MODEL_REFERENCE_CATEGORY.ti,
@@ -229,6 +244,16 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
     # Download hooks
     # ------------------------------------------------------------------
 
+    def _record_rejection_reason(self, civitai_id: int, reason: TIRejectionReason) -> None:
+        """Remember a terminal rejection *reason* for *civitai_id* so the fetch caller can report it."""
+        with self._mutex:
+            self._adhoc_rejection_reasons[civitai_id] = reason
+
+    def _drain_rejection_reason(self, civitai_id: int) -> TIRejectionReason | None:
+        """Return and forget the terminal rejection reason recorded for *civitai_id*, if any."""
+        with self._mutex:
+            return self._adhoc_rejection_reasons.pop(civitai_id, None)
+
     @override
     def _prepare_download(self, record: HordeTextualInversionModelRecord) -> DownloadTarget | None:
         """Resolve *record*'s download URL and checksum via the Hordeling API.
@@ -240,11 +265,13 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
         response = requests.get(f"{self.HORDELING_API}/{record.civitai_id}", timeout=5)
         if not response.ok:
             if response.status_code == 404:
+                self._record_rejection_reason(record.civitai_id, TIRejectionReason.NOT_FOUND)
                 raise SkipDownload
             payload = response.json()
             message = payload.get("message", "")
             message = message.lower() if isinstance(message, str) else ""
             if "unexpected type" in message or "hash" in message:
+                self._record_rejection_reason(record.civitai_id, TIRejectionReason.UNEXPECTED_TYPE)
                 raise SkipDownload
             response.raise_for_status()  # Transient (e.g. 500); let the base retry.
 
@@ -341,10 +368,56 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
     # ------------------------------------------------------------------
 
     @logfire.instrument("ti.fetch_adhoc", extract_args=True)
-    def fetch_adhoc_ti(self, ti_name: str | int, timeout: float = 15) -> str | None:
+    def fetch_adhoc_ti(
+        self,
+        ti_name: str | int,
+        timeout: float = 15,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> str | None:
         """Ensure an embedding is available, downloading it from CivitAI/Hordeling on demand.
 
-        Returns the reference key on success, or ``None`` if it could not be found or downloaded.
+        Blocks until this embedding's own download finishes (unrelated queued downloads no longer extend
+        the wait) and returns the reference key on success, or ``None`` if it could not be found or
+        downloaded, or if *timeout* elapsed before the download finished (raising nothing).
+
+        Args:
+            ti_name: The CivitAI id or name to resolve.
+            timeout: Seconds to wait for the download to finish.
+            progress_callback: Optional hook invoked as ``(downloaded_bytes, total_bytes)`` per streamed
+                chunk while the weight file is written; ``total_bytes`` is ``0`` when unknown.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
+        """
+        ti_key, _ = self.fetch_adhoc_ti_with_reason(
+            ti_name=ti_name,
+            timeout=timeout,
+            progress_callback=progress_callback,
+        )
+        return ti_key
+
+    @logfire.instrument("ti.fetch_adhoc_with_reason", extract_args=True)
+    def fetch_adhoc_ti_with_reason(
+        self,
+        ti_name: str | int,
+        timeout: float = 15,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> tuple[
+        str | None,
+        TIRejectionReason | None,
+    ]:
+        """Ensure an embedding is available, downloading it from CivitAI/Hordeling on demand.
+
+        Behaves like :meth:`fetch_adhoc_ti`, additionally returning why a request produced no key. A
+        successful fetch yields ``(reference_key, None)``. A transient failure (metadata fetch failure,
+        an elapsed *timeout*, or a plain download failure) yields ``(None, None)``. A permanent upstream
+        rejection yields ``(None, reason)``.
+
+        Args:
+            ti_name: The CivitAI id or name to resolve.
+            timeout: Seconds to wait for the download to finish.
+            progress_callback: Optional hook invoked as ``(downloaded_bytes, total_bytes)`` per streamed
+                chunk while the weight file is written; ``total_bytes`` is ``0`` when unknown.
 
         Raises:
             ReadOnlyModelManagerError: If the manager is read-only.
@@ -353,28 +426,42 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
         if isinstance(ti_name, int) or str(ti_name).isdigit():
             # CivitAI returns 500 (not 404) for ids beyond its id space; reject impossible ids early.
             if int(ti_name) >= 2**32:
-                return None
+                return None, TIRejectionReason.INVALID
             url = f"https://civitai.com/api/v1/models/{ti_name}"
         else:
             url = f"{self.TI_API}&nsfw={str(self.nsfw).lower()}&query={ti_name}"
 
         data = self._fetch_civitai_json(url)
         if not data:
-            return None
+            # A None body conflates a genuine "not found" with an exhausted-retry transient, so it stays
+            # reason-less rather than asserting a terminal verdict the metadata layer cannot distinguish.
+            return None, None
         if "items" in data:
             if len(data["items"]) == 0:
-                return None
+                return None, TIRejectionReason.NOT_FOUND
             record = self._parse_civitai_item(data["items"][0], adhoc=True)
         else:
             record = self._parse_civitai_item(data, adhoc=True)
         if not record:
-            return None
+            return None, TIRejectionReason.INVALID
 
         existing_key = self.fuzzy_find_ti_key(record.civitai_id)
         if existing_key:
-            return existing_key
+            return existing_key, None
 
-        self._enqueue_download(record)
-        time.sleep(self.THREAD_WAIT_TIME)
-        self.wait_for_downloads(timeout)
-        return record.name.lower()
+        # Clear any stale terminal reason for this id so this attempt reports only its own outcome.
+        self._drain_rejection_reason(record.civitai_id)
+        queued = self._enqueue_download(record, progress_callback=progress_callback)
+        # Wait on this record's own completion rather than the whole pool going idle, so unrelated queued
+        # downloads can no longer blow this bounded wait. On timeout/failure re-probe the reference so a
+        # concurrent fetch that already landed this embedding is still reported.
+        queued.completion_event.wait(timeout)
+        if queued.success:
+            return record.name.lower(), None
+        reason = self._drain_rejection_reason(record.civitai_id)
+        if reason is not None:
+            return None, reason
+        existing_key = self.fuzzy_find_ti_key(record.civitai_id)
+        if existing_key:
+            return existing_key, None
+        return None, None

@@ -197,6 +197,25 @@ class TestModelManagerLora:
         assert lora_key is None
         lora_model_manager.stop_all()
 
+    def test_reject_adhoc_nsfw_lora_with_reason(self, test_loras_loaded):
+        from hordelib.model_manager.lora import LoRaRejectionReason
+
+        lora_model_manager = LoraModelManager(
+            download_wait=False,
+            allowed_adhoc_lora_storage=1024,
+        )
+        lora_id = 9155
+        # Set nsfw to False for this test
+        lora_model_manager.nsfw = False
+        # Wait for adhoc reset to complete
+        lora_model_manager.wait_for_adhoc_reset(15)
+        lora_model_manager.ensure_lora_deleted(lora_id)
+        lora_key, reason = lora_model_manager.fetch_adhoc_lora_with_reason(lora_id)
+        assert lora_model_manager.is_model_available(lora_id) is False
+        assert lora_key is None
+        assert reason == LoRaRejectionReason.NSFW
+        lora_model_manager.stop_all()
+
     def test_approve_adhoc_lora(self, test_loras_loaded):
         lora_model_manager = LoraModelManager(
             download_wait=False,

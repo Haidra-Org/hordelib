@@ -30,7 +30,7 @@ import time
 import uuid
 from abc import abstractmethod
 from collections import deque
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -47,6 +47,12 @@ from loguru import logger
 
 from hordelib.metrics import DownloadCategory, DownloadEvent, get_metrics_collector
 from hordelib.model_manager.base import BaseModelManager
+
+try:
+    from horde_model_reference.download_engine import DownloadOutcome, _segmented_download
+except ImportError:  # pragma: no cover - the engine ships with horde_model_reference; degrade to single-stream
+    _segmented_download = None  # type: ignore[assignment]
+    DownloadOutcome = None  # type: ignore[assignment,misc]
 
 TESTS_ONGOING = os.getenv("TESTS_ONGOING", "0") == "1"
 
@@ -86,6 +92,24 @@ fails (its own cleanup) well inside this window, so only a crashed writer's temp
 Age-gating the prune reclaims leaked disk without ever deleting an in-flight write.
 """
 
+DOWNLOAD_CHUNK_SIZE = 1024 * 1024
+"""Bytes pulled from the network per streamed read of a weight download.
+
+A weight file is transferred a chunk at a time rather than buffered whole in process memory (one LoRA
+can be hundreds of MB), so only one chunk is resident at once. The chunk boundary is also where an
+in-flight transfer observes a cancellation and reports progress, so it doubles as the responsiveness
+granularity: large enough to keep per-chunk overhead negligible, small enough that a cancelled or
+throttled stream reacts promptly.
+"""
+
+DEFAULT_ADHOC_DOWNLOAD_CONNECTIONS = 4
+"""Concurrent ranged connections for a single large ad-hoc LoRA, matching the worker's checkpoint default.
+
+A single TCP stream to Cloudflare-fronted CivitAI is capped near the per-connection rate limit, so a large
+LoRA is fetched over several ranged connections to raise throughput. Small LoRAs and range-refusing servers
+fall through to the single-stream path unchanged. Overridable via ``AIWORKER_LORA_DOWNLOAD_CONNECTIONS``."""
+
+
 DEFAULT_MIN_FREE_DISK_MB = 1024
 """Keep at least this many MB free on the cache volume; ad-hoc downloads evict (then refuse) below it.
 
@@ -108,6 +132,17 @@ def timestamp_to_datetime(value: str | None) -> datetime | None:
         return datetime.strptime(value, TIMESTAMP_FORMAT)
     except ValueError:
         return None
+
+
+def _adhoc_connections_from_env() -> int:
+    """The configured concurrent-connection count for large ad-hoc LoRA downloads (>= 1)."""
+    raw = os.getenv("AIWORKER_LORA_DOWNLOAD_CONNECTIONS")
+    if raw is None:
+        return DEFAULT_ADHOC_DOWNLOAD_CONNECTIONS
+    try:
+        return max(1, int(raw))
+    except ValueError:
+        return DEFAULT_ADHOC_DOWNLOAD_CONNECTIONS
 
 
 def normalise_a1111_triggers(triggers: list[str]) -> list[str]:
@@ -163,6 +198,16 @@ class SkipDownload(Exception):
     """
 
 
+class _DownloadCancelled(Exception):
+    """Internal signal that an in-flight streamed transfer was abandoned because its job was cancelled.
+
+    Raised from the streaming loop when the manager's cancellation generation moves past the value the
+    download was enqueued under, so a caller that has given up frees the shared worker without the
+    transfer running to completion. Handled entirely within :meth:`CivitaiAdhocModelManager._run_download`;
+    never surfaces to callers.
+    """
+
+
 class ReadOnlyModelManagerError(RuntimeError):
     """Raised when a write, download, or eviction is attempted on a read-only manager.
 
@@ -184,6 +229,22 @@ class _QueuedDownload[R]:
     A worker thread abandons an in-flight or queued download once the manager's current generation has
     moved past the value stamped here (see :meth:`CivitaiAdhocModelManager.cancel_active_downloads`),
     so a caller that has given up on a job can free the shared pool without killing its threads."""
+    progress_callback: Callable[[int, int], None] | None = None
+    """Optional per-chunk progress hook invoked as ``(downloaded_bytes, total_bytes)``.
+
+    ``total_bytes`` is the ``Content-Length`` of the transfer, or ``0`` when the server does not report
+    one. Invoked once per streamed chunk while the weight file is being written."""
+    completion_event: threading.Event = field(default_factory=threading.Event)
+    """Set exactly once when this download reaches any terminal outcome.
+
+    Lets a caller wait on this one record finishing rather than on the whole pool going idle, so
+    unrelated queue traffic (the default-model seed, another job's ad-hoc fetch) cannot blow a bounded
+    per-record wait. Read :attr:`success` after the event is set to learn the outcome."""
+    success: bool | None = None
+    """The terminal outcome, readable once :attr:`completion_event` is set.
+
+    ``True`` when the weight file is present and committed (freshly downloaded or already on disk and
+    verified), ``False`` on any failure/skip/cancellation, and ``None`` while still in flight."""
 
 
 class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
@@ -298,6 +359,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         # freeing the (shared, daemon) pool for the next job without tearing the threads down. Guarded by
         # _download_mutex for writes; read locklessly in the worker loop (a plain int read is atomic).
         self._download_generation = 0
+        self._download_connections = _adhoc_connections_from_env()
         self._index_ids: dict[int, str] = {}
         self._index_orig_names: dict[str, str] = {}
         self.total_retries_attempted = 0
@@ -644,8 +706,18 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     # Download queue and worker threads
     # ------------------------------------------------------------------
 
-    def _enqueue_download(self, record: RecordT, context: dict | None = None) -> None:
+    def _enqueue_download(
+        self,
+        record: RecordT,
+        context: dict | None = None,
+        *,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> _QueuedDownload[RecordT]:
         """Ensure the worker pool is running and append *record* to the download queue.
+
+        Returns:
+            The enqueued :class:`_QueuedDownload`, whose ``completion_event`` a caller can wait on to
+            block until this specific record finishes (rather than the whole pool going idle).
 
         Raises:
             ReadOnlyModelManagerError: If the manager is read-only.
@@ -660,10 +732,15 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                     worker.start()
                 self._metric_active_threads.set(len(self._download_threads))
 
-            self._download_queue.append(
-                _QueuedDownload(record=record, context=context or {}, generation=self._download_generation),
+            queued = _QueuedDownload(
+                record=record,
+                context=context or {},
+                generation=self._download_generation,
+                progress_callback=progress_callback,
             )
+            self._download_queue.append(queued)
             self._metric_queue_size.set(len(self._download_queue))
+        return queued
 
     def _download_thread(self, thread_number: int) -> None:
         """Worker loop: dequeue records and download their weight files until stopped.
@@ -743,7 +820,31 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
             return True
 
     def _process_download(self, queued: _QueuedDownload, thread_logger) -> None:
-        """Download a single queued record's weight file, retrying transient failures."""
+        """Download a queued record, then signal its completion event exactly once.
+
+        Delegates the transfer to :meth:`_run_download` and, whatever the outcome, records the result on
+        the queued item (:attr:`_QueuedDownload.success`) and sets its completion event so a caller
+        waiting on this one record is released regardless of which exit path was taken.
+        """
+        try:
+            queued.success = self._run_download(queued, thread_logger)
+        finally:
+            queued.completion_event.set()
+
+    def _content_length(self, response: requests.Response) -> int:
+        """Return the response's ``Content-Length`` in bytes, or ``0`` when it is absent or malformed."""
+        try:
+            return int(response.headers.get("Content-Length") or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _run_download(self, queued: _QueuedDownload, thread_logger) -> bool:
+        """Download a single queued record's weight file, retrying transient failures.
+
+        Returns:
+            ``True`` when the weight file is present and committed (freshly downloaded, or already on
+            disk and verified); ``False`` on any skip, cancellation, or terminal/exhausted failure.
+        """
         record = queued.record
         download_logger = thread_logger.bind(model_name=record.name)
 
@@ -752,10 +853,10 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
         notfound_attempts = 0
         cache_key = record.name  # Refined to the version id once the target is prepared.
         while retries <= self.MAX_RETRIES:
-            # Abandon a download whose job has been cancelled (the caller gave up and freed the slot): a
-            # single-shot requests.get cannot be interrupted mid-transfer, but checking here bails before
-            # the next attempt or retry sleep, so a wedged retry ladder stops within ~one request timeout
-            # and the shared pool is free for the next job instead of pinning a thread on dead work.
+            # Abandon a download whose job has been cancelled (the caller gave up and freed the slot):
+            # checking here bails before the next attempt or retry sleep, so a wedged retry ladder stops
+            # within ~one request timeout and the shared pool is free for the next job instead of pinning
+            # a thread on dead work. An in-flight stream also honours this at each chunk boundary below.
             if queued.generation != self._download_generation:
                 download_logger.info("adhoc.download_cancelled", retries=retries)
                 self._record_download_event(
@@ -765,11 +866,11 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                     duration_seconds=time.perf_counter() - overall_start,
                     retries=retries,
                 )
-                return
+                return False
             try:
                 target = self._prepare_download(record)
                 if target is None:
-                    return
+                    return False
 
                 cache_key = self._download_cache_key(record, target)
                 if self._is_version_bad(cache_key):
@@ -781,7 +882,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                         duration_seconds=time.perf_counter() - overall_start,
                         retries=retries,
                     )
-                    return
+                    return False
                 filepath = os.path.join(self.model_folder_path, target.filename)
                 hashpath = f"{os.path.splitext(filepath)[0]}.sha256"
 
@@ -790,7 +891,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                     if self.is_default_cache_full():
                         self.stop_downloading = True
                     self.save_reference_to_disk()
-                    return
+                    return True
 
                 # Refuse to fetch a fresh weight when the volume can't hold it above the floor, even
                 # after evicting every ad-hoc entry. Writing anyway risks an ENOSPC that takes the
@@ -812,72 +913,134 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                         duration_seconds=time.perf_counter() - overall_start,
                         retries=retries,
                     )
-                    return
+                    return False
 
                 download_start = time.perf_counter()
                 download_url = target.url
                 if self._civitai_api_token and self.is_model_url_from_civitai(download_url):
                     download_url += f"{'&' if '?' in download_url else '?'}token={self._civitai_api_token}"
 
-                response = requests.get(download_url, timeout=self.REQUEST_DOWNLOAD_TIMEOUT)
-                response.raise_for_status()
-                if "reason=download-auth" in response.url:
-                    download_logger.error("adhoc.download_auth_redirect", response_url=response.url)
-                    self._mark_version_bad(cache_key)
-                    self._record_download_event(
-                        record,
-                        success=False,
-                        size_bytes=0,
-                        duration_seconds=time.perf_counter() - overall_start,
-                        retries=retries,
-                    )
-                    return
+                segmented = self._try_segmented_download(download_url, filepath, target, queued)
+                if segmented is not None:
+                    if not segmented.success:
+                        # The segmented transfer landed a file whose sha256 does not match the record: discard it
+                        # and retry (or, on the final attempt, fail) exactly as the single-stream hash-mismatch
+                        # path does.
+                        self._discard_partial(filepath, hashpath)
+                        retries += 1
+                        self.total_retries_attempted += 1
+                        if retries > self.MAX_RETRIES:
+                            self._record_download_event(
+                                record,
+                                success=False,
+                                size_bytes=0,
+                                duration_seconds=time.perf_counter() - overall_start,
+                                retries=retries,
+                            )
+                            return False
+                        time.sleep(self.RETRY_DELAY)
+                        continue
+                    downloaded_bytes = segmented.bytes_written
+                else:
+                    # Stream the weight a chunk at a time into a sibling temp file, hashing as we go, rather
+                    # than buffering the whole (often hundreds-of-MB) file in memory. The read timeout applies
+                    # per chunk when streaming, so it bounds a stalled stream without capping a legitimately
+                    # long transfer, and the temp file is renamed into place only after the checksum passes so
+                    # a concurrent reader never observes a torn or partially written weight at the final path.
+                    with requests.get(download_url, stream=True, timeout=self.REQUEST_DOWNLOAD_TIMEOUT) as response:
+                        response.raise_for_status()
+                        if "reason=download-auth" in response.url:
+                            download_logger.error("adhoc.download_auth_redirect", response_url=response.url)
+                            self._mark_version_bad(cache_key)
+                            self._record_download_event(
+                                record,
+                                success=False,
+                                size_bytes=0,
+                                duration_seconds=time.perf_counter() - overall_start,
+                                retries=retries,
+                            )
+                            return False
 
-                sha256 = hashlib.sha256(response.content).hexdigest()
-                if target.sha256 and sha256.lower() != target.sha256.lower():
-                    download_logger.warning(
-                        "adhoc.download_hash_mismatch",
-                        expected=target.sha256[:16],
-                        actual=sha256[:16],
-                        attempt=retries + 1,
-                    )
-                    retries += 1
-                    self.total_retries_attempted += 1
-                    if retries > self.MAX_RETRIES:
-                        self._record_download_event(
-                            record,
-                            success=False,
-                            size_bytes=0,
-                            duration_seconds=time.perf_counter() - overall_start,
-                            retries=retries,
-                        )
-                        return
-                    time.sleep(self.RETRY_DELAY)
-                    continue
+                        total_bytes = self._content_length(response)
+                        hasher = hashlib.sha256()
+                        downloaded_bytes = 0
+                        tmp_path = f"{filepath}.tmp-{uuid.uuid4().hex[:8]}"
+                        try:
+                            with open(tmp_path, "wb") as tmp_file:
+                                for chunk in response.iter_content(chunk_size=DOWNLOAD_CHUNK_SIZE):
+                                    # A generation bump means the owning job gave up; stop at this chunk
+                                    # boundary so a cancelled stream frees the shared pool promptly instead
+                                    # of transferring to completion.
+                                    if queued.generation != self._download_generation:
+                                        raise _DownloadCancelled
+                                    if not chunk:
+                                        continue
+                                    tmp_file.write(chunk)
+                                    hasher.update(chunk)
+                                    downloaded_bytes += len(chunk)
+                                    if queued.progress_callback is not None:
+                                        queued.progress_callback(downloaded_bytes, total_bytes)
 
-                # Stage the weight bytes to a temp file and rename into place so a concurrent reader
-                # (another process loading this model) never observes a torn or truncated file at the
-                # final path. The sidecar lands only after the weight file is fully placed, so a present
-                # sidecar always describes a complete weight file; a weight file without a sidecar is
-                # harmlessly re-verified or re-downloaded.
-                self._atomic_write_bytes(filepath, response.content)
-                self._atomic_write_bytes(hashpath, f"{sha256} *{target.filename}".encode())
+                            sha256 = hasher.hexdigest()
+                            if target.sha256 and sha256.lower() != target.sha256.lower():
+                                download_logger.warning(
+                                    "adhoc.download_hash_mismatch",
+                                    expected=target.sha256[:16],
+                                    actual=sha256[:16],
+                                    attempt=retries + 1,
+                                )
+                                retries += 1
+                                self.total_retries_attempted += 1
+                                if retries > self.MAX_RETRIES:
+                                    self._record_download_event(
+                                        record,
+                                        success=False,
+                                        size_bytes=0,
+                                        duration_seconds=time.perf_counter() - overall_start,
+                                        retries=retries,
+                                    )
+                                    return False
+                                time.sleep(self.RETRY_DELAY)
+                                continue
+
+                            self._replace_file_with_retry(tmp_path, filepath)
+                        finally:
+                            if os.path.exists(tmp_path):
+                                try:
+                                    os.remove(tmp_path)
+                                except OSError:
+                                    pass
+
+                        # The sidecar lands only after the weight file is fully placed, so a present sidecar
+                        # always describes a complete weight file; a weight file without a sidecar is
+                        # harmlessly re-verified or re-downloaded.
+                        self._atomic_write_bytes(hashpath, f"{sha256} *{target.filename}".encode())
 
                 self._commit_download(record, target, downloaded=True)
                 self._metric_download_duration.record(time.perf_counter() - download_start)
                 self._record_download_event(
                     record,
                     success=True,
-                    size_bytes=len(response.content),
+                    size_bytes=downloaded_bytes,
                     duration_seconds=time.perf_counter() - download_start,
                     retries=retries,
                 )
                 self._evict_adhoc_over_limit()
                 self.save_reference_to_disk()
                 download_logger.info("adhoc.download_success", filename=target.filename)
-                return
+                return True
+            except _DownloadCancelled:
+                download_logger.info("adhoc.download_cancelled", retries=retries)
+                self._record_download_event(
+                    record,
+                    success=False,
+                    size_bytes=0,
+                    duration_seconds=time.perf_counter() - overall_start,
+                    retries=retries,
+                )
+                return False
             except SkipDownload:
-                return
+                return False
             except (requests.HTTPError, requests.ConnectionError, requests.Timeout, json.JSONDecodeError) as net_error:
                 error_type = type(net_error).__name__
                 self._metric_network_errors.add(1, {"error_type": error_type})
@@ -893,7 +1056,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                         duration_seconds=time.perf_counter() - overall_start,
                         retries=retries,
                     )
-                    return
+                    return False
                 if isinstance(net_error, requests.HTTPError) and status_code == 404:
                     # A 404 on the signed download URL is deterministic: the file (or its
                     # token-scoped resource) is gone and the identical URL will not heal. Retrying the
@@ -910,7 +1073,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                             duration_seconds=time.perf_counter() - overall_start,
                             retries=retries,
                         )
-                        return
+                        return False
                     time.sleep(self.NOTFOUND_CONFIRM_DELAY)
                     continue
             except OSError as disk_error:
@@ -928,7 +1091,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                         duration_seconds=time.perf_counter() - overall_start,
                         retries=retries,
                     )
-                    return
+                    return False
                 # Any other OS error may be transient; fall through to the shared retry path below.
                 self._metric_network_errors.add(1, {"error_type": "fatal"})
                 download_logger.error("adhoc.download_fatal_error", error=str(disk_error))
@@ -947,8 +1110,51 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                     duration_seconds=time.perf_counter() - overall_start,
                     retries=retries,
                 )
-                return
+                return False
             time.sleep(self.RETRY_DELAY)
+        return False
+
+    def _try_segmented_download(
+        self,
+        download_url: str,
+        filepath: str,
+        target: DownloadTarget,
+        queued: _QueuedDownload,
+    ) -> DownloadOutcome | None:
+        """Attempt a multi-connection ranged download of a large LoRA; return the outcome or None to fall back.
+
+        Returns None (so the caller uses the single-stream path) when segmentation is disabled, the engine
+        helper is unavailable, or the engine reports the file is unsuitable (small, no range support, or a
+        transient segment failure). A generation bump during transfer raises :class:`_DownloadCancelled`
+        through the progress hook, aborting every segment, exactly as the single-stream path cancels at a
+        chunk boundary.
+        """
+        if _segmented_download is None or self._download_connections <= 1:
+            return None
+
+        def _progress(downloaded_bytes: int, total_bytes: int) -> None:
+            if queued.generation != self._download_generation:
+                raise _DownloadCancelled
+            if queued.progress_callback is not None:
+                queued.progress_callback(downloaded_bytes, total_bytes)
+
+        return _segmented_download(
+            download_url,
+            Path(filepath),
+            expected_sha256=target.sha256 or None,
+            progress_callback=_progress,
+            extra_headers=None,
+            connections=self._download_connections,
+            max_retries=self.MAX_RETRIES,
+        )
+
+    def _discard_partial(self, filepath: str, hashpath: str) -> None:
+        """Remove a hash-mismatched weight file and its sidecar so a retry re-downloads cleanly."""
+        for path in (filepath, hashpath):
+            try:
+                os.remove(path)
+            except OSError:
+                pass
 
     def _existing_file_matches(self, filepath: str, hashpath: str, expected_sha256: str | None) -> bool:
         """Return whether a previously downloaded file is present and matches *expected_sha256*."""

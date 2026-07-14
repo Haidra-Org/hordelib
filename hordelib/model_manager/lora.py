@@ -7,14 +7,14 @@ their multiple-versions-per-model shape, the per-version index, the 400MB ad-hoc
 default-LoRA seeding flow, and the ad-hoc fetch/metadata-match logic.
 """
 
-from __future__ import annotations
-
 import os
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
+from enum import auto
 from multiprocessing.synchronize import Lock as multiprocessing_lock
-from typing import override
+from typing import Any, override
 
 import logfire
 from fuzzywuzzy import fuzz
@@ -22,6 +22,7 @@ from horde_model_reference import horde_model_reference_paths
 from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY
 from horde_model_reference.model_reference_records import DownloadRecord
 from loguru import logger
+from strenum import StrEnum
 
 import hordelib.exceptions as he
 from hordelib.model_manager.civitai_adhoc import (
@@ -42,6 +43,24 @@ AIWORKER_LORA_CACHE_SIZE_DEFAULT = 10 * 1024  # 10GB
 
 MAX_ADHOC_LORA_SIZE_MB = 400
 """LoRAs larger than this are not downloaded ad-hoc (defaults are exempt)."""
+
+
+class LoRaRejectionReason(StrEnum):
+    """Reasons a LoRA is rejected from ad-hoc download."""
+
+    TOO_LARGE = auto()
+    """The LoRA exceeds the maximum ad-hoc size."""
+    NSFW = auto()
+    """The LoRA is NSFW and the worker is SFW-only."""
+    INVALID = auto()
+    """The LoRA's metadata is invalid or incomplete."""
+
+
+class NO_CACHE_FALLBACK:
+    """Sentinel: metadata matched the request, so no cache fallback applies and a download should proceed."""
+
+
+_NO_CACHE_FALLBACK = NO_CACHE_FALLBACK()
 
 
 class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
@@ -273,9 +292,18 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         return True  # FIXME: baseline matching disabled pending normalised baseline data.
 
     @override
-    def _parse_civitai_item(self, item: dict, *, adhoc: bool = False) -> HordeLoraModelRecord | None:
+    def _parse_civitai_item(
+        self,
+        item: dict,
+        *,
+        adhoc: bool = False,
+    ) -> tuple[
+        HordeLoraModelRecord | None,
+        LoRaRejectionReason | None,
+    ]:
         """Return a single-version :class:`HordeLoraModelRecord` for a CivitAI item, or ``None``."""
         parse_logger = logger.bind(manager="lora", adhoc=adhoc)
+        version_data: dict[Any, Any] = {}
         if "modelId" in item:
             version_data = item
             lora_id = item["modelId"]
@@ -286,7 +314,7 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             else:
                 model_data = self._fetch_civitai_json(f"https://civitai.com/api/v1/models/{lora_id}")
                 if model_data is None:
-                    return None
+                    return None, LoRaRejectionReason.INVALID
                 lora_name = model_data.get("name", "")
                 lora_nsfw = model_data.get("nsfw", True)
         else:
@@ -294,13 +322,14 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
                 version_data = item.get("modelVersions", {})[0]
             except IndexError:
                 version_data = {}
+            parse_logger.debug("lora.parse_version_data", version_data=version_data)
             lora_name = item.get("name", "")
             lora_id = item.get("id", 0)
             lora_nsfw = item.get("nsfw", True)
 
         version_id = self.ensure_is_version(version_data.get("id", 0))
         if version_id is None:
-            return None
+            return None, LoRaRejectionReason.INVALID
         triggers = normalise_a1111_triggers(version_data.get("trainedWords", []))
 
         primary_file = next(
@@ -312,8 +341,8 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             None,
         )
         if primary_file is None:
-            return None
-
+            parse_logger.debug("lora.parse_rejected_missing_primary", version_id=version_id)
+            return None, LoRaRejectionReason.INVALID
         try:
             size_mb = round(primary_file.get("sizeKB", 0) / 1024)
         except TypeError:
@@ -334,15 +363,17 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         )
 
         if adhoc and not version.sha256:
-            return None
+            parse_logger.debug("lora.parse_rejected_missing_sha256", filename=version.filename, url=version.url)
+            return None, LoRaRejectionReason.INVALID
         if not version.filename or not version.url:
-            return None
+            parse_logger.debug("lora.parse_rejected_missing", filename=version.filename, url=version.url)
+            return None, LoRaRejectionReason.INVALID
         if adhoc and version.size_mb > MAX_ADHOC_LORA_SIZE_MB and lora_id not in self._default_lora_ids:
             parse_logger.debug("lora.parse_rejected_size", size_mb=version.size_mb)
-            return None
+            return None, LoRaRejectionReason.TOO_LARGE
         if adhoc and lora_nsfw and not self.nsfw:
             parse_logger.debug("lora.parse_rejected_sfw_worker")
-            return None
+            return None, LoRaRejectionReason.NSFW
 
         record = HordeLoraModelRecord(
             name=lora_key,
@@ -352,7 +383,7 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             versions={version_id: version},
         )
         self._sync_top_level(record)
-        return record
+        return record, None
 
     def _sync_top_level(self, record: HordeLoraModelRecord) -> None:
         """Mirror the latest version's details onto the record's canonical provider-facing fields."""
@@ -511,12 +542,15 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             self.delete_lora(version_id)
 
     def download_default_models(self, *, nsfw: bool = True, timeout: float | None = None) -> None:
-        """Start a background download of the curated default LoRAs and return immediately."""
+        """Start a background download of the curated default LoRAs and return immediately.
+
+        Default seeding merges into the existing reference: the persistent ad-hoc cache loaded from disk
+        is preserved, and a default already present with its weight file on disk is not re-enqueued.
+        """
         if not self.are_downloads_complete():
             logger.warning("Downloads already in progress, skipping download_default_models")
             return
         self.nsfw = nsfw
-        self.clear_all_references()
         os.makedirs(self.model_folder_path, exist_ok=True)
         self._thread = threading.Thread(target=self._seed_default_loras, daemon=True)
         self._thread.start()
@@ -525,13 +559,6 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         if self.is_adhoc_reset_complete():
             self._adhoc_reset_thread = threading.Thread(target=self.reset_adhoc_cache, daemon=True)
             self._adhoc_reset_thread.start()
-
-    def clear_all_references(self) -> None:
-        """Empty the in-memory reference and all indices."""
-        self.model_reference = {}
-        self._index_ids = {}
-        self._index_version_ids = {}
-        self._index_orig_names = {}
 
     def _seed_default_loras(self) -> None:
         """Fetch the curated default-LoRA id list and enqueue each for download."""
@@ -553,9 +580,29 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             logger.bind(manager="lora").warning("lora.queue_metadata_missing", requested_ids=lora_ids)
             return
         for item in data.get("items", []):
-            record = self._parse_civitai_item(item, adhoc=adhoc)
-            if record:
-                self._enqueue_download(record, {"trigger_source": "adhoc_queue" if adhoc else "default_queue"})
+            record, rejection_reason = self._parse_civitai_item(item, adhoc=adhoc)
+            if not record:
+                continue
+            if self._is_already_available(record):
+                continue
+            self._enqueue_download(record, {"trigger_source": "adhoc_queue" if adhoc else "default_queue"})
+
+    def _is_already_available(self, record: HordeLoraModelRecord) -> bool:
+        """Return whether *record*'s version is already referenced with its verified weight file on disk.
+
+        Guards the seed path against re-enqueueing a LoRA that the loaded reference already carries and
+        whose weight file (and checksum sidecar) are present, so a boot-time reseed does no redundant work.
+        """
+        existing = self.model_reference.get(record.name)
+        if existing is None:
+            return False
+        version_id = next(iter(record.versions.keys()))
+        version = existing.versions.get(version_id)
+        if version is None:
+            return False
+        filepath = os.path.join(self.model_folder_path, version.filename)
+        hashpath = f"{os.path.splitext(filepath)[0]}.sha256"
+        return self._existing_file_matches(filepath, hashpath, version.sha256)
 
     def reset_adhoc_cache(self) -> None:
         """Wait for in-flight downloads, then evict ad-hoc entries back within budget.
@@ -573,7 +620,7 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             self._evict_adhoc_over_limit()
             self.save_reference_to_disk()
 
-    def get_lora_metadata(self, url: str) -> HordeLoraModelRecord:
+    def get_lora_metadata(self, url: str) -> tuple[HordeLoraModelRecord | None, LoRaRejectionReason | None]:
         """Return a parsed LoRA record for the first item at *url*.
 
         Raises:
@@ -587,12 +634,12 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         if "items" in data:
             if len(data["items"]) == 0:
                 raise he.ModelEmpty("Lora appears empty")
-            record = self._parse_civitai_item(data["items"][0], adhoc=True)
+            record, rejection_reason = self._parse_civitai_item(data["items"][0], adhoc=True)
         else:
-            record = self._parse_civitai_item(data, adhoc=True)
+            record, rejection_reason = self._parse_civitai_item(data, adhoc=True)
         if not record:
-            raise he.ModelInvalid("Lora is invalid")
-        return record
+            record = None
+        return record, rejection_reason
 
     @logfire.instrument("lora.fetch_adhoc", extract_args=True)
     def fetch_adhoc_lora(
@@ -601,74 +648,139 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         timeout: int | None = 45,
         is_version: bool = False,
         job_context: dict | None = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> str | None:
         """Ensure a LoRA is available, downloading it from CivitAI on demand.
 
-        If *timeout* is set, blocks until the download completes and returns the reference key;
-        otherwise starts the download and returns ``None`` immediately.
+        If *timeout* is set, blocks until this LoRA's own download finishes (unrelated queued downloads
+        no longer extend the wait) and returns the reference key; otherwise starts the download and
+        returns ``None`` immediately. When *timeout* elapses before the download finishes, this returns
+        ``None`` (the LoRA is not yet available) rather than raising.
+
+        Args:
+            lora_name: The CivitAI id, version id, or name to resolve.
+            timeout: Seconds to wait for the download, or ``None`` to return immediately without waiting.
+            is_version: Whether *lora_name* is a version id rather than a model id/name.
+            job_context: Optional logging/context metadata threaded onto the queued download.
+            progress_callback: Optional hook invoked as ``(downloaded_bytes, total_bytes)`` per streamed
+                chunk while the weight file is written; ``total_bytes`` is ``0`` when unknown.
+
+        Raises:
+            ReadOnlyModelManagerError: If the manager is read-only.
+        """
+
+        lora, _ = self.fetch_adhoc_lora_with_reason(
+            lora_name=lora_name,
+            timeout=timeout,
+            is_version=is_version,
+            job_context=job_context,
+            progress_callback=progress_callback,
+        )
+
+        return lora
+
+    @logfire.instrument("lora.fetch_adhoc_with_reason", extract_args=True)
+    def fetch_adhoc_lora_with_reason(
+        self,
+        lora_name: str | int,
+        timeout: int | None = 45,
+        is_version: bool = False,
+        job_context: dict | None = None,
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> tuple[
+        str | None,
+        LoRaRejectionReason | None,
+    ]:
+        """Ensure a LoRA is available, downloading it from CivitAI on demand.
+
+        If *timeout* is set, blocks until this LoRA's own download finishes (unrelated queued downloads
+        no longer extend the wait) and returns the reference key; otherwise starts the download and
+        returns ``None`` immediately. When *timeout* elapses before the download finishes, this returns
+        ``None`` (the LoRA is not yet available) rather than raising.
+
+        Args:
+            lora_name: The CivitAI id, version id, or name to resolve.
+            timeout: Seconds to wait for the download, or ``None`` to return immediately without waiting.
+            is_version: Whether *lora_name* is a version id rather than a model id/name.
+            job_context: Optional logging/context metadata threaded onto the queued download.
+            progress_callback: Optional hook invoked as ``(downloaded_bytes, total_bytes)`` per streamed
+                chunk while the weight file is written; ``total_bytes`` is ``0`` when unknown.
 
         Raises:
             ReadOnlyModelManagerError: If the manager is read-only.
         """
         self._ensure_writable()
-        if is_version and not (isinstance(lora_name, int) or str(lora_name).isdigit()):
-            return None
-        if isinstance(lora_name, int) or str(lora_name).isdigit():
+        if is_version and not (isinstance(lora_name, int) or lora_name.isdigit()):
+            return None, LoRaRejectionReason.INVALID
+        if isinstance(lora_name, int) or lora_name.isdigit():
             # CivitAI returns 500 (not 404) for ids beyond its id space; reject impossible ids early.
             if int(lora_name) >= 2**32:
-                return None
+                return None, LoRaRejectionReason.INVALID
             endpoint = "model-versions" if is_version else "models"
             url = f"https://civitai.com/api/v1/{endpoint}/{lora_name}"
         else:
             url = f"{self.LORA_API}&nsfw={str(self.nsfw).lower()}&query={lora_name}"
 
+        record: HordeLoraModelRecord | None = None
+        rejection_reason: LoRaRejectionReason | None = None
         try:
-            record = self.get_lora_metadata(url)
+            record, rejection_reason = self.get_lora_metadata(url)
         except he.CivitAIDown as civitai_down:
             if isinstance(lora_name, str) and lora_name in self.model_reference:
                 self._touch_lora(lora_name)
                 logger.warning("CivitAI appears down; using cached info: {}", civitai_down)
-                return lora_name
-            return None
-        except (he.ModelEmpty, he.ModelInvalid) as invalid_model:
-            logger.info("Adhoc lora '{}' rejected: {}", lora_name, invalid_model)
-            return None
+                return lora_name, None
+            return None, None
 
+        if rejection_reason is not None and rejection_reason != LoRaRejectionReason.INVALID:
+            logger.info("Adhoc lora '{}' rejected: {}", lora_name, rejection_reason)
+            return None, rejection_reason
+
+        if record is None:
+            logger.warning("Adhoc lora '{}' rejected: no record returned", lora_name)
+            return None, LoRaRejectionReason.INVALID
+
+        # We'll give it one more try even if the it seemed invalid so far
+        # as it may be cached locally and have failed earlier only due to a transient CivitAI error.
         cached_key = self._resolve_metadata_mismatch(lora_name, record, is_version)
-        if cached_key is not _NO_CACHE_FALLBACK:
-            return cached_key
+        if not isinstance(cached_key, NO_CACHE_FALLBACK):
+            return cached_key, rejection_reason
 
         existing_key = self.fuzzy_find_lora_key(record.civitai_id)
         if existing_key:
             if is_version and self.ensure_is_version(lora_name) in self.model_reference[existing_key].versions:
                 self._touch_lora(lora_name, True)
-                return existing_key
+                return existing_key, None
             if not is_version and self.find_latest_version(
                 self.get_model_reference_info(existing_key),
             ) == self.find_latest_version(record):
                 self._touch_lora(lora_name)
-                return existing_key
+                return existing_key, None
 
         context = job_context or {}
         context.setdefault("trigger_source", "adhoc_generation")
-        self._enqueue_download(record, context)
+        queued = self._enqueue_download(record, context, progress_callback=progress_callback)
 
         if timeout is None:
-            return None
-        time.sleep(self.THREAD_WAIT_TIME)
-        self.wait_for_downloads(timeout)
+            return None, None
+        # Wait on this record's own completion rather than the whole pool going idle, so the default-set
+        # seed or another job's in-flight ad-hoc download can no longer blow this bounded wait. A wait
+        # that elapses (or a download that failed) falls through to None instead of raising.
+        queued.completion_event.wait(timeout)
+        if not queued.success:
+            return None, None
         version = lora_name if is_version else self.find_latest_version(record)
         if version is None:
-            return None
+            return None, None
         self._touch_lora(version, True)
-        return record.name
+        return record.name, None
 
     def _resolve_metadata_mismatch(
         self,
         lora_name: str | int,
         record: HordeLoraModelRecord,
         is_version: bool,
-    ):
+    ) -> str | NO_CACHE_FALLBACK | None:
         """Return a cached key (or ``None``) when CivitAI's metadata does not match the request.
 
         Returns the sentinel :data:`_NO_CACHE_FALLBACK` when the metadata *does* match and the caller
@@ -728,7 +840,3 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             return True
         best_ratio = max((fuzz.ratio(requested_sanitized, candidate) for candidate in candidate_names), default=0)
         return best_ratio >= self.FUZZ_THRESHOLD
-
-
-_NO_CACHE_FALLBACK = object()
-"""Sentinel: metadata matched the request, so no cache fallback applies and a download should proceed."""

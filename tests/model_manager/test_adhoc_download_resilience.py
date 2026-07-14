@@ -25,6 +25,44 @@ from hordelib.model_manager.civitai_adhoc import DownloadTarget, _QueuedDownload
 from hordelib.model_manager.lora import LoraModelManager
 
 
+class _FakeStreamResponse:
+    """Minimal stand-in for a streamed ``requests`` response used by the download tests.
+
+    Supports the subset the streaming download path exercises: use as a context manager,
+    ``raise_for_status``, a ``url``, a ``headers`` mapping (for ``Content-Length``), and
+    ``iter_content`` yielding the body in ``chunk_size`` slices.
+    """
+
+    def __init__(
+        self,
+        content: bytes = b"",
+        url: str = "",
+        raise_for_status: Any = None,
+        headers: dict[str, str] | None = None,
+        chunk_size: int | None = None,
+    ) -> None:
+        self._content = content
+        self.url = url
+        self._raise = raise_for_status
+        self.headers = headers if headers is not None else {"Content-Length": str(len(content))}
+        self._chunk_size = chunk_size
+
+    def raise_for_status(self) -> None:
+        if self._raise is not None:
+            self._raise()
+
+    def iter_content(self, chunk_size: int = 1) -> Any:
+        step = self._chunk_size or chunk_size or 1
+        for start in range(0, len(self._content), step):
+            yield self._content[start : start + step]
+
+    def __enter__(self) -> _FakeStreamResponse:
+        return self
+
+    def __exit__(self, *exc: Any) -> bool:
+        return False
+
+
 def _bare_manager(tmp_path: Any, target: DownloadTarget | None) -> LoraModelManager:
     """Build a LoraModelManager wired only for ``_process_download`` (no real init/network/cache)."""
     manager = object.__new__(LoraModelManager)
@@ -38,6 +76,7 @@ def _bare_manager(tmp_path: Any, target: DownloadTarget | None) -> LoraModelMana
     manager._download_mutex = threading.Lock()
     manager._known_bad_versions = {}
     manager._download_generation = 0
+    manager._download_connections = 1  # keep these single-stream tests off the segmented fast path
     manager._prepare_download = Mock(return_value=target)  # pyrefly: ignore
     manager._existing_file_matches = Mock(return_value=False)  # pyrefly: ignore
     manager.is_model_url_from_civitai = Mock(return_value=False)  # pyrefly: ignore
@@ -64,9 +103,9 @@ def test_enospc_write_is_terminal_and_not_retried(tmp_path: Any, monkeypatch: py
 
     get_calls = {"n": 0}
 
-    def _fake_get(url: str, timeout: float | None = None) -> Any:
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
         get_calls["n"] += 1
-        return SimpleNamespace(content=b"x" * 1024, url=url, raise_for_status=lambda: None)
+        return _FakeStreamResponse(content=b"x" * 1024, url=url, raise_for_status=lambda: None)
 
     monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
 
@@ -98,9 +137,9 @@ def test_non_disk_oserror_still_retries(tmp_path: Any, monkeypatch: pytest.Monke
 
     get_calls = {"n": 0}
 
-    def _fake_get(url: str, timeout: float | None = None) -> Any:
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
         get_calls["n"] += 1
-        return SimpleNamespace(content=b"x" * 1024, url=url, raise_for_status=lambda: None)
+        return _FakeStreamResponse(content=b"x" * 1024, url=url, raise_for_status=lambda: None)
 
     monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
 
@@ -181,9 +220,9 @@ def test_download_404_is_terminal_after_one_confirm_retry(tmp_path: Any, monkeyp
     def _raise_404() -> None:
         raise _http_error(404)
 
-    def _fake_get(url: str, timeout: float | None = None) -> Any:
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
         get_calls["n"] += 1
-        return SimpleNamespace(content=b"", url=url, raise_for_status=_raise_404)
+        return _FakeStreamResponse(content=b"", url=url, raise_for_status=_raise_404)
 
     monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
 
@@ -210,9 +249,9 @@ def test_known_bad_version_is_skipped_without_network(tmp_path: Any, monkeypatch
 
     get_calls = {"n": 0}
 
-    def _fake_get(url: str, timeout: float | None = None) -> Any:
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
         get_calls["n"] += 1
-        return SimpleNamespace(content=b"", url=url, raise_for_status=lambda: None)
+        return _FakeStreamResponse(content=b"", url=url, raise_for_status=lambda: None)
 
     monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
 
@@ -260,7 +299,7 @@ def test_cancel_mid_retry_ladder_stops_further_attempts(tmp_path: Any, monkeypat
 
     get_calls = {"n": 0}
 
-    def _fake_get(url: str, timeout: float | None = None) -> Any:
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
         get_calls["n"] += 1
         # Simulate a concurrent cancel_active_downloads() landing after the second attempt.
         if get_calls["n"] == 2:
@@ -285,9 +324,9 @@ def test_stale_generation_download_skips_network(tmp_path: Any, monkeypatch: pyt
 
     get_calls = {"n": 0}
 
-    def _fake_get(url: str, timeout: float | None = None) -> Any:
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
         get_calls["n"] += 1
-        return SimpleNamespace(content=b"weights", url=url, raise_for_status=lambda: None)
+        return _FakeStreamResponse(content=b"weights", url=url, raise_for_status=lambda: None)
 
     monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
 
@@ -328,8 +367,8 @@ def test_successful_download_lands_weight_and_sidecar_with_no_temp_residue(
 
     payload = b"weight-bytes"
 
-    def _fake_get(url: str, timeout: float | None = None) -> Any:
-        return SimpleNamespace(content=payload, url=url, raise_for_status=lambda: None)
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
+        return _FakeStreamResponse(content=payload, url=url, raise_for_status=lambda: None)
 
     monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
 
@@ -351,8 +390,8 @@ def test_replace_failure_leaves_no_partial_final_file(tmp_path: Any, monkeypatch
     manager = _bare_manager(tmp_path, target)
     manager.RETRY_DELAY = 0.0
 
-    def _fake_get(url: str, timeout: float | None = None) -> Any:
-        return SimpleNamespace(content=b"weight-bytes", url=url, raise_for_status=lambda: None)
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
+        return _FakeStreamResponse(content=b"weight-bytes", url=url, raise_for_status=lambda: None)
 
     monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
 
@@ -381,8 +420,8 @@ def test_weight_is_exposed_only_by_the_atomic_replace(tmp_path: Any, monkeypatch
 
     payload = b"weight-bytes"
 
-    def _fake_get(url: str, timeout: float | None = None) -> Any:
-        return SimpleNamespace(content=payload, url=url, raise_for_status=lambda: None)
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
+        return _FakeStreamResponse(content=payload, url=url, raise_for_status=lambda: None)
 
     monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
 
@@ -421,11 +460,11 @@ def test_read_timeout_still_retries_and_is_not_cached(tmp_path: Any, monkeypatch
 
     get_calls = {"n": 0}
 
-    def _fake_get(url: str, timeout: float | None = None) -> Any:
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
         get_calls["n"] += 1
         if get_calls["n"] == 1:
             raise civitai_adhoc.requests.exceptions.ReadTimeout("read timed out")
-        return SimpleNamespace(content=b"weights", url=url, raise_for_status=lambda: None)
+        return _FakeStreamResponse(content=b"weights", url=url, raise_for_status=lambda: None)
 
     monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
 
@@ -436,3 +475,236 @@ def test_read_timeout_still_retries_and_is_not_cached(tmp_path: Any, monkeypatch
     assert not manager._is_version_bad("2493924"), "a transient failure must not poison the negative cache"
     manager._record_download_event.assert_called_once()  # pyrefly: ignore
     assert manager._record_download_event.call_args.kwargs["success"] is True  # pyrefly: ignore
+
+
+def test_streamed_download_uses_temp_replace_and_reports_monotonic_progress(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A weight is streamed chunk-by-chunk to a temp file, atomically renamed, with rising progress.
+
+    The transfer must never buffer the whole file: each chunk is written and hashed as it arrives, the
+    per-record ``progress_callback`` sees monotonically increasing ``downloaded_bytes`` up to the total,
+    and the final weight name appears only via ``os.replace`` from a temp sibling.
+    """
+    target = DownloadTarget(filename="stream.safetensors", url="http://example/stream", size_mb=1, sha256=None)
+    manager = _bare_manager(tmp_path, target)
+
+    payload = b"ABCDEFGHIJ"  # ten bytes, streamed two at a time -> five chunks
+
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
+        return _FakeStreamResponse(content=payload, url=url, raise_for_status=lambda: None, chunk_size=2)
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    weight_path = str(tmp_path / "stream.safetensors")
+    real_replace = os.replace
+    weight_replaced_from: list[str] = []
+
+    def _spy_replace(src: Any, dst: Any) -> None:
+        if str(dst) == weight_path:
+            assert ".tmp-" in str(src), "the weight bytes must be staged to a temp file before the rename"
+            assert not os.path.exists(weight_path), "the final weight path must not exist before the atomic replace"
+            weight_replaced_from.append(str(src))
+        real_replace(src, dst)
+
+    monkeypatch.setattr(civitai_adhoc.os, "replace", _spy_replace)
+
+    progress: list[tuple[int, int]] = []
+    record = SimpleNamespace(name="stream lora")
+    queued = _QueuedDownload(record=record, progress_callback=lambda done, total: progress.append((done, total)))
+    manager._process_download(queued, civitai_adhoc.logger.bind(manager="lora"))
+
+    assert (tmp_path / "stream.safetensors").read_bytes() == payload
+    assert len(weight_replaced_from) == 1, "the weight file must be exposed by exactly one atomic replace"
+    assert list(tmp_path.glob("*.tmp-*")) == [], "a successful stream must not leave a temp file behind"
+
+    downloaded_values = [done for done, _total in progress]
+    assert downloaded_values == sorted(downloaded_values), "progress must be reported monotonically"
+    assert all(total == len(payload) for _done, total in progress), "total must be the Content-Length"
+    assert downloaded_values[-1] == len(payload), "the final progress must equal the full size"
+    assert len(downloaded_values) > 1, "a chunked transfer must report progress more than once"
+    assert queued.success is True
+    assert queued.completion_event.is_set()
+
+
+def test_progress_total_is_zero_when_content_length_absent(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """When the server reports no ``Content-Length`` the callback receives ``0`` as the total."""
+    target = DownloadTarget(filename="nolen.safetensors", url="http://example/nolen", size_mb=1, sha256=None)
+    manager = _bare_manager(tmp_path, target)
+
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
+        return _FakeStreamResponse(content=b"XYZ", url=url, raise_for_status=lambda: None, headers={})
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    totals: list[int] = []
+    queued = _QueuedDownload(
+        record=SimpleNamespace(name="nolen lora"),
+        progress_callback=lambda _done, total: totals.append(total),
+    )
+    manager._process_download(queued, civitai_adhoc.logger.bind(manager="lora"))
+
+    assert totals and all(total == 0 for total in totals), "an unknown Content-Length must surface as total 0"
+    assert queued.success is True
+
+
+def test_per_record_event_fires_while_a_sibling_is_still_in_flight(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """One record's completion event fires as soon as it finishes, even while a slow sibling downloads.
+
+    This is what lets ``fetch_adhoc_lora``/``fetch_adhoc_ti`` wait on their own record: the whole pool is
+    still busy (``are_downloads_complete`` is False), yet the finished record's waiter is already released.
+    """
+    manager = _bare_manager(tmp_path, target=None)
+    manager._existing_file_matches = Mock(return_value=True)  # pyrefly: ignore  # short-circuit to success
+
+    release_sibling = threading.Event()
+
+    def _prepare(record: Any) -> DownloadTarget:
+        if record.name == "slow":
+            release_sibling.wait(5)
+        return DownloadTarget(filename=f"{record.name}.safetensors", url="http://x", size_mb=1, sha256=None)
+
+    manager._prepare_download = _prepare  # pyrefly: ignore
+
+    fast_q = _QueuedDownload(record=SimpleNamespace(name="fast"))
+    slow_q = _QueuedDownload(record=SimpleNamespace(name="slow"))
+    logger = civitai_adhoc.logger.bind(manager="lora")
+    slow_thread = threading.Thread(target=manager._process_download, args=(slow_q, logger), daemon=True)
+    fast_thread = threading.Thread(target=manager._process_download, args=(fast_q, logger), daemon=True)
+    slow_thread.start()
+    fast_thread.start()
+
+    assert fast_q.completion_event.wait(3) is True, "the finished record's event must fire promptly"
+    assert fast_q.success is True
+    assert not slow_q.completion_event.is_set(), "the slow sibling must still be in flight"
+
+    release_sibling.set()
+    assert slow_q.completion_event.wait(5) is True
+    slow_thread.join(5)
+    fast_thread.join(5)
+
+
+def test_per_record_wait_times_out_without_raising_and_without_the_sibling(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Waiting on a record's event honours the bounded timeout, returns False, and never raises.
+
+    ``fetch_adhoc_*`` rely on this: a wait that elapses returns ``None`` rather than raising, and it does
+    not block on any other in-flight download.
+    """
+    manager = _bare_manager(tmp_path, target=None)
+
+    never_release = threading.Event()
+
+    def _prepare(record: Any) -> DownloadTarget:
+        never_release.wait()  # deliberately never released within the test
+        return DownloadTarget(filename="stuck.safetensors", url="http://x", size_mb=1, sha256=None)
+
+    manager._prepare_download = _prepare  # pyrefly: ignore
+
+    stuck_q = _QueuedDownload(record=SimpleNamespace(name="stuck"))
+    logger = civitai_adhoc.logger.bind(manager="lora")
+    worker = threading.Thread(target=manager._process_download, args=(stuck_q, logger), daemon=True)
+    worker.start()
+
+    start = time.perf_counter()
+    completed = stuck_q.completion_event.wait(0.3)
+    elapsed = time.perf_counter() - start
+
+    assert completed is False, "a bounded wait on an unfinished record must time out, not raise"
+    assert 0.25 < elapsed < 3.0, "the wait must honour its own timeout, not block on the in-flight download"
+
+    never_release.set()
+    worker.join(5)
+
+
+def test_completion_event_set_on_retries_exhausted(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A download that exhausts its retry budget still signals its completion event as a failure."""
+    target = DownloadTarget(filename="flaky.safetensors", url="http://example/flaky", size_mb=1, sha256=None)
+    manager = _bare_manager(tmp_path, target)
+    manager.RETRY_DELAY = 0.0
+
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
+        raise civitai_adhoc.requests.ConnectionError("connection refused")
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    queued = _QueuedDownload(record=SimpleNamespace(name="flaky lora"))
+    manager._process_download(queued, civitai_adhoc.logger.bind(manager="lora"))
+
+    assert queued.completion_event.is_set(), "an exhausted retry ladder must still release the waiter"
+    assert queued.success is False
+
+
+def test_completion_event_set_on_no_room(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A download refused for lack of disk room signals its completion event as a failure, no network."""
+    target = DownloadTarget(filename="huge.safetensors", url="http://example/huge", size_mb=999999, sha256=None)
+    manager = _bare_manager(tmp_path, target)
+    manager._ensure_room_for_download = Mock(return_value=False)  # pyrefly: ignore
+    manager.disk_free_mb = Mock(return_value=10.0)  # pyrefly: ignore
+
+    get_calls = {"n": 0}
+
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
+        get_calls["n"] += 1
+        return _FakeStreamResponse(content=b"x", url=url, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    queued = _QueuedDownload(record=SimpleNamespace(name="huge lora"))
+    manager._process_download(queued, civitai_adhoc.logger.bind(manager="lora"))
+
+    assert get_calls["n"] == 0, "a no-room skip must not touch the network"
+    assert queued.completion_event.is_set(), "a no-room skip must still release the waiter"
+    assert queued.success is False
+
+
+def test_cancellation_stops_stream_at_chunk_boundary_and_signals_event(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A generation bump mid-stream abandons the transfer at the next chunk, leaving no partial file.
+
+    This frees the shared pool the instant a caller gives up, rather than transferring the whole weight
+    to a file nobody is waiting for; the completion event is still signalled so the (former) waiter is
+    released and the negative cache is not poisoned (a cancel is not a terminal failure).
+    """
+    target = DownloadTarget(
+        filename="cancel.safetensors",
+        url="http://example/cancel",
+        size_mb=1,
+        sha256=None,
+        version_key="4242",
+    )
+    manager = _bare_manager(tmp_path, target)
+
+    payload = b"ABCDEFGHIJ"  # streamed two bytes at a time
+
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
+        return _FakeStreamResponse(content=payload, url=url, raise_for_status=lambda: None, chunk_size=2)
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    queued = _QueuedDownload(record=SimpleNamespace(name="cancel lora"), generation=0)
+
+    progress_calls: list[tuple[int, int]] = []
+
+    def _bump_after_first(done: int, total: int) -> None:
+        progress_calls.append((done, total))
+        # Simulate cancel_active_downloads() landing after the first chunk is written.
+        manager._download_generation = 1
+
+    queued.progress_callback = _bump_after_first
+    manager._process_download(queued, civitai_adhoc.logger.bind(manager="lora"))
+
+    assert len(progress_calls) == 1, "the stream must stop at the chunk boundary after the cancel, not run on"
+    assert not (tmp_path / "cancel.safetensors").exists(), "a cancelled stream must not leave a final weight file"
+    assert list(tmp_path.glob("*.tmp-*")) == [], "a cancelled stream must not leak a temp file"
+    assert queued.completion_event.is_set(), "a cancelled download must still release the waiter"
+    assert queued.success is False
+    assert not manager._is_version_bad("4242"), "a cancel is not a terminal failure and must not poison the cache"
