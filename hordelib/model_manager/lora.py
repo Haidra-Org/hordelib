@@ -54,6 +54,8 @@ class LoRaRejectionReason(StrEnum):
     """The LoRA is NSFW and the worker is SFW-only."""
     INVALID = auto()
     """The LoRA's metadata is invalid or incomplete."""
+    NOT_FOUND = auto()
+    """CivitAI definitively has no such LoRA (a 401 or 404); the reference does not exist and never will."""
 
 
 class NO_CACHE_FALLBACK:
@@ -312,7 +314,10 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
                 lora_name = existing.orig_name
                 lora_nsfw = existing.nsfw
             else:
-                model_data = self._fetch_civitai_json(f"https://civitai.com/api/v1/models/{lora_id}")
+                try:
+                    model_data = self._fetch_civitai_json(f"https://civitai.com/api/v1/models/{lora_id}")
+                except he.CivitAIResourceNotFound:
+                    return None, LoRaRejectionReason.NOT_FOUND
                 if model_data is None:
                     return None, LoRaRejectionReason.INVALID
                 lora_name = model_data.get("name", "")
@@ -562,7 +567,12 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
 
     def _seed_default_loras(self) -> None:
         """Fetch the curated default-LoRA id list and enqueue each for download."""
-        default_ids = self._fetch_civitai_json(self.LORA_DEFAULTS)
+        try:
+            default_ids = self._fetch_civitai_json(self.LORA_DEFAULTS)
+        except he.CivitAIResourceNotFound:
+            logger.bind(manager="lora").error("lora.defaults_fetch_not_found")
+            self._default_lora_ids = []
+            return
         if not isinstance(default_ids, list):
             logger.bind(manager="lora").error("lora.defaults_fetch_invalid_type")
             self._default_lora_ids = []
@@ -575,7 +585,11 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         if not lora_ids:
             return
         ids_query = "&ids=".join(str(lora_id) for lora_id in lora_ids)
-        data = self._fetch_civitai_json(f"https://civitai.com/api/v1/models?limit=100&ids={ids_query}")
+        try:
+            data = self._fetch_civitai_json(f"https://civitai.com/api/v1/models?limit=100&ids={ids_query}")
+        except he.CivitAIResourceNotFound:
+            logger.bind(manager="lora").warning("lora.queue_metadata_not_found", requested_ids=lora_ids)
+            return
         if not data:
             logger.bind(manager="lora").warning("lora.queue_metadata_missing", requested_ids=lora_ids)
             return
@@ -624,7 +638,9 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         """Return a parsed LoRA record for the first item at *url*.
 
         Raises:
-            he.CivitAIDown: If CivitAI returned no data.
+            he.CivitAIDown: If CivitAI returned no data (a transient outage, retryable).
+            he.CivitAIResourceNotFound: If CivitAI definitively refused the request (a 401 or 404); a
+                terminal verdict the caller must not treat as a retryable outage.
             he.ModelEmpty: If the search returned no items.
             he.ModelInvalid: If the item could not be parsed into a valid record.
         """
@@ -725,6 +741,11 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         rejection_reason: LoRaRejectionReason | None = None
         try:
             record, rejection_reason = self.get_lora_metadata(url)
+        except he.CivitAIResourceNotFound:
+            # A definitive not-found/unauthorized is terminal: the reference does not exist, so surface a
+            # terminal rejection the caller can memoize rather than a retryable (None, None).
+            logger.info("Adhoc lora '{}' rejected: not found upstream", lora_name)
+            return None, LoRaRejectionReason.NOT_FOUND
         except he.CivitAIDown as civitai_down:
             if isinstance(lora_name, str) and lora_name in self.model_reference:
                 self._touch_lora(lora_name)

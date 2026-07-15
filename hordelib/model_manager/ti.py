@@ -22,6 +22,7 @@ from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY
 from horde_model_reference.model_reference_records import DownloadRecord
 from strenum import StrEnum
 
+from hordelib.exceptions import CivitAIResourceNotFound
 from hordelib.model_manager.civitai_adhoc import (
     CacheEntry,
     CivitaiAdhocModelManager,
@@ -431,7 +432,12 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
         else:
             url = f"{self.TI_API}&nsfw={str(self.nsfw).lower()}&query={ti_name}"
 
-        data = self._fetch_civitai_json(url)
+        try:
+            data = self._fetch_civitai_json(url)
+        except CivitAIResourceNotFound:
+            # A definitive 401/404 is terminal: the embedding does not exist upstream, so report a concrete
+            # not-found rejection rather than a reason-less retryable failure.
+            return None, TIRejectionReason.NOT_FOUND
         if not data:
             # A None body conflates a genuine "not found" with an exhausted-retry transient, so it stays
             # reason-less rather than asserting a terminal verdict the metadata layer cannot distinguish.

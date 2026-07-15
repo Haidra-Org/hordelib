@@ -45,6 +45,7 @@ from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY
 from horde_model_reference.model_reference_records import GenericModelRecord
 from loguru import logger
 
+from hordelib.exceptions import CivitAIResourceNotFound
 from hordelib.metrics import DownloadCategory, DownloadEvent, get_metrics_collector
 from hordelib.model_manager.base import BaseModelManager
 
@@ -645,9 +646,15 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     def _fetch_civitai_json(self, url: str) -> dict | None:
         """Return the parsed JSON body of a CivitAI API GET, retrying transient failures.
 
-        Returns ``None`` on a definitive failure (client error, exhausted retries, or repeated
-        invalid JSON), mirroring CivitAI's quirk of returning 500 for impossible ids and HTML for
-        some error pages.
+        Returns ``None`` on a transient give-up (an exhausted retry budget, a repeated 5xx, or repeated
+        invalid JSON), mirroring CivitAI's quirk of returning 500 for impossible ids and HTML for some
+        error pages; a caller cannot tell that outcome apart from a slow-then-recovering outage, so it stays
+        retryable.
+
+        Raises:
+            CivitAIResourceNotFound: On a definitive client error (a 401 or 404). Unlike the transient
+                ``None`` this is terminal: retrying the same public request will not change it, so the caller
+                translates it into a terminal rejection rather than a retryable failure.
         """
         fetch_logger = logger.bind(manager=self.METRIC_PREFIX)
         start_time = time.perf_counter()
@@ -680,8 +687,15 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                     status_code=status_code,
                 )
 
-                # 401/404 and 5xx above 500 will not resolve by retrying; give up immediately.
-                if status_code in (401, 404) or (status_code is not None and status_code > 500):
+                # A 401/404 is a definitive verdict, not a transient failure: the reference does not exist or
+                # is inaccessible, so surface it distinctly rather than as an indistinguishable retryable None.
+                if status_code in (401, 404):
+                    raise CivitAIResourceNotFound(
+                        f"CivitAI returned {status_code} for {truncated_url}",
+                    ) from fetch_error
+                # A 5xx above 500 will not resolve by retrying either, but it is a server-side fault (not a
+                # verdict on the reference), so it stays a transient give-up the caller may retry later.
+                if status_code is not None and status_code > 500:
                     return None
                 # CivitAI's 500s and HTML-instead-of-JSON pages rarely clear quickly; burn most retries.
                 if status_code == 500 or isinstance(fetch_error, json.JSONDecodeError):
