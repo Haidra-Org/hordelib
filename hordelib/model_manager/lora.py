@@ -8,6 +8,7 @@ default-LoRA seeding flow, and the ad-hoc fetch/metadata-match logic.
 """
 
 import os
+import re
 import threading
 import time
 from collections.abc import Callable
@@ -56,6 +57,21 @@ class LoRaRejectionReason(StrEnum):
     """The LoRA's metadata is invalid or incomplete."""
     NOT_FOUND = auto()
     """CivitAI definitively has no such LoRA (a 401 or 404); the reference does not exist and never will."""
+    MISMATCH = auto()
+    """CivitAI returned metadata for a different LoRA than requested and no cached entry covers the request."""
+
+
+_WHITESPACE_RUN = re.compile(r"\s+")
+
+
+def _fold_name_for_comparison(name: str) -> str:
+    """Fold a name for equality/substring/fuzzy comparison only, never for a stored cache key.
+
+    CivitAI writes a LoRA's display name with spaces where a job requests it with underscores. Folding
+    underscores to spaces and collapsing repeated whitespace lets the two agree in the match path without
+    changing how keys are sanitised and stored (those keep their underscores).
+    """
+    return _WHITESPACE_RUN.sub(" ", name.replace("_", " ")).strip()
 
 
 class NO_CACHE_FALLBACK:
@@ -764,6 +780,12 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         # We'll give it one more try even if the it seemed invalid so far
         # as it may be cached locally and have failed earlier only due to a transient CivitAI error.
         cached_key = self._resolve_metadata_mismatch(lora_name, record, is_version)
+        if cached_key is None:
+            # A genuine mismatch with no cached fallback is terminal: the returned metadata is for a different
+            # LoRA and no local entry covers the request. Surface a reason the caller can memoize rather than a
+            # retryable (None, None).
+            logger.info("Adhoc lora '{}' rejected: metadata mismatch", lora_name)
+            return None, LoRaRejectionReason.MISMATCH
         if not isinstance(cached_key, NO_CACHE_FALLBACK):
             return cached_key, rejection_reason
 
@@ -848,16 +870,19 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         requested_sanitized = self._canonical_lora_key(requested)
         if not requested_sanitized:
             return False
+        # Fold underscores to spaces on both sides so a request separated by ``_`` matches a display name
+        # separated by spaces. Folding happens only for this comparison; the stored keys keep underscores.
+        requested_folded = _fold_name_for_comparison(requested_sanitized)
         candidate_names = {record.name.lower()}
         if record.orig_name:
             candidate_names.add(Sanitizer.sanitise_model_name(record.orig_name).lower())
         for version in record.versions.values():
             candidate_names.add(version.lora_key.lower())
-        candidate_names = {name for name in candidate_names if name}
+        candidate_folded = {_fold_name_for_comparison(name) for name in candidate_names if name}
         if any(
-            requested_sanitized == candidate or requested_sanitized in candidate or candidate in requested_sanitized
-            for candidate in candidate_names
+            requested_folded == candidate or requested_folded in candidate or candidate in requested_folded
+            for candidate in candidate_folded
         ):
             return True
-        best_ratio = max((fuzz.ratio(requested_sanitized, candidate) for candidate in candidate_names), default=0)
+        best_ratio = max((fuzz.ratio(requested_folded, candidate) for candidate in candidate_folded), default=0)
         return best_ratio >= self.FUZZ_THRESHOLD
