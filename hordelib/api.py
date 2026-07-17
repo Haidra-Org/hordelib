@@ -79,6 +79,7 @@ from hordelib.pipeline.payload_pp import (
 from hordelib.preload import controlnet_annotators_present
 from hordelib.utils.ioredirect import ComfyUIProgress, ComfyUIProgressUnit
 from hordelib.utils.logger import HordeLog
+from hordelib.utils.memory_trim import trim_host_memory
 from hordelib.utils.torch_memory import (
     AcceleratorInfo,
     AcceleratorKind,
@@ -189,6 +190,7 @@ __all__ = [
     "log_free_ram",
     "offthread_vram_sampling_ready",
     "set_gpu_sampling_lease",
+    "trim_host_memory",
 ]
 
 

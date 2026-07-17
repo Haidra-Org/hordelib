@@ -8,9 +8,9 @@ every subsequent stage request is a superset cache hit that reuses the full comp
 cold subset-load path never runs. In production each stage runs in its own process and does cold-load
 its subset, so this module forces that path in-process by clearing the loader cache before a stage.
 
-The seam is ``SharedModelManager.manager._models_in_ram`` (see :mod:`hordelib.model_manager.hyper`),
-keyed by the bare horde model name for the combined-loader stage path. The loader consults only this
-dict when deciding to reuse (see :mod:`hordelib.nodes.node_model_loader`); emptying it forces the
+The seam is ``SharedModelManager.manager._models_in_ram`` (see :mod:`hordelib.model_manager.hyper`), the
+component cache keyed by the bare horde model name for the combined-loader stage path. The loader consults
+only this cache when deciding to reuse (see :mod:`hordelib.nodes.node_model_loader`); emptying it forces the
 disk-load branch with the stage's subset flags in effect.
 
 Two case sets, both at a fixed seed compared against the monolithic ``generate`` render:
@@ -90,12 +90,12 @@ def _params(
 
 def _clear_loader_cache() -> None:
     """Empty the loader's in-RAM component cache so the next stage cold-loads its subset from disk."""
-    SharedModelManager.manager._models_in_ram = {}
+    SharedModelManager.manager._models_in_ram.evict_all()
 
 
 def _snapshot_loader_cache() -> dict:
-    """Copy the current loader cache so a warm stage can be handed back the full-tuple entry it needs."""
-    return dict(SharedModelManager.manager._models_in_ram)
+    """Copy the current loader cache entries so a warm stage can be handed back the full-tuple entry it needs."""
+    return dict(SharedModelManager.manager._models_in_ram._entries)
 
 
 def _restore_loader_cache(snapshot: dict) -> None:
@@ -105,7 +105,9 @@ def _restore_loader_cache(snapshot: dict) -> None:
     between the snapshot and the restore; the warm stage reuses exactly the tuple the monolithic render
     loaded.
     """
-    SharedModelManager.manager._models_in_ram = dict(snapshot)
+    cache = SharedModelManager.manager._models_in_ram
+    cache._entries.clear()
+    cache._entries.update(snapshot)
 
 
 def _run_cold_pipeline(

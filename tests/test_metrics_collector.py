@@ -72,6 +72,35 @@ class TestSnapshotAndReset:
         assert len(collector.drain_download_events()) == 1
 
 
+class TestComponentCacheCounters:
+    def test_empty_snapshot_defaults(self, collector: MetricsCollector) -> None:
+        snapshot = collector.snapshot_and_reset_job()
+        assert snapshot.component_cache_hits == 0
+        assert snapshot.component_cache_misses == 0
+        assert snapshot.component_cache_evictions == 0
+        assert snapshot.component_cache_held_mb is None
+
+    def test_counts_accumulate_and_reset(self, collector: MetricsCollector) -> None:
+        collector.record_component_cache_hit()
+        collector.record_component_cache_hit()
+        collector.record_component_cache_miss()
+        collector.record_component_cache_evictions(3)
+        collector.record_component_cache_evictions(0)  # a no-op count is ignored
+        collector.record_component_cache_held_mb(1234.5)
+
+        snapshot = collector.snapshot_and_reset_job()
+        assert snapshot.component_cache_hits == 2
+        assert snapshot.component_cache_misses == 1
+        assert snapshot.component_cache_evictions == 3
+        assert snapshot.component_cache_held_mb == 1234.5
+
+        after = collector.snapshot_and_reset_job()
+        assert after.component_cache_hits == 0
+        assert after.component_cache_misses == 0
+        assert after.component_cache_evictions == 0
+        assert after.component_cache_held_mb is None
+
+
 class TestSampling:
     def test_steady_progress_rates(self, collector: MetricsCollector) -> None:
         # 1-based sampler steps, one step per second

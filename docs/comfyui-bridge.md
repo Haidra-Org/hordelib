@@ -87,13 +87,61 @@ files (textual inversions) appear between jobs.
 
 ## Checkpoint RAM cache
 
-`SharedModelManager._models_in_ram` keeps the last loaded tuple `(model, clip, vae)` per model
-name (suffixed `:file_type` for component files). A cached entry is only reused when it covers
-every component the current request asks for: component-subset loads (a text-encode stage loads
-only the CLIP, an image lane only the VAE) cache `None` in the omitted slots, and a later,
-broader request treats such an entry as a miss, reloading from disk and replacing the cache with
-the fuller tuple. Seamless-tiling state is re-applied on reuse to whichever of the UNet and VAE
-are present.
+`SharedModelManager._models_in_ram` is a content-addressed, MB-budgeted LRU
+(`hordelib/execution/component_cache.py`, `ComponentCache`) of loaded component tuples. Each entry is keyed
+by a `ComponentCacheKey(kind, identity)`:
+
+- **Full or subset checkpoint** (`file_type is None`): `kind=CHECKPOINT`, `identity=<model name>`. Every
+  full-or-subset load of a model shares one entry, and the identity is free to derive so a warm hit resolves
+  no record or disk path. A cached tuple is only reused when it covers every component the current request
+  asks for: a component-subset load (a text-encode stage loads only the CLIP, an image lane only the VAE)
+  caches `None` in the omitted slots, and a later, broader request treats such an entry as a miss, reloading
+  from disk and replacing the entry with the fuller tuple. Seamless-tiling state is re-applied on reuse to
+  whichever of the UNet and VAE are present.
+- **Bare component** (`file_type` in {unet, vae, text_encoder}, loaded via `comfy.sd.load_diffusion_model`):
+  `kind` is the component's slot (UNET/CLIP/VAE), `identity=<model name>:<file_type>`.
+- **Standalone VAE** (see below): `kind=VAE`, `identity=vae@<content-hash>`.
+
+**Budget and eviction.** The budget is `HORDE_COMPONENT_CACHE_MB` megabytes, read once per process. A load
+inserts its entry and the cache evicts the least-recently-used entries until the summed approximate RAM cost
+fits the budget (the just-loaded entry is never evicted, so a single component larger than the budget still
+loads). Each entry's cost is estimated from the checkpoint's component-identity sidecar (the UNet-ish
+residual for the model slot, the text-encoder bytes for the CLIP slot, the VAE bytes for the VAE slot), or a
+conservative per-kind constant when no sidecar is available; the estimate bounds intent, it is not a measured
+resident-set delta. Evictions, hits, misses, and resident megabytes are recorded per job on the metrics
+collector (`component_cache_*` fields on `JobPhaseMetrics`).
+
+**Default (`0`) is the rollback lever.** With the budget unset or `0`, the cache holds exactly one component:
+each insert evicts every other entry, reproducing the historical single-slot behaviour, so residency changes
+only when a deployment opts in with a positive budget.
+
+**LoRA serving.** An entry is stored reusable even for a LoRA-bearing job, so a later job shares the pristine
+cached base. This is safe because the graph's LoRA loader (`comfy.sd.load_lora_for_models`) clones the base
+ModelPatcher/CLIP before patching, leaving the cached weights untouched (patches materialise on the clone at
+GPU load and revert at unload). Set `HORDE_COMPONENT_CACHE_PRISTINE_LORA_SERVING` falsy to restore the
+historical behaviour of never sharing a base a LoRA-bearing job loaded (such entries are then marked
+non-reusable and never served to a later request).
+
+### Standalone-VAE path (content-addressed VAE sharing)
+
+A VAE-only decode of a monolithic checkpoint (`output_vae` set, `output_model`/`output_clip` clear,
+`file_type is None`) otherwise subset-loads the whole multi-gigabyte checkpoint and caches the VAE under
+the *model* name, so two models that embed byte-identical VAE weights never share a cached VAE. When
+horde_model_reference has written a component-identity sidecar beside the checkpoint (see below), the loader
+instead loads the small pre-extracted standalone VAE and caches it under `vae@<content-hash>`, so those two
+models resolve to one cache entry (a cross-model cache hit). The result tuple mirrors the subset path's
+`(model, clip, vae, clipvision)` shape with only the VAE populated, and seamless tiling is applied exactly as
+on the subset path. Any absence (no fresh sidecar, no extracted file) falls back to the unchanged subset
+load; non-VAE-only requests are untouched.
+
+The sidecar (and the extracted `vae/<...>.safetensors`) is written by `CompVisModelManager` after a
+successful checkpoint download, and can be (re)built for every on-disk image checkpoint via
+`CompVisModelManager.ensure_component_identity_sweep()` (idempotent; never run automatically at init, so a
+child process pays no boot-time hashing cost). Extraction targets the same `vae/` folder ComfyUI searches
+(`hordelib/execution/model_dirs.py`), so the loader finds the file with no extra wiring.
+
+Set `HORDE_DISABLE_STANDALONE_VAE_PATH` truthy (`1`/`true`/`yes`/`on`) to disable the path entirely and
+restore the prior subset-load behaviour for every VAE-only request.
 
 ## The monkeypatches
 

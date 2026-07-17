@@ -161,7 +161,7 @@ def _has_component(params: ImageGenerationParameters, component_type: type) -> b
 
 def _clear_loader_cache() -> None:
     """Empty the loader's in-RAM component cache so the next stage cold-loads its subset from disk."""
-    SharedModelManager.manager._models_in_ram = {}
+    SharedModelManager.manager._models_in_ram.evict_all()
 
 
 def _cold_encode(hordelib_instance: HordeLib, params: ImageGenerationParameters) -> tuple[bytes, bytes]:

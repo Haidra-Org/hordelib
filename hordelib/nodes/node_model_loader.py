@@ -1,20 +1,47 @@
 # node_model_loader.py
 # Simple proof of concept custom node to load models.
 
+import os
 import time
 from pathlib import Path
 from typing import Any
 
 import comfy.model_management
 import comfy.sd
+import comfy.utils
 import folder_paths  # type: ignore
 import logfire
 import torch
+from horde_model_reference.component_hash import ComponentKind
+from horde_model_reference.component_identity import read_sidecar
 from loguru import logger
 
 from hordelib.comfy_horde import log_free_ram
+from hordelib.execution.component_cache import (
+    ComponentCache,
+    ComponentCacheEntry,
+    ComponentCacheKey,
+    ComponentSlotKind,
+    approx_ram_mb_from_bytes,
+    pristine_lora_serving_enabled,
+)
+from hordelib.execution.standalone_vae import (
+    plan_standalone_vae_load,
+    standalone_vae_path_disabled,
+)
 from hordelib.metrics import ModelLoadEvent, get_metrics_collector
 from hordelib.shared_model_manager import SharedModelManager
+
+_COMPONENT_FILE_TYPE_KINDS: dict[str, ComponentSlotKind] = {
+    "unet": ComponentSlotKind.UNET,
+    "text_encoder": ComponentSlotKind.CLIP,
+    "vae": ComponentSlotKind.VAE,
+}
+"""Maps a bare-component ``file_type`` to the cache slot kind it occupies. Kept aligned with
+``COMPONENT_FILE_TYPES``; anything absent defaults to the whole-checkpoint kind."""
+
+_sidecar_estimate_warned = False
+"""Set once the first sidecar read for RAM estimation fails, so the warning is logged only once per process."""
 
 # Module-level metrics for model loading performance
 cache_hits_counter = logfire.metric_counter(
@@ -115,103 +142,196 @@ class HordeCheckpointLoader:
         if SharedModelManager.manager.compvis is None:
             raise ValueError("CompVisModelManager is not initialised.")
 
-        horde_in_memory_name = horde_model_name
-        if file_type is not None:
-            horde_in_memory_name = f"{horde_model_name}:{file_type}"
-        same_loaded_model = SharedModelManager.manager._models_in_ram.get(horde_in_memory_name)
-        logger.debug([horde_in_memory_name, file_type, same_loaded_model])
+        cache = SharedModelManager.manager._models_in_ram
 
-        # Check cache hit/miss
-        cache_hit = same_loaded_model is not None and not same_loaded_model[1]
+        # A VAE-only decode of a monolithic checkpoint (file_type is None) can be served from a small
+        # pre-extracted standalone VAE and cached by the VAE's content identity, so models that share a
+        # byte-identical VAE hit one cache entry instead of each subset-loading their own multi-gigabyte
+        # checkpoint. Any absence (no fresh sidecar, no extracted file, kill-switch set) returns None and
+        # falls through to the unchanged subset-load path below.
+        vae_only_request = bool(output_vae) and not output_model and not output_clip
+        standalone_eligible = vae_only_request and file_type is None and not standalone_vae_path_disabled()
+        if standalone_eligible:
+            standalone_result = self._load_standalone_vae(
+                cache,
+                horde_model_name,
+                ckpt_name,
+                seamless_tiling_enabled,
+            )
+            if standalone_result is not None:
+                return standalone_result
 
-        if cache_hit:
-            cache_hits_counter.add(1)
-            logger.info("Model cache hit: model={}, file_type={}", horde_model_name, file_type)
-        else:
-            cache_misses_counter.add(1)
-            logger.info("Model cache miss - loading from disk: model={}, file_type={}", horde_model_name, file_type)
+        # An entry is stored reusable so a later job can share this pristine base, including a LoRA-bearing
+        # one: the graph's LoRA loader clones the base ModelPatcher/CLIP before patching, so the cached
+        # weights are never mutated. The rollback knob restores the historical "never share a LoRA job's
+        # base" behaviour by marking such entries non-reusable.
+        entry_reusable = pristine_lora_serving_enabled() or not will_load_loras
 
-        # Check if the model was previously loaded and if so, not loaded with Loras
-        if same_loaded_model and not same_loaded_model[1]:
-            if file_type in COMPONENT_FILE_TYPES:
-                logger.debug("Model file was previously loaded, returning it: file_type={}", file_type)
-                log_free_ram()
-                return same_loaded_model[0]
-            # A component-subset load (output_model/output_clip/output_vae False) caches a tuple with None in
-            # the omitted slots, so the cached entry only satisfies a request whose needs it covers; anything
-            # broader reloads from disk and replaces the cache with the fuller tuple.
+        if file_type in COMPONENT_FILE_TYPES:
+            return self._load_bare_component(
+                cache,
+                horde_model_name,
+                ckpt_name,
+                file_type,
+                weight_dtype,
+                seamless_tiling_enabled,
+                entry_reusable,
+            )
+
+        return self._load_monolithic_checkpoint(
+            cache,
+            horde_model_name,
+            ckpt_name,
+            output_model,
+            output_vae,
+            output_clip,
+            seamless_tiling_enabled,
+            entry_reusable,
+        )
+
+    def _load_monolithic_checkpoint(
+        self,
+        cache: ComponentCache,
+        horde_model_name: str,
+        ckpt_name: str | None,
+        output_model: bool,
+        output_vae: bool,
+        output_clip: bool,
+        seamless_tiling_enabled: bool,
+        entry_reusable: bool,
+    ):
+        """Serve a full or subset checkpoint through the component cache, cold-loading on a miss.
+
+        A cached tuple satisfies the request only when it carries every component the request asks for; a
+        narrower cached tuple (a prior subset load left None in the omitted slots) is a miss that reloads and
+        replaces the entry with the broader tuple. Seamless tiling is re-applied on every hit.
+
+        The cache identity is the bare model name: it is stable and free to derive, so a warm hit resolves
+        no record or disk path, and every full-or-subset load of a model shares one entry (the property the
+        subset-satisfaction check relies on). Checkpoint file resolution happens only on a miss.
+        """
+        cache_key = ComponentCacheKey(ComponentSlotKind.CHECKPOINT, horde_model_name)
+        collector = get_metrics_collector()
+
+        entry = cache.get(cache_key)
+        if entry is not None:
             # Indexed access, not unpacking: the cached tuple mirrors load_checkpoint_guess_config's return,
             # which carries trailing elements beyond (model, clip, vae) that this reuse path never touches.
-            cached_model = same_loaded_model[0][0]
-            cached_clip = same_loaded_model[0][1]
-            cached_vae = same_loaded_model[0][2]
+            payload = entry.payload
+            cached_model, cached_clip, cached_vae = payload[0], payload[1], payload[2]
             satisfies_request = (
                 (not output_model or cached_model is not None)
                 and (not output_clip or cached_clip is not None)
                 and (not output_vae or cached_vae is not None)
             )
             if satisfies_request:
-                if seamless_tiling_enabled:
-                    if cached_model is not None:
-                        cached_model.model.apply(make_circular)
-                    if cached_vae is not None:
-                        make_circular_vae(cached_vae)
-                else:
-                    if cached_model is not None:
-                        cached_model.model.apply(make_regular)
-                    if cached_vae is not None:
-                        make_regular_vae(cached_vae)
-
-                logger.debug("Model was previously loaded, returning it.")
+                cache_hits_counter.add(1)
+                collector.record_component_cache_hit()
+                collector.record_component_cache_held_mb(cache.held_mb())
+                logger.info("Model cache hit: model={}", horde_model_name)
+                _apply_model_tiling(cached_model, seamless_tiling_enabled)
+                _apply_vae_tiling(cached_vae, seamless_tiling_enabled)
                 log_free_ram()
-                return same_loaded_model[0]
+                return payload
             logger.info(
                 "Cached load of {} lacks a component this request needs; reloading from disk.",
-                horde_in_memory_name,
+                horde_model_name,
             )
 
-        if not ckpt_name:
-            if not SharedModelManager.manager.compvis.is_model_available(horde_model_name):
-                raise ValueError(f"Model {horde_model_name} is not available.")
+        cache_misses_counter.add(1)
+        collector.record_component_cache_miss()
+        logger.info("Model cache miss - loading from disk: model={}", horde_model_name)
+        _release_single_slot_before_cold_load(cache)
 
-            file_entries = SharedModelManager.manager.compvis.get_model_filenames(horde_model_name)
-            for file_entry in file_entries:
-                if file_type is not None:
-                    # if a file_type has been passed, we look at the available files for this model
-                    # To find the appropriate type.
-                    if file_entry.get("file_type") == file_type:
-                        ckpt_name = file_entry["file_path"].name
-                        break
-                else:
-                    # If there's no file_type passed, we follow the previous approach and pick the first file
-                    # (There should be only one)
-                    if file_entry["file_path"].is_absolute():
-                        ckpt_name = str(file_entry["file_path"])
-                    else:
-                        ckpt_name = file_entry["file_path"].name
-                    break
+        resolved_ckpt_name = self._resolve_monolithic_ckpt_name(horde_model_name, ckpt_name)
+        ckpt_path = self._resolve_ckpt_path(resolved_ckpt_name)
 
-        # Clear references so comfy can free memory as needed
-        SharedModelManager.manager._models_in_ram = {}
+        from hordelib.execution.zero_copy_load import zero_copy_state_dict_assignment
 
-        # TODO: Currently we don't preload the layer_diffuse tensors which can potentially be big
-        # (3G for SDXL). So they will be loaded during runtime, and their memory usage will be
-        # handled by comfy as with any lora.
-        # Potential improvement here is to preload these models at this point
-        # And then just pass their reference to layered_diffusion.py, but that would require
-        # Quite a bit of refactoring.
+        with torch.no_grad(), zero_copy_state_dict_assignment():
+            load_start_time = time.time()
+            with logfire.span("model.load_checkpoint_guess_config"):
+                result = comfy.sd.load_checkpoint_guess_config(
+                    ckpt_path,
+                    output_model=output_model,
+                    output_vae=output_vae,
+                    output_clip=output_clip,
+                    embedding_directory=folder_paths.get_folder_paths("embeddings"),
+                )
+            load_duration_ms = (time.time() - load_start_time) * 1000
+            disk_load_histogram.record(load_duration_ms)
+            collector.record_model_load(
+                ModelLoadEvent(
+                    model_name=horde_model_name,
+                    phase="disk_to_ram",
+                    duration_seconds=load_duration_ms / 1000,
+                    timestamp=time.time(),
+                ),
+            )
+            logger.info(
+                "Model loaded from disk: model={}, load_duration_ms={:.2f}",
+                horde_model_name,
+                load_duration_ms,
+            )
+            logger.debug(result)
 
-        if ckpt_name is not None and Path(ckpt_name).is_absolute():
-            ckpt_path = ckpt_name
-        elif ckpt_name is not None:
-            full_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        # A disaggregated stage may have loaded only a subset, so a slot can be None; each helper is a no-op
+        # when its component is absent.
+        _apply_model_tiling(result[0], seamless_tiling_enabled)
+        _apply_vae_tiling(result[2], seamless_tiling_enabled)
 
-            if full_path is None:
-                raise ValueError(f"{file_type} file {ckpt_name} not found.")
+        evicted = cache.put(
+            ComponentCacheEntry(
+                key=cache_key,
+                payload=result,
+                approx_ram_mb=_estimate_checkpoint_ram_mb(ckpt_path, result),
+                reusable=entry_reusable,
+                source_ckpt_path=str(ckpt_path),
+            ),
+        )
+        self._record_evictions(evicted, cache, collector)
 
-            ckpt_path = full_path
-        else:
-            raise ValueError("No model file name provided.")
+        log_free_ram()
+        logger.debug(result)
+        return result
+
+    def _load_bare_component(
+        self,
+        cache: ComponentCache,
+        horde_model_name: str,
+        ckpt_name: str | None,
+        file_type: str,
+        weight_dtype: str | None,
+        seamless_tiling_enabled: bool,
+        entry_reusable: bool,
+    ):
+        """Serve a bare single-component load (``comfy.sd.load_diffusion_model``) through the component cache.
+
+        Component file_types (unet, vae, text_encoder) select one file of a multi-file model and load it as a
+        single object; the cached tuple is ``(component, None, None)``. A cache hit returns the tuple as-is.
+        """
+        cache_key = ComponentCacheKey(
+            _COMPONENT_FILE_TYPE_KINDS.get(file_type, ComponentSlotKind.CHECKPOINT),
+            f"{horde_model_name}:{file_type}",
+        )
+        collector = get_metrics_collector()
+
+        entry = cache.get(cache_key)
+        if entry is not None:
+            cache_hits_counter.add(1)
+            collector.record_component_cache_hit()
+            collector.record_component_cache_held_mb(cache.held_mb())
+            logger.info("Model cache hit: model={}, file_type={}", horde_model_name, file_type)
+            log_free_ram()
+            return entry.payload
+
+        cache_misses_counter.add(1)
+        collector.record_component_cache_miss()
+        logger.info("Model cache miss - loading from disk: model={}, file_type={}", horde_model_name, file_type)
+        _release_single_slot_before_cold_load(cache)
+
+        resolved_ckpt_name = self._resolve_component_file(horde_model_name, ckpt_name, file_type)
+        ckpt_path = self._resolve_ckpt_path(resolved_ckpt_name)
 
         # Keep the checkpoint's mmap-backed tensors as the module weights where byte-identical
         # (dtype-matching) instead of copying them into private memory: sibling processes pinning the
@@ -221,43 +341,31 @@ class HordeCheckpointLoader:
 
         with torch.no_grad(), zero_copy_state_dict_assignment():
             load_start_time = time.time()
-
-            if file_type in COMPONENT_FILE_TYPES:
-                with logfire.span("model.load_diffusion_model", file_type=file_type):
-                    model_options: dict[str, Any] = {}
-                    if weight_dtype == "fp8_e4m3fn":
-                        model_options["dtype"] = torch.float8_e4m3fn
-                    elif weight_dtype == "fp8_e4m3fn_fast":
-                        model_options["dtype"] = torch.float8_e4m3fn
-                        model_options["fp8_optimizations"] = True
-                    elif weight_dtype == "fp8_e5m2":
-                        model_options["dtype"] = torch.float8_e5m2
-                    loaded_component = comfy.sd.load_diffusion_model(
-                        ckpt_path,
-                        model_options=model_options,
-                    )
-                    logger.debug(loaded_component)
-                    # HordeCheckpointLoader declares (MODEL, CLIP, VAE) outputs, but a component
-                    # load produces a single model object. Pad to the declared arity: ComfyUI calls
-                    # len() on the returned value to map node outputs (a bare ModelPatcher raises
-                    # "object of type 'ModelPatcher' has no len()"), and component pipelines (e.g.
-                    # qwen) wire CLIP/VAE from their own loader nodes, so None here is correct.
-                    result = (loaded_component, None, None)
-            else:
-                with logfire.span("model.load_checkpoint_guess_config"):
-                    result = comfy.sd.load_checkpoint_guess_config(
-                        ckpt_path,
-                        output_model=output_model,
-                        output_vae=output_vae,
-                        output_clip=output_clip,
-                        embedding_directory=folder_paths.get_folder_paths("embeddings"),
-                    )
-
+            with logfire.span("model.load_diffusion_model", file_type=file_type):
+                model_options: dict[str, Any] = {}
+                if weight_dtype == "fp8_e4m3fn":
+                    model_options["dtype"] = torch.float8_e4m3fn
+                elif weight_dtype == "fp8_e4m3fn_fast":
+                    model_options["dtype"] = torch.float8_e4m3fn
+                    model_options["fp8_optimizations"] = True
+                elif weight_dtype == "fp8_e5m2":
+                    model_options["dtype"] = torch.float8_e5m2
+                loaded_component = comfy.sd.load_diffusion_model(
+                    ckpt_path,
+                    model_options=model_options,
+                )
+                logger.debug(loaded_component)
+                # HordeCheckpointLoader declares (MODEL, CLIP, VAE) outputs, but a component
+                # load produces a single model object. Pad to the declared arity: ComfyUI calls
+                # len() on the returned value to map node outputs (a bare ModelPatcher raises
+                # "object of type 'ModelPatcher' has no len()"), and component pipelines (e.g.
+                # qwen) wire CLIP/VAE from their own loader nodes, so None here is correct.
+                result = (loaded_component, None, None)
             load_duration_ms = (time.time() - load_start_time) * 1000
             disk_load_histogram.record(load_duration_ms)
-            get_metrics_collector().record_model_load(
+            collector.record_model_load(
                 ModelLoadEvent(
-                    model_name=horde_in_memory_name,
+                    model_name=f"{horde_model_name}:{file_type}",
                     phase="disk_to_ram",
                     duration_seconds=load_duration_ms / 1000,
                     timestamp=time.time(),
@@ -270,30 +378,308 @@ class HordeCheckpointLoader:
                 load_duration_ms,
             )
             logger.debug(result)
-        SharedModelManager.manager._models_in_ram[horde_in_memory_name] = result, will_load_loras
 
-        # Apply tiling settings - handle both checkpoint format (tuple) and component format (single object)
-        if file_type in COMPONENT_FILE_TYPES:
-            # For individual components, result is already the model patcher/loader
-            # No tiling to apply here as these are handled differently
-            pass
-        elif seamless_tiling_enabled:
-            # For full checkpoints, result is a tuple: (model, clip, vae). A disaggregated stage may
-            # have loaded only a subset, so a component can be None; tiling only touches what is present.
-            if result[0] is not None:
-                result[0].model.apply(make_circular)
-            if result[2] is not None:
-                make_circular_vae(result[2])
-        else:
-            # For full checkpoints, apply regular tiling
-            if result[0] is not None:
-                result[0].model.apply(make_regular)
-            if result[2] is not None:
-                make_regular_vae(result[2])
+        _apply_component_tiling(result[0], file_type, seamless_tiling_enabled)
+
+        evicted = cache.put(
+            ComponentCacheEntry(
+                key=cache_key,
+                payload=result,
+                approx_ram_mb=approx_ram_mb_from_bytes(cache_key.kind, _safe_file_size(ckpt_path)),
+                reusable=entry_reusable,
+                source_ckpt_path=str(ckpt_path),
+            ),
+        )
+        self._record_evictions(evicted, cache, collector)
 
         log_free_ram()
         logger.debug(result)
         return result
+
+    def _load_standalone_vae(
+        self,
+        cache: ComponentCache,
+        horde_model_name: str,
+        ckpt_name: str | None,
+        seamless_tiling_enabled: bool,
+    ) -> tuple[Any, Any, Any, Any] | None:
+        """Serve a VAE-only request from the checkpoint's pre-extracted standalone VAE, or None to fall back.
+
+        Resolves the monolithic checkpoint, consults its component-identity sidecar, and when a fresh sidecar
+        records an on-disk extracted VAE, serves that VAE keyed by its content hash so two models embedding
+        byte-identical VAE weights share one cached entry. Returns None (fall back to the subset load) whenever
+        any of that is unavailable, so the standalone path never alters behaviour it cannot improve.
+
+        The returned tuple mirrors the subset load's ``(model, clip, vae, clipvision)`` shape with only the VAE
+        populated, so the cache and downstream node-output mapping are indistinguishable from the subset path.
+        """
+        ckpt_path = _resolve_monolithic_checkpoint_path(horde_model_name, ckpt_name)
+        if ckpt_path is None:
+            return None
+
+        plan = plan_standalone_vae_load(ckpt_path, _locate_vae_file)
+        if plan is None:
+            return None
+
+        cache_key = ComponentCacheKey(ComponentSlotKind.VAE, plan.cache_key)
+        collector = get_metrics_collector()
+
+        entry = cache.get(cache_key)
+        if entry is not None:
+            cache_hits_counter.add(1)
+            collector.record_component_cache_hit()
+            collector.record_component_cache_held_mb(cache.held_mb())
+            logger.info(
+                "VAE cache hit by content identity: model={}, key={}",
+                horde_model_name,
+                plan.cache_key,
+            )
+            _apply_vae_tiling(entry.payload[2], seamless_tiling_enabled)
+            log_free_ram()
+            return entry.payload
+
+        cache_misses_counter.add(1)
+        collector.record_component_cache_miss()
+        logger.info(
+            "Loading standalone VAE from disk: model={}, file={}, key={}",
+            horde_model_name,
+            plan.vae_file_path.name,
+            plan.cache_key,
+        )
+        _release_single_slot_before_cold_load(cache)
+
+        from hordelib.execution.zero_copy_load import zero_copy_state_dict_assignment
+
+        with torch.no_grad(), zero_copy_state_dict_assignment():
+            load_start_time = time.time()
+            state_dict = comfy.utils.load_torch_file(str(plan.vae_file_path))
+            loaded_vae = comfy.sd.VAE(sd=state_dict)
+            load_duration_ms = (time.time() - load_start_time) * 1000
+            disk_load_histogram.record(load_duration_ms)
+            collector.record_model_load(
+                ModelLoadEvent(
+                    model_name=plan.cache_key,
+                    phase="disk_to_ram",
+                    duration_seconds=load_duration_ms / 1000,
+                    timestamp=time.time(),
+                ),
+            )
+
+        # Stored always-reusable regardless of the job's LoRA intent: LoRA patches attach to the UNet and
+        # text encoders, never the VAE, so a LoRA-bearing job's decode can safely share this entry. Marking
+        # it non-reusable would make every LoRA job reload the VAE for no isolation benefit.
+        result: tuple[Any, Any, Any, Any] = (None, None, loaded_vae, None)
+        evicted = cache.put(
+            ComponentCacheEntry(
+                key=cache_key,
+                payload=result,
+                approx_ram_mb=approx_ram_mb_from_bytes(ComponentSlotKind.VAE, plan.vae_tensor_bytes),
+                reusable=True,
+                source_ckpt_path=str(plan.vae_file_path),
+            ),
+        )
+        self._record_evictions(evicted, cache, collector)
+        _apply_vae_tiling(loaded_vae, seamless_tiling_enabled)
+        log_free_ram()
+        return result
+
+    @staticmethod
+    def _record_evictions(
+        evicted: list[ComponentCacheEntry],
+        cache: ComponentCache,
+        collector,
+    ) -> None:
+        """Log any budget evictions and record their count and the resulting residency into the collector."""
+        if evicted:
+            logger.debug(
+                "Component cache evicted entries to fit budget: identities={}",
+                [entry.key.identity for entry in evicted],
+            )
+            collector.record_component_cache_evictions(len(evicted))
+        collector.record_component_cache_held_mb(cache.held_mb())
+
+    def _resolve_monolithic_ckpt_name(
+        self,
+        horde_model_name: str,
+        ckpt_name: str | None,
+    ) -> str | None:
+        """Resolve the file_type-None checkpoint's on-disk file name (the model's first declared file).
+
+        Returns *ckpt_name* verbatim when given, otherwise the model's first declared file. Raises when the
+        model is unavailable. Called only on a cache miss.
+        """
+        if ckpt_name:
+            return ckpt_name
+
+        compvis = SharedModelManager.manager.compvis
+        if compvis is None or not compvis.is_model_available(horde_model_name):
+            raise ValueError(f"Model {horde_model_name} is not available.")
+
+        file_entries = compvis.get_model_filenames(horde_model_name)
+        first_entry = next(iter(file_entries), None)
+        if first_entry is None:
+            return None
+        file_path = first_entry["file_path"]
+        return str(file_path) if file_path.is_absolute() else file_path.name
+
+    def _resolve_component_file(
+        self,
+        horde_model_name: str,
+        ckpt_name: str | None,
+        file_type: str,
+    ) -> str:
+        """Resolve the on-disk file name for a bare-component (file_type) load, raising when none matches."""
+        if ckpt_name:
+            return ckpt_name
+
+        compvis = SharedModelManager.manager.compvis
+        if compvis is None or not compvis.is_model_available(horde_model_name):
+            raise ValueError(f"Model {horde_model_name} is not available.")
+
+        for file_entry in compvis.get_model_filenames(horde_model_name):
+            if file_entry.get("file_type") == file_type:
+                return file_entry["file_path"].name
+        raise ValueError(f"No {file_type} file for model {horde_model_name}.")
+
+    @staticmethod
+    def _resolve_ckpt_path(ckpt_name: str | None) -> str:
+        """Turn a resolved checkpoint file name into an absolute on-disk path, raising when it cannot be found."""
+        if ckpt_name is None:
+            raise ValueError("No model file name provided.")
+        if Path(ckpt_name).is_absolute():
+            return ckpt_name
+        full_path = folder_paths.get_full_path("checkpoints", ckpt_name)
+        if full_path is None:
+            raise ValueError(f"Model file {ckpt_name} not found.")
+        return full_path
+
+
+def _release_single_slot_before_cold_load(cache: ComponentCache) -> None:
+    """Release every resident entry before a cold load when the cache runs in single-slot mode.
+
+    In single-slot mode (budget 0) the resident entry is about to be displaced anyway; releasing it before
+    the multi-gigabyte disk read, rather than at insert time, keeps the swap's transient RAM profile at one
+    component instead of two, which is the historical single-slot behaviour the zero budget promises. A
+    budgeted cache keeps its entries: eviction to fit is the insert's job.
+    """
+    if cache.budget_mb == 0:
+        cache.evict_all()
+
+
+def _locate_vae_file(file_name: str) -> Path | None:
+    """Return the on-disk path of an extracted standalone VAE by name, via ComfyUI's ``vae`` folder search."""
+    full_path = folder_paths.get_full_path("vae", file_name)
+    return Path(full_path) if full_path else None
+
+
+def _resolve_monolithic_checkpoint_path(horde_model_name: str, ckpt_name: str | None) -> Path | None:
+    """Resolve the monolithic checkpoint path for a VAE-only request, or None when it cannot be found.
+
+    Mirrors the main-flow resolution for the ``file_type is None`` case (the checkpoint is the model's first
+    declared file), but returns None on any miss rather than raising, so the standalone path always falls
+    back cleanly to the subset load.
+    """
+    name = ckpt_name
+    if not name:
+        compvis = SharedModelManager.manager.compvis
+        if compvis is None or not compvis.is_model_available(horde_model_name):
+            return None
+        try:
+            file_entries = compvis.get_model_filenames(horde_model_name)
+        except ValueError:
+            return None
+        first_entry = next(iter(file_entries), None)
+        if first_entry is None:
+            return None
+        file_path = first_entry["file_path"]
+        name = str(file_path) if file_path.is_absolute() else file_path.name
+
+    if Path(name).is_absolute():
+        candidate = Path(name)
+        return candidate if candidate.exists() else None
+
+    full_path = folder_paths.get_full_path("checkpoints", name)
+    return Path(full_path) if full_path else None
+
+
+def _safe_file_size(path: str) -> int | None:
+    """Return the on-disk byte size of *path*, or None when it cannot be stat-ed."""
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return None
+
+
+def _safe_read_sidecar(ckpt_path: str):
+    """Read a checkpoint's component-identity sidecar for RAM estimation, warning once on failure."""
+    global _sidecar_estimate_warned
+    try:
+        return read_sidecar(Path(ckpt_path))
+    except Exception:
+        if not _sidecar_estimate_warned:
+            logger.warning("Component RAM estimation could not read a sidecar; using conservative constants.")
+            _sidecar_estimate_warned = True
+        return None
+
+
+def _estimate_checkpoint_ram_mb(ckpt_path: str, payload: tuple) -> float:
+    """Estimate the RAM cost of a loaded checkpoint tuple from its sidecar, or a conservative constant.
+
+    Sums only the components actually present in *payload*: the UNet-ish residual for the model slot, the
+    text-encoder tensor bytes for the CLIP slot, and the VAE tensor bytes for the VAE slot. Without a usable
+    sidecar it falls back to the per-kind constant, never raising.
+    """
+    sidecar = _safe_read_sidecar(ckpt_path)
+    if sidecar is not None:
+        total_bytes = 0
+        if payload[0] is not None:
+            total_bytes += sidecar.residual_tensor_bytes
+        if len(payload) > 1 and payload[1] is not None:
+            text_encoders = sidecar.embedded.get(ComponentKind.TEXT_ENCODERS.value)
+            if text_encoders is not None:
+                total_bytes += text_encoders.tensor_bytes
+        if len(payload) > 2 and payload[2] is not None:
+            vae = sidecar.embedded.get(ComponentKind.VAE.value)
+            if vae is not None:
+                total_bytes += vae.tensor_bytes
+        if total_bytes > 0:
+            return approx_ram_mb_from_bytes(ComponentSlotKind.CHECKPOINT, total_bytes)
+    return approx_ram_mb_from_bytes(ComponentSlotKind.CHECKPOINT, None)
+
+
+def _apply_model_tiling(model: Any, seamless_tiling_enabled: bool) -> None:
+    """Retune a model's Conv2d padding for seamless tiling (or reset it); a no-op when *model* is None.
+
+    Also a no-op for objects that are not ModelPatcher-shaped (no ``model`` attribute), such as a bare text
+    encoder: the retune only applies to Conv2d-bearing diffusion modules, and the pre-helper code applied
+    nothing at all to bare components.
+    """
+    if model is None or not hasattr(model, "model"):
+        return
+    model.model.apply(make_circular if seamless_tiling_enabled else make_regular)
+
+
+def _apply_vae_tiling(vae: Any, seamless_tiling_enabled: bool) -> None:
+    """Retune a VAE's Conv2d padding for seamless tiling (or reset it); a no-op when *vae* is None."""
+    if vae is None:
+        return
+    if seamless_tiling_enabled:
+        make_circular_vae(vae)
+    else:
+        make_regular_vae(vae)
+
+
+def _apply_component_tiling(component: Any, file_type: str | None, seamless_tiling_enabled: bool) -> None:
+    """Retune a bare-component load's tiling: the VAE via the VAE helpers, any other component as a model.
+
+    A ``vae`` component is normalized through the VAE helpers; every other component (unet, text encoder) is
+    a diffusion ModelPatcher whose Conv2d padding is normalized via the model helpers. Both are no-ops for
+    architectures the retune does not apply to.
+    """
+    if file_type == "vae":
+        _apply_vae_tiling(component, seamless_tiling_enabled)
+    else:
+        _apply_model_tiling(component, seamless_tiling_enabled)
 
 
 def make_circular(m):

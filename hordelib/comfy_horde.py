@@ -49,6 +49,7 @@ from hordelib.execution.model_dirs import ModelCategory, invalidate_filename_cac
 from hordelib.execution.results import PipelineRunResult, collect_output_entries
 from hordelib.execution.server_shim import HeadlessComfyServer
 from hordelib.pipeline.graph import HORDE_NODE_REPLACEMENTS
+from hordelib.utils.memory_trim import trim_host_memory
 from hordelib.utils.torch_memory import clear_accelerator_cache
 
 # Note It may not be abundantly clear with no context what is going on below, and I will attempt to clarify:
@@ -403,10 +404,19 @@ def do_comfy_import(
 # isort: on
 
 
-def clear_gc_and_torch_cache() -> None:
-    """Clear the garbage collector and the active backend's device cache."""
+def clear_gc_and_torch_cache(trim_host: bool = False) -> None:
+    """Clear the garbage collector and the active backend's device cache.
+
+    When ``trim_host`` is set, additionally ask the OS to reclaim this process's freed heap and cold
+    mmap-faulted pages (see :func:`hordelib.utils.memory_trim.trim_host_memory`) after the collect and
+    device-cache clear, so the process's measured host residency reflects live data. The trim defaults off
+    so existing callers keep their exact behavior; enable it only at unload or idle boundaries, since
+    reclaimed cold pages refault on demand.
+    """
     gc.collect()
     clear_accelerator_cache()
+    if trim_host:
+        trim_host_memory()
 
 
 def pin_models_in_vram() -> bool:
@@ -500,7 +510,7 @@ def unload_all_models_ram() -> None:
         len(SharedModelManager.manager._models_in_ram),
     )
 
-    SharedModelManager.manager._models_in_ram = {}
+    SharedModelManager.manager._models_in_ram.evict_all()
     logger.debug("Models loaded in comfy: count={}", len(_comfy_current_loaded_models))
     all_devices = set()
     for model in _comfy_current_loaded_models:
@@ -534,7 +544,9 @@ def unload_all_models_ram() -> None:
     )
     logger.debug("Models loaded in comfy: count={}", len(_comfy_current_loaded_models))
 
-    clear_gc_and_torch_cache()
+    # RAM unload is a terminal boundary: the weights just freed here are cold, so trim the host working
+    # set to return their pages to the OS rather than let them ratchet the process's resident set upward.
+    clear_gc_and_torch_cache(trim_host=True)
     log_free_ram()
 
 

@@ -77,6 +77,14 @@ class JobPhaseMetrics(BaseModel):
     phase_seconds: dict[str, float] = {}
     """Total seconds spent in named non-sampling GPU phases this job (e.g. ``vae_decode``,
     ``vae_encode``). Lets an embedder see where time goes between sampling runs."""
+    component_cache_hits: int = 0
+    """Loader serves satisfied from a resident component-cache entry this job."""
+    component_cache_misses: int = 0
+    """Loader serves that had to read a component from disk this job."""
+    component_cache_evictions: int = 0
+    """Component-cache entries evicted to fit the RAM budget this job."""
+    component_cache_held_mb: float | None = None
+    """Approximate megabytes of components resident in the cache at the last load this job (None if none)."""
 
 
 class MetricsCollector:
@@ -95,6 +103,10 @@ class MetricsCollector:
         self._vram_used_high_water_mb: int | None = None
         self._ram_used_high_water_mb: int | None = None
         self._phase_seconds: dict[str, float] = {}
+        self._component_cache_hits: int = 0
+        self._component_cache_misses: int = 0
+        self._component_cache_evictions: int = 0
+        self._component_cache_held_mb: float | None = None
         self._reset_sampling_locked()
 
     def _reset_sampling_locked(self) -> None:
@@ -121,6 +133,28 @@ class MetricsCollector:
             return
         with self._lock:
             self._phase_seconds[name] = self._phase_seconds.get(name, 0.0) + duration_seconds
+
+    def record_component_cache_hit(self) -> None:
+        """Count one component-cache hit (a serve satisfied from a resident entry) for the current job."""
+        with self._lock:
+            self._component_cache_hits += 1
+
+    def record_component_cache_miss(self) -> None:
+        """Count one component-cache miss (a serve that read from disk) for the current job."""
+        with self._lock:
+            self._component_cache_misses += 1
+
+    def record_component_cache_evictions(self, count: int) -> None:
+        """Add *count* component-cache evictions to the current job's tally (a no-op for a non-positive count)."""
+        if count <= 0:
+            return
+        with self._lock:
+            self._component_cache_evictions += count
+
+    def record_component_cache_held_mb(self, held_mb: float) -> None:
+        """Record the approximate megabytes resident in the component cache at the latest load this job."""
+        with self._lock:
+            self._component_cache_held_mb = held_mb
 
     def record_sampling_step(self, step: int, total: int, timestamp: float | None = None) -> None:
         """Record one absolute progress sample from the sampler.
@@ -186,11 +220,19 @@ class MetricsCollector:
                 vram_used_high_water_mb=self._vram_used_high_water_mb,
                 ram_used_high_water_mb=self._ram_used_high_water_mb,
                 phase_seconds=dict(self._phase_seconds),
+                component_cache_hits=self._component_cache_hits,
+                component_cache_misses=self._component_cache_misses,
+                component_cache_evictions=self._component_cache_evictions,
+                component_cache_held_mb=self._component_cache_held_mb,
             )
             self._model_loads = []
             self._vram_used_high_water_mb = None
             self._ram_used_high_water_mb = None
             self._phase_seconds = {}
+            self._component_cache_hits = 0
+            self._component_cache_misses = 0
+            self._component_cache_evictions = 0
+            self._component_cache_held_mb = None
             self._reset_sampling_locked()
             return snapshot
 

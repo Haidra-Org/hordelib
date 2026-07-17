@@ -10,6 +10,7 @@ from horde_model_reference import MODEL_REFERENCE_CATEGORY, category_folder
 from loguru import logger
 
 # from hordelib.model_manager.diffusers import DiffusersModelManager
+from hordelib.execution.component_cache import ComponentCache, component_cache_budget_mb
 from hordelib.model_manager.base import BaseModelManager
 from hordelib.model_manager.civitai_adhoc import CivitaiAdhocModelManager
 from hordelib.model_manager.codeformer import CodeFormerModelManager
@@ -141,9 +142,12 @@ class ModelManager:
             _models.update(model_manager.model_reference)
         return _models
 
-    _models_in_ram: dict[str, tuple[tuple, bool]] = {}
-    """A dictionary of models which are currently loaded in RAM. The key is the model name, and the value is a tuple
-    of the model object and whether it was loaded with Loras.
+    _models_in_ram: ComponentCache
+    """The in-RAM component cache: a content-addressed, MB-budgeted LRU of loaded model components.
+
+    Keyed by :class:`~hordelib.execution.component_cache.ComponentCacheKey`. The budget is read once per
+    process from ``HORDE_COMPONENT_CACHE_MB`` at construction; a budget of ``0`` keeps a single component
+    resident (the historical single-slot behaviour).
     """
 
     def get_available_models(
@@ -196,6 +200,10 @@ class ModelManager:
         # doing more than one at a time as this will slow down the sequential read op.
         self.disk_read_mutex = threading.Lock()
         self.active_model_managers = []
+
+        # The component budget is fixed for the life of the process at construction; a fresh manager (e.g. a
+        # re-initialised singleton) re-reads it so a changed environment takes effect on the next init.
+        self._models_in_ram = ComponentCache(component_cache_budget_mb())
 
     def init_model_managers(
         self,
