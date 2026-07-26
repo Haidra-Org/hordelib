@@ -320,11 +320,15 @@ class HordeLib:
         positive_conditioning_bytes: bytes,
         negative_conditioning_bytes: bytes,
         source_latent_bytes: bytes | None = None,
+        progress_callback: Callable[[ProgressReport], None] | None = None,
     ) -> bytes:
         """Sample a LATENT from injected conditioning (loads only the UNet).
 
         ``source_latent_bytes`` injects an img2img/remix start latent (VAE-encoded by the image
         lane) in place of the graph's own VAE-encode; None runs txt2img from the empty latent.
+
+        ``progress_callback`` receives per-step sampling progress through the same adapter the
+        monolithic path uses, so a disaggregated sampler can report step progress identically.
 
         Supported only on the v1 family graph shape: a combined ``model_loader`` and a ``sampler``
         KSampler (plus an optional hires ``upscale_sampler``). Raises
@@ -340,7 +344,11 @@ class HordeLib:
             negative_bytes=negative_conditioning_bytes,
             source_latent_bytes=source_latent_bytes,
         )
-        artifacts = self.backend.run_pipeline(graph.to_api_dict(), outputs=outputs)
+        artifacts = self.backend.run_pipeline(
+            graph.to_api_dict(),
+            outputs=outputs,
+            progress_callback=self._make_comfyui_progress_adapter(progress_callback),
+        )
         return artifacts[0].data.getvalue()
 
     def vae_encode_stage(self, params: ImageGenerationParameters) -> bytes:
@@ -360,8 +368,13 @@ class HordeLib:
         params: ImageGenerationParameters,
         *,
         latent_bytes: bytes,
+        progress_callback: Callable[[ProgressReport], None] | None = None,
     ) -> tuple[list[ResultingImageReturn], list[GenMetadataEntry]]:
         """Decode an injected LATENT to images (loads only the VAE), reusing the graph's image output.
+
+        ``progress_callback`` receives progress through the same adapter the monolithic path uses.
+        A tiled VAE decode reports per-tile step progress; a single-shot decode produces no
+        intermediate steps, so the callback fires only if the backend emits one.
 
         Supported only on the v1 family graph shape: a combined ``model_loader`` and a ``vae_decode``
         node feeding the reused image output. Raises
@@ -370,7 +383,11 @@ class HordeLib:
         """
         graph, outputs, faults = self._materialize_stage_graph(params)
         cut_decode_stage(graph, latent_bytes=latent_bytes)
-        artifacts = self.backend.run_pipeline(graph.to_api_dict(), outputs=outputs)
+        artifacts = self.backend.run_pipeline(
+            graph.to_api_dict(),
+            outputs=outputs,
+            progress_callback=self._make_comfyui_progress_adapter(progress_callback),
+        )
         results = [ResultingImageReturn(image=Image.open(a.data), rawpng=a.data, faults=faults) for a in artifacts]
         return results, faults
 

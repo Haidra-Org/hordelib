@@ -21,9 +21,56 @@ guarding the call.
 from __future__ import annotations
 
 import ctypes
+import gc
 import sys
+import threading
+import time
 
 from loguru import logger
+
+COMPONENT_RELEASE_TRIM_MIN_INTERVAL_SECONDS = 90.0
+"""Minimum wall-time gap between two component-release trims.
+
+The disaggregated encode workload alternates between a small set of hot models, so a component cache
+eviction or single-slot replacement fires many times per minute. Trimming on every one would pay an
+``EmptyWorkingSet`` per swap and dump hot pages the very next encode faults straight back in, so
+:func:`trim_host_after_component_release` collapses a swap storm to at most one trim per this interval.
+"""
+
+_component_release_trim_lock = threading.Lock()
+_last_component_release_trim_monotonic: float | None = None
+
+
+def trim_host_after_component_release() -> bool:
+    """Reclaim host pages freed by a component cache eviction, at most once per throttle interval.
+
+    Call this at a component cache eviction or single-slot replacement boundary, after the cache has
+    dropped its own reference to the displaced component. It runs a ``gc.collect()`` and then
+    :func:`trim_host_memory`, spaced at least :data:`COMPONENT_RELEASE_TRIM_MIN_INTERVAL_SECONDS` apart so
+    a swap storm cannot thrash the working set.
+
+    This reclaims only pages of components the comfy model-management layer has already released: while a
+    component stays resident in ``comfy.model_management.current_loaded_models`` it keeps a strong reference
+    to the ModelPatcher, so dropping the cache entry alone leaves its pages live and this trim skips them.
+    Guaranteed reclaim of every held component is the worker-driven RAM unload
+    (:func:`hordelib.comfy_horde.unload_all_models_ram`), which frees the comfy loaded set first.
+
+    Returns True when a trim was issued this call, False when the throttle suppressed it or the platform
+    release request did not run. Best-effort: never raises.
+    """
+    now = time.monotonic()
+    global _last_component_release_trim_monotonic
+    with _component_release_trim_lock:
+        last_trim = _last_component_release_trim_monotonic
+        if last_trim is not None and (now - last_trim) < COMPONENT_RELEASE_TRIM_MIN_INTERVAL_SECONDS:
+            return False
+        _last_component_release_trim_monotonic = now
+    try:
+        gc.collect()
+        return trim_host_memory()
+    except Exception as trim_error:
+        logger.debug(f"Component-release trim was not performed: {trim_error}")
+        return False
 
 
 def trim_host_memory() -> bool:

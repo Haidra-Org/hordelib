@@ -31,6 +31,7 @@ from hordelib.execution.standalone_vae import (
 )
 from hordelib.metrics import ModelLoadEvent, get_metrics_collector
 from hordelib.shared_model_manager import SharedModelManager
+from hordelib.utils.memory_trim import trim_host_after_component_release
 
 _COMPONENT_FILE_TYPE_KINDS: dict[str, ComponentSlotKind] = {
     "unet": ComponentSlotKind.UNET,
@@ -496,6 +497,10 @@ class HordeCheckpointLoader:
                 [entry.key.identity for entry in evicted],
             )
             collector.record_component_cache_evictions(len(evicted))
+            # A budget eviction is a host-memory release boundary: ask the OS to reclaim the displaced
+            # component's cold pages (throttled and best-effort; a no-op for pages the comfy layer still
+            # holds).
+            trim_host_after_component_release()
         collector.record_component_cache_held_mb(cache.held_mb())
 
     def _resolve_monolithic_ckpt_name(
@@ -564,6 +569,10 @@ def _release_single_slot_before_cold_load(cache: ComponentCache) -> None:
     """
     if cache.budget_mb == 0:
         cache.evict_all()
+        # The single-slot replacement just dropped the resident component; reclaim its cold pages before
+        # the cold load faults the replacement in (throttled and best-effort, no-op for pages the comfy
+        # layer still holds).
+        trim_host_after_component_release()
 
 
 def _locate_vae_file(file_name: str) -> Path | None:

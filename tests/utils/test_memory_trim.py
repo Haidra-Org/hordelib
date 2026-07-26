@@ -9,8 +9,18 @@ from __future__ import annotations
 
 from unittest import mock
 
+import pytest
+
 from hordelib.utils import memory_trim
-from hordelib.utils.memory_trim import trim_host_memory
+from hordelib.utils.memory_trim import trim_host_after_component_release, trim_host_memory
+
+
+@pytest.fixture
+def reset_component_release_throttle():
+    """Clear the module-level component-release trim throttle before and after each throttle test."""
+    memory_trim._last_component_release_trim_monotonic = None
+    yield
+    memory_trim._last_component_release_trim_monotonic = None
 
 
 def test_returns_bool_and_never_raises_on_this_platform() -> None:
@@ -88,3 +98,55 @@ def test_clear_gc_and_torch_cache_trims_only_when_asked(monkeypatch) -> None:
 
     comfy_horde.clear_gc_and_torch_cache(trim_host=True)
     spy.assert_called_once_with()
+
+
+def test_component_release_trim_fires_on_first_call(monkeypatch, reset_component_release_throttle) -> None:
+    """The first component-release trim collects garbage and issues the host trim, reporting its result."""
+    trim_spy = mock.MagicMock(return_value=True)
+    gc_spy = mock.MagicMock()
+    monkeypatch.setattr(memory_trim, "trim_host_memory", trim_spy)
+    monkeypatch.setattr(memory_trim.gc, "collect", gc_spy)
+
+    assert trim_host_after_component_release() is True
+    gc_spy.assert_called_once_with()
+    trim_spy.assert_called_once_with()
+
+
+def test_component_release_trim_throttles_a_swap_storm(monkeypatch, reset_component_release_throttle) -> None:
+    """A second call inside the throttle interval is suppressed: no gc, no trim, returns False."""
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(memory_trim.time, "monotonic", lambda: clock["now"])
+    trim_spy = mock.MagicMock(return_value=True)
+    gc_spy = mock.MagicMock()
+    monkeypatch.setattr(memory_trim, "trim_host_memory", trim_spy)
+    monkeypatch.setattr(memory_trim.gc, "collect", gc_spy)
+
+    assert trim_host_after_component_release() is True
+
+    # Well inside the throttle interval: the swap storm pays nothing.
+    clock["now"] += memory_trim.COMPONENT_RELEASE_TRIM_MIN_INTERVAL_SECONDS / 2
+    assert trim_host_after_component_release() is False
+    trim_spy.assert_called_once_with()
+    gc_spy.assert_called_once_with()
+
+
+def test_component_release_trim_fires_again_after_interval(monkeypatch, reset_component_release_throttle) -> None:
+    """Once the throttle interval elapses, a later release trims again."""
+    clock = {"now": 1000.0}
+    monkeypatch.setattr(memory_trim.time, "monotonic", lambda: clock["now"])
+    trim_spy = mock.MagicMock(return_value=True)
+    monkeypatch.setattr(memory_trim, "trim_host_memory", trim_spy)
+    monkeypatch.setattr(memory_trim.gc, "collect", mock.MagicMock())
+
+    assert trim_host_after_component_release() is True
+    clock["now"] += memory_trim.COMPONENT_RELEASE_TRIM_MIN_INTERVAL_SECONDS + 1.0
+    assert trim_host_after_component_release() is True
+    assert trim_spy.call_count == 2
+
+
+def test_component_release_trim_never_raises(monkeypatch, reset_component_release_throttle) -> None:
+    """A trim that raises is swallowed: the boundary caller need not guard it."""
+    monkeypatch.setattr(memory_trim, "trim_host_memory", mock.MagicMock(side_effect=RuntimeError("boom")))
+    monkeypatch.setattr(memory_trim.gc, "collect", mock.MagicMock())
+
+    assert trim_host_after_component_release() is False
