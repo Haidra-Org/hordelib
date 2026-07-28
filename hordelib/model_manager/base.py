@@ -2,7 +2,6 @@ import os
 import threading
 from abc import ABC
 from collections.abc import Callable, Iterable
-from functools import lru_cache
 from pathlib import Path
 from typing import Any, cast
 from urllib import parse
@@ -29,6 +28,23 @@ from hordelib.consts import CIVITAI_API_PATH
 from hordelib.settings import UserSettings
 
 _ANON_API_KEY = "0000000000"
+_DOWNLOAD_CONTEXT_LOCK = threading.Lock()
+_configured_horde_api_key: str | None = None
+_configured_r2_gateway_url: str | None = None
+
+
+def configure_r2_download_gateway(*, api_key: str | None, gateway_url: str | None = None) -> None:
+    """Explicitly configure mirror credentials for this process.
+
+    Worker entry points should call this after loading bridge data. Environment lookup remains a compatibility
+    fallback for independently spawned download/inference processes and standalone hordelib consumers.
+    """
+    global _configured_horde_api_key, _configured_r2_gateway_url
+
+    normalized_key = None if not api_key or api_key == _ANON_API_KEY else api_key
+    with _DOWNLOAD_CONTEXT_LOCK:
+        _configured_horde_api_key = normalized_key
+        _configured_r2_gateway_url = gateway_url
 
 
 def _resolve_horde_api_key() -> str | None:
@@ -38,13 +54,14 @@ def _resolve_horde_api_key() -> str | None:
     and a standalone hordelib user without a key simply downloads from each model's origin host. The worker
     exposes its configured key as ``AIHORDE_API_KEY`` (inherited by the download subprocess).
     """
-    key = os.environ.get("AIHORDE_API_KEY") or os.environ.get("AI_HORDE_API_KEY")
+    with _DOWNLOAD_CONTEXT_LOCK:
+        configured_key = _configured_horde_api_key
+    key = configured_key or os.environ.get("AIHORDE_API_KEY") or os.environ.get("AI_HORDE_API_KEY")
     if not key or key == _ANON_API_KEY:
         return None
     return key
 
 
-@lru_cache(maxsize=1)
 def _resolve_r2_gateway_url() -> str | None:
     """Return the gated-R2 gateway base URL from horde_model_reference settings (process-static, cached).
 
@@ -62,7 +79,9 @@ def _resolve_r2_gateway_url() -> str | None:
         from horde_model_reference import HordeModelReferenceSettings
         from horde_model_reference.download_engine import gateway_accepts_key
 
-        gateway_url = HordeModelReferenceSettings().r2.gateway_url
+        with _DOWNLOAD_CONTEXT_LOCK:
+            explicitly_configured_url = _configured_r2_gateway_url
+        gateway_url = explicitly_configured_url or HordeModelReferenceSettings().r2.gateway_url
     except (AttributeError, ImportError):
         # Older horde_model_reference without the R2 settings block or the key-safety guard: origin-only.
         return None
