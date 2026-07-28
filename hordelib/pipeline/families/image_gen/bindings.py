@@ -13,6 +13,8 @@ group binds changes the submitted ComfyUI prompts and must be done deliberately 
 snapshot harness docstring).
 """
 
+from collections.abc import Callable
+
 from hordelib.pipeline.constants import SAMPLERS_MAP
 from hordelib.pipeline.definition import ParamBinding, node, scaled
 from hordelib.pipeline.payload import ImageGenPayload
@@ -73,6 +75,43 @@ def comfy_sampler(payload: ImageGenPayload) -> str | None:
 def comfy_clip_skip(payload: ImageGenPayload) -> int:
     """Translate clip skip to ComfyUI's convention (counted negatively: -1, -2, ...)."""
     return -payload.clip_skip if payload.clip_skip > 0 else payload.clip_skip
+
+
+_CONTROLNET_APPLY_MAX_STRENGTH = 10.0
+"""ComfyUI's declared ceiling on ``ControlNetApplyAdvanced.strength`` (see its FLOAT input spec).
+
+The committed node-input snapshot records input names only, so this bound is mirrored here; a
+strength above it is rejected at prompt validation.
+"""
+
+
+def qr_control_strength(graph_baseline: float) -> Callable[[ImageGenPayload], float]:
+    """Bind one qr_code control application to ``control_strength``, keeping its graph baseline.
+
+    The qr graph applies the QR controlnet three times at deliberately unequal authorities: the
+    module layer over the background pass, the function-pattern layer over the foreground pass,
+    and the flattened composite over the final pass that produces the delivered pixels. Only the
+    first was reachable, so ``control_strength`` could not raise module fidelity in the output at
+    all; SD1.5 in particular cannot reach a scannable result at the exported authority. Scaling
+    each application by the strength it was exported with keeps their relative balance and leaves
+    the graph identical to the export at ``control_strength`` 1.0.
+
+    The result is capped at :data:`_CONTROLNET_APPLY_MAX_STRENGTH`: the function-pattern layer's
+    baseline of 6.0 crosses ComfyUI's ceiling at ``control_strength`` 1.67, and an out-of-range
+    strength fails whole-prompt validation rather than that one input, so an uncapped scale would
+    turn high ``control_strength`` values into a failed generation.
+
+    Args:
+        graph_baseline: The strength this application carries in the exported graph.
+
+    Returns:
+        A transform yielding the application's strength for a payload.
+    """
+
+    def strength(payload: ImageGenPayload) -> float:
+        return min(payload.control_strength * graph_baseline, _CONTROLNET_APPLY_MAX_STRENGTH)
+
+    return strength
 
 
 SAMPLER_CORE: BindingGroup = node("sampler", "KSampler").bind(
@@ -213,10 +252,13 @@ QR_LAYERS: BindingGroup = (
         steps="ddim_steps",
         noise_seed="seed",
     ),
-    *node("controlnet_bg", "ControlNetApplyAdvanced").bind(strength="control_strength"),
+    *node("controlnet_bg", "ControlNetApplyAdvanced").bind(strength=qr_control_strength(1.0)),
+    *node("controlnet_fg", "ControlNetApplyAdvanced").bind(strength=qr_control_strength(6.0)),
+    *node("controlnet_combined", "ControlNetApplyAdvanced").bind(strength=qr_control_strength(1.5)),
     *node("solidmask_grey", "SolidMask").bind(width="width", height="height"),
     *node("solidmask_white", "SolidMask").bind(width="width", height="height"),
     *node("solidmask_black", "SolidMask").bind(width="width", height="height"),
     *node("qr_code_split", "comfy-qr-by-module-split").bind(max_image_size="width"),
 )
-"""The qr_code workflow's background/foreground samplers and mask layers."""
+"""The qr_code workflow's background/foreground samplers, its three QR control applications
+(see :func:`qr_control_strength`) and its mask layers."""
