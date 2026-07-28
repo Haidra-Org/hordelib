@@ -216,6 +216,25 @@ quick feedback.
 
 Tests require a CUDA GPU, `AIWORKER_CACHE_HOME`, `CIVIT_API_TOKEN`, and the committed `images_expected/` reference images. Image-output tests compare generated images against references via cosine/histogram similarity. Set `HORDELIB_SKIP_SIMILARITY_FAIL=1` to downgrade similarity failures to skips on different hardware.
 
+#### Updating a reference image
+
+Every image-output test writes its render to `images/<name>.png` and compares it against
+`images_expected/<name>.png`. There is no regeneration flag: when a deliberate change to a graph or
+binding makes a reference no longer describe what the code produces, run that test module on a CUDA
+GPU and copy the render over the reference:
+
+```bash
+uv run --no-sync pytest tests/test_horde_inference_qr_code.py
+cp images/qr_code_xl.png images_expected/qr_code_xl.png
+```
+
+Copy only the references the change actually moved, and inspect each one before committing. The
+similarity oracle is deliberately loose (a changed render often still passes against the old
+reference), so a passing test is not on its own evidence that a reference is current; conversely a
+reference that passes with almost no margin will start failing on unrelated drift. For QR renders,
+also confirm the new reference still scans, since the oracle scores pixels and cannot see that a
+code stopped decoding.
+
 ### Key test areas
 
 | Path | What it covers |
