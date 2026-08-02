@@ -10,6 +10,10 @@ The contract is enforced by ``tests/meta/test_public_api_contract.py``.
 from typing import TYPE_CHECKING
 
 from hordelib import initialise, is_initialised
+from hordelib.execution.adaptive_sampler_bound import (
+    ADAPTIVE_ITERATION_BUDGET_MULTIPLIER,
+    SamplerTruncation,
+)
 from hordelib.execution.interface import (
     ExecutionBackend,
     OutputArtifact,
@@ -113,6 +117,7 @@ if TYPE_CHECKING:
     from hordelib.shared_model_manager import SharedModelManager
 
 __all__ = [
+    "ADAPTIVE_ITERATION_BUDGET_MULTIPLIER",
     "AUTO_PIPELINE",
     "CONTROLNET_ANNOTATOR_DOWNLOAD_BYTES",
     "FEATURE_KIND",
@@ -147,6 +152,7 @@ __all__ = [
     "ProgressReport",
     "ProgressState",
     "ResultingImageReturn",
+    "SamplerTruncation",
     "SamplingLease",
     "SamplingStats",
     "SharedModelManager",

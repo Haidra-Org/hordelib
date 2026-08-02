@@ -380,6 +380,15 @@ def do_comfy_import(
             comfy_patches._calculate_weight_hijack,
         )
 
+        import comfy.samplers
+
+        comfy_patches.capture_and_patch(
+            "ksampler_factory",
+            comfy.samplers,
+            "ksampler",
+            comfy_patches._ksampler_hijack,
+        )
+
         # Ensure comfy_extras nodes register themselves before pipelines run.
         # _comfy_nodes_images = importlib.import_module("comfy_extras.nodes_images")
         import comfy_extras.nodes_images as _comfy_nodes_images

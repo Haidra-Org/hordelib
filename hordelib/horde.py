@@ -17,6 +17,10 @@ from loguru import logger
 from PIL import Image
 from pydantic import BaseModel
 
+from hordelib.execution.adaptive_sampler_bound import (
+    SAMPLER_TRUNCATION_METADATA_KEY,
+    SamplerTruncation,
+)
 from hordelib.execution.in_process import InProcessComfyBackend
 from hordelib.execution.interface import OutputSpec
 from hordelib.execution.stage_graph import (
@@ -70,12 +74,20 @@ class ResultingImageReturn:
     image: Image.Image | None
     rawpng: io.BytesIO | None
     faults: list[GenMetadataEntry]
+    sampler_truncation: SamplerTruncation | None
+    """Set when a solver-chosen sampler was stopped at its iteration bound producing this image.
+
+    ``faults`` is a fixed enum schema and cannot express the iteration counts a consumer needs in
+    order to disclose the coercion, so the record rides its own typed field. ``None`` means the
+    sampler ran to its own completion, which is the case for every fixed-schedule sampler.
+    """
 
     def __init__(
         self,
         image: Image.Image | None,
         rawpng: io.BytesIO | None,
         faults: list[GenMetadataEntry],
+        sampler_truncation: SamplerTruncation | None = None,
     ):
         if faults is None:
             faults = []
@@ -93,6 +105,7 @@ class ResultingImageReturn:
         self.image = image
         self.rawpng = rawpng
         self.faults = faults
+        self.sampler_truncation = sampler_truncation
 
 
 # Module-level metrics for inference performance tracking
@@ -468,6 +481,7 @@ class HordeLib:
                     image=Image.open(artifact.data),
                     rawpng=artifact.data,
                     faults=faults,
+                    sampler_truncation=artifact.metadata.get(SAMPLER_TRUNCATION_METADATA_KEY),
                 ),
             )
 
@@ -709,6 +723,7 @@ class HordeLib:
                                     image=final_image,
                                     rawpng=final_rawpng,
                                     faults=single_image_faults,
+                                    sampler_truncation=ret.sampler_truncation,
                                 ),
                             )
 

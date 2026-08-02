@@ -145,7 +145,7 @@ restore the prior subset-load behaviour for every VAE-only request.
 
 ## The monkeypatches
 
-Five ComfyUI internals are patched at import time (`hordelib/execution/comfy_patches.py`),
+Six ComfyUI internals are patched at import time (`hordelib/execution/comfy_patches.py`),
 all policy injections with no native hook:
 
 - `load_models_gpu` and `ModelPatcher.load`: force full GPU loads (with VRAM-overflow and
@@ -160,11 +160,39 @@ all policy injections with no native hook:
 - `text_encoder_initial_device`: load text encoders on CPU first.
 - `comfy.lora.calculate_weight`: repair malformed "diff" patch tuples.
 - `IsChangedCache.get`: prompt-change logging.
+- `comfy.samplers.ksampler`: bound the adaptive sampler (below).
 
 ComfyUI's native `force_full_load=` parameter cannot replace the first two: comfy's
 internal call sites would never pass horde's policy. Each patch stores its original,
 supports temporary-state swaps, and is guarded by `assert_force_load_class_names_exist`
 plus the signature pins in `tests/test_comfy_contract_drift.py`.
+
+## The bounded adaptive sampler
+
+`dpm_adaptive` is the one sampler whose iteration count is chosen by the solver rather than by
+the schedule: `DPMSolver.dpm_solver_adaptive` is a `while` loop under a PID step-size
+controller, and the nominal steps only set the sigma range it integrates over. On some model
+and payload combinations the controller never reaches its tolerance and the loop does not
+terminate, while the sample is already essentially converged.
+
+`hordelib/execution/adaptive_sampler_bound.py` bounds it at
+`ADAPTIVE_ITERATION_BUDGET_MULTIPLIER` (1.25) times the nominal step count and delivers the
+best-effort sample. Iterations past the schedule are tolerance polish with approximately no
+marginal quality, so a looser bound pays multiples of the advertised GPU cost for nothing.
+
+The seam is `comfy.samplers.ksampler` rather than `sample_dpm_adaptive`, because the factory is
+where the sampler function is built as a closure over the full `sigmas` tensor; the replacement
+reads `len(sigmas) - 1` from its own arguments, so no state has to be threaded through globals
+or context. Below the bound nothing is reimplemented: the replacement constructs the stock
+`DPMSolver`, runs the stock `dpm_solver_adaptive`, and only chains a check onto the solver's
+info callback, which unwinds the loop with the working `x` at the bound.
+
+A truncated run is recorded as a `SamplerTruncation` (sampler, nominal steps, iterations, the
+multiplier, `capped`). The record is scoped to one backend `run_pipeline` call, rides
+`OutputArtifact.metadata`, and lands on `ResultingImageReturn.sampler_truncation` for the
+consumer to disclose. `faults` is a fixed enum schema and cannot express the counts, which is
+why the record has its own typed field. The disaggregated `sample_stage` returns raw latent
+bytes and so does not currently carry the record across the lane split.
 
 ## Custom nodes: classic and V3
 

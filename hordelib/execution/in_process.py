@@ -10,6 +10,12 @@ from typing import Any
 
 from loguru import logger
 
+from hordelib.execution.adaptive_sampler_bound import (
+    SAMPLER_TRUNCATION_METADATA_KEY,
+    SamplerTruncation,
+    begin_run_recording,
+    take_run_truncations,
+)
 from hordelib.execution.interface import (
     DEFAULT_IMAGE_OUTPUTS,
     OutputArtifact,
@@ -100,18 +106,34 @@ class InProcessComfyBackend:
         self._ensure_started()
         assert self._comfy is not None
 
-        results = self._comfy.run_pipeline(
-            graph,
-            {},
-            progress_callback,
-            outputs=outputs,
-            defer_vram_unload=defer_vram_unload,
-        )
-        return self._to_artifacts(results, outputs)
+        # A solver-chosen sampler can be stopped at its iteration bound mid-graph; the bound
+        # records the truncation as it happens, so the recording is scoped to this one run and
+        # collected here for the artifacts it produced.
+        begin_run_recording()
+        try:
+            results = self._comfy.run_pipeline(
+                graph,
+                {},
+                progress_callback,
+                outputs=outputs,
+                defer_vram_unload=defer_vram_unload,
+            )
+        finally:
+            truncations = take_run_truncations()
+
+        return self._to_artifacts(results, outputs, truncations=truncations)
 
     @staticmethod
-    def _to_artifacts(results: list[dict[str, Any]], outputs: tuple[OutputSpec, ...]) -> list[OutputArtifact]:
+    def _to_artifacts(
+        results: list[dict[str, Any]],
+        outputs: tuple[OutputSpec, ...],
+        *,
+        truncations: list[SamplerTruncation] | None = None,
+    ) -> list[OutputArtifact]:
         kind_by_node = {output.node: output.kind for output in outputs}
+        # A truncation applies to the sample every artifact of the run descends from, so each
+        # artifact carries the record rather than the collection carrying it once.
+        artifact_metadata: dict[str, Any] = {SAMPLER_TRUNCATION_METADATA_KEY: truncations[0]} if truncations else {}
         artifacts: list[OutputArtifact] = []
         for result in results:
             data = result.get("imagedata")
@@ -128,6 +150,7 @@ class InProcessComfyBackend:
                     mime_type=mime_type,
                     kind=artifact_kind,
                     source_node=source_node,
+                    metadata=dict(artifact_metadata),
                 ),
             )
         return artifacts

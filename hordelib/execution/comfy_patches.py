@@ -446,6 +446,18 @@ def text_encoder_initial_device_hijack(*args, **kwargs):
     return torch.device("cpu")
 
 
+def _ksampler_hijack(sampler_name, *args, **kwargs):
+    """Bound the one ComfyUI sampler that decides its own iteration count.
+
+    The factory is the seam because it is where the sampler function is built as a closure over
+    the schedule; see hordelib.execution.adaptive_sampler_bound for the bound and its rationale.
+    """
+    from hordelib.execution.adaptive_sampler_bound import bound_adaptive_sampler
+
+    sampler = _originals["ksampler_factory"](sampler_name, *args, **kwargs)
+    return bound_adaptive_sampler(sampler, sampler_name)
+
+
 class _MonkeyPatchBinding(typing.NamedTuple):
     module: typing.Any
     attr: str
@@ -463,9 +475,16 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
 
     import comfy.lora
     import comfy.model_management as model_management
+    import comfy.samplers
     from comfy.model_patcher import ModelPatcher
 
     bindings: dict[str, _MonkeyPatchBinding] = {
+        "ksampler_factory": _MonkeyPatchBinding(
+            comfy.samplers,
+            "ksampler",
+            _ksampler_hijack,
+            _originals.get("ksampler_factory"),
+        ),
         "load_models_gpu": _MonkeyPatchBinding(
             model_management,
             "load_models_gpu",

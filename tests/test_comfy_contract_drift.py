@@ -177,18 +177,18 @@ class TestMiniExecutionRoundTrip:
 
         observed_labels = {label for label, _, _ in server.events}
         unknown_labels = observed_labels - _KNOWN_EVENT_LABELS
-        assert not unknown_labels, (
-            f"ComfyUI emitted event label(s) {sorted(unknown_labels)} the bridge does not know about"
-        )
+        assert (
+            not unknown_labels
+        ), f"ComfyUI emitted event label(s) {sorted(unknown_labels)} the bridge does not know about"
 
         # Every event ComfyUI actually emitted must parse into a typed model, not UnknownEvent.
         from hordelib.execution.comfy_events import UnknownEvent, parse_event
 
         for event_label, event_data, _ in server.events:
             parsed = parse_event(event_label, event_data)
-            assert not isinstance(parsed, UnknownEvent), (
-                f"live event {event_label!r} fell through typed parsing: {event_data}"
-            )
+            assert not isinstance(
+                parsed, UnknownEvent
+            ), f"live event {event_label!r} fell through typed parsing: {event_data}"
         assert "execution_start" in observed_labels
         assert "execution_success" in observed_labels
         assert "executed" in observed_labels
@@ -226,9 +226,9 @@ class TestMiniExecutionRoundTrip:
                 "current_inputs",
                 "current_outputs",
             }
-            assert expected_error_keys <= set(error_payload), (
-                f"execution_error payload lost key(s): {sorted(expected_error_keys - set(error_payload))}"
-            )
+            assert expected_error_keys <= set(
+                error_payload
+            ), f"execution_error payload lost key(s): {sorted(expected_error_keys - set(error_payload))}"
             assert error_payload["node_id"] == "output_image"
             assert error_payload["node_type"] == _FAILING_NODE_CLASS_TYPE
             assert "drift-test deliberate failure" in error_payload["exception_message"]
@@ -393,6 +393,48 @@ class TestMonkeypatchSignaturePins:
 
         assert _originals.get("text_encoder_initial_device") is not None
 
+    def test_ksampler_factory_signature(self, init_horde: None) -> None:
+        from hordelib.execution.comfy_patches import _originals
+
+        original_ksampler = _originals.get("ksampler_factory")
+        assert original_ksampler is not None, "ksampler monkeypatch was never installed"
+        parameters = list(inspect.signature(original_ksampler).parameters)
+        assert parameters[0] == "sampler_name"
+
+    def test_adaptive_sampler_function_still_receives_the_schedule(self, init_horde: None) -> None:
+        """The bound reads its nominal step count from ``sigmas``, which only this seam exposes.
+
+        ``ksampler`` builds ``dpm_adaptive``'s sampler function as a closure that forwards only
+        ``sigma_min``/``sigma_max`` onward, so a comfy change that stopped handing the sampler
+        function the full schedule would silently remove the bound's only source of truth.
+        """
+        import comfy.samplers
+
+        from hordelib.execution.adaptive_sampler_bound import ADAPTIVE_SAMPLER_NAME
+        from hordelib.execution.comfy_patches import _originals
+
+        original_ksampler = _originals["ksampler_factory"]
+        stock_sampler = original_ksampler(ADAPTIVE_SAMPLER_NAME)
+
+        assert isinstance(stock_sampler, comfy.samplers.KSAMPLER)
+        parameters = list(inspect.signature(stock_sampler.sampler_function).parameters)
+        assert parameters[:3] == ["model", "noise", "sigmas"]
+
+    def test_adaptive_sampler_is_bounded_by_the_patched_factory(self, init_horde: None) -> None:
+        import comfy.k_diffusion.sampling
+        import comfy.samplers
+
+        from hordelib.execution.adaptive_sampler_bound import (
+            ADAPTIVE_SAMPLER_NAME,
+            bounded_dpm_adaptive_sampler_function,
+        )
+
+        bounded = comfy.samplers.ksampler(ADAPTIVE_SAMPLER_NAME)
+        assert bounded.sampler_function is bounded_dpm_adaptive_sampler_function
+
+        # Every fixed-schedule sampler must be left exactly as comfy built it.
+        assert comfy.samplers.ksampler("euler").sampler_function is comfy.k_diffusion.sampling.sample_euler
+
 
 class TestFolderPathsPins:
     """The folder_paths surface the bridge (and Phase 3's model_dirs) relies on."""
@@ -409,6 +451,5 @@ class TestFolderPathsPins:
         import folder_paths
 
         assert isinstance(folder_paths.filename_list_cache, dict), (
-            "filename_list_cache is no longer a plain dict; update the embeddings cache "
-            "invalidation in the bridge"
+            "filename_list_cache is no longer a plain dict; update the embeddings cache " "invalidation in the bridge"
         )
