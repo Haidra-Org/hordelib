@@ -92,7 +92,7 @@ def _run_stage_pipeline(
         positive_conditioning_bytes=positive_bytes,
         negative_conditioning_bytes=negative_bytes,
         source_latent_bytes=source_latent_bytes,
-    )
+    ).latent_bytes
     staged_results, _faults = hordelib_instance.decode_stage(params, latent_bytes=latent_bytes)
     return staged_results
 

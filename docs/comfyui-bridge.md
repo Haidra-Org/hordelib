@@ -191,8 +191,10 @@ A truncated run is recorded as a `SamplerTruncation` (sampler, nominal steps, it
 multiplier, `capped`). The record is scoped to one backend `run_pipeline` call, rides
 `OutputArtifact.metadata`, and lands on `ResultingImageReturn.sampler_truncation` for the
 consumer to disclose. `faults` is a fixed enum schema and cannot express the counts, which is
-why the record has its own typed field. The disaggregated `sample_stage` returns raw latent
-bytes and so does not currently carry the record across the lane split.
+why the record has its own typed field. The disaggregated `sample_stage` carries it across the
+lane split the same way: it returns a `SampleStageResult` (the LATENT plus the record read off
+the stage run's artifact), because the sample and the decode that produces the image run in
+different processes and a bare `bytes` return would drop the record at the split.
 
 ## Custom nodes: classic and V3
 

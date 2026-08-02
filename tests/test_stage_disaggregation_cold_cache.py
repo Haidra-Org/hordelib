@@ -137,7 +137,7 @@ def _run_cold_pipeline(
         positive_conditioning_bytes=positive_bytes,
         negative_conditioning_bytes=negative_bytes,
         source_latent_bytes=None,
-    )
+    ).latent_bytes
 
     if STAGE_DECODE in cold_stages:
         _clear_loader_cache()

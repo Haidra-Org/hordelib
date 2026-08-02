@@ -190,7 +190,7 @@ def _cold_sample(
         positive_conditioning_bytes=positive_bytes,
         negative_conditioning_bytes=negative_bytes,
         source_latent_bytes=source_latent_bytes,
-    )
+    ).latent_bytes
 
 
 def _cold_decode(

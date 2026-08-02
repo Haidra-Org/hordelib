@@ -53,6 +53,7 @@ from hordelib.horde import (
     ProgressReport,
     ProgressState,
     ResultingImageReturn,
+    SampleStageResult,
 )
 from hordelib.metrics import (
     DownloadEvent,
@@ -152,6 +153,7 @@ __all__ = [
     "ProgressReport",
     "ProgressState",
     "ResultingImageReturn",
+    "SampleStageResult",
     "SamplerTruncation",
     "SamplingLease",
     "SamplingStats",

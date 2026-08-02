@@ -122,7 +122,7 @@ def _run_stage(spec: dict[str, Any]) -> None:
             positive_conditioning_bytes=Path(inputs["positive"]).read_bytes(),
             negative_conditioning_bytes=Path(inputs["negative"]).read_bytes(),
             source_latent_bytes=source_latent_bytes,
-        )
+        ).latent_bytes
         Path(outputs["latent"]).write_bytes(latent_bytes)
     elif stage == "decode":
         results, _faults = hordelib_instance.decode_stage(

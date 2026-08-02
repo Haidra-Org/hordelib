@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum, auto
 
 import logfire
@@ -68,6 +69,26 @@ class ProgressReport(BaseModel):
     comfyui_progress: ComfyUIProgress | None = None
     progress: float | None = None
     hordelib_message: str | None = None
+
+
+@dataclass(frozen=True)
+class SampleStageResult:
+    """The output of a disaggregated sample stage: the LATENT and what the sampler had to be coerced into.
+
+    The stage runs in its own process and its LATENT is decoded elsewhere, so anything the consumer
+    must disclose about the sample has to travel with the bytes; a bare ``bytes`` return drops it at
+    the lane split.
+    """
+
+    latent_bytes: bytes
+    """The serialized LATENT the sampler produced."""
+    sampler_truncation: SamplerTruncation | None = None
+    """Set when a solver-chosen sampler was stopped at its iteration bound producing this LATENT.
+
+    Carries the same record :attr:`ResultingImageReturn.sampler_truncation` carries on the
+    monolithic path, so both paths disclose the coercion identically. ``None`` means the sampler ran
+    to its own completion.
+    """
 
 
 class ResultingImageReturn:
@@ -334,7 +355,7 @@ class HordeLib:
         negative_conditioning_bytes: bytes,
         source_latent_bytes: bytes | None = None,
         progress_callback: Callable[[ProgressReport], None] | None = None,
-    ) -> bytes:
+    ) -> SampleStageResult:
         """Sample a LATENT from injected conditioning (loads only the UNet).
 
         ``source_latent_bytes`` injects an img2img/remix start latent (VAE-encoded by the image
@@ -349,6 +370,10 @@ class HordeLib:
         ``SamplerCustomAdvanced`` sampler, split-loader families), when the job's graph is img2img
         (VAE-encode feeds the sampler) but ``source_latent_bytes`` was not supplied, or when the
         conditioning injection fails to displace the graph's text encoders.
+
+        Returns:
+            SampleStageResult: The serialized LATENT, plus the sampler-truncation record if the
+                backend bounded a solver-chosen sampler during this run.
         """
         graph, _outputs, _faults = self._materialize_stage_graph(params)
         outputs = cut_sample_stage(
@@ -362,7 +387,12 @@ class HordeLib:
             outputs=outputs,
             progress_callback=self._make_comfyui_progress_adapter(progress_callback),
         )
-        return artifacts[0].data.getvalue()
+        # The backend brackets each run_pipeline call with the truncation recording, so a record on
+        # this artifact belongs to this stage's run and cannot be a neighbouring run's leftover.
+        return SampleStageResult(
+            latent_bytes=artifacts[0].data.getvalue(),
+            sampler_truncation=artifacts[0].metadata.get(SAMPLER_TRUNCATION_METADATA_KEY),
+        )
 
     def vae_encode_stage(self, params: ImageGenerationParameters) -> bytes:
         """VAE-encode a job's source image to a LATENT (loads only the VAE), for img2img/remix.
