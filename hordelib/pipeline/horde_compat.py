@@ -15,6 +15,7 @@ from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
 from loguru import logger
 from PIL import Image
 
+from hordelib.pipeline.constants import SCHEDULERS, resolve_schedule
 from hordelib.pipeline.context import ModelContext
 from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.utils.image_utils import ImageUtils
@@ -75,8 +76,11 @@ def normalize_horde_payload(
                 source_image.height if source_image else int(payload.get("height") or 512),
             )
 
-    # Rather than specify a scheduler, only karras or not karras is specified
-    payload["scheduler"] = "karras" if payload.get("karras", False) else "normal"
+    # The horde payload names a schedule only indirectly, through a karras flag that cannot express
+    # the other schedules the backend supports. A caller that set `scheduler` outright is therefore
+    # more specific than the flag and wins; the flag remains the fallback for every horde request.
+    if payload.get("scheduler") not in SCHEDULERS:
+        payload["scheduler"] = "karras" if payload.get("karras", False) else "normal"
 
     # Negative and positive prompts arrive merged, separated by ###
     prompt = payload.get("prompt")
@@ -124,6 +128,36 @@ def normalize_horde_payload(
             payload["hires_fix_denoising_strength"] = payload.get("denoising_strength")
 
     return payload, faults
+
+
+def enforce_schedule_constraints(
+    payload: ImageGenPayload,
+) -> tuple[ImageGenPayload, list[GenMetadataEntry]]:
+    """Move a sampler that would diverge on the requested schedule onto one where it converges.
+
+    Applied on the shared typed path so it holds for every caller, whether the schedule came from a
+    horde request's karras flag or was named outright. Serving the divergent combination would return
+    colour noise while still consuming the same GPU time and being charged for, so the schedule is
+    substituted and the substitution is disclosed on the result rather than being silently applied.
+    """
+    resolved, substituted = resolve_schedule(payload.sampler_name, payload.scheduler)
+    if not substituted:
+        return payload, []
+
+    logger.warning(
+        f"Sampler {payload.sampler_name} diverges on the {payload.scheduler} schedule; "
+        f"running it on {resolved} instead.",
+    )
+    return (
+        payload.model_copy(update={"scheduler": resolved}),
+        [
+            GenMetadataEntry(
+                type=METADATA_TYPE.information,
+                value=METADATA_VALUE.see_ref,
+                ref=f"scheduler {payload.scheduler}->{resolved} for {payload.sampler_name}"[:255],
+            ),
+        ],
+    )
 
 
 def apply_model_compat(

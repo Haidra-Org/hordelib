@@ -435,6 +435,34 @@ class TestMonkeypatchSignaturePins:
         # Every fixed-schedule sampler must be left exactly as comfy built it.
         assert comfy.samplers.ksampler("euler").sampler_function is comfy.k_diffusion.sampling.sample_euler
 
+    def test_every_mapped_sampler_still_exists_in_comfy(self, init_horde: None) -> None:
+        """A mapped sampler comfy no longer offers degrades silently, so pin the whole map.
+
+        ``KSampler.__init__`` substitutes its first sampler for any name it does not recognise, and
+        the payload validator clamps unknown *horde* names to the default. Between them, a comfy
+        rename turns a requested sampler into a different one with no error anywhere, which the
+        horde would keep advertising as supported.
+        """
+        import comfy.samplers
+
+        from hordelib.pipeline.constants import SAMPLERS_MAP
+
+        unknown = {
+            horde_name: comfy_name
+            for horde_name, comfy_name in SAMPLERS_MAP.items()
+            if comfy_name not in comfy.samplers.SAMPLER_NAMES
+        }
+        assert unknown == {}, f"SAMPLERS_MAP targets samplers comfy does not offer: {unknown}"
+
+    def test_every_scheduler_still_exists_in_comfy(self, init_horde: None) -> None:
+        """The scheduler list is offered to callers verbatim, and comfy substitutes silently too."""
+        import comfy.samplers
+
+        from hordelib.pipeline.constants import SCHEDULERS
+
+        unknown = [name for name in SCHEDULERS if name not in comfy.samplers.SCHEDULER_NAMES]
+        assert unknown == [], f"SCHEDULERS lists schedulers comfy does not offer: {unknown}"
+
 
 class TestFolderPathsPins:
     """The folder_paths surface the bridge (and Phase 3's model_dirs) relies on."""

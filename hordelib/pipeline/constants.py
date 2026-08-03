@@ -23,8 +23,36 @@ SAMPLERS_MAP = {
     "uni_pc_bh2": "uni_pc_bh2",
     "plms": "euler",
     "lcm": "lcm",
+    # `dpmsolver` names the diffusers-era DPM-Solver multistep solver that predates this backend.
+    # DPM-Solver++ 2M is its closest ComfyUI equivalent; before this entry existed the name fell
+    # through the payload validator's clamp and rendered as `euler`, which the horde never advertised.
+    "dpmsolver": "dpmpp_2m",
+    # ComfyUI-native solvers, named as ComfyUI names them: unlike the `k_` block above they are not
+    # k-diffusion samplers, so the prefix would assert a lineage they do not have.
+    "dpmpp_2m_sde": "dpmpp_2m_sde",
+    # `dpmpp_3m_sde` needs a low-noise sigma schedule to converge. Under ComfyUI's `normal` scheduler
+    # it diverges to colour noise (SD15 and SDXL alike, at every step count from 8 to 50); under
+    # karras, simple or sgm_uniform it renders cleanly at the same seed and step count. This is a
+    # property of the solver, not of this package: it reproduces through ComfyUI's own nodes with no
+    # hordelib code in the path. It matters here because a horde payload selects a schedule only
+    # indirectly, through the `karras` flag that horde_compat maps to `karras` or `normal`.
+    "dpmpp_3m_sde": "dpmpp_3m_sde",
+    "ddpm": "ddpm",
+    "deis": "deis",
+    "ipndm": "ipndm",
+    "res_multistep": "res_multistep",
+    "gradient_estimation": "gradient_estimation",
+    "heunpp2": "heunpp2",
+    "er_sde": "er_sde",
+    "sa_solver": "sa_solver",
 }
-"""Horde sampler names to ComfyUI sampler names."""
+"""Horde sampler names to ComfyUI sampler names.
+
+A name absent here is clamped to the default sampler rather than rejected (see
+``hordelib.pipeline.payload``), so an entry whose value ComfyUI no longer offers degrades silently.
+``tests/test_comfy_contract_drift.py`` pins every value against ``comfy.samplers.SAMPLER_NAMES`` so
+that a ComfyUI rename fails loudly instead.
+"""
 
 # Horde control_type on the left, comfyui_controlnet_aux preprocessor on the right
 CONTROLNET_IMAGE_PREPROCESSOR_MAP = {
@@ -216,3 +244,44 @@ def max_upscale_factor(names: Iterable[str | None]) -> int:
 SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting", "remix"]
 
 SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform", "sgm_uniform", "exponential"]
+
+SCHEDULE_SENSITIVE_SAMPLERS = frozenset({"dpmpp_3m_sde"})
+"""Samplers that need a low-noise sigma schedule to converge at all.
+
+On a schedule in :data:`DIVERGENT_SCHEDULES` these return high-frequency colour noise instead of an
+image, at every step count rather than only at low ones. Membership is evidence-based: `dpmpp_3m_sde`
+was verified diverging on SD15 from 8 to 50 steps and on SDXL at 25, and it reproduces through
+ComfyUI's own nodes with none of this package in the path, so the constraint belongs to the solver.
+Its one-order-lower sibling `dpmpp_2m_sde` is unaffected and must not be added here.
+"""
+
+DIVERGENT_SCHEDULES = frozenset({"normal"})
+"""Schedules on which a :data:`SCHEDULE_SENSITIVE_SAMPLERS` member diverges.
+
+Only `normal` is listed, because only `normal` was confirmed to diverge while `karras`, `simple`,
+`sgm_uniform` and `exponential` were confirmed to converge. `beta` and `ddim_uniform` measured as
+suspect but were never confirmed either way, so they are deliberately absent rather than guessed at.
+"""
+
+SCHEDULE_SENSITIVE_FALLBACK = "karras"
+"""The schedule substituted for a sensitive sampler that would otherwise diverge."""
+
+
+def resolve_schedule(sampler_name: str | None, scheduler: str | None) -> tuple[str | None, bool]:
+    """Return the schedule to run for *sampler_name*, and whether it was substituted.
+
+    A sensitive sampler asked for a divergent schedule is moved onto
+    :data:`SCHEDULE_SENSITIVE_FALLBACK` rather than failed or served as noise: the request is
+    physically serviceable, just not on the schedule named. Callers are expected to disclose the
+    substitution on the result rather than silently altering what was asked for.
+
+    Args:
+        sampler_name: The horde sampler name for the request.
+        scheduler: The schedule the request resolved to before this check.
+
+    Returns:
+        The schedule to run, and whether it differs from the one passed in.
+    """
+    if sampler_name in SCHEDULE_SENSITIVE_SAMPLERS and scheduler in DIVERGENT_SCHEDULES:
+        return SCHEDULE_SENSITIVE_FALLBACK, True
+    return scheduler, False

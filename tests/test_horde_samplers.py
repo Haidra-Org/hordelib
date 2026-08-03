@@ -1,5 +1,7 @@
 # test_horde.py
 
+from pathlib import Path
+
 import pytest
 from loguru import logger
 from PIL import Image
@@ -9,6 +11,24 @@ from hordelib.horde import HordeLib
 from .testing_shared_functions import check_single_inference_image_similarity, check_single_lora_image_similarity
 
 SLOW_SAMPLERS = ["k_dpmpp_2s_a", "k_heun", "k_dpm_2", "k_dpm_2_a"]  # "k_dpmpp_sde",
+
+
+class TestSamplerGoldenCoverage:
+    """Every mapped sampler must have a golden on disk, whether or not it is compared.
+
+    ``test_samplers`` skips its similarity check for samplers whose names contain ``sde`` or ``lcm``,
+    on the grounds that they are not reproducible. That skip also means their golden is never opened,
+    so a missing or never-minted one raises nothing and the suite still reports success. This checks
+    the files exist independently of whether anything compares them, and needs no GPU to do it.
+    """
+
+    def test_every_mapped_sampler_has_a_golden(self):
+        missing = [
+            sampler
+            for sampler in HordeLib.SAMPLERS_MAP
+            if not Path(f"images_expected/sampler_30_steps_{sampler}.png").exists()
+        ]
+        assert not missing, f"samplers with no golden image: {missing}"
 
 
 class TestHordeSamplers:

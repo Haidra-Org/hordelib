@@ -245,11 +245,13 @@ class HordeLib:
         tuple[OutputSpec, ...],
     ]:
         """The shared typed tail of the pipeline flow: resize -> resolve -> select -> materialize."""
-        from hordelib.pipeline.horde_compat import resize_sources_to_request
+        from hordelib.pipeline.horde_compat import enforce_schedule_constraints, resize_sources_to_request
         from hordelib.pipeline.resolution import resolve_image_generation
 
         typed = resize_sources_to_request(typed)
         typed, context, resolution_faults = resolve_image_generation(typed, context)
+        typed, schedule_faults = enforce_schedule_constraints(typed)
+        resolution_faults = resolution_faults + schedule_faults
 
         definition = self._resolve_pipeline_definition(typed, context, pipeline)
 
