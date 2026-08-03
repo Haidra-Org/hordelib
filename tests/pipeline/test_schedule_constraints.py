@@ -48,6 +48,12 @@ class TestResolveSchedule:
             assert resolved == schedule, schedule
             assert substituted is False, schedule
 
+    def test_the_substitute_holds_across_the_step_range(self):
+        # Measured: sweeping dpmpp_3m_sde over all nine schedules at 8 and 25 steps, only `simple` and
+        # `sgm_uniform` converge at both. `karras` converges at 25 and fails at 8, so it cannot be the
+        # substitute: a low-step request would be moved onto a schedule that is still broken for it.
+        assert SCHEDULE_SENSITIVE_FALLBACK in {"simple", "sgm_uniform"}
+
     def test_insensitive_sampler_keeps_the_divergent_schedule(self):
         # Only the sensitive samplers are constrained; nothing else changes behaviour.
         for sampler in ("k_euler", "k_dpmpp_2m", "dpmpp_2m_sde"):

@@ -280,8 +280,15 @@ Only `normal` is listed, because only `normal` was confirmed to diverge while `k
 suspect but were never confirmed either way, so they are deliberately absent rather than guessed at.
 """
 
-SCHEDULE_SENSITIVE_FALLBACK = "karras"
-"""The schedule substituted for a sensitive sampler that would otherwise diverge."""
+SCHEDULE_SENSITIVE_FALLBACK = "simple"
+"""The schedule substituted for a sensitive sampler that would otherwise diverge.
+
+`simple` rather than `karras`, on measurement: sweeping `dpmpp_3m_sde` across all nine schedules at 8
+and 25 steps, `simple` and `sgm_uniform` were the only two that converge at *both* step counts. `karras`
+converges at 25 steps but returns dithered colour noise at 8, so substituting it would have fixed the
+schedule a low-step request landed on while leaving the image broken. A substitute has to hold across
+the step range, not just at the step count it was checked at.
+"""
 
 
 def resolve_schedule(sampler_name: str | None, scheduler: str | None) -> tuple[str | None, bool]:
