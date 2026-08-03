@@ -243,7 +243,24 @@ def max_upscale_factor(names: Iterable[str | None]) -> int:
 
 SOURCE_IMAGE_PROCESSING_OPTIONS = ["img2img", "inpainting", "outpainting", "remix"]
 
-SCHEDULERS = ["normal", "karras", "simple", "ddim_uniform", "sgm_uniform", "exponential"]
+SCHEDULERS = [
+    "normal",
+    "karras",
+    "simple",
+    "ddim_uniform",
+    "sgm_uniform",
+    "exponential",
+    "beta",
+    "linear_quadratic",
+    "kl_optimal",
+]
+"""Sigma schedules offered to callers, the full set ComfyUI implements.
+
+``normal`` stays first because it is the payload default and the schedule a horde request resolves to
+when its karras flag is false. ``tests/test_comfy_contract_drift.py`` pins the list against
+``comfy.samplers.SCHEDULER_NAMES``, which matters because an unrecognised schedule is substituted
+rather than rejected: ``KSampler.__init__`` falls back to its first entry.
+"""
 
 SCHEDULE_SENSITIVE_SAMPLERS = frozenset({"dpmpp_3m_sde"})
 """Samplers that need a low-noise sigma schedule to converge at all.
