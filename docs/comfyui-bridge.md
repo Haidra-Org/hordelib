@@ -160,7 +160,7 @@ all policy injections with no native hook:
 - `text_encoder_initial_device`: load text encoders on CPU first.
 - `comfy.lora.calculate_weight`: repair malformed "diff" patch tuples.
 - `IsChangedCache.get`: prompt-change logging.
-- `comfy.samplers.ksampler`: bound the adaptive sampler (below).
+- `comfy.samplers.ksampler`: bound the adaptive sampler and apply per-run solver options (below).
 
 ComfyUI's native `force_full_load=` parameter cannot replace the first two: comfy's
 internal call sites would never pass horde's policy. Each patch stores its original,
@@ -195,6 +195,53 @@ why the record has its own typed field. The disaggregated `sample_stage` carries
 lane split the same way: it returns a `SampleStageResult` (the LATENT plus the record read off
 the stage run's artifact), because the sample and the decode that produces the image run in
 different processes and a bare `bytes` return would drop the record at the split.
+
+## Solver options
+
+The stock `KSampler` node exposes the sampler name and the schedule, and nothing else. The
+tuning arguments the sampler functions themselves take (`eta`, `s_noise`, `s_churn` with its
+`s_tmin`/`s_tmax` sigma window, `solver_type`, and the multistep `order`/`max_order`) have no
+graph inputs, so they can only be reached where the sampler object is built. That is the same
+`comfy.samplers.ksampler(name, extra_options)` call upstream's dedicated per-sampler nodes make;
+`SamplerCustom` only runs a `SAMPLER` it is handed.
+
+`hordelib/pipeline/payload.py` maps the payload's `sampler_*` fields onto the upstream argument
+names, `hordelib/execution/sampler_options.py` holds them for the duration of one run, and the
+`ksampler` hijack merges them into the options the factory receives. A sampler is only handed
+arguments its own function signature declares, because an unaccepted keyword raises `TypeError`
+from inside graph execution rather than at the call site. `option_bounds` is the one place
+per-sampler ranges are consulted; the values a sampler cannot use are held inside its range
+instead of dropped, so the request keeps the control it asked for. Every field defaults to
+unset, and an unset run builds samplers exactly as before.
+
+## Sigma schedules with no name
+
+`comfy.samplers.calculate_sigmas` resolves a schedule name through `SCHEDULER_HANDLERS`, which holds
+the schedules computable from the model's sigma range. Align Your Steps and GITS are not in it: both
+are measured tables rather than functions, and upstream exposes each as a node emitting SIGMAS, which
+only the custom-sampler graph shape consumes. The graphs here name their schedule on a `KSampler` or
+`BasicScheduler` input instead.
+
+They are therefore carried beside the graph. `hordelib/execution/sigma_schedules.py` holds the
+requested schedule for one run, `comfy.samplers.calculate_sigmas` is patched to supply it, and the
+graph's own scheduler input carries `SIGMA_GENERATOR_GRAPH_SCHEDULE` because an input outside the
+node's declared list fails prompt validation for the whole graph. The patched function is the seam
+because both graph shapes reach it: `KSampler` calls it as a module global, `BasicScheduler` as a
+module attribute. The tables and the interpolation are imported from the pinned `comfy_extras`
+modules rather than copied, so a schedule computed here is the one its node would have produced.
+
+Align Your Steps noise levels were measured per model family, so the request carries the family
+resolved from the model's baseline (`ALIGN_YOUR_STEPS_MODEL_TYPES`). A baseline with no published
+levels is refused rather than served another family's schedule. GITS tables are keyed by coefficient
+and hold for any model, so it needs no family.
+
+## Flow-model shift
+
+Flow-matching models take a timestep shift that moves where the sampler spends its steps. The qwen
+graph already carries `ModelSamplingAuraFlow`, so the payload's `flow_shift` sets that node's input;
+flux graphs get a `ModelSamplingFlux` inserted between the model (or the last LoRA) and the sampling
+nodes, with `base_shift` and `max_shift` set equal so the node's area interpolation is constant and
+the requested value is the shift the model runs with. Unset leaves every graph exactly as it was.
 
 ## Custom nodes: classic and V3
 

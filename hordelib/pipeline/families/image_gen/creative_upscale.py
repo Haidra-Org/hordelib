@@ -31,7 +31,7 @@ CREATIVE_UPSCALE: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDe
             cfg="cfg_scale",
             denoise="denoising_strength",
             seed="seed",
-            scheduler="scheduler",
+            scheduler=bindings.comfy_scheduler,
             steps="ddim_steps",
         ),
         node("latent_upscale", "LatentUpscale").bind(

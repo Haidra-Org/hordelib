@@ -77,6 +77,60 @@ def insert_lora_chain(
         reconnect_input(graph, "clip_skip.clip", last)
 
 
+FLOW_SHIFT_NODE = "model_sampling_shift"
+"""Title of the node inserted to set a flow model's timestep shift."""
+
+_AURA_FLOW_SHIFT_NODE = "model_sampling_aura_flow"
+"""Title of the shift node the qwen graph already carries, whose input is set rather than inserted."""
+
+
+def insert_model_sampling_shift(graph: GraphDict, shift: float | None, *, flux: bool = False) -> None:
+    """Set the timestep shift of a flow-matching model, inserting the node that applies it if needed.
+
+    Shift moves where the sampler spends its steps along the flow trajectory; flow-matching models are
+    trained with a resolution-dependent shift, and the graphs that already need one carry the node
+    that applies it. A graph carrying such a node (qwen's ``ModelSamplingAuraFlow``) has its input set,
+    which is what makes the requested value mean the same thing whichever family serves it.
+
+    Flux graphs carry no such node, so ``ModelSamplingFlux`` is inserted between whatever currently
+    feeds the sampling nodes (the model loader, or the last LoRA when a chain was inserted first) and
+    those nodes, mirroring how the LoRA chain rewires them. That node derives its shift by
+    interpolating ``base_shift`` to ``max_shift`` across the latent's area; setting both to the
+    requested value makes the interpolation constant, so the request means one shift rather than a
+    resolution-dependent range, and the node's width and height inputs stop affecting the result.
+
+    Args:
+        graph: The pipeline graph to mutate.
+        shift: The requested shift; None leaves the graph exactly as it was.
+        flux: Whether this is a Flux pipeline (different model consumers, and a different node).
+    """
+    if shift is None:
+        return
+
+    if _AURA_FLOW_SHIFT_NODE in graph:
+        graph[_AURA_FLOW_SHIFT_NODE]["inputs"]["shift"] = shift
+        return
+
+    if not flux:
+        logger.warning("A flow shift was requested for a model whose sampling has no shift; ignoring it.")
+        return
+
+    model_source = graph["cfg_guider"]["inputs"]["model"][0]
+    graph[FLOW_SHIFT_NODE] = {
+        "inputs": {
+            "model": [model_source, 0],
+            "max_shift": shift,
+            "base_shift": shift,
+            "width": 1024,
+            "height": 1024,
+        },
+        "class_type": "ModelSamplingFlux",
+        "_meta": {"title": FLOW_SHIFT_NODE},
+    }
+    reconnect_input(graph, "cfg_guider.model", FLOW_SHIFT_NODE)
+    reconnect_input(graph, "basic_scheduler.model", FLOW_SHIFT_NODE)
+
+
 def rewire_img2img(graph: GraphDict, *, flux: bool = False) -> None:
     """Feed the sampler from the VAE-encoded source image instead of the empty latent.
 

@@ -344,6 +344,16 @@
     ],
     "optional": []
   },
+  "ModelSamplingFlux": {
+    "required": [
+      "model",
+      "max_shift",
+      "base_shift",
+      "width",
+      "height"
+    ],
+    "optional": []
+  },
   "RandomNoise": {
     "required": [
       "noise_seed"

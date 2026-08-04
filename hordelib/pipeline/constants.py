@@ -5,6 +5,7 @@ compatibility until the legacy payload path is removed.
 """
 
 from collections.abc import Iterable
+from enum import StrEnum, auto
 
 SAMPLERS_MAP = {
     "k_euler": "euler",
@@ -45,6 +46,27 @@ SAMPLERS_MAP = {
     "heunpp2": "heunpp2",
     "er_sde": "er_sde",
     "sa_solver": "sa_solver",
+    "ipndm_v": "ipndm_v",
+    "dpmpp_2m_sde_heun": "dpmpp_2m_sde_heun",
+    "sa_solver_pece": "sa_solver_pece",
+    "seeds_2": "seeds_2",
+    "seeds_3": "seeds_3",
+    "res_multistep_ancestral": "res_multistep_ancestral",
+    # The exp_heun pair delegates to `sample_seeds_2`, so its `solver_type` is the phi vocabulary
+    # (`phi_1`/`phi_2`), not the midpoint/heun pair in SOLVER_TYPES. Nothing here has to enforce that:
+    # a solver_type a sampler does not implement is either filtered out or refused upstream.
+    "exp_heun_2_x0": "exp_heun_2_x0",
+    "exp_heun_2_x0_sde": "exp_heun_2_x0_sde",
+    # CFG++ variants. They rescale the guidance step, so the cfg_scale that suits a request changes with
+    # them: the community range is roughly 1.0 to 2.0, and a conventional cfg_scale near 7 oversaturates.
+    # They are offered anyway, because the choice of guidance strength belongs to the caller.
+    "euler_cfg_pp": "euler_cfg_pp",
+    "euler_ancestral_cfg_pp": "euler_ancestral_cfg_pp",
+    "dpmpp_2s_ancestral_cfg_pp": "dpmpp_2s_ancestral_cfg_pp",
+    "dpmpp_2m_cfg_pp": "dpmpp_2m_cfg_pp",
+    "res_multistep_cfg_pp": "res_multistep_cfg_pp",
+    "res_multistep_ancestral_cfg_pp": "res_multistep_ancestral_cfg_pp",
+    "gradient_estimation_cfg_pp": "gradient_estimation_cfg_pp",
 }
 """Horde sampler names to ComfyUI sampler names.
 
@@ -52,6 +74,10 @@ A name absent here is clamped to the default sampler rather than rejected (see
 ``hordelib.pipeline.payload``), so an entry whose value ComfyUI no longer offers degrades silently.
 ``tests/test_comfy_contract_drift.py`` pins every value against ``comfy.samplers.SAMPLER_NAMES`` so
 that a ComfyUI rename fails loudly instead.
+
+ComfyUI's ``_gpu`` sampler variants are deliberately absent: they differ from their siblings only in
+which device generates the sampling noise, so they name a worker-side implementation detail rather
+than a solver a requester can meaningfully choose between.
 """
 
 # Horde control_type on the left, comfyui_controlnet_aux preprocessor on the right
@@ -253,13 +279,104 @@ SCHEDULERS = [
     "beta",
     "linear_quadratic",
     "kl_optimal",
+    "align_your_steps",
+    "gits",
 ]
-"""Sigma schedules offered to callers, the full set ComfyUI implements.
+"""Sigma schedules offered to callers: every schedule ComfyUI names, plus the two it implements as nodes.
 
 ``normal`` stays first because it is the payload default and the schedule a horde request resolves to
 when its karras flag is false. ``tests/test_comfy_contract_drift.py`` pins the list against
 ``comfy.samplers.SCHEDULER_NAMES``, which matters because an unrecognised schedule is substituted
-rather than rejected: ``KSampler.__init__`` falls back to its first entry.
+rather than rejected: ``KSampler.__init__`` falls back to its first entry. The two members of
+:data:`SIGMA_GENERATOR_SCHEDULES` are exempt from that pin and carried by
+:mod:`hordelib.execution.sigma_schedules` instead, for the reason given there.
+"""
+
+
+class SigmaGeneratorSchedule(StrEnum):
+    """A schedule ComfyUI produces from a node rather than from a name ``calculate_sigmas`` accepts.
+
+    Both come from published research schedules rather than from a closed-form function of the model's
+    sigma range: `align_your_steps` interpolates NVIDIA's per-family noise levels and `gits` indexes a
+    table of step-count-specific schedules. Upstream exposes each as a scheduler node emitting a SIGMAS
+    output, which only the custom-sampler graph shape can consume; the graphs this package runs take a
+    schedule by name, so the name is carried beside the graph instead.
+    """
+
+    ALIGN_YOUR_STEPS = auto()
+    GITS = auto()
+
+
+SIGMA_GENERATOR_SCHEDULES: frozenset[str] = frozenset(str(schedule) for schedule in SigmaGeneratorSchedule)
+"""The schedule names ComfyUI's ``calculate_sigmas`` does not know, spelled as a request spells them."""
+
+SIGMA_GENERATOR_GRAPH_SCHEDULE = "normal"
+"""The schedule a graph input carries while a sigma generator supplies the real one.
+
+The input still has to name a schedule ComfyUI recognises: ``KSampler.__init__`` silently substitutes
+its first entry for anything else, and prompt validation rejects a value outside the node's declared
+list. The value is never used, because the generator replaces the sigmas the node would compute from it.
+"""
+
+SOLVER_TYPES = frozenset({"midpoint", "heun"})
+"""Accepted ``solver_type`` values, which only ``dpmpp_2m_sde`` and ``dpmpp_2m_sde_heun`` take.
+
+Other samplers carrying a parameter of the same name use a different vocabulary and are not covered
+here: `seeds_2` takes `phi_1`/`phi_2` and the `exp_heun_2_x0` pair defaults to `phi_2`. A value from
+this set handed to one of those would name nothing they implement, so the per-sampler applicability
+filter in :mod:`hordelib.execution.sampler_options` is what keeps them apart.
+
+Lives here rather than beside the sampler-option plumbing because it is request vocabulary: the payload
+validates against it, and the payload layer must not depend on the execution layer.
+"""
+
+
+class SolverOption(StrEnum):
+    """A solver tuning argument a request can set, spelled as ComfyUI's sampler functions name it.
+
+    The members are the keyword-argument names in ``comfy.k_diffusion.sampling``, so a value here can be
+    passed straight through to the sampler that accepts it. ``ORDER`` and ``MAX_ORDER`` are the same
+    concept under two upstream spellings (`lms` and `dpm_adaptive` take `order`, the multistep solvers
+    take `max_order`), not two separate controls.
+    """
+
+    ETA = auto()
+    S_NOISE = auto()
+    S_CHURN = auto()
+    S_TMIN = auto()
+    S_TMAX = auto()
+    SOLVER_TYPE = auto()
+    ORDER = auto()
+    MAX_ORDER = auto()
+
+
+SOLVER_OPTION_FALLBACK_BOUNDS: dict[SolverOption, tuple[float, float]] = {
+    SolverOption.ETA: (0.0, 100.0),
+    SolverOption.S_NOISE: (0.0, 100.0),
+    SolverOption.S_CHURN: (0.0, 100.0),
+    SolverOption.S_TMIN: (0.0, 100.0),
+    SolverOption.S_TMAX: (0.0, 100.0),
+    SolverOption.ORDER: (2.0, 4.0),
+    SolverOption.MAX_ORDER: (2.0, 4.0),
+}
+"""Bounds applied to a numeric solver option when no per-sampler range is known.
+
+The eta and noise-scale bounds are the ones ComfyUI's own sampler nodes declare. The churn thresholds
+`s_tmin` and `s_tmax` bound the sigma window in which churn is injected (upstream defaults 0 and
+infinity); they are sigma values, so any positive number is meaningful and the upper bound only keeps
+a request finite. The order bound starts at 2 because order 1 raises inside `deis` and `ipndm` rather
+than degrading, and it is uniformly narrower than what individual samplers allow: `lms` accepts 1 to
+100 and `dpm_adaptive` 2 to 3. Those per-sampler ranges are read through
+:func:`hordelib.execution.sampler_options.option_bounds`, which falls back to this mapping.
+
+``SolverOption.SOLVER_TYPE`` is absent because it is a vocabulary, not a range; see :data:`SOLVER_TYPES`.
+"""
+
+FLOW_SHIFT_BOUNDS: tuple[float, float] = (0.0, 100.0)
+"""Bounds ComfyUI's model-sampling nodes declare for a flow model's timestep shift.
+
+The same range is declared by ``ModelSamplingSD3``, ``ModelSamplingAuraFlow`` and the two shift
+inputs of ``ModelSamplingFlux``, so one range covers every graph the knob can reach.
 """
 
 SCHEDULE_SENSITIVE_SAMPLERS = frozenset({"dpmpp_3m_sde"})

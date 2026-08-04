@@ -17,14 +17,17 @@ from types import MappingProxyType
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 
 __all__ = [
+    "ALIGN_YOUR_STEPS_MODEL_TYPES",
     "CASCADE_BASELINES",
     "FLUX_BASELINES",
     "IMAGE_BASELINE_PROFILES",
+    "AlignYourStepsModelType",
     "BaselineProfile",
     "LoaderKind",
     "QWEN_BASELINES",
     "UNET_LOADER_BASELINES",
     "Z_IMAGE_BASELINES",
+    "align_your_steps_model_type",
 ]
 
 
@@ -117,3 +120,42 @@ UNET_LOADER_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
     profile.baseline for profile in IMAGE_BASELINE_PROFILES.values() if profile.loader is LoaderKind.UNET
 )
 """Split-files baselines, derived from :data:`IMAGE_BASELINE_PROFILES`."""
+
+
+class AlignYourStepsModelType(StrEnum):
+    """A model family NVIDIA published Align Your Steps noise levels for.
+
+    The values are the keys of ``comfy_extras.nodes_align_your_steps.NOISE_LEVELS`` and are used to
+    index it directly, so they carry upstream's spelling rather than this package's.
+    """
+
+    SD1 = "SD1"
+    SDXL = "SDXL"
+    SVD = "SVD"
+
+
+ALIGN_YOUR_STEPS_MODEL_TYPES: MappingProxyType[KNOWN_IMAGE_GENERATION_BASELINE, AlignYourStepsModelType] = (
+    MappingProxyType(
+        {
+            KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1: AlignYourStepsModelType.SD1,
+            KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl: AlignYourStepsModelType.SDXL,
+        },
+    )
+)
+"""Baselines an Align Your Steps schedule can be built for.
+
+The noise levels are measured per family rather than derived, so a baseline without published levels
+has no substitute here: `SVD` is video and unreachable from an image request, and the SD2 baselines
+were never measured. Running one family's levels on another is not a schedule for that model, so an
+unmapped baseline is refused rather than approximated (see
+:func:`hordelib.pipeline.horde_compat.resolve_sigma_schedule`).
+"""
+
+
+def align_your_steps_model_type(
+    baseline: KNOWN_IMAGE_GENERATION_BASELINE | None,
+) -> AlignYourStepsModelType | None:
+    """Return the Align Your Steps family for *baseline*, or None when it has no published levels."""
+    if baseline is None:
+        return None
+    return ALIGN_YOUR_STEPS_MODEL_TYPES.get(baseline)

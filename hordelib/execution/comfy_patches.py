@@ -446,16 +446,37 @@ def text_encoder_initial_device_hijack(*args, **kwargs):
     return torch.device("cpu")
 
 
-def _ksampler_hijack(sampler_name, *args, **kwargs):
-    """Bound the one ComfyUI sampler that decides its own iteration count.
+def _ksampler_hijack(sampler_name, extra_options=None, *args, **kwargs):
+    """Bound the one solver that decides its own iteration count, and apply any per-run solver options.
 
-    The factory is the seam because it is where the sampler function is built as a closure over
-    the schedule; see hordelib.execution.adaptive_sampler_bound for the bound and its rationale.
+    The factory is the seam for both because it is where the sampler function is built as a closure over
+    the schedule; see hordelib.execution.adaptive_sampler_bound for the bound and its rationale, and
+    hordelib.execution.sampler_options for why the stochastic controls are unreachable from the graph.
     """
     from hordelib.execution.adaptive_sampler_bound import bound_adaptive_sampler
+    from hordelib.execution.sampler_options import options_for_sampler
 
-    sampler = _originals["ksampler_factory"](sampler_name, *args, **kwargs)
+    merged_options = dict(extra_options or {})
+    merged_options.update(options_for_sampler(sampler_name))
+
+    sampler = _originals["ksampler_factory"](sampler_name, merged_options, *args, **kwargs)
     return bound_adaptive_sampler(sampler, sampler_name)
+
+
+def _calculate_sigmas_hijack(model_sampling, scheduler_name, steps):
+    """Supply the run's sigma schedule when it is one ComfyUI has no name for.
+
+    This function is the seam because both graph shapes reach it: KSampler calls it as a module global
+    and BasicScheduler as a module attribute, so a schedule set for a run holds however the graph was
+    built. With no schedule set the original resolves the name exactly as before.
+    """
+    from hordelib.execution.sigma_schedules import sigmas_for_run
+
+    sigmas = sigmas_for_run(steps)
+    if sigmas is not None:
+        return sigmas
+
+    return _originals["calculate_sigmas"](model_sampling, scheduler_name, steps)
 
 
 class _MonkeyPatchBinding(typing.NamedTuple):
@@ -484,6 +505,12 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
             "ksampler",
             _ksampler_hijack,
             _originals.get("ksampler_factory"),
+        ),
+        "calculate_sigmas": _MonkeyPatchBinding(
+            comfy.samplers,
+            "calculate_sigmas",
+            _calculate_sigmas_hijack,
+            _originals.get("calculate_sigmas"),
         ),
         "load_models_gpu": _MonkeyPatchBinding(
             model_management,

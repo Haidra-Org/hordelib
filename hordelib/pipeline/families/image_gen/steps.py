@@ -23,6 +23,7 @@ from hordelib.pipeline.patches import (
     configure_controlnet,
     hires_fix_first_pass_resolution,
     insert_lora_chain,
+    insert_model_sampling_shift,
     insert_remix_image_chain,
     qr_layout_params,
     qr_params_from_extra_texts,
@@ -38,6 +39,7 @@ __all__ = [
     "apply_hires_fix_resolution",
     "apply_img2img_rewire",
     "apply_layerdiffuse_transparency",
+    "apply_flow_shift",
     "apply_lora_chain",
     "apply_main_model",
     "apply_cascade_stage_models",
@@ -51,6 +53,15 @@ def apply_lora_chain(graph: ComfyGraph, payload: ImageGenPayload, context: Model
     """Insert the resolved LoRA chain between the model loader and its consumers."""
     if context.resolved_loras:
         insert_lora_chain(graph.raw, context.resolved_loras, flux=context.baseline in FLUX_BASELINES)
+
+
+def apply_flow_shift(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
+    """Set the flow model's timestep shift when the payload asks for one.
+
+    Runs after the LoRA chain so the shift is applied to the model the LoRAs produced, which is the
+    order comfy's own flux workflows use.
+    """
+    insert_model_sampling_shift(graph.raw, payload.flow_shift, flux=context.baseline in FLUX_BASELINES)
 
 
 def apply_main_model(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
@@ -246,6 +257,7 @@ def apply_layerdiffuse_transparency(graph: ComfyGraph, payload: ImageGenPayload,
 
 IMAGE_PATCH_STEPS: tuple[PatchStep[ImageGenPayload, ModelContext], ...] = (
     apply_lora_chain,
+    apply_flow_shift,
     apply_main_model,
     apply_cascade_stage_models,
     apply_hires_fix_resolution,

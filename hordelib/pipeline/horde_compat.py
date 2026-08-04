@@ -15,8 +15,15 @@ from horde_sdk.ai_horde_api.consts import METADATA_TYPE, METADATA_VALUE
 from loguru import logger
 from PIL import Image
 
-from hordelib.pipeline.constants import SCHEDULERS, resolve_schedule
+from hordelib.execution.sigma_schedules import SigmaScheduleRequest
+from hordelib.pipeline.constants import (
+    SCHEDULERS,
+    SIGMA_GENERATOR_SCHEDULES,
+    SigmaGeneratorSchedule,
+    resolve_schedule,
+)
 from hordelib.pipeline.context import ModelContext
+from hordelib.pipeline.families.image_gen.baselines import align_your_steps_model_type
 from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.utils.image_utils import ImageUtils
 
@@ -158,6 +165,56 @@ def enforce_schedule_constraints(
             ),
         ],
     )
+
+
+class UnsupportedScheduleForBaselineError(ValueError):
+    """Raised when a request names a schedule that cannot be built for the model it runs on."""
+
+    def __init__(self, *, scheduler: str, baseline: KNOWN_IMAGE_GENERATION_BASELINE | None) -> None:
+        self.scheduler = scheduler
+        self.baseline = baseline
+        super().__init__(
+            f"The {scheduler} schedule has no published values for the {baseline} baseline, so it "
+            "cannot be built for this model.",
+        )
+
+
+def resolve_sigma_schedule(
+    payload: ImageGenPayload,
+    context: ModelContext,
+) -> SigmaScheduleRequest | None:
+    """Return the sigma-generator schedule this payload needs, or None when the graph resolves it.
+
+    Named schedules are ComfyUI's own and need nothing here. The two generator schedules are built
+    outside the graph, and Align Your Steps additionally needs the model's family, because its noise
+    levels were measured per family rather than derived.
+
+    Args:
+        payload: The finalized payload, whose ``scheduler`` names the schedule to run.
+        context: The resolved model facts, read for the baseline.
+
+    Returns:
+        The schedule to carry beside the graph, or None for a schedule ComfyUI can name.
+
+    Raises:
+        UnsupportedScheduleForBaselineError: If Align Your Steps was asked for on a baseline with no
+            published noise levels. Substituting another family's levels would run a schedule measured
+            for a different model, and silently substituting a different schedule would answer a
+            request nobody made, so a direct consumer is told rather than served something else.
+    """
+    if payload.scheduler not in SIGMA_GENERATOR_SCHEDULES:
+        return None
+
+    schedule = SigmaGeneratorSchedule(payload.scheduler)
+    if schedule is SigmaGeneratorSchedule.GITS:
+        # GITS tables are keyed by coefficient and hold for any model, so there is nothing to resolve.
+        return SigmaScheduleRequest(schedule=schedule)
+
+    model_type = align_your_steps_model_type(context.baseline)
+    if model_type is None:
+        raise UnsupportedScheduleForBaselineError(scheduler=payload.scheduler, baseline=context.baseline)
+
+    return SigmaScheduleRequest(schedule=schedule, align_your_steps_model_type=str(model_type))
 
 
 def apply_model_compat(

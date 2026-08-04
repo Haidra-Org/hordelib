@@ -15,10 +15,21 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from hordelib.pipeline.constants import (
     CONTROLNET_IMAGE_PREPROCESSOR_MAP,
+    FLOW_SHIFT_BOUNDS,
     SAMPLERS_MAP,
     SCHEDULERS,
+    SOLVER_OPTION_FALLBACK_BOUNDS,
+    SOLVER_TYPES,
     SOURCE_IMAGE_PROCESSING_OPTIONS,
+    SolverOption,
 )
+
+_ETA_BOUNDS = SOLVER_OPTION_FALLBACK_BOUNDS[SolverOption.ETA]
+_S_NOISE_BOUNDS = SOLVER_OPTION_FALLBACK_BOUNDS[SolverOption.S_NOISE]
+_S_CHURN_BOUNDS = SOLVER_OPTION_FALLBACK_BOUNDS[SolverOption.S_CHURN]
+_S_TMIN_BOUNDS = SOLVER_OPTION_FALLBACK_BOUNDS[SolverOption.S_TMIN]
+_S_TMAX_BOUNDS = SOLVER_OPTION_FALLBACK_BOUNDS[SolverOption.S_TMAX]
+_ORDER_BOUNDS = SOLVER_OPTION_FALLBACK_BOUNDS[SolverOption.ORDER]
 
 
 def _clamp(
@@ -168,6 +179,20 @@ class ImageGenPayload(_HordePayloadModel):
     workflow: str = "auto_detect"
     transparent: bool = False
 
+    # Solver tuning the node graph cannot express; see hordelib.execution.sampler_options. All default to
+    # None, meaning "build the sampler exactly as before", so an existing payload is unaffected.
+    sampler_eta: float | None = None
+    sampler_s_noise: float | None = None
+    sampler_s_churn: float | None = None
+    sampler_s_tmin: float | None = None
+    sampler_s_tmax: float | None = None
+    sampler_solver_type: str | None = None
+    sampler_order: int | None = None
+
+    # The timestep shift of a flow-matching model, which only some graphs carry a node for. None leaves
+    # the graph untouched, so a model whose shift the pipeline already sets keeps the value it shipped.
+    flow_shift: float | None = None
+
     _v_sampler = _clamping_validator(
         "sampler_name",
         datatype=str,
@@ -187,7 +212,99 @@ class ImageGenPayload(_HordePayloadModel):
         values=list(CONTROLNET_IMAGE_PREPROCESSOR_MAP.keys()),
         default=None,
     )
+    # Solver options clamp to the range that holds for any sampler, and to None when absent so the option
+    # is simply not passed. The sampler a payload names does not narrow them here: the narrower per-sampler
+    # range is applied where the sampler is built and known by its backend name, through
+    # `hordelib.execution.sampler_options.option_bounds`, which reads the same fallback these bounds come
+    # from. A payload therefore never carries a value the executor will refuse.
+    _v_sampler_eta = _clamping_validator(
+        "sampler_eta",
+        datatype=float,
+        min=_ETA_BOUNDS[0],
+        max=_ETA_BOUNDS[1],
+        default=None,
+    )
+    _v_sampler_s_noise = _clamping_validator(
+        "sampler_s_noise",
+        datatype=float,
+        min=_S_NOISE_BOUNDS[0],
+        max=_S_NOISE_BOUNDS[1],
+        default=None,
+    )
+    _v_sampler_s_churn = _clamping_validator(
+        "sampler_s_churn",
+        datatype=float,
+        min=_S_CHURN_BOUNDS[0],
+        max=_S_CHURN_BOUNDS[1],
+        default=None,
+    )
+    _v_sampler_s_tmin = _clamping_validator(
+        "sampler_s_tmin",
+        datatype=float,
+        min=_S_TMIN_BOUNDS[0],
+        max=_S_TMIN_BOUNDS[1],
+        default=None,
+    )
+    _v_sampler_s_tmax = _clamping_validator(
+        "sampler_s_tmax",
+        datatype=float,
+        min=_S_TMAX_BOUNDS[0],
+        max=_S_TMAX_BOUNDS[1],
+        default=None,
+    )
+    _v_sampler_solver_type = _clamping_validator(
+        "sampler_solver_type",
+        datatype=str,
+        values=sorted(SOLVER_TYPES),
+        default=None,
+    )
+    _v_sampler_order = _clamping_validator(
+        "sampler_order",
+        datatype=int,
+        min=int(_ORDER_BOUNDS[0]),
+        max=int(_ORDER_BOUNDS[1]),
+        default=None,
+    )
+    _v_flow_shift = _clamping_validator(
+        "flow_shift",
+        datatype=float,
+        min=FLOW_SHIFT_BOUNDS[0],
+        max=FLOW_SHIFT_BOUNDS[1],
+        default=None,
+    )
     _v_image_is_control = _clamping_validator("image_is_control", datatype=bool, default=False)
+
+    def solver_options(self) -> dict[str, float | int | str]:
+        """Return the solver options this payload sets, keyed as ComfyUI's samplers name them.
+
+        Empty when the payload sets none, which is the case for every payload that predates these fields;
+        the executor then builds samplers exactly as it did before. Options a given sampler does not accept
+        are dropped later, at the point the sampler is built, because only there is the target known.
+
+        ``sampler_order`` is emitted under both upstream spellings of the one concept: ``max_order`` for
+        the multistep solvers (`deis`, `ipndm`, `ipndm_v`) and ``order`` for `lms` and `dpm_adaptive`.
+        Samplers that take neither are unaffected, and the `sa_solver` family is not among the targets:
+        its `predictor_order` and `corrector_order` name the two halves of a predictor-corrector scheme
+        rather than a single solver order, so a request's order must not be spread onto them.
+        """
+        options: dict[str, float | int | str] = {}
+        if self.sampler_eta is not None:
+            options["eta"] = self.sampler_eta
+        if self.sampler_s_noise is not None:
+            options["s_noise"] = self.sampler_s_noise
+        if self.sampler_s_churn is not None:
+            options["s_churn"] = self.sampler_s_churn
+        if self.sampler_s_tmin is not None:
+            options["s_tmin"] = self.sampler_s_tmin
+        if self.sampler_s_tmax is not None:
+            options["s_tmax"] = self.sampler_s_tmax
+        if self.sampler_solver_type is not None:
+            options["solver_type"] = self.sampler_solver_type
+        if self.sampler_order is not None:
+            options["max_order"] = self.sampler_order
+            options["order"] = self.sampler_order
+        return options
+
     _v_return_map = _clamping_validator("return_control_map", datatype=bool, default=False)
     _v_prompt = _clamping_validator("prompt", datatype=str, default="")
     _v_negative = _clamping_validator("negative_prompt", datatype=str, default="")

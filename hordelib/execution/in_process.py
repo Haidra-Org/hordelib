@@ -24,6 +24,12 @@ from hordelib.execution.interface import (
     ProgressCallback,
     VRAMStats,
 )
+from hordelib.execution.sampler_options import clear_run_options, set_run_options
+from hordelib.execution.sigma_schedules import (
+    SigmaScheduleRequest,
+    clear_run_schedule,
+    set_run_schedule,
+)
 
 
 class InProcessComfyBackend:
@@ -102,6 +108,8 @@ class InProcessComfyBackend:
         outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
         progress_callback: ProgressCallback | None = None,
         defer_vram_unload: bool = False,
+        sampler_options: dict[str, Any] | None = None,
+        sigma_schedule: SigmaScheduleRequest | None = None,
     ) -> list[OutputArtifact]:
         self._ensure_started()
         assert self._comfy is not None
@@ -110,6 +118,12 @@ class InProcessComfyBackend:
         # records the truncation as it happens, so the recording is scoped to this one run and
         # collected here for the artifacts it produced.
         begin_run_recording()
+        # Solver options have the same scope for the same reason: they are read when the graph builds its
+        # sampler, which happens inside this call. Cleared afterwards so one run cannot leak into the next.
+        set_run_options(sampler_options)
+        # A sigma schedule the graph cannot name is scoped the same way: it is read when the sampler
+        # asks for its schedule, which happens inside this call.
+        set_run_schedule(sigma_schedule)
         try:
             results = self._comfy.run_pipeline(
                 graph,
@@ -120,6 +134,8 @@ class InProcessComfyBackend:
             )
         finally:
             truncations = take_run_truncations()
+            clear_run_options()
+            clear_run_schedule()
 
         return self._to_artifacts(results, outputs, truncations=truncations)
 

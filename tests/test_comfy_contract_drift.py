@@ -458,10 +458,53 @@ class TestMonkeypatchSignaturePins:
         """The scheduler list is offered to callers verbatim, and comfy substitutes silently too."""
         import comfy.samplers
 
-        from hordelib.pipeline.constants import SCHEDULERS
+        from hordelib.pipeline.constants import SCHEDULERS, SIGMA_GENERATOR_SCHEDULES
 
-        unknown = [name for name in SCHEDULERS if name not in comfy.samplers.SCHEDULER_NAMES]
+        unknown = [
+            name
+            for name in SCHEDULERS
+            if name not in comfy.samplers.SCHEDULER_NAMES and name not in SIGMA_GENERATOR_SCHEDULES
+        ]
         assert unknown == [], f"SCHEDULERS lists schedulers comfy does not offer: {unknown}"
+
+    def test_the_generator_schedules_are_still_unnameable_to_comfy(self, init_horde: None) -> None:
+        """The two node-supplied schedules are exempt from the pin above only while comfy has no name.
+
+        If comfy grows a handler for either, this package should stop computing it and pass the name
+        through instead, so the exemption has to end the moment the reason for it does.
+        """
+        import comfy.samplers
+
+        from hordelib.pipeline.constants import SIGMA_GENERATOR_SCHEDULES
+
+        named_by_comfy = sorted(SIGMA_GENERATOR_SCHEDULES & set(comfy.samplers.SCHEDULER_NAMES))
+        assert named_by_comfy == [], (
+            f"comfy now resolves {named_by_comfy} itself; drop the sigma-generator override for it "
+            "(hordelib.execution.sigma_schedules) and let calculate_sigmas handle the name"
+        )
+
+    def test_calculate_sigmas_signature(self, init_horde: None) -> None:
+        """The sigma-generator patch replaces this function, so its arguments are the contract."""
+        from hordelib.execution.comfy_patches import _originals
+
+        original_calculate_sigmas = _originals.get("calculate_sigmas")
+        assert original_calculate_sigmas is not None, "calculate_sigmas monkeypatch was never installed"
+        parameters = list(inspect.signature(original_calculate_sigmas).parameters)
+        assert parameters == ["model_sampling", "scheduler_name", "steps"]
+
+    def test_the_ksampler_reads_calculate_sigmas_as_a_module_global(self, init_horde: None) -> None:
+        """Patching the module attribute only reaches KSampler while it looks the function up there.
+
+        A comfy refactor that bound the function into the class (or imported it into another module)
+        would leave the patch installed and inert, so the graph would run an unrequested schedule.
+        """
+        import comfy.samplers
+
+        source = inspect.getsource(comfy.samplers.KSampler.calculate_sigmas)
+        assert "calculate_sigmas(self.model.get_model_object" in source, (
+            "KSampler.calculate_sigmas no longer calls the module-level calculate_sigmas directly; "
+            "re-verify the sigma-generator patch seam"
+        )
 
 
 class TestFolderPathsPins:

@@ -44,6 +44,11 @@ class _StubGraph:
         return {}
 
 
+class _StubTypedPayload:
+    def solver_options(self) -> None:
+        return None
+
+
 def _sample_stage_with(metadata: dict[str, Any], monkeypatch) -> SampleStageResult:
     """Run ``sample_stage`` against a stub backend whose artifact carries *metadata*."""
     import hordelib.horde as horde_module
@@ -53,7 +58,7 @@ def _sample_stage_with(metadata: dict[str, Any], monkeypatch) -> SampleStageResu
     monkeypatch.setattr(
         HordeLib,
         "_materialize_stage_graph",
-        lambda _self, _params: (_StubGraph(), (), []),
+        lambda _self, _params: (_StubGraph(), (), [], _StubTypedPayload(), None),
     )
     monkeypatch.setattr(
         horde_module,

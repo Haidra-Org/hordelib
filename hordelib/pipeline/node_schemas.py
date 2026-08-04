@@ -26,14 +26,16 @@ NODE_INPUTS_FILE = Path(__file__).parent / "comfy_node_inputs.json"
 
 _EXTRA_SNAPSHOT_CLASSES = (
     "HordeLoraLoader",
+    "ModelSamplingFlux",
     "HordeConditioningOutput",
     "HordeConditioningInput",
     "HordeLatentOutput",
     "HordeLatentInput",
 )
 """Classes absent from the packaged graph files but inserted at runtime: ``HordeLoraLoader`` by the
-LoRA patch step, and the disaggregated-stage IO nodes (:mod:`hordelib.nodes.node_stage_io`) by the
-stage-graph cut helpers (:mod:`hordelib.execution.stage_graph`)."""
+LoRA patch step, ``ModelSamplingFlux`` by the flow-shift patch step, and the disaggregated-stage IO
+nodes (:mod:`hordelib.nodes.node_stage_io`) by the stage-graph cut helpers
+(:mod:`hordelib.execution.stage_graph`)."""
 
 
 @dataclass(frozen=True)

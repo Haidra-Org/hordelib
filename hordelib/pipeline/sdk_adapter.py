@@ -131,6 +131,17 @@ def to_image_gen_payload(
         "denoising_strength": base_params.denoising_strength,
         "tiling": base_params.tiling,
         "transparent": base_params.transparent,
+        # Solver tuning and the flow-model shift. Each is None unless the request set it, and the
+        # filter below drops every None so the payload model's own default applies, which is what
+        # keeps a request that names none of them building exactly the graph it always did.
+        "sampler_eta": base_params.sampler_eta,
+        "sampler_s_noise": base_params.sampler_s_noise,
+        "sampler_s_churn": base_params.sampler_s_churn,
+        "sampler_s_tmin": base_params.sampler_s_tmin,
+        "sampler_s_tmax": base_params.sampler_s_tmax,
+        "sampler_solver_type": base_params.sampler_solver_type,
+        "sampler_order": base_params.sampler_order,
+        "flow_shift": base_params.flow_shift,
         "n_iter": params.batch_size,
         "source_processing": params.source_processing,
     }

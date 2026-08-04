@@ -24,6 +24,7 @@ from hordelib.execution.adaptive_sampler_bound import (
 )
 from hordelib.execution.in_process import InProcessComfyBackend
 from hordelib.execution.interface import OutputSpec
+from hordelib.execution.sigma_schedules import SigmaScheduleRequest
 from hordelib.execution.stage_graph import (
     cut_decode_stage,
     cut_encode_text_stage,
@@ -318,22 +319,31 @@ class HordeLib:
     def _materialize_stage_graph(
         self,
         params: ImageGenerationParameters,
-    ) -> tuple[ComfyGraph, tuple[OutputSpec, ...], list[GenMetadataEntry]]:
+    ) -> tuple[
+        ComfyGraph,
+        tuple[OutputSpec, ...],
+        list[GenMetadataEntry],
+        ImageGenPayload,
+        SigmaScheduleRequest | None,
+    ]:
         """Materialize the full family graph for a job, ready to be cut into a single stage."""
-        from hordelib.pipeline.horde_compat import apply_model_compat
+        from hordelib.pipeline.horde_compat import apply_model_compat, resolve_sigma_schedule
         from hordelib.pipeline.resolution import resolve_image_model
         from hordelib.pipeline.sdk_adapter import to_image_gen_payload
 
         typed, conversion_faults = to_image_gen_payload(params)
         context = resolve_image_model(typed.model)
         typed, compat_faults = apply_model_compat(typed, context)
-        graph, _typed, _context, faults, outputs = self._finalize_and_materialize(
+        graph, finalized, resolved_context, faults, outputs = self._finalize_and_materialize(
             typed,
             context,
             conversion_faults + compat_faults,
             pipeline=AUTO_PIPELINE,
         )
-        return graph, outputs, faults
+        # The finalized payload and the sigma schedule come back so a stage can apply what the graph
+        # cannot carry. Converting again in the caller would re-decode the job's source images, which is
+        # the expensive half of conversion.
+        return graph, outputs, faults, finalized, resolve_sigma_schedule(finalized, resolved_context)
 
     def encode_text_stage(self, params: ImageGenerationParameters) -> tuple[bytes, bytes]:
         """Encode a job's prompts to (positive, negative) CONDITIONING blobs (loads only the CLIP).
@@ -343,7 +353,7 @@ class HordeLib:
         :class:`~hordelib.execution.interface.StageGraphUnsupportedError` for any other shape
         (split-loader families such as Qwen/Z-Image, where the loader-subset flags are no-ops).
         """
-        graph, _outputs, _faults = self._materialize_stage_graph(params)
+        graph, _outputs, _faults, _typed, _sigma_schedule = self._materialize_stage_graph(params)
         outputs = cut_encode_text_stage(graph)
         artifacts = self.backend.run_pipeline(graph.to_api_dict(), outputs=outputs)
         by_node = {a.source_node: a.data.getvalue() for a in artifacts}
@@ -377,17 +387,21 @@ class HordeLib:
             SampleStageResult: The serialized LATENT, plus the sampler-truncation record if the
                 backend bounded a solver-chosen sampler during this run.
         """
-        graph, _outputs, _faults = self._materialize_stage_graph(params)
+        graph, _outputs, _faults, typed_payload, sigma_schedule = self._materialize_stage_graph(params)
         outputs = cut_sample_stage(
             graph,
             positive_bytes=positive_conditioning_bytes,
             negative_bytes=negative_conditioning_bytes,
             source_latent_bytes=source_latent_bytes,
         )
+        # Sampling is the only stage the solver options affect, and this is that stage when a job is run
+        # disaggregated, so they are applied here as well as on the monolithic path.
         artifacts = self.backend.run_pipeline(
             graph.to_api_dict(),
             outputs=outputs,
             progress_callback=self._make_comfyui_progress_adapter(progress_callback),
+            sampler_options=typed_payload.solver_options(),
+            sigma_schedule=sigma_schedule,
         )
         # The backend brackets each run_pipeline call with the truncation recording, so a record on
         # this artifact belongs to this stage's run and cannot be a neighbouring run's leftover.
@@ -403,7 +417,7 @@ class HordeLib:
         graph has none). Raises :class:`~hordelib.execution.interface.StageGraphUnsupportedError`
         otherwise (a txt2img graph, or a split-loader family).
         """
-        graph, _outputs, _faults = self._materialize_stage_graph(params)
+        graph, _outputs, _faults, _typed, _sigma_schedule = self._materialize_stage_graph(params)
         outputs = cut_vae_encode_stage(graph)
         artifacts = self.backend.run_pipeline(graph.to_api_dict(), outputs=outputs)
         return artifacts[0].data.getvalue()
@@ -426,7 +440,7 @@ class HordeLib:
         :class:`~hordelib.execution.interface.StageGraphUnsupportedError` for any other shape
         (split-loader families).
         """
-        graph, outputs, faults = self._materialize_stage_graph(params)
+        graph, outputs, faults, _typed, _sigma_schedule = self._materialize_stage_graph(params)
         cut_decode_stage(graph, latent_bytes=latent_bytes)
         artifacts = self.backend.run_pipeline(
             graph.to_api_dict(),
@@ -468,6 +482,8 @@ class HordeLib:
         defer_vram_unload: bool = False,
     ) -> list[ResultingImageReturn] | ResultingImageReturn:
         """Run a materialized graph on the backend and wrap the artifacts as results."""
+        from hordelib.pipeline.horde_compat import resolve_sigma_schedule
+
         start_time = time.time()
 
         graph, typed, context, faults, declared_outputs = graph_bundle
@@ -504,6 +520,8 @@ class HordeLib:
             outputs=declared_outputs,
             progress_callback=comfyui_progress_callback,
             defer_vram_unload=defer_vram_unload,
+            sampler_options=typed.solver_options(),
+            sigma_schedule=resolve_sigma_schedule(typed, context),
         )
 
         ret_results = []

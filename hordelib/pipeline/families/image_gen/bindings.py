@@ -15,7 +15,11 @@ snapshot harness docstring).
 
 from collections.abc import Callable
 
-from hordelib.pipeline.constants import SAMPLERS_MAP
+from hordelib.pipeline.constants import (
+    SAMPLERS_MAP,
+    SIGMA_GENERATOR_GRAPH_SCHEDULE,
+    SIGMA_GENERATOR_SCHEDULES,
+)
 from hordelib.pipeline.definition import ParamBinding, node, scaled
 from hordelib.pipeline.payload import ImageGenPayload
 
@@ -38,6 +42,7 @@ __all__ = [
     "SEAMLESS_TILING",
     "SOURCE_IMAGE",
     "compose",
+    "comfy_scheduler",
 ]
 
 type ImageGenBinding = ParamBinding[ImageGenPayload]
@@ -70,6 +75,18 @@ def compose(*groups: BindingGroup) -> BindingGroup:
 def comfy_sampler(payload: ImageGenPayload) -> str | None:
     """Translate the horde sampler name to ComfyUI's."""
     return SAMPLERS_MAP.get(payload.sampler_name)
+
+
+def comfy_scheduler(payload: ImageGenPayload) -> str:
+    """Translate the requested schedule to the name the graph's scheduler input must carry.
+
+    A schedule ComfyUI computes from a node has no name this input can hold, so the input keeps the
+    placeholder and the schedule itself rides the run state (see
+    :mod:`hordelib.execution.sigma_schedules`). Every other schedule is passed through as requested.
+    """
+    if payload.scheduler in SIGMA_GENERATOR_SCHEDULES:
+        return SIGMA_GENERATOR_GRAPH_SCHEDULE
+    return payload.scheduler
 
 
 def comfy_clip_skip(payload: ImageGenPayload) -> int:
@@ -123,7 +140,7 @@ SAMPLER_CORE: BindingGroup = node("sampler", "KSampler").bind(
     # by the snapshot corpus; pruning it changes prompt hashes and is deferred to a
     # deliberate, GPU-verified pass.
     noise_seed="seed",
-    scheduler="scheduler",
+    scheduler=comfy_scheduler,
     steps="ddim_steps",
 )
 """The standard KSampler node titled ``sampler``."""
@@ -136,7 +153,7 @@ QR_SAMPLER_CORE: BindingGroup = node("sampler", "KSamplerAdvanced").bind(
     denoise="denoising_strength",
     seed="seed",
     noise_seed="seed",
-    scheduler="scheduler",
+    scheduler=comfy_scheduler,
     steps="ddim_steps",
 )
 """The qr_code graph's main sampler: same targets as :data:`SAMPLER_CORE`, but the node is a

@@ -16,6 +16,7 @@ from hordelib.pipeline.patches import (
     configure_controlnet,
     hires_fix_first_pass_resolution,
     insert_lora_chain,
+    insert_model_sampling_shift,
     insert_remix_image_chain,
     qr_layout_params,
     qr_params_from_extra_texts,
@@ -96,6 +97,61 @@ class TestInsertLoraChain:
         assert graph["basic_scheduler"]["inputs"]["model"][0] == "lora_0"
         # The non-flux targets must be untouched
         assert "sampler" not in graph or graph["sampler"]["inputs"].get("model", [None])[0] != "lora_0"
+
+
+class TestInsertModelSamplingShift:
+    def test_no_shift_is_a_noop(self):
+        graph = _flux_graph()
+        before = json.dumps(graph, default=str, sort_keys=True)
+        insert_model_sampling_shift(graph, None, flux=True)
+        assert json.dumps(graph, default=str, sort_keys=True) == before
+
+    def test_flux_gets_the_node_between_the_model_and_its_consumers(self):
+        graph = _flux_graph()
+        model_source = graph["cfg_guider"]["inputs"]["model"][0]
+
+        insert_model_sampling_shift(graph, 2.5, flux=True)
+
+        assert graph["model_sampling_shift"]["class_type"] == "ModelSamplingFlux"
+        assert graph["model_sampling_shift"]["inputs"]["model"] == [model_source, 0]
+        assert graph["cfg_guider"]["inputs"]["model"][0] == "model_sampling_shift"
+        assert graph["basic_scheduler"]["inputs"]["model"][0] == "model_sampling_shift"
+
+    def test_flux_shift_is_resolution_independent(self):
+        # Equal base and max shift make the node's area interpolation constant, so the requested
+        # value is the shift the model runs with rather than one end of a range.
+        graph = _flux_graph()
+        insert_model_sampling_shift(graph, 2.5, flux=True)
+        inputs = graph["model_sampling_shift"]["inputs"]
+        assert inputs["max_shift"] == 2.5
+        assert inputs["base_shift"] == 2.5
+
+    def test_the_shift_sits_on_top_of_the_lora_chain(self):
+        graph = _flux_graph()
+        insert_lora_chain(
+            graph,
+            [ResolvedLora(filename="a.safetensors", strength_model=1.0, strength_clip=1.0)],
+            flux=True,
+        )
+        insert_model_sampling_shift(graph, 3.0, flux=True)
+
+        assert graph["model_sampling_shift"]["inputs"]["model"] == ["lora_0", 0]
+        assert graph["cfg_guider"]["inputs"]["model"][0] == "model_sampling_shift"
+
+    def test_a_graph_that_already_has_a_shift_node_has_its_input_set(self):
+        graph = _graph("qwen")
+        assert graph["model_sampling_aura_flow"]["inputs"]["shift"] != 4.0
+
+        insert_model_sampling_shift(graph, 4.0)
+
+        assert graph["model_sampling_aura_flow"]["inputs"]["shift"] == 4.0
+        assert "model_sampling_shift" not in graph
+
+    def test_a_model_without_a_shift_is_left_alone(self):
+        graph = _sd_graph()
+        before = json.dumps(graph, default=str, sort_keys=True)
+        insert_model_sampling_shift(graph, 2.0)
+        assert json.dumps(graph, default=str, sort_keys=True) == before
 
 
 class TestRewireImg2Img:
