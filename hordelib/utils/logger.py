@@ -1,6 +1,8 @@
 import atexit
 import contextlib
 import sys
+import threading
+import time
 
 from loguru import logger
 
@@ -82,6 +84,56 @@ def _color_format(record) -> str:
 
 def _plain_format(record) -> str:
     return _format_with_extras(record, color=False)
+
+
+_log_throttle_lock = threading.Lock()
+_log_throttle_last_emit_monotonic: dict[str, float] = {}
+
+
+def throttled_log_level(
+    key: str,
+    interval_seconds: float,
+    *,
+    normal_level: str = "DEBUG",
+    suppressed_level: str = "TRACE",
+    now: float | None = None,
+) -> str:
+    """Pick the level a repeating log site should use so it emits at full level once per interval.
+
+    Per-step and per-event sites fire far faster than a reader or a support bundle can absorb: at full
+    level they crowd every other line out of the log and cost real time in the hot path. This returns
+    ``normal_level`` for the first call on a ``key`` and for the first call once ``interval_seconds``
+    has elapsed since that key last did so, and ``suppressed_level`` for every call in between. The
+    site keeps a complete record at the quieter level while a normal-verbosity log keeps one line per
+    interval.
+
+    Callers pass the result to ``logger.log(...)`` rather than having this function emit, so the record
+    still reports the real call site instead of this module.
+
+    ``key`` separates independent sites. Give each message a stable key, and where one site's content
+    varies meaningfully per call (an event type, a node name) fold that variant into the key, so each
+    variant surfaces on its own schedule instead of whichever fires first masking the rest.
+
+    ``now`` substitutes for the monotonic clock reading, letting a caller drive the schedule directly.
+    Thread-safe: callers reached from several threads share one schedule per key.
+    """
+    reading = time.monotonic() if now is None else now
+    with _log_throttle_lock:
+        last_emit = _log_throttle_last_emit_monotonic.get(key)
+        if last_emit is not None and (reading - last_emit) < interval_seconds:
+            return suppressed_level
+        _log_throttle_last_emit_monotonic[key] = reading
+    return normal_level
+
+
+def reset_log_throttle_state() -> None:
+    """Forget every throttled site's last-emission time, so the next call on any key emits at full level.
+
+    The schedule is process-global module state, so a caller that needs a known starting point (a test
+    case, a reused process about to start unrelated work) clears it here.
+    """
+    with _log_throttle_lock:
+        _log_throttle_last_emit_monotonic.clear()
 
 
 class HordeLog:

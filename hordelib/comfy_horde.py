@@ -49,6 +49,7 @@ from hordelib.execution.model_dirs import ModelCategory, invalidate_filename_cac
 from hordelib.execution.results import PipelineRunResult, collect_output_entries
 from hordelib.execution.server_shim import HeadlessComfyServer
 from hordelib.pipeline.graph import HORDE_NODE_REPLACEMENTS
+from hordelib.utils.logger import throttled_log_level
 from hordelib.utils.memory_trim import trim_host_memory
 from hordelib.utils.torch_memory import clear_accelerator_cache
 
@@ -775,14 +776,28 @@ class Comfy_Horde:
 
     _comfyui_callback: typing.Callable[[str, dict, str], None] | None = None
 
+    _CALLBACK_LOG_INTERVAL_SECONDS = 30.0
+    """Gap between two full-level ``send_sync`` receipt lines for a given event label.
+
+    ComfyUI drives this channel per executed node and per progress tick, so at DEBUG the receipt line
+    alone reaches into the hundreds of lines per minute on a normal job and drowns the rest of the
+    child's log. The interval is per label, so a label that fires once a run still surfaces rather
+    than being masked by the progress ticks.
+    """
+
     def send_sync(self, label: str, data: dict, sid: str | None = None) -> None:
         """Receive one execution event from ComfyUI, via the HeadlessComfyServer shim.
 
         Artifact collection reads the executor's ``history_result`` after the run (see
         ``_collect_run_result``); this channel only logs typed event context and forwards the
         raw event to the external callback.
+
+        The receipt line below is throttled per event label: one label's full-level line every
+        :data:`_CALLBACK_LOG_INTERVAL_SECONDS`, with the receipts in between kept at TRACE. The
+        typed per-event lines further down are unaffected, so run outcomes still log in full.
         """
-        logger.debug(
+        logger.log(
+            throttled_log_level(f"comfy_send_sync:{label}", self._CALLBACK_LOG_INTERVAL_SECONDS),
             "ComfyUI callback",
             label=label,
             client_id=sid,
