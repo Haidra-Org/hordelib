@@ -7,7 +7,7 @@ installs torch and torchvision from a per-build wheel index (``--extra cu126``/`
 ``cpu``); routing keeps their CUDA tags in lockstep.
 
 torchaudio is the odd one out: it has no ``+cu132`` wheel at all, and audio is currently unsupported,
-so it is intentionally NOT a default dependency. Two helpers here keep that arrangement honest:
+so it is intentionally NOT a default dependency. Helpers here keep that arrangement honest:
 
 * :func:`verify_torch_build_consistency` fails fast with an actionable message when the installed
   torch and torchvision (or a hand-installed torchaudio) disagree on their build, instead of letting
@@ -15,6 +15,8 @@ so it is intentionally NOT a default dependency. Two helpers here keep that arra
 * :func:`ensure_torchaudio_importable` registers a lazy stub ``torchaudio`` when the real package is
   absent, so ComfyUI's several eager ``import torchaudio`` statements still load for image/video work;
   the stub only raises (with guidance) if audio functionality is actually exercised.
+* :func:`warm_deferred_torch_imports` pulls in the torch submodules torch itself defers to first use,
+  so no job is the first thing to touch them.
 """
 
 import importlib.machinery
@@ -118,6 +120,32 @@ def ensure_torchaudio_importable() -> bool:
         "work. Audio operations will raise if actually used.",
     )
     return True
+
+
+_DEFERRED_TORCH_MODULES = ("torch.utils.serialization",)
+"""torch submodules that ``import torch`` leaves unimported until something first needs them."""
+
+
+def warm_deferred_torch_imports() -> None:
+    """Import the torch submodules torch defers to first use, so no job is the first to touch them.
+
+    ``torch.load`` resolves its mmap default through ``torch.utils.serialization``, and only when the
+    caller passes no ``mmap`` argument, which is what ComfyUI's ``load_torch_file`` does for ``.pth``
+    files. ``import torch`` does not pull that module in, so a process can run its whole life and reach
+    the filesystem for it at the moment it loads its first upscaler or face restorer. There the failure
+    arrives as a node error inside a graph, which costs an already-generated image. Importing it during
+    startup makes the process independent of what site-packages looks like once it is serving (replacing
+    the torch tree under a live process is the realistic way it goes missing), and turns any genuine
+    absence into a startup warning rather than a mid-job fault.
+
+    A torch build predating these modules is fine: it never imports them either, so a failure here is
+    logged and nothing more.
+    """
+    for name in _DEFERRED_TORCH_MODULES:
+        try:
+            importlib.import_module(name)
+        except ImportError as exc:
+            logger.warning(f"Could not pre-import {name}: {type(exc).__name__} {exc}")
 
 
 def _local_build_tag(version: str) -> str | None:
