@@ -146,6 +146,53 @@ def test_preflight_raises_when_tags_differ(monkeypatch: pytest.MonkeyPatch) -> N
         torch_build.verify_torch_build_consistency()
 
 
+# --- deferred torch imports -------------------------------------------------------------------
+
+
+class _RefuseDeferredModules:
+    """A meta-path finder that denies the deferred modules, standing in for a torch tree gone from disk."""
+
+    def __init__(self, blocked: frozenset[str]) -> None:
+        self._blocked = blocked
+
+    def find_spec(self, fullname: str, path: object = None, target: object = None) -> None:
+        if fullname in self._blocked:
+            raise ModuleNotFoundError(f"No module named {fullname!r}", name=fullname)
+        return
+
+
+def test_warmed_torch_load_survives_the_deferred_module_going_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A warmed process loads a checkpoint even when the deferred modules become unreachable.
+
+    ``torch.load`` resolves its mmap default through ``torch.utils.serialization`` whenever the caller
+    passes no ``mmap`` argument, which is what ComfyUI does for ``.pth`` files. An unwarmed process
+    therefore reaches the filesystem for that module in the middle of a job, and replacing the torch tree
+    under a live process is enough to make it briefly absent. The second half of this test shows the
+    denial is real, so the first half is not passing by accident.
+    """
+    import torch
+
+    blocked = frozenset(torch_build._DEFERRED_TORCH_MODULES)
+    checkpoint = tmp_path / "weights.pth"
+    torch.save({"weight": torch.zeros(2)}, checkpoint)
+
+    torch_build.warm_deferred_torch_imports()
+    assert blocked <= set(sys.modules)
+
+    monkeypatch.setattr(sys, "meta_path", [_RefuseDeferredModules(blocked), *sys.meta_path])
+    assert "weight" in torch.load(checkpoint, map_location="cpu", weights_only=True)
+
+    unwarmed = {name: sys.modules.pop(name) for name in list(sys.modules) if name in blocked}
+    try:
+        with pytest.raises(ModuleNotFoundError):
+            torch.load(checkpoint, map_location="cpu", weights_only=True)
+    finally:
+        sys.modules.update(unwarmed)
+
+
 # --- torchaudio stub --------------------------------------------------------------------------
 
 
