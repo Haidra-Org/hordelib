@@ -62,10 +62,7 @@ from hordelib.utils.distance import CosineSimilarityResultCode, evaluate_image_d
 
 from .test_stage_disaggregation import _params as _handbuilt_params
 
-_DUMP_ROOT = Path(
-    r"G:\_temp_\claude\G--mxd-ai-python-local-dev-git-repos-tazlin-horde-worker-reGen"
-    r"\fa65ea7e-1f5d-4a0b-b681-7c4f696bf546\scratchpad\pop_matrix",
-)
+_DUMP_ROOT = Path("images/debug/stage_disaggregation_pop_matrix")
 
 _UPSCALE_MODEL = "RealESRGAN_x4plus"
 

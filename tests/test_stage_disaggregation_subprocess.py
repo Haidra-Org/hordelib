@@ -45,10 +45,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _RUNNER = _REPO_ROOT / "tests" / "stage_subprocess_runner.py"
 _VENV_PYTHON = _REPO_ROOT / ".venv" / "Scripts" / "python.exe"
 
-_DUMP_ROOT = Path(
-    r"G:\_temp_\claude\G--mxd-ai-python-local-dev-git-repos-tazlin-horde-worker-reGen"
-    r"\fa65ea7e-1f5d-4a0b-b681-7c4f696bf546\scratchpad\subproc_repro",
-)
+_DUMP_ROOT = Path("images/debug/stage_disaggregation_subprocess")
 
 _STAGE_TIMEOUT_SECONDS = 900
 
