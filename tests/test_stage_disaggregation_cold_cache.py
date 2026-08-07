@@ -52,10 +52,7 @@ STAGE_ENCODE = "encode"
 STAGE_SAMPLE = "sample"
 STAGE_DECODE = "decode"
 
-_DUMP_ROOT = Path(
-    r"G:\_temp_\claude\G--mxd-ai-python-local-dev-git-repos-tazlin-horde-worker-reGen"
-    r"\fa65ea7e-1f5d-4a0b-b681-7c4f696bf546\scratchpad\cold_cache_repro",
-)
+_DUMP_ROOT = Path("images/debug/stage_disaggregation_cold_cache")
 
 
 def _params(
