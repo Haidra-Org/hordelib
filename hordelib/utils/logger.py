@@ -7,19 +7,17 @@ import time
 from loguru import logger
 
 
-def _escape_for_format(text: str, *, color: bool) -> str:
+def _escape_for_format(text: str) -> str:
     """Neutralise characters loguru would otherwise parse inside a format template.
 
     Anything spliced directly into the returned format string (rather than referenced via a
-    ``{...}`` field) is parsed by loguru: ``{``/``}`` as format fields and, when the sink
-    colorizes, ``<...>`` as color markup. Escaping keeps repr'd extras literal, so a value
-    like ``{'image_loader': ...}`` or ``<obj at 0x...>`` cannot raise ``KeyError`` on the
-    plain sink or "Max string recursion exceeded" in the colorizer.
+    ``{...}`` field) is parsed by loguru: ``{``/``}`` as format fields and ``<...>`` as color
+    markup. The markup parse runs on *every* sink, colorizing or not (a plain sink strips
+    markup rather than ignoring it), so ``<`` must be escaped unconditionally: an extra
+    carrying HTML-like text (a model description fetched from a remote catalogue) would
+    otherwise raise in the parser and the whole record would be dropped.
     """
-    text = text.replace("{", "{{").replace("}", "}}")
-    if color:
-        text = text.replace("<", r"\<")
-    return text
+    return text.replace("{", "{{").replace("}", "}}").replace("<", r"\<")
 
 
 def _format_with_extras(record, *, color: bool) -> str:
@@ -37,7 +35,7 @@ def _format_with_extras(record, *, color: bool) -> str:
         # straight into the template below, so escape it like any other dynamic literal.
         pathname = extras.get("stdlib_pathname", "")
         filename = os.path.basename(pathname) if pathname else "unknown"
-        filename = _escape_for_format(filename, color=color)
+        filename = _escape_for_format(filename)
 
         if color:
             # Use {extra[key]} to safely access values without interpretation as color tags
@@ -72,7 +70,7 @@ def _format_with_extras(record, *, color: bool) -> str:
     ]
     extra_str = ""
     if extra_items:
-        extra_repr = _escape_for_format(", ".join(extra_items), color=color)
+        extra_repr = _escape_for_format(", ".join(extra_items))
         extra_str = f" | {extra_repr}"
 
     return base + extra_str + "\n{exception}"
