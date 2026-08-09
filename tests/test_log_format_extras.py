@@ -12,6 +12,26 @@ from loguru import logger
 from hordelib.utils.logger import _color_format, _escape_for_format, _plain_format
 
 
+def _log_markup_extra_through(fmt, *, colorize: bool) -> list:
+    """Emit one record whose extra carries markup-like text through ``fmt``.
+
+    External metadata (e.g. a model description fetched from a remote catalogue) can contain HTML.
+    Loguru parses ``<...>`` in the format template on every sink, colorizing or not (the plain sink
+    strips markup rather than ignoring it), so an unescaped tag raises and the record is dropped.
+    """
+    captured: list = []
+    logger.remove()
+    sink_id = logger.add(captured.append, format=fmt, colorize=colorize, level="DEBUG", catch=False)
+    try:
+        logger.debug(
+            "lora.parse_version_data",
+            version_data={"description": "<p>An HTML description.</p>"},
+        )
+    finally:
+        logger.remove(sink_id)
+    return captured
+
+
 def _log_dict_extra_through(fmt, *, colorize: bool) -> list:
     """Emit one record carrying a dict extra through ``fmt`` and return what the sink received.
 
@@ -34,10 +54,24 @@ def _log_dict_extra_through(fmt, *, colorize: bool) -> list:
 
 
 def test_escape_for_format_neutralises_braces_and_markup():
-    assert _escape_for_format("{'a': 'b'}", color=False) == "{{'a': 'b'}}"
-    # Angle brackets only need escaping for the colorized sink (loguru parses <...> as markup).
-    assert _escape_for_format("<obj at 0x1>", color=False) == "<obj at 0x1>"
-    assert _escape_for_format("<obj at 0x1>", color=True) == r"\<obj at 0x1>"
+    assert _escape_for_format("{'a': 'b'}") == "{{'a': 'b'}}"
+    # Angle brackets are escaped for every sink: loguru parses <...> as markup even on a
+    # non-colorizing sink (it strips markup rather than ignoring it), so an unescaped tag raises.
+    assert _escape_for_format("<obj at 0x1>") == r"\<obj at 0x1>"
+
+
+def test_plain_format_renders_html_extra_without_error():
+    captured = _log_markup_extra_through(_plain_format, colorize=False)
+    assert len(captured) == 1
+    line = str(captured[0])
+    assert "lora.parse_version_data" in line
+    assert "description" in line
+
+
+def test_color_format_renders_html_extra_without_error():
+    captured = _log_markup_extra_through(_color_format, colorize=True)
+    assert len(captured) == 1
+    assert "lora.parse_version_data" in str(captured[0])
 
 
 def test_plain_format_renders_dict_extra_without_error():
