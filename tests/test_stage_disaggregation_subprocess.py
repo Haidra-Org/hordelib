@@ -6,12 +6,12 @@ weights across process boundaries. The in-process stage-identity and cold-cache 
 inside a single interpreter that has already run ``generate``, so neither exercises fresh per-process
 ComfyUI state nor cross-process weight adoption. This module closes that gap: the monolithic reference
 is rendered in the test process, then encode -> sample -> decode each run via ``subprocess.run`` of
-:mod:`tests.stage_subprocess_runner` under the repo venv python, with blobs handed between processes as
-files. The decoded image must reproduce the monolithic render at perceptual identity.
+:mod:`tests.stage_subprocess_runner` under the running interpreter, with blobs handed between processes
+as files. The decoded image must reproduce the monolithic render at perceptual identity.
 
-The bar is perceptual identity (never relaxed). On divergence both images are written under the dump
-root and the cosine plus histogram metrics ride on the assertion message. Each subprocess's stdout and
-stderr are captured to files under the dump root for forensics.
+The bar is perceptual identity (never relaxed). On divergence both images are written under the test's
+pytest ``tmp_path`` and the cosine plus histogram metrics, along with the written paths, ride on the
+assertion message. Each subprocess's stdout and stderr are captured to files in the same directory.
 
 These are real-GPU tests, marked ``slow`` plus the checkpoint's model marker (matching
 ``tests/test_stage_disaggregation.py``), deselected by the CI default ``-m "not slow"``. Run manually
@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import uuid
 from pathlib import Path
 
@@ -43,9 +44,6 @@ from hordelib.utils.distance import CosineSimilarityResultCode, evaluate_image_d
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _RUNNER = _REPO_ROOT / "tests" / "stage_subprocess_runner.py"
-_VENV_PYTHON = _REPO_ROOT / ".venv" / "Scripts" / "python.exe"
-
-_DUMP_ROOT = Path("images/debug/stage_disaggregation_subprocess")
 
 _STAGE_TIMEOUT_SECONDS = 900
 
@@ -85,13 +83,22 @@ def _run_stage_subprocess(
     stage: str,
     spec: dict,
     work_dir: Path,
+    dump_dir: Path,
     *,
     disable_zero_copy: bool,
 ) -> None:
-    """Run one stage in a fresh venv-python process and fail loudly on nonzero exit or timeout.
+    """Run one stage in a fresh interpreter process and fail loudly on nonzero exit or timeout.
 
-    The job spec is written to a JSON file the runner reads. Each process's stdout and stderr are
-    captured to files under the dump root so a failing stage can be inspected after the fact.
+    The stdout and stderr captures are unconditional so a failing stage can be inspected afterwards, and
+    their paths ride on any failure message.
+
+    Args:
+        case_name: Descriptive name used in failure text and captured log filenames.
+        stage: Which stage the runner executes (``encode``, ``sample`` or ``decode``).
+        spec: Job spec handed to the runner, written to a JSON file it reads.
+        work_dir: Directory the spec and inter-stage blobs live in.
+        dump_dir: Directory the captured stdout and stderr are written to, typically the test's pytest
+            ``tmp_path``.
     """
     spec_path = work_dir / f"{stage}_spec.json"
     spec_path.write_text(json.dumps(spec), encoding="utf-8")
@@ -101,13 +108,12 @@ def _run_stage_subprocess(
     if disable_zero_copy:
         env["HORDELIB_DISABLE_ZERO_COPY"] = "1"
 
-    _DUMP_ROOT.mkdir(parents=True, exist_ok=True)
-    stdout_path = _DUMP_ROOT / f"{case_name}_{stage}_stdout.log"
-    stderr_path = _DUMP_ROOT / f"{case_name}_{stage}_stderr.log"
+    stdout_path = dump_dir / f"{case_name}_{stage}_stdout.log"
+    stderr_path = dump_dir / f"{case_name}_{stage}_stderr.log"
 
     try:
         completed = subprocess.run(
-            [str(_VENV_PYTHON), str(_RUNNER), str(spec_path)],
+            [sys.executable, str(_RUNNER), str(spec_path)],
             cwd=str(_REPO_ROOT),
             env=env,
             capture_output=True,
@@ -138,10 +144,19 @@ def _run_subprocess_pipeline(
     case_name: str,
     params: ImageGenerationParameters,
     work_dir: Path,
+    dump_dir: Path,
     *,
     disable_zero_copy: bool,
 ) -> Image.Image:
-    """Drive encode -> sample -> decode, each in its own process, and return the decoded image."""
+    """Drive encode -> sample -> decode, each in its own process, and return the decoded image.
+
+    Args:
+        case_name: Descriptive name used in failure text and captured log filenames.
+        params: Generation parameters shared by every stage.
+        work_dir: Directory the spec files and inter-stage blobs live in.
+        dump_dir: Directory each stage's captured stdout and stderr are written to.
+        disable_zero_copy: Whether the stage processes run with zero-copy weight adoption disabled.
+    """
     params_json_path = work_dir / "params.json"
     params_json_path.write_text(params.model_dump_json(), encoding="utf-8")
 
@@ -159,6 +174,7 @@ def _run_subprocess_pipeline(
             "outputs": {"positive": str(positive_path), "negative": str(negative_path)},
         },
         work_dir,
+        dump_dir,
         disable_zero_copy=disable_zero_copy,
     )
     _run_stage_subprocess(
@@ -171,6 +187,7 @@ def _run_subprocess_pipeline(
             "outputs": {"latent": str(latent_path)},
         },
         work_dir,
+        dump_dir,
         disable_zero_copy=disable_zero_copy,
     )
     _run_stage_subprocess(
@@ -183,6 +200,7 @@ def _run_subprocess_pipeline(
             "outputs": {"image": str(image_path)},
         },
         work_dir,
+        dump_dir,
         disable_zero_copy=disable_zero_copy,
     )
 
@@ -193,11 +211,18 @@ def _assert_subprocess_identity(
     case_name: str,
     monolithic: list[ResultingImageReturn],
     decoded: Image.Image,
+    dump_dir: Path,
 ) -> None:
     """Assert the subprocess stage path matched the monolithic render at perceptual identity.
 
-    On divergence both images are written under the dump root with case-descriptive names and the
-    failure carries the cosine and histogram metrics; the identity bar is never relaxed.
+    On divergence both images are written under ``dump_dir`` with case-descriptive names and the failure
+    carries the cosine and histogram metrics plus the written paths; the identity bar is never relaxed.
+
+    Args:
+        case_name: Descriptive name used in printed metrics, failure text, and dumped filenames.
+        monolithic: The single-image monolithic ``generate`` render.
+        decoded: The image the subprocess stage path decoded.
+        dump_dir: Directory the diverging images are written to, typically the test's pytest ``tmp_path``.
     """
     assert len(monolithic) == 1
     mono = monolithic[0]
@@ -206,9 +231,8 @@ def _assert_subprocess_identity(
     cosine, histogram = evaluate_image_distance(mono.image, decoded)
     print(f"SUBPROC_IDENTITY {case_name}: {cosine} | {histogram}")
     if cosine.cosine_similarity < CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL:
-        _DUMP_ROOT.mkdir(parents=True, exist_ok=True)
-        mono_path = _DUMP_ROOT / f"{case_name}_monolithic.png"
-        stage_path = _DUMP_ROOT / f"{case_name}_subprocess.png"
+        mono_path = dump_dir / f"{case_name}_monolithic.png"
+        stage_path = dump_dir / f"{case_name}_subprocess.png"
         mono.image.save(mono_path)
         decoded.save(stage_path)
         raise AssertionError(
@@ -226,16 +250,14 @@ class TestStageDisaggregationSubprocess:
         stable_diffusion_model_name_for_testing: str,
         tmp_path: Path,
     ) -> None:
-        assert _VENV_PYTHON.exists(), f"repo venv python not found at {_VENV_PYTHON}"
-
         params = _params(stable_diffusion_model_name_for_testing, seed="123456789", width=512, height=512)
 
         monolithic = hordelib_instance.generate(params, pipeline=AUTO_PIPELINE)
         assert len(monolithic) == 1
 
-        decoded = _run_subprocess_pipeline("sd15_txt2img", params, tmp_path, disable_zero_copy=False)
+        decoded = _run_subprocess_pipeline("sd15_txt2img", params, tmp_path, tmp_path, disable_zero_copy=False)
 
-        _assert_subprocess_identity("sd15_txt2img", monolithic, decoded)
+        _assert_subprocess_identity("sd15_txt2img", monolithic, decoded, tmp_path)
 
     @pytest.mark.slow
     @pytest.mark.default_sdxl_model
@@ -246,7 +268,6 @@ class TestStageDisaggregationSubprocess:
         sdxl_1_0_base_model_name: str,
         tmp_path: Path,
     ) -> None:
-        assert _VENV_PYTHON.exists(), f"repo venv python not found at {_VENV_PYTHON}"
         assert shared_model_manager.manager.compvis is not None
         if sdxl_1_0_base_model_name not in shared_model_manager.manager.compvis.available_models:
             pytest.skip(f"{sdxl_1_0_base_model_name} checkpoint is not available on disk")
@@ -256,6 +277,6 @@ class TestStageDisaggregationSubprocess:
         monolithic = hordelib_instance.generate(params, pipeline=AUTO_PIPELINE)
         assert len(monolithic) == 1
 
-        decoded = _run_subprocess_pipeline("sdxl_txt2img", params, tmp_path, disable_zero_copy=False)
+        decoded = _run_subprocess_pipeline("sdxl_txt2img", params, tmp_path, tmp_path, disable_zero_copy=False)
 
-        _assert_subprocess_identity("sdxl_txt2img", monolithic, decoded)
+        _assert_subprocess_identity("sdxl_txt2img", monolithic, decoded, tmp_path)
