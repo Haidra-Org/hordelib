@@ -20,8 +20,9 @@ decode job B) that both decodes must still match.
 
 The stage entry points cold-load their subset from disk only when the loader's in-RAM cache is empty;
 this module clears ``SharedModelManager.manager._models_in_ram`` before each stage to force the
-per-process production path in-process. On divergence both images are written under ``_DUMP_ROOT`` with
-case-descriptive names and the cosine plus histogram metrics ride on the assertion message.
+per-process production path in-process. On divergence both images are written under the test's pytest
+``tmp_path`` with case-descriptive names, and the cosine plus histogram metrics along with the written
+paths ride on the assertion message.
 
 These are real-GPU tests, marked ``slow`` plus the checkpoint's model marker, deselected by the CI
 default ``-m "not slow"`` (the converter-determinism case is CPU-only and unmarked). Run manually and
@@ -61,8 +62,6 @@ from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.distance import CosineSimilarityResultCode, evaluate_image_distance
 
 from .test_stage_disaggregation import _params as _handbuilt_params
-
-_DUMP_ROOT = Path("images/debug/stage_disaggregation_pop_matrix")
 
 _UPSCALE_MODEL = "RealESRGAN_x4plus"
 
@@ -235,11 +234,18 @@ def _assert_identity(
     case_name: str,
     monolithic: list[ResultingImageReturn],
     staged: list[ResultingImageReturn],
+    dump_dir: Path,
 ) -> None:
     """Assert the stage path matched the monolithic render in image count and per-index perceptual identity.
 
-    On divergence both images are written under ``_DUMP_ROOT`` with case-descriptive names and the
-    failure carries the cosine and histogram metrics; the identity bar is never relaxed.
+    On divergence both images are written under ``dump_dir`` with case-descriptive names and the failure
+    carries the cosine and histogram metrics plus the written paths; the identity bar is never relaxed.
+
+    Args:
+        case_name: Descriptive name used in printed metrics, failure text, and dumped filenames.
+        monolithic: Images from the monolithic ``generate`` render.
+        staged: Images from the disaggregated stage path.
+        dump_dir: Directory the diverging images are written to, typically the test's pytest ``tmp_path``.
     """
     assert len(staged) == len(
         monolithic,
@@ -252,9 +258,8 @@ def _assert_identity(
         cosine, histogram = evaluate_image_distance(mono.image, stage.image)
         print(f"POP_MATRIX_IDENTITY {case_name} image {index}: {cosine} | {histogram}")
         if cosine.cosine_similarity < CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL:
-            _DUMP_ROOT.mkdir(parents=True, exist_ok=True)
-            mono_path = _DUMP_ROOT / f"{case_name}_{index}_monolithic.png"
-            stage_path = _DUMP_ROOT / f"{case_name}_{index}_disagg.png"
+            mono_path = dump_dir / f"{case_name}_{index}_monolithic.png"
+            stage_path = dump_dir / f"{case_name}_{index}_disagg.png"
             mono.image.save(mono_path)
             stage.image.save(stage_path)
             raise AssertionError(
@@ -310,6 +315,7 @@ class TestPopMatrixStageDisaggregation:
         stable_diffusion_model_name_for_testing: str,
         case_name: str,
         pop_kwargs: dict,
+        tmp_path: Path,
     ) -> None:
         reference_manager = _offline_reference_manager()
         response = _job_pop_response(stable_diffusion_model_name_for_testing, seed="123456789", **pop_kwargs)
@@ -326,7 +332,7 @@ class TestPopMatrixStageDisaggregation:
 
         staged = _run_cold_pipeline(hordelib_instance, params)
 
-        _assert_identity(case_name, monolithic, staged)
+        _assert_identity(case_name, monolithic, staged, tmp_path)
 
     @pytest.mark.slow
     @pytest.mark.default_sd15_model
@@ -334,6 +340,7 @@ class TestPopMatrixStageDisaggregation:
         self,
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        tmp_path: Path,
     ) -> None:
         response = _job_pop_response(
             stable_diffusion_model_name_for_testing,
@@ -352,7 +359,7 @@ class TestPopMatrixStageDisaggregation:
 
         staged = _run_cold_pipeline(hordelib_instance, params, img2img=True)
 
-        _assert_identity("sd15_img2img", monolithic, staged)
+        _assert_identity("sd15_img2img", monolithic, staged, tmp_path)
 
     @pytest.mark.slow
     @pytest.mark.default_sd15_model
@@ -360,6 +367,7 @@ class TestPopMatrixStageDisaggregation:
         self,
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        tmp_path: Path,
     ) -> None:
         # Hires fix only applies when the target resolution exceeds the SD1.5 native resolution, so the
         # pop requests 768x768; the converter must then attach the second-pass parameters.
@@ -378,7 +386,7 @@ class TestPopMatrixStageDisaggregation:
 
         staged = _run_cold_pipeline(hordelib_instance, params)
 
-        _assert_identity("sd15_hires_fix", monolithic, staged)
+        _assert_identity("sd15_hires_fix", monolithic, staged, tmp_path)
 
     @pytest.mark.slow
     @pytest.mark.default_sd15_model
@@ -388,6 +396,7 @@ class TestPopMatrixStageDisaggregation:
         shared_model_manager: type[SharedModelManager],
         stable_diffusion_model_name_for_testing: str,
         lora_GlowingRunesAI: str,
+        tmp_path: Path,
     ) -> None:
         assert shared_model_manager.manager.lora is not None
         trigger = shared_model_manager.manager.lora.find_lora_trigger(lora_GlowingRunesAI, "red")
@@ -405,7 +414,7 @@ class TestPopMatrixStageDisaggregation:
 
         staged = _run_cold_pipeline(hordelib_instance, params)
 
-        _assert_identity("sd15_lora", monolithic, staged)
+        _assert_identity("sd15_lora", monolithic, staged, tmp_path)
 
     @pytest.mark.slow
     @pytest.mark.default_sd15_model
@@ -414,6 +423,7 @@ class TestPopMatrixStageDisaggregation:
         hordelib_instance: HordeLib,
         shared_model_manager: type[SharedModelManager],
         stable_diffusion_model_name_for_testing: str,
+        tmp_path: Path,
     ) -> None:
         assert shared_model_manager.manager.ti is not None
 
@@ -430,7 +440,7 @@ class TestPopMatrixStageDisaggregation:
 
         staged = _run_cold_pipeline(hordelib_instance, params)
 
-        _assert_identity("sd15_ti", monolithic, staged)
+        _assert_identity("sd15_ti", monolithic, staged, tmp_path)
 
     @pytest.mark.slow
     @pytest.mark.default_sd15_model
@@ -438,6 +448,7 @@ class TestPopMatrixStageDisaggregation:
         self,
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        tmp_path: Path,
     ) -> None:
         response = _job_pop_response(stable_diffusion_model_name_for_testing, seed="123456789", n_iter=2)
         params = _converter_params(response, _offline_reference_manager())
@@ -461,9 +472,8 @@ class TestPopMatrixStageDisaggregation:
             cosine, histogram = evaluate_image_distance(mono.image, stage.image)
             print(f"POP_MATRIX_IDENTITY sd15_batch image {index}: {cosine} | {histogram}")
             if cosine.cosine_similarity < CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL:
-                _DUMP_ROOT.mkdir(parents=True, exist_ok=True)
-                mono_path = _DUMP_ROOT / f"sd15_batch_{index}_monolithic.png"
-                stage_path = _DUMP_ROOT / f"sd15_batch_{index}_disagg.png"
+                mono_path = tmp_path / f"sd15_batch_{index}_monolithic.png"
+                stage_path = tmp_path / f"sd15_batch_{index}_disagg.png"
                 mono.image.save(mono_path)
                 stage.image.save(stage_path)
                 raise AssertionError(
@@ -480,6 +490,7 @@ class TestPopMatrixStageDisaggregation:
         hordelib_instance: HordeLib,
         shared_model_manager: type[SharedModelManager],
         sdxl_1_0_base_model_name: str,
+        tmp_path: Path,
     ) -> None:
         assert shared_model_manager.manager.compvis is not None
         if sdxl_1_0_base_model_name not in shared_model_manager.manager.compvis.available_models:
@@ -501,7 +512,7 @@ class TestPopMatrixStageDisaggregation:
 
         staged = _run_cold_pipeline(hordelib_instance, params)
 
-        _assert_identity("sdxl_production_shape_txt2img", monolithic, staged)
+        _assert_identity("sdxl_production_shape_txt2img", monolithic, staged, tmp_path)
 
     @pytest.mark.slow
     @pytest.mark.default_sdxl_model
@@ -510,6 +521,7 @@ class TestPopMatrixStageDisaggregation:
         hordelib_instance: HordeLib,
         shared_model_manager: type[SharedModelManager],
         sdxl_1_0_base_model_name: str,
+        tmp_path: Path,
     ) -> None:
         assert shared_model_manager.manager.compvis is not None
         if sdxl_1_0_base_model_name not in shared_model_manager.manager.compvis.available_models:
@@ -533,7 +545,7 @@ class TestPopMatrixStageDisaggregation:
 
         staged = _run_cold_pipeline(hordelib_instance, params, img2img=True)
 
-        _assert_identity("sdxl_img2img", monolithic, staged)
+        _assert_identity("sdxl_img2img", monolithic, staged, tmp_path)
 
     @pytest.mark.slow
     @pytest.mark.default_sdxl_model
@@ -542,6 +554,7 @@ class TestPopMatrixStageDisaggregation:
         hordelib_instance: HordeLib,
         shared_model_manager: type[SharedModelManager],
         sdxl_1_0_base_model_name: str,
+        tmp_path: Path,
     ) -> None:
         assert shared_model_manager.manager.compvis is not None
         if sdxl_1_0_base_model_name not in shared_model_manager.manager.compvis.available_models:
@@ -561,7 +574,7 @@ class TestPopMatrixStageDisaggregation:
 
         staged = _run_cold_pipeline(hordelib_instance, params)
 
-        _assert_identity("sdxl_clip_skip", monolithic, staged)
+        _assert_identity("sdxl_clip_skip", monolithic, staged, tmp_path)
 
     def test_converter_determinism_and_handbuilt_diff(
         self,
@@ -593,6 +606,7 @@ class TestPopMatrixStageDisaggregation:
         hordelib_instance: HordeLib,
         shared_model_manager: type[SharedModelManager],
         stable_diffusion_model_name_for_testing: str,
+        tmp_path: Path,
     ) -> None:
         reference_manager = _offline_reference_manager()
         assert shared_model_manager.manager is not None
@@ -629,8 +643,8 @@ class TestPopMatrixStageDisaggregation:
 
         decode_b = _cold_decode(hordelib_instance, params_b, latent_b)
 
-        _assert_identity("lane_sequence_decode_a", monolithic_a, decode_a)
-        _assert_identity("lane_sequence_decode_b", monolithic_b, decode_b)
+        _assert_identity("lane_sequence_decode_a", monolithic_a, decode_a, tmp_path)
+        _assert_identity("lane_sequence_decode_b", monolithic_b, decode_b, tmp_path)
 
 
 class TestPopMatrixExploratory:
@@ -647,6 +661,7 @@ class TestPopMatrixExploratory:
         self,
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        tmp_path: Path,
     ) -> None:
         response = _job_pop_response(
             stable_diffusion_model_name_for_testing,
@@ -671,9 +686,8 @@ class TestPopMatrixExploratory:
         cosine, histogram = evaluate_image_distance(mono_rgb, stage_rgb)
         print(f"POP_MATRIX_TRANSPARENT_EXPLORATORY sd15_transparent: {cosine} | {histogram}")
         if cosine.cosine_similarity < CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL:
-            _DUMP_ROOT.mkdir(parents=True, exist_ok=True)
-            mono_path = _DUMP_ROOT / "sd15_transparent_monolithic.png"
-            stage_path = _DUMP_ROOT / "sd15_transparent_disagg.png"
+            mono_path = tmp_path / "sd15_transparent_monolithic.png"
+            stage_path = tmp_path / "sd15_transparent_disagg.png"
             monolithic[0].image.save(mono_path)
             staged[0].image.save(stage_path)
             raise AssertionError(

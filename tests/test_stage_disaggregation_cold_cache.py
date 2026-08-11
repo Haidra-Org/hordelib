@@ -20,8 +20,9 @@ Two case sets, both at a fixed seed compared against the monolithic ``generate``
 - Per-stage isolation: the cache is cleared before exactly ONE stage and restored to the full tuple for
   the others, so a divergence attributes to that single stage's cold subset load.
 
-The bar is perceptual identity (never relaxed). On divergence both images are written to a stable
-directory and the cosine plus histogram metrics ride on the assertion message.
+The bar is perceptual identity (never relaxed). On divergence both images are written under the test's
+pytest ``tmp_path`` and the cosine plus histogram metrics, along with the written paths, ride on the
+assertion message.
 
 These are real-GPU tests, marked ``slow`` plus the checkpoint's model marker (matching
 ``tests/test_stage_disaggregation.py``), deselected by the CI default ``-m "not slow"``. Run manually and
@@ -51,8 +52,6 @@ from hordelib.utils.distance import CosineSimilarityResultCode, evaluate_image_d
 STAGE_ENCODE = "encode"
 STAGE_SAMPLE = "sample"
 STAGE_DECODE = "decode"
-
-_DUMP_ROOT = Path("images/debug/stage_disaggregation_cold_cache")
 
 
 def _params(
@@ -148,11 +147,18 @@ def _assert_cold_identity(
     case_name: str,
     monolithic: list[ResultingImageReturn],
     staged: list[ResultingImageReturn],
+    dump_dir: Path,
 ) -> None:
     """Assert the cold-cache stage path matched the monolithic render in count and perceptual identity.
 
-    On divergence both images are written under ``_DUMP_ROOT`` with case-descriptive names and the
-    failure carries the cosine and histogram metrics; the identity bar is never relaxed.
+    On divergence both images are written under ``dump_dir`` with case-descriptive names and the failure
+    carries the cosine and histogram metrics plus the written paths; the identity bar is never relaxed.
+
+    Args:
+        case_name: Descriptive name used in printed metrics, failure text, and dumped filenames.
+        monolithic: Images from the monolithic ``generate`` render.
+        staged: Images from the disaggregated stage path.
+        dump_dir: Directory the diverging images are written to, typically the test's pytest ``tmp_path``.
     """
     assert len(staged) == len(
         monolithic,
@@ -165,9 +171,8 @@ def _assert_cold_identity(
         cosine, histogram = evaluate_image_distance(mono.image, stage.image)
         print(f"COLD_CACHE_IDENTITY {case_name} image {index}: {cosine} | {histogram}")
         if cosine.cosine_similarity < CosineSimilarityResultCode.PERCEPTUALLY_IDENTICAL:
-            _DUMP_ROOT.mkdir(parents=True, exist_ok=True)
-            mono_path = _DUMP_ROOT / f"{case_name}_{index}_monolithic.png"
-            stage_path = _DUMP_ROOT / f"{case_name}_{index}_disagg.png"
+            mono_path = dump_dir / f"{case_name}_{index}_monolithic.png"
+            stage_path = dump_dir / f"{case_name}_{index}_disagg.png"
             mono.image.save(mono_path)
             stage.image.save(stage_path)
             raise AssertionError(
@@ -184,6 +189,7 @@ class TestStageDisaggregationColdCache:
         self,
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
+        tmp_path: Path,
     ) -> None:
         params = _params(stable_diffusion_model_name_for_testing, seed="123456789")
 
@@ -198,7 +204,7 @@ class TestStageDisaggregationColdCache:
             warm_snapshot=warm_snapshot,
         )
 
-        _assert_cold_identity("sd15_txt2img_full_cold", monolithic, staged)
+        _assert_cold_identity("sd15_txt2img_full_cold", monolithic, staged, tmp_path)
 
     @pytest.mark.slow
     @pytest.mark.default_sdxl_model
@@ -207,6 +213,7 @@ class TestStageDisaggregationColdCache:
         hordelib_instance: HordeLib,
         shared_model_manager: type[SharedModelManager],
         sdxl_1_0_base_model_name: str,
+        tmp_path: Path,
     ) -> None:
         assert shared_model_manager.manager.compvis is not None
         if sdxl_1_0_base_model_name not in shared_model_manager.manager.compvis.available_models:
@@ -225,7 +232,7 @@ class TestStageDisaggregationColdCache:
             warm_snapshot=warm_snapshot,
         )
 
-        _assert_cold_identity("sdxl_txt2img_full_cold", monolithic, staged)
+        _assert_cold_identity("sdxl_txt2img_full_cold", monolithic, staged, tmp_path)
 
     @pytest.mark.slow
     @pytest.mark.default_sd15_model
@@ -235,6 +242,7 @@ class TestStageDisaggregationColdCache:
         hordelib_instance: HordeLib,
         stable_diffusion_model_name_for_testing: str,
         cold_stage: str,
+        tmp_path: Path,
     ) -> None:
         params = _params(stable_diffusion_model_name_for_testing, seed="123456789")
 
@@ -249,7 +257,7 @@ class TestStageDisaggregationColdCache:
             warm_snapshot=warm_snapshot,
         )
 
-        _assert_cold_identity(f"sd15_txt2img_cold_{cold_stage}", monolithic, staged)
+        _assert_cold_identity(f"sd15_txt2img_cold_{cold_stage}", monolithic, staged, tmp_path)
 
     @pytest.mark.slow
     @pytest.mark.default_sdxl_model
@@ -260,6 +268,7 @@ class TestStageDisaggregationColdCache:
         shared_model_manager: type[SharedModelManager],
         sdxl_1_0_base_model_name: str,
         cold_stage: str,
+        tmp_path: Path,
     ) -> None:
         assert shared_model_manager.manager.compvis is not None
         if sdxl_1_0_base_model_name not in shared_model_manager.manager.compvis.available_models:
@@ -278,4 +287,4 @@ class TestStageDisaggregationColdCache:
             warm_snapshot=warm_snapshot,
         )
 
-        _assert_cold_identity(f"sdxl_txt2img_cold_{cold_stage}", monolithic, staged)
+        _assert_cold_identity(f"sdxl_txt2img_cold_{cold_stage}", monolithic, staged, tmp_path)
