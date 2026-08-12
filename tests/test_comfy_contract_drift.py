@@ -524,3 +524,314 @@ class TestFolderPathsPins:
         assert isinstance(folder_paths.filename_list_cache, dict), (
             "filename_list_cache is no longer a plain dict; update the embeddings cache " "invalidation in the bridge"
         )
+
+
+def _tiny_cpu_patcher() -> Any:
+    """Build a ``ModelPatcher`` around a two-linear-layer module, resident and offloaded on the CPU.
+
+    ``ModelPatcher`` only requires a ``torch.nn.Module``; everything the residency accounting touches
+    (``model_loaded_weight_memory``, ``model_lowvram``, ``current_weight_patches_uuid``) is attached by its
+    constructor. A module this small exercises the same code paths a checkpoint does, on CPU.
+    """
+    import comfy.model_patcher
+    import torch
+
+    model = torch.nn.Sequential(torch.nn.Linear(8, 8), torch.nn.Linear(8, 8))
+    cpu = torch.device("cpu")
+    return comfy.model_patcher.ModelPatcher(model, load_device=cpu, offload_device=cpu)
+
+
+def _strip_patched_weight_marks(patcher: Any) -> int:
+    """Delete ``comfy_patched_weights`` from every module, as another patcher's unpatch would.
+
+    ``ModelPatcher.unpatch_model`` with ``unpatch_weights=True`` deletes the attribute from every module of
+    the model it shares. Returns how many modules carried the mark.
+    """
+    marked = 0
+    for module in patcher.model.modules():
+        if hasattr(module, "comfy_patched_weights"):
+            del module.comfy_patched_weights
+            marked += 1
+    return marked
+
+
+class TestModelPatcherResidencyPins:
+    """The ``ModelPatcher`` residency accounting the worker's cost model and reclaim ladder assume.
+
+    Three behaviors decide what an already-resident model costs to serve again: whether comfy can recognise
+    an identical patch set (it cannot, ``add_patches`` rerolls ``patches_uuid`` with no content hash),
+    whether an unpatch retracts the accounting unconditionally, and whether a partial unload that freed
+    nothing still declares the model lowvram. The last is a latch: it disables ``partially_load``'s
+    zero-cost fast return for every later load of that model.
+    """
+
+    def test_identical_patches_still_produce_distinct_uuids(self, init_horde: None) -> None:
+        """Two clones given byte-identical patches at identical strength do not compare as matching.
+
+        ``patches_uuid`` is a fresh uuid4 per ``add_patches`` call, so it identifies the call rather than
+        the patch content. A LoRA-bearing job therefore mismatches the module's recorded
+        ``current_weight_patches_uuid`` even when it applies exactly what is already baked in.
+        """
+        import torch
+
+        patcher = _tiny_cpu_patcher()
+        patch_payload = {"0.weight": torch.zeros(8, 8)}
+
+        clone_a = patcher.clone()
+        clone_b = patcher.clone()
+        assert clone_a.patches_uuid == clone_b.patches_uuid, "a clone must inherit the source patch identity"
+        assert patcher.clone_has_same_weights(clone_a), "an unmodified clone must compare as matching"
+
+        assert clone_a.add_patches(patch_payload, 1.0) == ["0.weight"]
+        assert clone_b.add_patches(patch_payload, 1.0) == ["0.weight"]
+
+        assert clone_a.patches_uuid != clone_b.patches_uuid, (
+            "add_patches now derives patches_uuid from the patch content; the LoRA reload cost the worker "
+            "budgets for may no longer be paid on repeat jobs"
+        )
+        assert len(clone_a.patches) == len(clone_b.patches) == 1
+        assert not clone_a.clone_has_same_weights(clone_b), (
+            "clone_has_same_weights now recognises equal patch sets across clones; re-check whether a repeat "
+            "LoRA job still forces a full unpatch and re-upload"
+        )
+
+    def test_unpatch_retracts_accounting_with_an_empty_backup(self, init_horde: None) -> None:
+        """A weight-unpatch zeroes the loaded-weight accounting even when there is nothing to restore.
+
+        The retraction is unconditional, so ``partially_load``'s unpatch step gives up the whole resident
+        footprint and the following ``load`` re-uploads it, regardless of how little was actually patched.
+        """
+        import torch
+
+        cpu = torch.device("cpu")
+        patcher = _tiny_cpu_patcher()
+        patcher.load(cpu, full_load=True)
+
+        assert patcher.model.model_loaded_weight_memory > 0, "a full load must register a resident footprint"
+        assert patcher.model.current_weight_patches_uuid == patcher.patches_uuid
+        assert patcher.backup == {}, "an unpatched load must not have created weight backups"
+
+        patcher.unpatch_model(cpu, unpatch_weights=True)
+
+        assert patcher.model.model_loaded_weight_memory == 0, (
+            "unpatch_model no longer retracts the loaded-weight accounting unconditionally; the cost model "
+            "for a repeat LoRA job needs re-deriving"
+        )
+        assert patcher.model.current_weight_patches_uuid is None
+        assert not any(hasattr(module, "comfy_patched_weights") for module in patcher.model.modules()), (
+            "unpatch_model no longer clears comfy_patched_weights from the shared modules"
+        )
+
+    def test_zero_byte_partial_unload_still_latches_lowvram(self, init_horde: None) -> None:
+        """Freeing nothing still sets ``model_lowvram``, because the flag is written outside the free loop.
+
+        ``partially_unload`` only frees modules whose ``comfy_patched_weights`` is truthy, and another
+        patcher's unpatch of the shared model deletes that attribute from all of them. The unload then walks
+        the whole list, frees zero bytes, and still declares the model lowvram.
+        """
+        import torch
+
+        cpu = torch.device("cpu")
+        patcher = _tiny_cpu_patcher()
+        patcher.load(cpu, full_load=True)
+        resident_before = patcher.model.model_loaded_weight_memory
+        assert resident_before > 0
+        assert patcher.model.model_lowvram is False
+
+        assert _strip_patched_weight_marks(patcher) > 0, "a full load must mark its modules as patched"
+
+        freed = patcher.partially_unload(cpu, memory_to_free=1 << 40)
+
+        assert freed == 0, (
+            "partially_unload now frees modules whose comfy_patched_weights mark was removed; the "
+            "zero-byte-unload latch this pins may no longer exist"
+        )
+        assert patcher.model.model_lowvram is True, (
+            "partially_unload no longer sets model_lowvram unconditionally; the latch is gone and the "
+            "worker's assumption that a no-op unload poisons later loads needs revisiting"
+        )
+        assert patcher.model.model_loaded_weight_memory == resident_before, (
+            "the accounting moved without any weights being freed"
+        )
+
+    def test_the_lowvram_latch_costs_every_later_load(self, init_horde: None) -> None:
+        """Before the latch ``partially_load`` returns free; after it, the same call re-walks ``load``.
+
+        The fast return requires ``model_lowvram`` false and a nonzero resident footprint, so one zero-byte
+        partial unload converts every later load of that model into a full re-walk.
+        """
+        import torch
+
+        cpu = torch.device("cpu")
+        patcher = _tiny_cpu_patcher()
+        patcher.load(cpu, full_load=True)
+
+        real_load = patcher.load
+        load_calls: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+
+        def counting_load(*args: Any, **kwargs: Any) -> Any:
+            load_calls.append((args, kwargs))
+            return real_load(*args, **kwargs)
+
+        # An instance attribute is enough: partially_load reaches load through self.
+        patcher.load = counting_load
+
+        assert patcher.patches_uuid == patcher.model.current_weight_patches_uuid
+        assert patcher.partially_load(cpu) == 0
+        assert load_calls == [], (
+            "partially_load no longer short-circuits for an already-resident, uuid-matching model; the "
+            "zero-cost warm path this pins is gone"
+        )
+
+        _strip_patched_weight_marks(patcher)
+        patcher.partially_unload(cpu, memory_to_free=1 << 40)
+        assert patcher.model.model_lowvram is True
+
+        patcher.partially_load(cpu)
+        assert len(load_calls) == 1, (
+            "a latched-lowvram model no longer pays a load() walk on partially_load; the latch's cost is no "
+            "longer what the worker's reclaim ladder assumes"
+        )
+
+    def test_bypass_lora_loader_signature(self, init_horde: None) -> None:
+        """The bypass LoRA loader, which applies a LoRA without touching base weights, still exists."""
+        import comfy.sd
+
+        assert callable(comfy.sd.load_bypass_lora_for_models), (
+            "comfy.sd.load_bypass_lora_for_models is gone; the no-bake LoRA path it provides has to be "
+            "re-sourced before anything can rely on it"
+        )
+        parameters = list(inspect.signature(comfy.sd.load_bypass_lora_for_models).parameters)
+        assert parameters[:5] == ["model", "clip", "lora", "strength_model", "strength_clip"]
+
+
+class _StubPatcher:
+    """The ``.model`` attribute ``free_memory`` reaches through on a loaded entry."""
+
+    def is_dynamic(self) -> bool:
+        """Report a static model; dynamic models get their own on-demand freeing branch."""
+        return False
+
+
+class _StubUnloadableModel:
+    """A ``LoadedModel`` stand-in exposing only what ``free_memory`` reads, recording its ask."""
+
+    def __init__(self, device: Any) -> None:
+        self.device = device
+        self.currently_used = True
+        self.model = _StubPatcher()
+        self.unload_asks: list[float] = []
+
+    def is_dead(self) -> bool:
+        """Report the entry as live so ``free_memory`` considers it unloadable."""
+        return False
+
+    def model_memory(self) -> int:
+        """Report a nonzero footprint, as a resident model would."""
+        return 1 << 30
+
+    def model_offloaded_memory(self) -> int:
+        """Report nothing offloaded, i.e. the whole footprint is on the device."""
+        return 0
+
+    def model_unload(self, memory_to_free: float | None = None, unpatch_weights: bool = True) -> bool:
+        """Record the amount comfy asked to free and decline, leaving the entry in place."""
+        self.unload_asks.append(-1.0 if memory_to_free is None else float(memory_to_free))
+        return False
+
+
+class TestMemoryModeGatePins:
+    """Pins the two ComfyUI memory-mode behaviors hordelib's end-of-job eviction is designed around.
+
+    hordelib evicts explicitly at the end of a job (suppressed only by the host's retention grant),
+    and relies on ComfyUI running with smart memory enabled so that a granted model survives the
+    job's own later loads. Both halves of that rest on the behaviors pinned here.
+    """
+
+    def test_end_of_prompt_unload_is_gated_on_disable_smart_memory(
+        self,
+        comfy_bridge: Comfy_Horde,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """The executor unloads everything at the end of a prompt if and only if the mode is set."""
+        import comfy.model_management
+
+        graph = _mini_graph()
+        output_node_ids = _validate(graph)[2]
+
+        calls: list[bool] = []
+        observed: dict[bool, int] = {}
+        for disable_smart_memory in (True, False):
+            mode = disable_smart_memory
+            monkeypatch.setattr(comfy.model_management, "DISABLE_SMART_MEMORY", mode)
+            monkeypatch.setattr(comfy.model_management, "unload_all_models", lambda mode=mode: calls.append(mode))
+
+            executor = _build_executor(_StrictRecordingServer())
+            executor.execute(
+                graph,
+                f"drift-test-mode-{mode}",
+                {"client_id": "drift-test-client"},
+                output_node_ids,
+            )
+            assert executor.success is True
+
+            observed[mode] = calls.count(mode)
+
+        assert observed[True] == 1, (
+            "the executor no longer unloads all models at the end of a prompt under "
+            "DISABLE_SMART_MEMORY; the flag no longer returns the card, so re-derive where hordelib's "
+            "end-of-job eviction and the worker's retention grant actuate"
+        )
+        assert observed[False] == 0, (
+            "the executor now unloads all models at the end of a prompt with smart memory enabled; a "
+            "retention grant can no longer survive a prompt, so the worker's cross-job residency "
+            "assumption has to be re-derived"
+        )
+
+    def test_free_memory_frees_by_shortfall_only_with_smart_memory(
+        self,
+        init_horde: None,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """With smart memory on, ``free_memory`` asks for the shortfall; with it off, for everything.
+
+        The shortfall branch is what lets a retained model survive the loads that follow it in the
+        same job; the unconditional branch is why it cannot under ``--disable-smart-memory``.
+        """
+        import comfy.model_management as mm
+
+        device = mm.get_torch_device()
+        stub = _StubUnloadableModel(device)
+        mm.current_loaded_models.append(stub)
+        try:
+            # Smart memory on, no shortfall: comfy computes a non-positive ask and unloads nothing.
+            monkeypatch.setattr(mm, "DISABLE_SMART_MEMORY", False)
+            mm.free_memory(0, device)
+            assert stub.unload_asks == [], (
+                "free_memory unloaded a model with smart memory on and no memory shortfall; it no longer "
+                "frees by shortfall, so intra-job and cross-job residency can no longer be assumed"
+            )
+
+            # Smart memory on, real shortfall: the ask is the shortfall, not everything.
+            requested = mm.get_free_memory(device) + (1 << 30)
+            mm.free_memory(requested, device)
+            assert len(stub.unload_asks) == 1, "free_memory no longer asks a live entry to unload on a shortfall"
+            assert 0 < stub.unload_asks[0] <= requested, (
+                f"free_memory asked to free {stub.unload_asks[0]} against a shortfall bounded by "
+                f"{requested}; the shortfall computation has changed"
+            )
+
+            # Smart memory off: the ask is unbounded regardless of what is actually needed.
+            stub.unload_asks.clear()
+            monkeypatch.setattr(mm, "DISABLE_SMART_MEMORY", True)
+            mm.free_memory(0, device)
+            assert len(stub.unload_asks) == 1, (
+                "free_memory no longer unloads unconditionally under DISABLE_SMART_MEMORY; the "
+                "unload-everything behavior hordelib's regime notes describe is gone"
+            )
+            assert stub.unload_asks[0] > (1 << 40), (
+                f"free_memory asked to free only {stub.unload_asks[0]} under DISABLE_SMART_MEMORY; the "
+                "branch is no longer unconditional and hordelib's memory-mode reasoning needs re-deriving"
+            )
+        finally:
+            mm.current_loaded_models[:] = [entry for entry in mm.current_loaded_models if entry is not stub]
