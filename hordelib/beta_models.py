@@ -60,11 +60,21 @@ def beta_model_categories() -> set[MODEL_REFERENCE_CATEGORY]:
     return categories
 
 
-def build_pending_provider() -> PendingModelProvider | None:
+def build_pending_provider(
+    *,
+    timeout_seconds: float | None = None,
+    retry_max_attempts: int | None = None,
+) -> PendingModelProvider | None:
     """Construct the pending (beta) model provider from the environment, or ``None``.
 
     Returns ``None`` (with a log line explaining why) when beta is not fully configured:
     no categories opted in, no API key, or no PRIMARY URL to read from.
+
+    Args:
+        timeout_seconds: Per-request HTTP timeout override. ``None`` keeps the provider's default.
+            Callers on a latency-sensitive path (a catalog build, a UI) pass a tight budget here;
+            beta is additive, so giving up quickly costs only the overlay, never the canonical set.
+        retry_max_attempts: Retry-count override, same rationale.
     """
     categories = beta_model_categories()
     if not categories:
@@ -92,10 +102,16 @@ def build_pending_provider() -> PendingModelProvider | None:
         sorted(c.value for c in categories),
         primary_api_url,
     )
+    overrides: dict[str, float | int] = {}
+    if timeout_seconds is not None:
+        overrides["timeout_seconds"] = timeout_seconds
+    if retry_max_attempts is not None:
+        overrides["retry_max_attempts"] = retry_max_attempts
     return PendingModelProvider(
         primary_api_url=primary_api_url,
         apikey=apikey,
         categories=categories,
+        **overrides,
     )
 
 
