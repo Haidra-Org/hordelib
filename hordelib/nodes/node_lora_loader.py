@@ -1,9 +1,71 @@
 import os
+import uuid
+from typing import Any
 
 import comfy.utils
 import folder_paths  # type: ignore
 import logfire
 from loguru import logger
+
+_PATCH_IDENTITY_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "hordelib/lora-patch-identity")
+"""Stable namespace for content-derived ``ModelPatcher.patches_uuid`` values."""
+
+
+def _stable_patch_identity(parent_uuid: object, lora_path: str, strength: float) -> uuid.UUID | None:
+    """Derive a deterministic patch identity from the incoming patcher, the lora file, and the strength.
+
+    Comfy identifies a patch set by the *call* that produced it: ``ModelPatcher.add_patches`` rerolls
+    ``patches_uuid`` with a fresh uuid4 and never looks at the patch content. A job that re-applies the
+    exact lora stack already baked into the resident weights therefore mismatches the shared module's
+    ``current_weight_patches_uuid``, and ``partially_load`` responds by unpatching the weights down to the
+    offload device and re-uploading them. Deriving the identity from content instead lets comfy's own
+    zero-cost fast return recognise the repeat. This only pays off while the weights stay resident between
+    jobs; when they do not, the identity is simply unused.
+
+    Folding in ``parent_uuid`` makes chained loader nodes compose: each link's identity covers everything
+    applied before it, so two differently-ordered or differently-populated stacks cannot collide.
+
+    Any uncertainty must produce a *different* identity rather than a matching one, so the file's size and
+    mtime are part of the input and a failed stat yields ``None`` (leaving comfy's random uuid in place).
+    The worst outcome is then a redundant re-bake, never serving stale weights.
+
+    Args:
+        parent_uuid: The ``patches_uuid`` of the patcher this lora is being applied to.
+        lora_path: Resolved path of the lora file on disk.
+        strength: The strength this lora is applied at.
+
+    Returns:
+        The derived uuid, or ``None`` if the file could not be stat'd.
+    """
+    try:
+        stat_result = os.stat(lora_path)
+    except OSError:
+        return None
+
+    return uuid.uuid5(
+        _PATCH_IDENTITY_NAMESPACE,
+        f"{parent_uuid}|{lora_path}|{stat_result.st_size}|{stat_result.st_mtime_ns}|{strength!r}",
+    )
+
+
+def _assign_stable_patch_identity(parent: Any, clone: Any, lora_path: str, strength: float, label: str) -> None:
+    """Overwrite ``clone.patches_uuid`` with a content-derived identity, or leave comfy's uuid alone.
+
+    See :func:`_stable_patch_identity` for why. Failures here must never fail the job: an unrecognised
+    repeat costs a re-bake, which is exactly what the unmodified behavior costs anyway.
+    """
+    if parent is None or clone is None:
+        return
+    if not hasattr(parent, "patches_uuid") or not hasattr(clone, "patches_uuid"):
+        logger.debug("lora.patch_identity_skipped: side={}, reason=no_patches_uuid", label)
+        return
+
+    identity = _stable_patch_identity(parent.patches_uuid, lora_path, strength)
+    if identity is None:
+        logger.debug("lora.patch_identity_skipped: side={}, reason=stat_failed, lora_path={}", label, lora_path)
+        return
+
+    clone.patches_uuid = identity
 
 
 class HordeLoraLoader:
@@ -94,6 +156,20 @@ class HordeLoraLoader:
                         strength_model,
                         strength_clip,
                     )
+                try:
+                    _assign_stable_patch_identity(model, model_lora, lora_path, strength_model, "model")
+                    clip_patcher = clip.patcher if hasattr(clip, "patcher") else None
+                    clip_lora_patcher = clip_lora.patcher if hasattr(clip_lora, "patcher") else None
+                    _assign_stable_patch_identity(
+                        clip_patcher,
+                        clip_lora_patcher,
+                        lora_path,
+                        strength_clip,
+                        "clip",
+                    )
+                except Exception as identity_error:
+                    logger.debug("lora.patch_identity_failed: error={}", identity_error)
+
                 log_free_ram()
                 logger.info("lora.loaded_successfully: lora_name={}", lora_name)
                 return (model_lora, clip_lora)
