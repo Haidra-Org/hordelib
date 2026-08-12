@@ -159,17 +159,16 @@ def test_standalone_vae_disk_load_caches_by_content_hash(routing_env) -> None:
     assert "model_a" not in identities
 
 
-def test_standalone_vae_entry_is_stored_reusable(routing_env) -> None:
-    """The cached standalone VAE is always reusable: LoRA patches attach to the UNet and text encoders,
-    never the VAE, so a LoRA-bearing job's decode must share the entry rather than reload it."""
+def test_standalone_vae_acquisition_declares_no_mutation(routing_env) -> None:
+    """The standalone VAE is never acquired as a declared mutator: LoRA patches attach to the UNet and
+    text encoders, never the VAE, so counting it would misreport how many components jobs patch."""
     loader = HordeCheckpointLoader()
 
     loader._load_standalone_vae(routing_env.cache, "model_a", None, seamless_tiling_enabled=False)
-
-    # A reusable entry is servable on a later lookup; a non-reusable one would return None here.
     served = routing_env.cache.get(routing_env.vae_component_key)
+
     assert served is not None
-    assert served.reusable is True
+    assert routing_env.cache.restore_stats().marked == 0
 
 
 def test_standalone_vae_second_serve_is_cache_hit(routing_env) -> None:
@@ -241,7 +240,6 @@ class _GatingManager:
                 key=ComponentCacheKey(ComponentSlotKind.CHECKPOINT, "seed_model"),
                 payload=self.full_result,
                 approx_ram_mb=1.0,
-                reusable=True,
                 source_ckpt_path="seed_model",
             ),
         )
@@ -250,7 +248,6 @@ class _GatingManager:
                 key=ComponentCacheKey(ComponentSlotKind.VAE, "seed_model:vae"),
                 payload=self.component_result,
                 approx_ram_mb=1.0,
-                reusable=True,
                 source_ckpt_path="seed_model:vae",
             ),
         )
