@@ -115,12 +115,15 @@ collector (`component_cache_*` fields on `JobPhaseMetrics`).
 each insert evicts every other entry, reproducing the historical single-slot behaviour, so residency changes
 only when a deployment opts in with a positive budget.
 
-**LoRA serving.** An entry is stored reusable even for a LoRA-bearing job, so a later job shares the pristine
-cached base. This is safe because the graph's LoRA loader (`comfy.sd.load_lora_for_models`) clones the base
-ModelPatcher/CLIP before patching, leaving the cached weights untouched (patches materialise on the clone at
-GPU load and revert at unload). Set `HORDE_COMPONENT_CACHE_PRISTINE_LORA_SERVING` falsy to restore the
-historical behaviour of never sharing a base a LoRA-bearing job loaded (such entries are then marked
-non-reusable and never served to a later request).
+**LoRA serving.** Every entry is shared with later jobs, including LoRA-bearing ones. The graph's LoRA
+loader (`comfy.sd.load_lora_for_models`) clones the base ModelPatcher/CLIP before patching, but a clone
+shares the underlying module and patch backup with the base, so a LoRA job's patches do reach the cached
+weights while its clone is loaded. Sharing is safe anyway because ComfyUI restores lazily at the
+component's next load: a patcher whose patch set differs from the one the module's weights currently hold
+triggers a full unpatch before the load proceeds, so a component always reaches a job carrying that job's
+own patches. Residency reporting exposes whether a resident entry currently carries another patcher's
+weights (`HeldComponentSnapshot.mutated`), and `hordelib.api.restore_components` returns named entries to
+their loaded state on demand (see `docs/plans/component-restore-contract.md`).
 
 ### Standalone-VAE path (content-addressed VAE sharing)
 

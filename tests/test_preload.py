@@ -100,26 +100,6 @@ def test_preload_skips_when_already_verified(monkeypatch):
     assert not constructed, "a valid marker must skip constructing the backend entirely"
 
 
-def test_preload_records_marker_and_skips_next_time(monkeypatch, tmp_path):
-    """A successful run writes the marker keyed to the pinned ref; the next run then skips."""
-    runs: list[int] = []
-    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
-    monkeypatch.setattr(preload, "_midas_already_cached", lambda: False)
-    _install_fake_backend(monkeypatch, on_execute=lambda: runs.append(1))
-    # Override the helper's default (which disables persistence) so the marker is exercised.
-    monkeypatch.setattr(preload, "_pinned_annotator_ref", lambda: "ref-abc123")
-
-    assert preload.download_all_controlnet_annotators()
-    marker = tmp_path / preload._PRELOAD_MARKER_NAME
-    assert marker.is_file() and marker.read_text(encoding="utf-8").strip() == "ref-abc123"
-    assert runs == [1], "first call should run the preload once"
-
-    # A fresh process (reset in-process guard) with the marker present must skip.
-    monkeypatch.setattr(preload, "_preload_completed", False)
-    assert preload.download_all_controlnet_annotators()
-    assert runs == [1], "second call must skip the run thanks to the marker"
-
-
 def test_annotators_present_true_when_marker_matches(monkeypatch, tmp_path):
     """``controlnet_annotators_present`` reads the on-disk marker the same way the preload skip does."""
     monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))

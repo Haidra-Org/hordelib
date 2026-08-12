@@ -4,7 +4,7 @@ import pytest
 
 from hordelib.model_manager.lora import LoraModelManager
 
-pytestmark = pytest.mark.slow
+pytestmark = [pytest.mark.slow, pytest.mark.lora]
 
 
 class TestModelManagerLora:

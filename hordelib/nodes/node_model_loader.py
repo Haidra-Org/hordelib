@@ -23,7 +23,10 @@ from hordelib.execution.component_cache import (
     ComponentCacheKey,
     ComponentSlotKind,
     approx_ram_mb_from_bytes,
-    pristine_lora_serving_enabled,
+)
+from hordelib.execution.component_restore import (
+    capture_pristine_state,
+    restore_conv2d_padding,
 )
 from hordelib.execution.standalone_vae import (
     plan_standalone_vae_load,
@@ -162,12 +165,11 @@ class HordeCheckpointLoader:
             if standalone_result is not None:
                 return standalone_result
 
-        # An entry is stored reusable so a later job can share this pristine base, including a LoRA-bearing
-        # one: the graph's LoRA loader clones the base ModelPatcher/CLIP before patching, so the cached
-        # weights are never mutated. The rollback knob restores the historical "never share a LoRA job's
-        # base" behaviour by marking such entries non-reusable.
-        entry_reusable = pristine_lora_serving_enabled() or not will_load_loras
-
+        # A LoRA-bearing job patches the components it is served, and comfy's ModelPatcher.clone shares
+        # both the underlying module and its patch backup with the base, so the patching reaches the
+        # cached entry. Clearing that is comfy's own job, done lazily when the component is next loaded
+        # under a different patch set; declaring the intent here only feeds the cache's restore
+        # statistics and its residency reporting.
         if file_type in COMPONENT_FILE_TYPES:
             return self._load_bare_component(
                 cache,
@@ -176,7 +178,7 @@ class HordeCheckpointLoader:
                 file_type,
                 weight_dtype,
                 seamless_tiling_enabled,
-                entry_reusable,
+                will_load_loras,
             )
 
         return self._load_monolithic_checkpoint(
@@ -187,7 +189,7 @@ class HordeCheckpointLoader:
             output_vae,
             output_clip,
             seamless_tiling_enabled,
-            entry_reusable,
+            will_load_loras,
         )
 
     def _load_monolithic_checkpoint(
@@ -199,7 +201,7 @@ class HordeCheckpointLoader:
         output_vae: bool,
         output_clip: bool,
         seamless_tiling_enabled: bool,
-        entry_reusable: bool,
+        will_mutate: bool,
     ):
         """Serve a full or subset checkpoint through the component cache, cold-loading on a miss.
 
@@ -214,7 +216,7 @@ class HordeCheckpointLoader:
         cache_key = ComponentCacheKey(ComponentSlotKind.CHECKPOINT, horde_model_name)
         collector = get_metrics_collector()
 
-        entry = cache.get(cache_key)
+        entry = cache.get(cache_key, will_mutate=will_mutate)
         if entry is not None:
             # Indexed access, not unpacking: the cached tuple mirrors load_checkpoint_guess_config's return,
             # which carries trailing elements beyond (model, clip, vae) that this reuse path never touches.
@@ -276,6 +278,11 @@ class HordeCheckpointLoader:
             )
             logger.debug(result)
 
+        # Record the as-constructed convolution padding before any tiling runs, so a later reset returns
+        # each architecture to its own padding instead of a blanket "zeros".
+        for component in result[:3]:
+            capture_pristine_state(component)
+
         # A disaggregated stage may have loaded only a subset, so a slot can be None; each helper is a no-op
         # when its component is absent.
         _apply_model_tiling(result[0], seamless_tiling_enabled)
@@ -286,7 +293,6 @@ class HordeCheckpointLoader:
                 key=cache_key,
                 payload=result,
                 approx_ram_mb=_estimate_checkpoint_ram_mb(ckpt_path, result),
-                reusable=entry_reusable,
                 source_ckpt_path=str(ckpt_path),
             ),
         )
@@ -304,7 +310,7 @@ class HordeCheckpointLoader:
         file_type: str,
         weight_dtype: str | None,
         seamless_tiling_enabled: bool,
-        entry_reusable: bool,
+        will_mutate: bool,
     ):
         """Serve a bare single-component load (``comfy.sd.load_diffusion_model``) through the component cache.
 
@@ -317,7 +323,7 @@ class HordeCheckpointLoader:
         )
         collector = get_metrics_collector()
 
-        entry = cache.get(cache_key)
+        entry = cache.get(cache_key, will_mutate=will_mutate)
         if entry is not None:
             cache_hits_counter.add(1)
             collector.record_component_cache_hit()
@@ -380,6 +386,7 @@ class HordeCheckpointLoader:
             )
             logger.debug(result)
 
+        capture_pristine_state(result[0])
         _apply_component_tiling(result[0], file_type, seamless_tiling_enabled)
 
         evicted = cache.put(
@@ -387,7 +394,6 @@ class HordeCheckpointLoader:
                 key=cache_key,
                 payload=result,
                 approx_ram_mb=approx_ram_mb_from_bytes(cache_key.kind, _safe_file_size(ckpt_path)),
-                reusable=entry_reusable,
                 source_ckpt_path=str(ckpt_path),
             ),
         )
@@ -466,16 +472,16 @@ class HordeCheckpointLoader:
                 ),
             )
 
-        # Stored always-reusable regardless of the job's LoRA intent: LoRA patches attach to the UNet and
-        # text encoders, never the VAE, so a LoRA-bearing job's decode can safely share this entry. Marking
-        # it non-reusable would make every LoRA job reload the VAE for no isolation benefit.
+        # Acquired without declaring mutation regardless of the job's LoRA intent: LoRA patches attach to
+        # the UNet and text encoders, never the VAE, so a LoRA-bearing job's decode shares this entry
+        # without leaving residue and counting it as a mutator would misreport the statistics.
         result: tuple[Any, Any, Any, Any] = (None, None, loaded_vae, None)
+        capture_pristine_state(loaded_vae)
         evicted = cache.put(
             ComponentCacheEntry(
                 key=cache_key,
                 payload=result,
                 approx_ram_mb=approx_ram_mb_from_bytes(ComponentSlotKind.VAE, plan.vae_tensor_bytes),
-                reusable=True,
                 source_ckpt_path=str(plan.vae_file_path),
             ),
         )
@@ -708,8 +714,11 @@ def make_circular_vae(m):
 
 
 def make_regular(m):
-    if isinstance(m, torch.nn.Conv2d):
-        m.padding_mode = "zeros"
+    # Resets to the padding each convolution was constructed with, recorded by capture_pristine_state at
+    # load. A blanket reset to "zeros" is only right for architectures built that way: the pinned tree
+    # has convolutions constructed with "replicate" (the Genmo/Mochi and ACE VAEs), and forcing those to
+    # "zeros" would silently change what they decode.
+    restore_conv2d_padding(m)
 
 
 def make_regular_vae(m):
