@@ -1008,17 +1008,20 @@ class Comfy_Horde:
                 _execute_seconds = _t_post_execute - _t_pre_execute
                 if use_native_progress:
                     set_run_progress_callback(None)
-                # ``aggressive_unloading`` evicts the just-used model from VRAM after every job so N
-                # sibling ComfyUI instances sharing one GPU never collectively over-commit. ``defer_vram_unload``
-                # lets the host keep the model resident across this job when it knows the same model runs next
-                # and the VRAM budget allows it, so the back-to-back force-reload (the dominant non-sampling cost
-                # on small jobs) is skipped. The host owns the safety decision; here we only honor it.
+                # ``aggressive_unloading`` returns the card after every job so N sibling ComfyUI
+                # instances sharing one GPU never collectively over-commit. The eviction here is
+                # explicit and regime-independent: it frees the device whether or not ComfyUI is
+                # running with smart memory disabled, so comfy's memory mode no longer decides
+                # whether the card comes back. ``defer_vram_unload`` is the host's grant to keep the
+                # model resident across this job when it knows the same model runs next and the VRAM
+                # budget allows it, so the back-to-back force-reload (the dominant non-sampling cost
+                # on small jobs) is skipped; it is the only thing that suppresses the eviction. The
+                # host owns the safety decision; here we only honor it. A full free is idempotent
+                # when nothing is loaded, so this is a no-op in regimes where the executor has
+                # already unloaded by the time this runs.
                 if self.aggressive_unloading and not defer_vram_unload:
-                    global _comfy_cleanup_models
-                    logger.debug("Cleaning up models")
                     with logfire.span("comfy.cleanup"):
-                        _comfy_cleanup_models()
-                        _comfy_soft_empty_cache()
+                        unload_all_models_vram()
 
         stdio.replay()
 
