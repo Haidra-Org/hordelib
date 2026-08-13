@@ -45,16 +45,16 @@ EXAMPLE_PIPELINE = PipelineDefinition(
     graph_file=EXAMPLE_GRAPH,
     selector=ImageSelector(tier=SelectionTier.FALLBACK),
     bindings=bindings.compose(
-        node("sampler", "KSampler").bind(     # this node, with these real inputs:
+        node("sampler", "KSampler").bind(  # this node, with these real inputs:
             sampler_name=bindings.comfy_sampler,  # a transform computes the value
-            cfg="cfg_scale",                      # a payload field is copied
+            cfg="cfg_scale",  # a payload field is copied
             denoise="denoising_strength",
             seed="seed",
             scheduler="scheduler",
             steps="ddim_steps",
         ),
-        bindings.EMPTY_LATENT,   # reusable groups: empty_latent_image.{width,height,batch_size}
-        bindings.PROMPTS,        # prompt.text, negative_prompt.text
+        bindings.EMPTY_LATENT,  # reusable groups: empty_latent_image.{width,height,batch_size}
+        bindings.PROMPTS,  # prompt.text, negative_prompt.text
     ),
     outputs=(OutputSpec(node="output_image"),),
     patch_steps=(steps.apply_main_model,),

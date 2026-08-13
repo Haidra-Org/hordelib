@@ -261,7 +261,6 @@ only-include = ["hordelib", "README.md", "LICENSE"]
 
 [dependency-groups]
 dev = [
-    "black>=25.9.0",
     "coverage>=7.11.1",
     "mypy>=1.18.2",
     "pre-commit>=4.3.0",
@@ -333,21 +332,9 @@ omit = [
 ignore_errors = true
 skip_empty = true
 
-[tool.black]
-line-length = 119
-# Exclude ComfyUI and any packages we have installed in nodes/
-exclude = '''
-/(
-    ComfyUI
-  | comfyui_layerdiffuse
-  | facerestore_cf
-  | build
-)/
-''' # If you change this, you probably need to also change mypy.ini accordingly
-
 [tool.ruff] # XXX this isn't part of CI yet
 line-length=119
-exclude=["ComfyUI", "facerestore_cf", "comfyui_layerdiffuse", "build"]
+exclude=["ComfyUI", "facerestore_cf", "comfyui_layerdiffuse", "build", "docs/haidra-assets"]
 
 [tool.ruff.lint]
 ignore=[

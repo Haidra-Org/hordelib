@@ -68,9 +68,9 @@ def test_source_location_accuracy():
     assert "importlib" not in str(record["file"]), f"Should not show importlib, got: {record['file'].path}"
     assert "_bootstrap" not in str(record["file"]), f"Should not show _bootstrap, got: {record['file'].path}"
     assert "test_intercept_handler_fix" in str(record["file"]), f"Should show test file, got: {record['file'].path}"
-    assert (
-        record["function"] == "test_source_location_accuracy"
-    ), f"Should show test function, got: {record['function']}"
+    assert record["function"] == "test_source_location_accuracy", (
+        f"Should show test function, got: {record['function']}"
+    )
 
     print(f"   Correctly identified: {record['file'].name}:{record['function']}:{record['line']}")
 
