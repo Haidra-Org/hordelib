@@ -322,9 +322,9 @@ def test_materialized_graph_matches_snapshot(payload_overrides, context, request
         snapshot_file.write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         return
 
-    assert (
-        snapshot_file.exists()
-    ), f"No committed snapshot for case {case_id!r}; generate it with --snapshot-update and commit it."
+    assert snapshot_file.exists(), (
+        f"No committed snapshot for case {case_id!r}; generate it with --snapshot-update and commit it."
+    )
     expected = json.loads(snapshot_file.read_text(encoding="utf-8"))
     assert snapshot == expected, (
         f"Materialized graph for {case_id!r} drifted from the committed snapshot. If this change "

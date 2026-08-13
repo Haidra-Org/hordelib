@@ -34,6 +34,7 @@ Community: [AI Horde Discord](https://discord.gg/3DxrhksKzn).
 3. Call `hordelib.initialise()` once per process, then use the public API:
    ```python
    import hordelib
+
    hordelib.initialise()
 
    from hordelib.api import HordeLib, ImageGenPayload

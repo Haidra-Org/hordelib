@@ -177,18 +177,18 @@ class TestMiniExecutionRoundTrip:
 
         observed_labels = {label for label, _, _ in server.events}
         unknown_labels = observed_labels - _KNOWN_EVENT_LABELS
-        assert (
-            not unknown_labels
-        ), f"ComfyUI emitted event label(s) {sorted(unknown_labels)} the bridge does not know about"
+        assert not unknown_labels, (
+            f"ComfyUI emitted event label(s) {sorted(unknown_labels)} the bridge does not know about"
+        )
 
         # Every event ComfyUI actually emitted must parse into a typed model, not UnknownEvent.
         from hordelib.execution.comfy_events import UnknownEvent, parse_event
 
         for event_label, event_data, _ in server.events:
             parsed = parse_event(event_label, event_data)
-            assert not isinstance(
-                parsed, UnknownEvent
-            ), f"live event {event_label!r} fell through typed parsing: {event_data}"
+            assert not isinstance(parsed, UnknownEvent), (
+                f"live event {event_label!r} fell through typed parsing: {event_data}"
+            )
         assert "execution_start" in observed_labels
         assert "execution_success" in observed_labels
         assert "executed" in observed_labels
@@ -226,9 +226,9 @@ class TestMiniExecutionRoundTrip:
                 "current_inputs",
                 "current_outputs",
             }
-            assert expected_error_keys <= set(
-                error_payload
-            ), f"execution_error payload lost key(s): {sorted(expected_error_keys - set(error_payload))}"
+            assert expected_error_keys <= set(error_payload), (
+                f"execution_error payload lost key(s): {sorted(expected_error_keys - set(error_payload))}"
+            )
             assert error_payload["node_id"] == "output_image"
             assert error_payload["node_type"] == _FAILING_NODE_CLASS_TYPE
             assert "drift-test deliberate failure" in error_payload["exception_message"]
@@ -522,7 +522,7 @@ class TestFolderPathsPins:
         import folder_paths
 
         assert isinstance(folder_paths.filename_list_cache, dict), (
-            "filename_list_cache is no longer a plain dict; update the embeddings cache " "invalidation in the bridge"
+            "filename_list_cache is no longer a plain dict; update the embeddings cache invalidation in the bridge"
         )
 
 

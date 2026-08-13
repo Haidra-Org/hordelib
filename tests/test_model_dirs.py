@@ -31,9 +31,7 @@ class TestLiveRegistration:
             search_paths = registered_paths(category)
             for subdirectory in subdirectories:
                 expected = str(model_directory / subdirectory)
-                assert expected in search_paths, (
-                    f"{category.value} does not search {expected}; got {search_paths}"
-                )
+                assert expected in search_paths, f"{category.value} does not search {expected}; got {search_paths}"
 
     def test_comfy_defaults_keep_precedence(self, init_horde: None) -> None:
         # Registration appends; ComfyUI's own (empty in horde deployments) default directory

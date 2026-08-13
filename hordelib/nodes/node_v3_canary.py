@@ -9,12 +9,11 @@
 # hordelib.execution.results). It is exercised by tests/test_comfy_contract_drift.py and is
 # not used by any pipeline.
 from io import BytesIO
+from typing import override
 
 import numpy as np
-from PIL import Image
-from typing_extensions import override
-
 from comfy_api.latest import ComfyExtension, io
+from PIL import Image
 
 
 class HordeV3CanaryOutput(io.ComfyNode):
