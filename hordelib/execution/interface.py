@@ -107,6 +107,7 @@ class ExecutionBackend(Protocol):
         outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
         progress_callback: ProgressCallback | None = None,
         defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
     ) -> list[OutputArtifact]:
         """Execute a fully materialized API-format graph and return its outputs.
 
@@ -119,6 +120,10 @@ class ExecutionBackend(Protocol):
                 evicting it, so a following job that reuses it skips the RAM->VRAM reload. The caller
                 owns the VRAM-safety decision (it must know the model fits alongside the live set);
                 backends that never evict between runs ignore this. Defaults to False.
+            device_free_truth_mb: The caller-measured device-level free VRAM (MB) at dispatch. When
+                provided, ComfyUI's view of free VRAM during this run is clamped so shortfall-based
+                freeing acts against measured device truth rather than the process-local reading,
+                which overstates free memory under WDDM. Defaults to None (no clamp).
 
         Returns:
             list[OutputArtifact]: The outputs produced by the run, tagged with their source node.

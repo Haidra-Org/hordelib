@@ -367,6 +367,8 @@ class HordeLib:
         negative_conditioning_bytes: bytes,
         source_latent_bytes: bytes | None = None,
         progress_callback: Callable[[ProgressReport], None] | None = None,
+        defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
     ) -> SampleStageResult:
         """Sample a LATENT from injected conditioning (loads only the UNet).
 
@@ -382,6 +384,21 @@ class HordeLib:
         ``SamplerCustomAdvanced`` sampler, split-loader families), when the job's graph is img2img
         (VAE-encode feeds the sampler) but ``source_latent_bytes`` was not supplied, or when the
         conditioning injection fails to displace the graph's text encoders.
+
+        Args:
+            params: The generation parameters for the job being sampled.
+            positive_conditioning_bytes: The serialized positive CONDITIONING to inject.
+            negative_conditioning_bytes: The serialized negative CONDITIONING to inject.
+            source_latent_bytes: An img2img/remix start LATENT, or None for txt2img.
+            progress_callback: Receives per-step sampling progress.
+            defer_vram_unload: Keep the UNet resident in VRAM after this stage. A sampler runs the same
+                end-of-run eviction the monolithic path does, so without this grant it returns the card
+                after every stage and the next same-model sample re-uploads the weights.
+            device_free_truth_mb: The caller-measured device-level free VRAM (MB) at dispatch. When
+                provided, ComfyUI's view of free VRAM during this run is clamped so shortfall-based
+                freeing acts against measured device truth rather than the process-local reading, which
+                overstates free memory under WDDM. This stage loads the UNet and carries the job's whole
+                sampling activation, so it is the stage that reaches the card hardest.
 
         Returns:
             SampleStageResult: The serialized LATENT, plus the sampler-truncation record if the
@@ -400,6 +417,8 @@ class HordeLib:
             graph.to_api_dict(),
             outputs=outputs,
             progress_callback=self._make_comfyui_progress_adapter(progress_callback),
+            defer_vram_unload=defer_vram_unload,
+            device_free_truth_mb=device_free_truth_mb,
             sampler_options=typed_payload.solver_options(),
             sigma_schedule=sigma_schedule,
         )
@@ -458,6 +477,7 @@ class HordeLib:
         single_image_expected: bool = True,
         comfyui_progress_callback: Callable[[ComfyUIProgress, str], None] | None = None,
         defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
     ) -> list[ResultingImageReturn] | ResultingImageReturn:
         graph_bundle = self._materialize_image_graph(payload)
         return self._run_materialized(
@@ -465,6 +485,7 @@ class HordeLib:
             single_image_expected=single_image_expected,
             comfyui_progress_callback=comfyui_progress_callback,
             defer_vram_unload=defer_vram_unload,
+            device_free_truth_mb=device_free_truth_mb,
         )
 
     def _run_materialized(
@@ -480,6 +501,7 @@ class HordeLib:
         single_image_expected: bool = True,
         comfyui_progress_callback: Callable[[ComfyUIProgress, str], None] | None = None,
         defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
     ) -> list[ResultingImageReturn] | ResultingImageReturn:
         """Run a materialized graph on the backend and wrap the artifacts as results."""
         from hordelib.pipeline.horde_compat import resolve_sigma_schedule
@@ -520,6 +542,7 @@ class HordeLib:
             outputs=declared_outputs,
             progress_callback=comfyui_progress_callback,
             defer_vram_unload=defer_vram_unload,
+            device_free_truth_mb=device_free_truth_mb,
             sampler_options=typed.solver_options(),
             sigma_schedule=resolve_sigma_schedule(typed, context),
         )
@@ -599,6 +622,7 @@ class HordeLib:
         *,
         progress_callback: Callable[[ProgressReport], None] | None = None,
         defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
     ) -> list[ResultingImageReturn]:
         post_processing_requested: list[str] | None = payload.get("post_processing")
         n_iter = payload.get("n_iter", 1)
@@ -626,6 +650,7 @@ class HordeLib:
             single_image_expected=False,
             comfyui_progress_callback=self._make_comfyui_progress_adapter(progress_callback),
             defer_vram_unload=defer_vram_unload,
+            device_free_truth_mb=device_free_truth_mb,
         )
 
         if not isinstance(result, list):
@@ -830,6 +855,7 @@ class HordeLib:
         pipeline: ImagePipeline | AutoPipeline,
         progress_callback: Callable[[ProgressReport], None] | None = None,
         defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
     ) -> list[ResultingImageReturn]:
         """Run an image generation from backend-agnostic parameters. Inference only.
 
@@ -849,6 +875,10 @@ class HordeLib:
                 the payload (a warning is logged with what AUTO would have chosen).
             progress_callback: Receives started/progress/finished reports.
             defer_vram_unload: Keep the model resident in VRAM after the job.
+            device_free_truth_mb: The caller-measured device-level free VRAM (MB) at dispatch. When
+                provided, ComfyUI's view of free VRAM during this run is clamped so shortfall-based
+                freeing acts against measured device truth rather than the process-local reading,
+                which overstates free memory under WDDM.
 
         Returns:
             One result per generated image, each carrying the image, its raw PNG stream, and
@@ -894,6 +924,7 @@ class HordeLib:
             single_image_expected=False,
             comfyui_progress_callback=self._make_comfyui_progress_adapter(progress_callback),
             defer_vram_unload=defer_vram_unload,
+            device_free_truth_mb=device_free_truth_mb,
         )
 
         if not isinstance(result, list):

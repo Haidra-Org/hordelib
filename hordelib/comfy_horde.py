@@ -893,6 +893,7 @@ class Comfy_Horde:
         comfyui_progress_callback: typing.Callable[[ComfyUIProgress, str], None] | None = None,
         *,
         defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
     ) -> PipelineRunResult:
         start_time = time.time()
         _t0 = time.perf_counter()
@@ -944,7 +945,11 @@ class Comfy_Horde:
         stdio = OutputCollector(
             comfyui_progress_callback=None if use_native_progress else comfyui_progress_callback,
         )
-        with contextlib.redirect_stdout(stdio), contextlib.redirect_stderr(stdio):
+        with (
+            comfy_patches.free_memory_view_clamped(device_free_truth_mb),
+            contextlib.redirect_stdout(stdio),
+            contextlib.redirect_stderr(stdio),
+        ):
             # Log pipeline structure before validation for debugging
             pipeline_node_types = {
                 node_id: node_info.get("class_type", "unknown") for node_id, node_info in pipeline.items()
@@ -1069,6 +1074,7 @@ class Comfy_Horde:
         *,
         outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
         defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
     ) -> list[dict[str, typing.Any]]:
         # Results are collected from the declared output nodes as dicts of the form
         # {"imagedata": <BytesIO>, "type": "PNG", "source_node": <node title>}, read from the
@@ -1091,6 +1097,7 @@ class Comfy_Horde:
             params,
             comfyui_progress_callback,
             defer_vram_unload=defer_vram_unload,
+            device_free_truth_mb=device_free_truth_mb,
         )
 
         produced_nodes = run_result.produced_nodes
