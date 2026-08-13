@@ -306,6 +306,86 @@ def _free_memory_capped(cap_bytes: int):
         model_management.free_memory = original_free_memory
 
 
+@contextlib.contextmanager
+def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Iterator[None]:
+    """Clamp ComfyUI's view of free VRAM to a host-measured device figure for the duration of a run.
+
+    ComfyUI frees by shortfall against ``get_free_memory``, which reads the CUDA driver's
+    process-local view. Under WDDM that view counts memory held by sibling processes as free, so the
+    shortfall comes out too small and a load overcommits the card. A host that measures free VRAM at
+    the device level can pass that figure in; within this scope the reported free total is the lower
+    of ComfyUI's own answer and a ceiling of what this process can obtain without evicting anything:
+    the supplied figure less the process's allocator growth since the scope was entered, plus the
+    memory free inside torch's own reserved pool. Both process-local terms are honest even under
+    WDDM, and sibling growth is bounded by whatever admission control the host applied when it
+    dispatched the run.
+
+    The reclaimable term has to be added back because ComfyUI's own total is defined the same way
+    (device free plus ``reserved - active``): the allocator can hand out its cached blocks without
+    unloading a model, and after sampling that cache is often gigabytes. A ceiling that ignored it
+    would invent a shortfall at the decode-time VAE load and evict the resident diffusion model
+    mid-job.
+
+    Only the free *total* is clamped. The ``torch_free_too`` companion value is returned as ComfyUI
+    reported it; ComfyUI compares it against the total to decide whether to release cached blocks,
+    and a lower total only makes that release more likely.
+
+    With no figure supplied, or on a non-CUDA device, nothing is interposed.
+
+    Args:
+        device_free_truth_mb: Host-measured device-level free VRAM in MB, or None to leave
+            ComfyUI's own reading in place.
+
+    Yields:
+        None: For the duration of the clamped scope.
+    """
+    if device_free_truth_mb is None:
+        yield
+        return
+
+    import comfy.model_management as model_management
+
+    try:
+        device = model_management.get_torch_device()
+        if getattr(device, "type", None) != "cuda" or not torch.cuda.is_available():
+            yield
+            return
+        reserved_baseline = torch.cuda.memory_reserved(device)
+    except Exception as exc:
+        logger.debug("Could not establish a free-VRAM clamp baseline; leaving comfy's view alone: error={}", exc)
+        yield
+        return
+
+    truth_bytes = int(device_free_truth_mb * 1024 * 1024)
+    original_get_free_memory = model_management.get_free_memory
+
+    def clamped_get_free_memory(dev: typing.Any = None, torch_free_too: bool = False) -> typing.Any:
+        # Always read the pair: the reclaimable figure is part of the ceiling, and the total is the
+        # same value in both of ComfyUI's return forms.
+        mem_free_total, mem_free_torch = original_get_free_memory(dev, True)
+        resolved = dev if dev is not None else device
+        if getattr(resolved, "type", None) != "cuda":
+            return (mem_free_total, mem_free_torch) if torch_free_too else mem_free_total
+        try:
+            own_growth = max(0, torch.cuda.memory_reserved(resolved) - reserved_baseline)
+        except Exception:
+            # Fail open: an unreadable allocator figure must not make the clamp itself the fault.
+            return (mem_free_total, mem_free_torch) if torch_free_too else mem_free_total
+        ceiling = max(0, truth_bytes - own_growth) + mem_free_torch
+        clamped_total = min(mem_free_total, ceiling)
+        return (clamped_total, mem_free_torch) if torch_free_too else clamped_total
+
+    logger.debug(
+        "Clamping comfy's free-VRAM view to the host's device measurement: truth_mb={:.0f}",
+        device_free_truth_mb,
+    )
+    model_management.get_free_memory = clamped_get_free_memory
+    try:
+        yield
+    finally:
+        model_management.get_free_memory = original_get_free_memory
+
+
 @logfire.instrument("comfy.load_models_gpu_hijack")
 def _load_models_gpu_hijack(*args, **kwargs):
     """Intercepts the comfy load_models_gpu function to force full load.

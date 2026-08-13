@@ -108,6 +108,7 @@ class InProcessComfyBackend:
         outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
         progress_callback: ProgressCallback | None = None,
         defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
         sampler_options: dict[str, Any] | None = None,
         sigma_schedule: SigmaScheduleRequest | None = None,
     ) -> list[OutputArtifact]:
@@ -131,6 +132,7 @@ class InProcessComfyBackend:
                 progress_callback,
                 outputs=outputs,
                 defer_vram_unload=defer_vram_unload,
+                device_free_truth_mb=device_free_truth_mb,
             )
         finally:
             truncations = take_run_truncations()

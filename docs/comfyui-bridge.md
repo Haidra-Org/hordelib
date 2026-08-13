@@ -170,6 +170,25 @@ internal call sites would never pass horde's policy. Each patch stores its origi
 supports temporary-state swaps, and is guarded by `assert_force_load_class_names_exist`
 plus the signature pins in `tests/test_comfy_contract_drift.py`.
 
+### Per-run free-VRAM clamp
+
+ComfyUI sizes every free by the shortfall it computes from `get_free_memory`, which reads the CUDA
+driver's process-local view. Under WDDM that view reports memory sibling processes hold as free, so the
+shortfall comes out too small and the load overcommits the card. A caller that measures free VRAM at the
+device level (the worker parent, which holds the NVML figure) passes it as `device_free_truth_mb` on
+`run_pipeline`/`basic_inference`/`generate`; for the duration of that run
+`comfy_patches.free_memory_view_clamped` interposes `get_free_memory` so the reported free total is the
+lower of ComfyUI's own answer and a ceiling of what the process can obtain without evicting anything: the
+supplied figure, less this process's allocator growth since the run started, plus the memory free inside
+torch's own reserved pool. Own growth and the reclaimable pool are both honest under WDDM; sibling growth
+is bounded by the caller's dispatch admission. The reclaimable term is not optional: ComfyUI's own total
+is defined the same way (device free plus `reserved - active`), and after sampling that cache is often
+gigabytes, so a ceiling without it would invent a shortfall at the decode-time VAE load and evict the
+resident diffusion model mid-job.
+The swap is a plain local capture/restore (like the support-model free cap above), so it is invisible to
+the monkeypatch registry and cannot double-restore against it. With no figure supplied, or on a non-CUDA
+device, nothing is interposed.
+
 ## The bounded adaptive sampler
 
 `dpm_adaptive` is the one sampler whose iteration count is chosen by the solver rather than by

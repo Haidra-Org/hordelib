@@ -31,6 +31,7 @@ class _FakeAudioBackend:
         outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
         progress_callback: ProgressCallback | None = None,
         defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
     ) -> list[OutputArtifact]:
         return [
             OutputArtifact(
