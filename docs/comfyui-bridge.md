@@ -189,6 +189,48 @@ The swap is a plain local capture/restore (like the support-model free cap above
 the monkeypatch registry and cannot double-restore against it. With no figure supplied, or on a non-CUDA
 device, nothing is interposed.
 
+### Retention grants, and reporting when the device did not honour one
+
+A host that knows the next job reuses the model passes `defer_vram_unload=True`, which suppresses the
+bridge's own end-of-run eviction so the weights survive the job boundary and the next job skips the
+host-to-device upload. The grant is a *prediction*, not a guarantee: ComfyUI satisfies an allocation by
+freeing memory on the device, and the `load_models_gpu` patch above falls back to an unbounded
+requirement, so a single load inside the run can unload every other model on the card, including the
+checkpoint the grant covers. Nothing outside the process can see that happen, and a host that keeps
+believing its own prediction charges VRAM to weights the card does not hold and routes later jobs to a
+process that has to reload them anyway.
+
+So the bridge reports it. At the end of a run that was granted the deferral,
+`comfy_horde.device_holds_no_loaded_model()` reads `current_loaded_models` for the inference device; an
+empty device means the grant kept nothing. The verdict rides `OutputArtifact.metadata` under
+`RETAINED_WEIGHTS_EVICTED_METADATA_KEY` (the same channel the sampler-truncation record uses, and for the
+same reason: it is a property of the whole run) and lands on `ResultingImageReturn.retained_weights_evicted`
+and `SampleStageResult.retained_weights_evicted`, so the monolithic and disaggregated paths disclose it
+identically. It is always `False` for a run that asked for no deferral, whose own evictor empties the
+device by design. An entry whose device cannot be read counts as being on this one, so an unrecognised
+ComfyUI build reports no eviction rather than a false one.
+
+### A full unload reports what it actually freed
+
+`unload_all_models_vram()` (and `ExecutionBackend.free_vram()` through it) returns a `VramUnloadResult`
+rather than `None`. The free is a request: ComfyUI walks `current_loaded_models` and drops what it can,
+skipping any entry a live reference still pins, and it tells the caller nothing about what it skipped. A
+host that reports the weights moved to host RAM on the strength of having asked then carries gigabytes the
+card is holding but its ledger is not, and every later admission decision is made against room that does not
+exist.
+
+The result carries `freed_mb` (the gain between the device-free readings taken either side of the free, a
+floor rather than an exact figure since the reading is process-local), `remaining_loaded_models`,
+`remaining_loaded_weights_mb` (`None` when the figure cannot be read, which a caller must not treat as zero),
+and `dead_model_refs_dropped`. Its `complete` property is the verdict: nothing still listed, or nothing above
+`_UNLOAD_REMAINDER_FLOOR_MB` still resident.
+
+Dead references are dropped here. A `LoadedModel` whose patcher weakref has been collected raises on every
+accessor (`'NoneType' object has no attribute 'model_size'`), pins nothing, and can never be unloaded, so
+leaving it in the list would keep the loaded count non-zero forever and make every later unload read as
+incomplete. Removing it is the same thing ComfyUI's own `cleanup_models` does for its dead references. The
+existing log lines (`comfy.models_after_unload`, the free-RAM traces) are unchanged; the result is additive.
+
 ## The bounded adaptive sampler
 
 `dpm_adaptive` is the one sampler whose iteration count is chosen by the solver rather than by

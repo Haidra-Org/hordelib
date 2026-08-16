@@ -59,6 +59,16 @@ DEFAULT_IMAGE_OUTPUTS: tuple[OutputSpec, ...] = (OutputSpec(node="output_image")
 """The historical single-image-output convention, used where no explicit declaration exists."""
 
 
+RETAINED_WEIGHTS_EVICTED_METADATA_KEY: str = "retained_weights_evicted"
+"""Artifact metadata key set when a run granted a retention deferral ended with nothing on the device.
+
+The host grants ``defer_vram_unload`` so the weights survive the run for the next same-model job to
+reuse. ComfyUI's own memory manager can still free every other model on the device to satisfy an
+allocation, which takes those weights with it, and the host cannot see that from outside the process.
+Carried per artifact (like the sampler-truncation record) so the host's prediction of what the card
+holds can be corrected from the result rather than from a log line."""
+
+
 class OutputArtifact(BaseModel):
     """A single output produced by a pipeline run.
 
@@ -74,6 +84,51 @@ class OutputArtifact(BaseModel):
     source_node: str | None = None
     """The graph node title this artifact was collected from, when the backend knows it."""
     metadata: dict[str, Any] = {}
+
+
+_UNLOAD_REMAINDER_FLOOR_MB: float = 256.0
+"""Weights (MB) a completed unload may leave behind before it counts as incomplete.
+
+An unload is judged on what the device still holds, not on what the command returned. Some residue is
+ordinary: an allocator block the driver has not handed back yet, a small support module a live reference
+still pins. A quarter of a gigabyte is well under any checkpoint or text encoder, so anything above it is a
+real model still sitting on the card."""
+
+
+class VramUnloadResult(BaseModel):
+    """What a full VRAM unload actually achieved, measured either side of the free.
+
+    ComfyUI frees by walking its loaded-model list and dropping what it can; an entry a live reference still
+    pins is skipped and stays on the device, and the caller is told nothing. A worker that reports the model
+    moved to host RAM on the strength of having *asked* then carries gigabytes the card is holding but its
+    ledger is not. These fields are what let the caller judge the unload by its result.
+    """
+
+    freed_mb: float
+    """Device free VRAM gained across the unload, from the readings taken either side of it.
+
+    An estimate: the reading is process-local and other tenants move underneath it. Negative readings are
+    clamped away, so this is a floor on what came back rather than an exact figure."""
+    remaining_loaded_models: int
+    """Loaded models ComfyUI still lists for this process after the unload. Zero is a complete unload."""
+    remaining_loaded_weights_mb: float | None
+    """On-device weights those remaining models still hold, or None when the figure cannot be read.
+
+    None is not zero: an unreadable figure means the caller must fall back on the count."""
+    dead_model_refs_dropped: int
+    """Loaded-model entries whose patcher reference had died, dropped from ComfyUI's list here.
+
+    Such an entry answers no question about itself (every accessor raises) and can never be unloaded, so it
+    would otherwise keep the list non-empty forever and make every later unload read as incomplete."""
+
+    @property
+    def complete(self) -> bool:
+        """Whether the device came back: nothing still listed, or nothing of consequence still resident."""
+        if self.remaining_loaded_models == 0:
+            return True
+        if self.remaining_loaded_weights_mb is None:
+            return False
+        return self.remaining_loaded_weights_mb <= _UNLOAD_REMAINDER_FLOOR_MB
 
 
 class VRAMStats(BaseModel):
@@ -138,8 +193,13 @@ class ExecutionBackend(Protocol):
         """Request that the currently running pipeline be interrupted as soon as possible."""
         ...
 
-    def free_vram(self) -> None:
-        """Move models out of VRAM (to system RAM where applicable)."""
+    def free_vram(self) -> VramUnloadResult:
+        """Move models out of VRAM (to system RAM where applicable) and report what the device gave back.
+
+        Returns:
+            VramUnloadResult: What the unload freed and what it left behind, so the caller can judge the
+                unload by its result rather than by having issued it.
+        """
         ...
 
     def free_ram(self) -> None:

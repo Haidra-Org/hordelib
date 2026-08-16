@@ -28,6 +28,7 @@ from hordelib.execution.interface import (
     OutputArtifact,
     ProgressCallback,
     VRAMStats,
+    VramUnloadResult,
 )
 from hordelib.execution.sampling_lease import (
     SamplingLease,
@@ -173,6 +174,7 @@ __all__ = [
     "StripBackgroundPayload",
     "UpscalePayload",
     "VRAMStats",
+    "VramUnloadResult",
     "available_features",
     "classify_post_processor",
     "clear_accelerator_cache",

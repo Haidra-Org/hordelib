@@ -23,7 +23,7 @@ from hordelib.execution.adaptive_sampler_bound import (
     SamplerTruncation,
 )
 from hordelib.execution.in_process import InProcessComfyBackend
-from hordelib.execution.interface import OutputSpec
+from hordelib.execution.interface import RETAINED_WEIGHTS_EVICTED_METADATA_KEY, OutputSpec
 from hordelib.execution.sigma_schedules import SigmaScheduleRequest
 from hordelib.execution.stage_graph import (
     cut_decode_stage,
@@ -90,6 +90,13 @@ class SampleStageResult:
     monolithic path, so both paths disclose the coercion identically. ``None`` means the sampler ran
     to its own completion.
     """
+    retained_weights_evicted: bool = False
+    """True when this stage was granted ``defer_vram_unload`` and the device held no model afterwards.
+
+    The grant is the host's prediction that the UNet survives the stage; ComfyUI can free it during
+    the stage to fund an allocation. The host cannot observe that from outside the process, so the
+    correction rides the result.
+    """
 
 
 class ResultingImageReturn:
@@ -103,6 +110,13 @@ class ResultingImageReturn:
     order to disclose the coercion, so the record rides its own typed field. ``None`` means the
     sampler ran to its own completion, which is the case for every fixed-schedule sampler.
     """
+    retained_weights_evicted: bool
+    """True when this run was granted ``defer_vram_unload`` and the device held no model afterwards.
+
+    The grant is the host's prediction that the checkpoint survives the job for the next same-model
+    job to reuse; ComfyUI can free it mid-run to fund an allocation. The host cannot see that from
+    outside the process, so the correction rides the result and the host re-prices the slot.
+    """
 
     def __init__(
         self,
@@ -110,6 +124,7 @@ class ResultingImageReturn:
         rawpng: io.BytesIO | None,
         faults: list[GenMetadataEntry],
         sampler_truncation: SamplerTruncation | None = None,
+        retained_weights_evicted: bool = False,
     ):
         if faults is None:
             faults = []
@@ -128,6 +143,7 @@ class ResultingImageReturn:
         self.rawpng = rawpng
         self.faults = faults
         self.sampler_truncation = sampler_truncation
+        self.retained_weights_evicted = retained_weights_evicted
 
 
 # Module-level metrics for inference performance tracking
@@ -427,6 +443,7 @@ class HordeLib:
         return SampleStageResult(
             latent_bytes=artifacts[0].data.getvalue(),
             sampler_truncation=artifacts[0].metadata.get(SAMPLER_TRUNCATION_METADATA_KEY),
+            retained_weights_evicted=bool(artifacts[0].metadata.get(RETAINED_WEIGHTS_EVICTED_METADATA_KEY)),
         )
 
     def vae_encode_stage(self, params: ImageGenerationParameters) -> bytes:
@@ -555,6 +572,7 @@ class HordeLib:
                     rawpng=artifact.data,
                     faults=faults,
                     sampler_truncation=artifact.metadata.get(SAMPLER_TRUNCATION_METADATA_KEY),
+                    retained_weights_evicted=bool(artifact.metadata.get(RETAINED_WEIGHTS_EVICTED_METADATA_KEY)),
                 ),
             )
 
@@ -799,6 +817,7 @@ class HordeLib:
                                     rawpng=final_rawpng,
                                     faults=single_image_faults,
                                     sampler_truncation=ret.sampler_truncation,
+                                    retained_weights_evicted=ret.retained_weights_evicted,
                                 ),
                             )
 
