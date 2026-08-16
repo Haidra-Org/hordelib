@@ -18,11 +18,13 @@ from hordelib.execution.adaptive_sampler_bound import (
 )
 from hordelib.execution.interface import (
     DEFAULT_IMAGE_OUTPUTS,
+    RETAINED_WEIGHTS_EVICTED_METADATA_KEY,
     OutputArtifact,
     OutputKind,
     OutputSpec,
     ProgressCallback,
     VRAMStats,
+    VramUnloadResult,
 )
 from hordelib.execution.sampler_options import clear_run_options, set_run_options
 from hordelib.execution.sigma_schedules import (
@@ -139,7 +141,12 @@ class InProcessComfyBackend:
             clear_run_options()
             clear_run_schedule()
 
-        return self._to_artifacts(results, outputs, truncations=truncations)
+        return self._to_artifacts(
+            results,
+            outputs,
+            truncations=truncations,
+            retained_weights_evicted=bool(self._comfy.last_run_retained_weights_evicted),
+        )
 
     @staticmethod
     def _to_artifacts(
@@ -147,11 +154,16 @@ class InProcessComfyBackend:
         outputs: tuple[OutputSpec, ...],
         *,
         truncations: list[SamplerTruncation] | None = None,
+        retained_weights_evicted: bool = False,
     ) -> list[OutputArtifact]:
         kind_by_node = {output.node: output.kind for output in outputs}
         # A truncation applies to the sample every artifact of the run descends from, so each
         # artifact carries the record rather than the collection carrying it once.
         artifact_metadata: dict[str, Any] = {SAMPLER_TRUNCATION_METADATA_KEY: truncations[0]} if truncations else {}
+        # The residency verdict is likewise a property of the whole run: every artifact of a run whose
+        # deferral kept nothing descends from weights the device no longer holds.
+        if retained_weights_evicted:
+            artifact_metadata[RETAINED_WEIGHTS_EVICTED_METADATA_KEY] = True
         artifacts: list[OutputArtifact] = []
         for result in results:
             data = result.get("imagedata")
@@ -178,10 +190,11 @@ class InProcessComfyBackend:
 
         interrupt_comfyui_processing()
 
-    def free_vram(self) -> None:
+    def free_vram(self) -> VramUnloadResult:
+        """Free every model on the device and report what came back, so the caller can judge the unload."""
         from hordelib.comfy_horde import unload_all_models_vram
 
-        unload_all_models_vram()
+        return unload_all_models_vram()
 
     def free_ram(self) -> None:
         from hordelib.comfy_horde import unload_all_models_ram

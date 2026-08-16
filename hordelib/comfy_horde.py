@@ -44,7 +44,7 @@ from hordelib.execution.comfy_events import (
     parse_event,
 )
 from hordelib.execution.graph_utils import GraphDict, apply_dotted_params
-from hordelib.execution.interface import DEFAULT_IMAGE_OUTPUTS, OutputSpec
+from hordelib.execution.interface import DEFAULT_IMAGE_OUTPUTS, OutputSpec, VramUnloadResult
 from hordelib.execution.model_dirs import ModelCategory, invalidate_filename_cache, register_horde_model_paths
 from hordelib.execution.results import PipelineRunResult, collect_output_entries
 from hordelib.execution.server_shim import HeadlessComfyServer
@@ -461,12 +461,102 @@ def pin_models_in_vram() -> bool:
         return False
 
 
-def unload_all_models_vram() -> None:
+def device_holds_no_loaded_model() -> bool:
+    """Whether ComfyUI currently holds no model on the inference device.
+
+    ComfyUI satisfies an allocation by freeing memory on the device, and the hijacked
+    ``load_models_gpu`` falls back to an unbounded requirement, so a single load can unload every
+    other model on the card. A run that was granted a retention deferral and ends with the device
+    empty therefore kept nothing, whatever the host predicted. Entries with no readable device are
+    counted as being on this one, so an unrecognised ComfyUI build reports "something is loaded"
+    rather than a false eviction.
+    """
+    if _comfy_current_loaded_models is None:
+        return False
+    try:
+        device = _comfy_get_torch_device()
+    except Exception:
+        return False
+    for loaded in list(_comfy_current_loaded_models):
+        loaded_device = getattr(loaded, "device", None)
+        if loaded_device is None or loaded_device == device:
+            return False
+    return True
+
+
+def _drop_dead_loaded_models() -> int:
+    """Drop loaded-model entries whose patcher reference has died, and say how many went.
+
+    Such an entry pins nothing and answers nothing: its patcher weakref is dead, so every accessor on it
+    raises (``'NoneType' object has no attribute 'model_size'``) and no free can ever unload it. Left in the
+    list it makes the loaded count permanently non-zero, which would make every later unload read as
+    incomplete no matter how much the device actually gave back. Dropping it is the same removal ComfyUI's
+    own ``cleanup_models`` performs for its dead references.
+    """
+    if _comfy_current_loaded_models is None:
+        return 0
+    dead = [entry for entry in list(_comfy_current_loaded_models) if _loaded_model_ref_is_dead(entry)]
+    for entry in dead:
+        try:
+            _comfy_current_loaded_models.remove(entry)
+        except ValueError:
+            # Raced with ComfyUI's own cleanup, which is the outcome this wanted anyway.
+            continue
+    if dead:
+        logger.warning(
+            "Dropped {} loaded-model entr(ies) whose patcher reference had died; they can never be "
+            "unloaded and would keep the loaded count non-zero forever.",
+            len(dead),
+        )
+    return len(dead)
+
+
+def _loaded_model_ref_is_dead(loaded_model: typing.Any) -> bool:
+    """Whether ``loaded_model``'s patcher reference has been collected out from under it."""
+    try:
+        return loaded_model.model is None
+    except Exception:
+        return True
+
+
+def _remaining_loaded_weights_mb() -> float | None:
+    """On-device weights ComfyUI's remaining loaded models hold (MB), or None when unreadable.
+
+    None rather than zero on failure: a caller judging an unload has to be able to tell "nothing is
+    resident" from "this process cannot say", and only the first of those is evidence the card came back.
+    """
+    try:
+        from hordelib.utils.torch_memory import _sum_resident_weights_mb
+
+        return _sum_resident_weights_mb()
+    except Exception as e:
+        logger.debug(f"Could not read remaining resident weights after unload: {type(e).__name__} {e}")
+        return None
+
+
+def _device_free_mb_or_none() -> float | None:
+    """The process-local device-free reading in MB, or None before ComfyUI is loaded."""
+    try:
+        return _comfy_get_free_memory() / (1024 * 1024)
+    except Exception:
+        return None
+
+
+def unload_all_models_vram() -> VramUnloadResult:
+    """Free every model this process holds on the device, and report what the device actually gave back.
+
+    The free is a request, not a guarantee: ComfyUI walks its loaded-model list and drops what it can, and an
+    entry a live reference still pins is skipped silently. A caller that reports weights moved to host RAM on
+    the strength of having asked then keeps a ledger the card disagrees with, and every later admission
+    decision is made against room that does not exist. So the readings either side of the free, the models
+    still listed afterwards, and the weights they still hold all travel back with the result.
+    """
     global _comfy_current_loaded_models
 
     from hordelib.metrics import get_metrics_collector
 
     _unload_start = time.perf_counter()
+    _free_before_mb = _device_free_mb_or_none()
 
     log_free_ram()
 
@@ -516,6 +606,32 @@ def unload_all_models_vram() -> None:
     # disk_to_ram/ram_to_vram). Recorded under the job in progress when the unload happens, or the
     # next job on this process when it is an idle eviction.
     get_metrics_collector().record_phase("model_unload", time.perf_counter() - _unload_start)
+
+    # Read after the cache clear, so what is reported is the device state the caller's next decision is
+    # made against rather than the state mid-teardown.
+    dead_dropped = _drop_dead_loaded_models()
+    _free_after_mb = _device_free_mb_or_none()
+    freed_mb = 0.0
+    if _free_before_mb is not None and _free_after_mb is not None:
+        freed_mb = max(0.0, _free_after_mb - _free_before_mb)
+    remaining = 0 if _comfy_current_loaded_models is None else len(_comfy_current_loaded_models)
+    result = VramUnloadResult(
+        freed_mb=freed_mb,
+        remaining_loaded_models=remaining,
+        remaining_loaded_weights_mb=_remaining_loaded_weights_mb(),
+        dead_model_refs_dropped=dead_dropped,
+    )
+    if not result.complete:
+        logger.warning(
+            "The VRAM unload left {} model(s) loaded holding {} MB of weights after freeing {:.0f} MB; "
+            "the device is still carrying them.",
+            result.remaining_loaded_models,
+            "an unreadable amount of"
+            if result.remaining_loaded_weights_mb is None
+            else f"{result.remaining_loaded_weights_mb:.0f}",
+            result.freed_mb,
+        )
+    return result
 
 
 def unload_all_models_ram() -> None:
@@ -735,6 +851,12 @@ class Comfy_Horde:
 
         self._comfyui_callback = comfyui_callback
         self.aggressive_unloading = aggressive_unloading
+        self.last_run_retained_weights_evicted = False
+        """Whether the last run kept a retention deferral that the device did not honour.
+
+        Read by the execution backend once the run returns, so the host's record of what the card
+        holds can be corrected. Meaningless for a run that asked for no deferral, and always False
+        there."""
 
     def _load_custom_nodes(self) -> None:
         """Force ComfyUI to load its normal custom nodes and the horde custom nodes."""
@@ -901,6 +1023,7 @@ class Comfy_Horde:
         _execute_seconds = 0.0
         _t_pre_execute = _t0
         _t_post_execute = _t0
+        self.last_run_retained_weights_evicted = False
 
         if _comfy_current_loaded_models is None:
             raise RuntimeError("hordelib.initialise() must be called before using comfy_horde.")
@@ -1024,6 +1147,17 @@ class Comfy_Horde:
                 # host owns the safety decision; here we only honor it. A full free is idempotent
                 # when nothing is loaded, so this is a no-op in regimes where the executor has
                 # already unloaded by the time this runs.
+                # Read before the eviction below, which would itself empty the device: with a
+                # deferral in hand that branch is not taken, so what the device holds here is what
+                # the grant actually bought. An empty device under a deferral means ComfyUI freed
+                # the weights to fund an allocation during the run, and the host is holding a
+                # prediction it can no longer act on.
+                self.last_run_retained_weights_evicted = defer_vram_unload and device_holds_no_loaded_model()
+                if self.last_run_retained_weights_evicted:
+                    logger.warning(
+                        "The retention deferral kept nothing: the device holds no model at the end of "
+                        "this run, so ComfyUI freed the weights during it.",
+                    )
                 if self.aggressive_unloading and not defer_vram_unload:
                     with logfire.span("comfy.cleanup"):
                         unload_all_models_vram()

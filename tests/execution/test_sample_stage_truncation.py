@@ -93,6 +93,7 @@ class _StubComfy:
     def __init__(self, truncating_runs: set[int]) -> None:
         self.truncating_runs = truncating_runs
         self.runs = 0
+        self.last_run_retained_weights_evicted = False
 
     def run_pipeline(self, *_args: Any, **_kwargs: Any) -> list[dict[str, Any]]:
         self.runs += 1

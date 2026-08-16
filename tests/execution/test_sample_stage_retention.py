@@ -115,6 +115,7 @@ class _RecordingComfy:
 
     def __init__(self) -> None:
         self.calls: list[dict[str, Any]] = []
+        self.last_run_retained_weights_evicted = False
 
     def run_pipeline(self, *_args: Any, **kwargs: Any) -> list[dict[str, Any]]:
         self.calls.append(kwargs)
