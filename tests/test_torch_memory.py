@@ -12,6 +12,7 @@ import types
 
 import pytest
 
+from hordelib.metrics import get_metrics_collector
 from hordelib.utils import torch_memory
 from hordelib.utils.torch_memory import (
     AcceleratorKind,
@@ -474,3 +475,64 @@ def test_record_job_vram_profile_is_inert_without_comfy(no_comfy: None) -> None:
     assert profile.peak_resident_weights_mb == 0.0
     assert profile.peak_device_used_mb == 0.0
     assert profile.sum_component_weights_mb == 0.0
+
+
+class TestJobVramFootprint:
+    """The per-job footprint recorder: what it publishes, and to whom."""
+
+    @pytest.fixture(autouse=True)
+    def _drain_collector(self) -> None:
+        get_metrics_collector().snapshot_and_reset_job()
+
+    def test_footprint_published_with_keying_context(self, no_comfy: None, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(torch_memory, "_sum_resident_weights_mb", lambda: 4200.0)
+
+        with torch_memory.record_job_vram_footprint(
+            stage="whole_job",
+            model_name="Flux.1-Schnell fp8 (Compact)",
+            baseline="flux_1",
+            width=1024,
+            height=1024,
+            batch_size=2,
+        ):
+            pass
+
+        footprint = get_metrics_collector().snapshot_and_reset_job().vram_footprint
+        assert footprint is not None
+        assert footprint.stage == "whole_job"
+        assert footprint.model_name == "Flux.1-Schnell fp8 (Compact)"
+        assert footprint.baseline == "flux_1"
+        assert (footprint.width, footprint.height, footprint.batch_size) == (1024, 1024, 2)
+        assert footprint.resident_weights_after_job_mb == 4200.0
+        # No device to read, so the measured peaks are a clean zero rather than an absence.
+        assert footprint.peak_resident_weights_mb == 0.0
+        assert footprint.peak_device_used_mb == 0.0
+        assert footprint.sum_component_weights_mb == 0.0
+
+    def test_footprint_published_when_the_run_raises(self, no_comfy: None) -> None:
+        """A run that died on an allocation is the one whose occupancy a consumer most wants."""
+        with pytest.raises(RuntimeError), torch_memory.record_job_vram_footprint(stage="sample_stage"):
+            raise RuntimeError("allocation failed")
+
+        footprint = get_metrics_collector().snapshot_and_reset_job().vram_footprint
+        assert footprint is not None
+        assert footprint.stage == "sample_stage"
+
+    def test_measured_peaks_come_from_the_profiler(self, no_comfy: None, monkeypatch: pytest.MonkeyPatch) -> None:
+        profile = torch_memory.JobVramProfile(
+            peak_resident_weights_mb=13100.0,
+            peak_device_used_mb=13500.0,
+            sum_component_weights_mb=16400.0,
+        )
+        monkeypatch.setattr(torch_memory._JobVramProfiler, "profile", lambda self: profile)
+        monkeypatch.setattr(torch_memory, "_sum_resident_weights_mb", lambda: 0.0)
+
+        with torch_memory.record_job_vram_footprint(stage="sample_stage", model_name="Flux.1-Schnell fp8 (Compact)"):
+            pass
+
+        footprint = get_metrics_collector().snapshot_and_reset_job().vram_footprint
+        assert footprint is not None
+        assert footprint.peak_resident_weights_mb == 13100.0
+        assert footprint.peak_device_used_mb == 13500.0
+        assert footprint.sum_component_weights_mb == 16400.0
+        assert footprint.resident_weights_after_job_mb == 0.0

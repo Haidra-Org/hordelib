@@ -28,7 +28,11 @@ from loguru import logger
 
 from hordelib.metrics import get_metrics_collector
 from hordelib.utils.ioredirect import ComfyUIProgress, ComfyUIProgressUnit
-from hordelib.utils.torch_memory import get_torch_free_vram_mb, get_torch_total_vram_mb
+from hordelib.utils.torch_memory import (
+    get_torch_device_free_vram_mb,
+    get_torch_free_vram_mb,
+    get_torch_total_vram_mb,
+)
 
 _MB = 1024 * 1024
 
@@ -78,6 +82,7 @@ def _native_hook(value: int, total: int, preview: Any = None, node_id: Any = Non
     if total_vram_mb > 0:
         collector.record_memory_sample(
             vram_used_mb=total_vram_mb - get_torch_free_vram_mb(),
+            vram_device_used_mb=total_vram_mb - get_torch_device_free_vram_mb(),
             ram_used_mb=round(psutil.virtual_memory().used / _MB),
         )
 

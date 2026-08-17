@@ -64,6 +64,45 @@ class DownloadEvent(BaseModel):
     """Epoch time the download finished (or was given up on)."""
 
 
+JobVramStage = Literal["whole_job", "sample_stage"]
+"""Which execution shape produced a footprint: a whole job, or only the sampler stage of a
+disaggregated job (which loads the UNet alone and carries the sampling activation)."""
+
+
+class JobVramFootprint(BaseModel):
+    """What one run measurably occupied on the device, with the context needed to bucket it.
+
+    A footprint is a single observation of real hardware under a real job, not a budget: it carries
+    no safety margin, and a consumer that turns these into a forecast must add its own. The keying
+    fields exist because occupancy is only comparable within a (model, baseline, resolution, batch,
+    stage) bucket; a sampler-only stage and a whole job on the same model measure different things.
+
+    Every field defaults to None so a producer that cannot measure (no ComfyUI, no device) or an
+    older producer still emits a valid record.
+    """
+
+    peak_resident_weights_mb: float | None = None
+    """Largest the on-device weight set ever got at one instant, so components that time-share the
+    device are counted once at their true simultaneous cost."""
+    peak_device_used_mb: float | None = None
+    """Device-wide used high-water (weights plus transient activation), read against device truth
+    rather than the process-local allocator view."""
+    sum_component_weights_mb: float | None = None
+    """Union of every component the backend loaded during the run: the conservative upper bound,
+    above the simultaneous peak whenever anything was evicted or block-swapped mid-run."""
+    resident_weights_after_job_mb: float | None = None
+    """Weights still on the device when the run finished: what the next job inherits (or 0 when the
+    run returned the card)."""
+    model_name: str | None = None
+    """The horde model identifier the run used."""
+    baseline: str | None = None
+    """The model's baseline family, when the pipeline resolved one."""
+    width: int | None = None
+    height: int | None = None
+    batch_size: int | None = None
+    stage: JobVramStage | None = None
+
+
 class JobPhaseMetrics(BaseModel):
     """Everything the collector observed between two job snapshots."""
 
@@ -73,7 +112,17 @@ class JobPhaseMetrics(BaseModel):
     """Left empty by the collector itself; embedders may attach drained download
     events when composing a per-job record."""
     vram_used_high_water_mb: int | None = None
+    """High-water of total-minus-free VRAM as the torch process sees it, which counts the allocator's
+    reclaimable cache as free and therefore under-states what the device is actually holding. Kept for
+    consumers that already calibrate against it; see ``vram_device_used_high_water_mb`` for the
+    device-wide reading."""
+    vram_device_used_high_water_mb: int | None = None
+    """High-water of device-wide used VRAM, with the allocator's reclaimable cache counted as used, so
+    it reflects what the card is occupied with rather than what this process could still allocate. This
+    is the figure to compare against a hardware capacity; it runs above ``vram_used_high_water_mb``."""
     ram_used_high_water_mb: int | None = None
+    vram_footprint: JobVramFootprint | None = None
+    """The measured device footprint of the run, when the execution path recorded one."""
     phase_seconds: dict[str, float] = {}
     """Total seconds spent in named non-sampling GPU phases this job (e.g. ``vae_decode``,
     ``vae_encode``). Lets an embedder see where time goes between sampling runs."""
@@ -101,7 +150,9 @@ class MetricsCollector:
         self._model_loads: list[ModelLoadEvent] = []
         self._download_events: list[DownloadEvent] = []
         self._vram_used_high_water_mb: int | None = None
+        self._vram_device_used_high_water_mb: int | None = None
         self._ram_used_high_water_mb: int | None = None
+        self._vram_footprint: JobVramFootprint | None = None
         self._phase_seconds: dict[str, float] = {}
         self._component_cache_hits: int = 0
         self._component_cache_misses: int = 0
@@ -183,17 +234,42 @@ class MetricsCollector:
             self._sampling_last_step = step
             self._sampling_last_ts = now
 
-    def record_memory_sample(self, *, vram_used_mb: int | None = None, ram_used_mb: int | None = None) -> None:
-        """Record a point-in-time memory usage sample; high-water marks are kept."""
+    def record_memory_sample(
+        self,
+        *,
+        vram_used_mb: int | None = None,
+        ram_used_mb: int | None = None,
+        vram_device_used_mb: int | None = None,
+    ) -> None:
+        """Record a point-in-time memory usage sample; high-water marks are kept.
+
+        ``vram_used_mb`` is the process-local view (allocator cache counted as free) and
+        ``vram_device_used_mb`` the device-wide one; they are tracked separately because the
+        difference between them is the reclaimable cache, which a consumer may need to see.
+        """
         with self._lock:
             if vram_used_mb is not None and (
                 self._vram_used_high_water_mb is None or vram_used_mb > self._vram_used_high_water_mb
             ):
                 self._vram_used_high_water_mb = vram_used_mb
+            if vram_device_used_mb is not None and (
+                self._vram_device_used_high_water_mb is None
+                or vram_device_used_mb > self._vram_device_used_high_water_mb
+            ):
+                self._vram_device_used_high_water_mb = vram_device_used_mb
             if ram_used_mb is not None and (
                 self._ram_used_high_water_mb is None or ram_used_mb > self._ram_used_high_water_mb
             ):
                 self._ram_used_high_water_mb = ram_used_mb
+
+    def record_vram_footprint(self, footprint: JobVramFootprint) -> None:
+        """Record the measured device footprint of the run just finished.
+
+        A run records at most one footprint; a second record within the same job window replaces the
+        first, so a snapshot always describes the most recent measured run.
+        """
+        with self._lock:
+            self._vram_footprint = footprint
 
     def _sampling_stats_locked(self) -> SamplingStats | None:
         if self._sampling_first_ts is None or self._sampling_last_ts is None:
@@ -218,7 +294,9 @@ class MetricsCollector:
                 model_loads=list(self._model_loads),
                 sampling=self._sampling_stats_locked(),
                 vram_used_high_water_mb=self._vram_used_high_water_mb,
+                vram_device_used_high_water_mb=self._vram_device_used_high_water_mb,
                 ram_used_high_water_mb=self._ram_used_high_water_mb,
+                vram_footprint=self._vram_footprint,
                 phase_seconds=dict(self._phase_seconds),
                 component_cache_hits=self._component_cache_hits,
                 component_cache_misses=self._component_cache_misses,
@@ -227,7 +305,9 @@ class MetricsCollector:
             )
             self._model_loads = []
             self._vram_used_high_water_mb = None
+            self._vram_device_used_high_water_mb = None
             self._ram_used_high_water_mb = None
+            self._vram_footprint = None
             self._phase_seconds = {}
             self._component_cache_hits = 0
             self._component_cache_misses = 0

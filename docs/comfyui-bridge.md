@@ -74,6 +74,47 @@ adopted: `reset_progress_state` discards all registered handlers inside every
 is a public, stable seam. The drift tests pin both facts so the decision is revisited if
 ComfyUI changes either.
 
+## Per-job measured VRAM footprint
+
+Every image job publishes what it actually occupied on the device, so a consumer can price a model
+from measurement instead of from a registry constant. `hordelib.api.record_job_vram_footprint`
+brackets both execution paths: the monolithic run in `HordeLib._run_materialized`, and the sampler
+stage of a disaggregated job in `HordeLib.sample_stage`. It wraps `record_job_vram_profile` (which
+wraps `load_models_gpu` for the component union and samples on-device weights and device-wide use on
+a background thread) and hands the result to the metrics collector as
+`JobPhaseMetrics.vram_footprint`, alongside the rest of the job's phase metrics. The sampling period
+is `JOB_VRAM_FOOTPRINT_POLL_INTERVAL_S` (50 ms): every job pays it, so it is looser than the interval
+a dedicated calibration run uses.
+
+The record (`hordelib.metrics.JobVramFootprint`) carries four measurements:
+
+- `peak_resident_weights_mb`: the largest the on-device weight set ever got at one instant. This is
+  the co-residency figure, and it sits below the component sum whenever the backend evicted or
+  block-swapped something mid-run.
+- `peak_device_used_mb`: device-wide used VRAM at its high-water, weights plus transient activation.
+- `sum_component_weights_mb`: the union of every component loaded during the run, the conservative
+  upper bound.
+- `resident_weights_after_job_mb`: what the next job inherits on the card (0 when the run returned it).
+
+It also carries the keying context: model name, baseline, width, height, batch size, and `stage`
+(`whole_job` or `sample_stage`). Occupancy is only comparable within that bucket; a sampler-only
+stage loads the UNet alone and carries the whole sampling activation, so its numbers describe a
+different thing from a whole job on the same model. Every field defaults to `None`, so a producer
+that cannot measure (no ComfyUI, no device) and an older producer both still emit a valid record.
+
+**A footprint is one observation, not a budget.** It carries no safety margin, no allowance for a
+neighbouring process, and no smoothing across runs: it is what one job did on one card under one
+driver state. A consumer turning footprints into a forecast has to bucket them, aggregate across
+runs, and add its own headroom. hordelib publishes the measurement and changes no registry constant
+in `hordelib/feature_impact.py` on the strength of it.
+
+Separately, the native progress hook samples two VRAM high-waters per step:
+`JobPhaseMetrics.vram_used_high_water_mb` (the process-local view, which counts the torch allocator's
+reclaimable cache as free and therefore under-states device occupancy) and
+`vram_device_used_high_water_mb` (the device-wide reading from `get_torch_device_free_vram_mb`). The
+first is kept unchanged for consumers already calibrated against it; the second is the one to compare
+against hardware capacity.
+
 ## Model directories
 
 Model paths are registered through `folder_paths.add_model_folder_path` via the

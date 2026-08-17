@@ -26,6 +26,8 @@ from loguru import logger
 from pydantic import BaseModel
 from strenum import StrEnum
 
+from hordelib.metrics import JobVramFootprint, JobVramStage, get_metrics_collector
+
 _MB = 1024 * 1024
 
 _COMFY_MODEL_MANAGEMENT = "comfy.model_management"
@@ -700,6 +702,65 @@ def record_job_vram_profile(*, poll_interval_s: float = 0.02) -> Iterator[_JobVr
             yield profiler
         finally:
             profiler.stop()
+
+
+JOB_VRAM_FOOTPRINT_POLL_INTERVAL_S = 0.05
+"""Sampling period for the per-job footprint recorder.
+
+Every job pays this, so it is looser than the interval a dedicated calibration run uses. A sample
+reads the loaded-model list and one driver free-memory query, and a sampling phase is seconds to
+minutes long, so 20 samples a second resolves the peak without measurably competing for the GIL.
+"""
+
+
+@contextmanager
+def record_job_vram_footprint(
+    *,
+    stage: JobVramStage,
+    model_name: str | None = None,
+    baseline: str | None = None,
+    width: int | None = None,
+    height: int | None = None,
+    batch_size: int | None = None,
+) -> Iterator[None]:
+    """Measure the run inside the block and publish it to the metrics collector as a footprint.
+
+    The keying fields ride with the measurement because occupancy is only comparable within a
+    (model, baseline, resolution, batch, stage) bucket. The footprint is recorded even when the block
+    raises, since a run that failed on an allocation is exactly the one whose occupancy a consumer
+    wants to see. Yields nothing: the measurement leaves by the collector, alongside the rest of the
+    job's phase metrics.
+    """
+    profiler: _JobVramProfiler | None = None
+    resident_after_mb = 0.0
+    try:
+        with record_job_vram_profile(poll_interval_s=JOB_VRAM_FOOTPRINT_POLL_INTERVAL_S) as active_profiler:
+            profiler = active_profiler
+            try:
+                yield
+            finally:
+                resident_after_mb = _sum_resident_weights_mb()
+    finally:
+        if profiler is not None:
+            try:
+                profile = profiler.profile()
+                get_metrics_collector().record_vram_footprint(
+                    JobVramFootprint(
+                        peak_resident_weights_mb=profile.peak_resident_weights_mb,
+                        peak_device_used_mb=profile.peak_device_used_mb,
+                        sum_component_weights_mb=profile.sum_component_weights_mb,
+                        resident_weights_after_job_mb=resident_after_mb,
+                        model_name=model_name,
+                        baseline=baseline,
+                        width=width,
+                        height=height,
+                        batch_size=batch_size,
+                        stage=stage,
+                    ),
+                )
+            except Exception as e:
+                # A measurement is never worth failing a finished job over.
+                logger.debug(f"recording the job VRAM footprint failed: {e}")
 
 
 def clear_accelerator_cache() -> None:

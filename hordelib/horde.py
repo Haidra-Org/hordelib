@@ -52,6 +52,7 @@ from hordelib.pipeline.payload_pp import (
 from hordelib.pipeline.resolution import resolve_post_processing_model
 from hordelib.utils.image_utils import ImageUtils
 from hordelib.utils.ioredirect import ComfyUIProgress
+from hordelib.utils.torch_memory import record_job_vram_footprint
 
 
 class ProgressState(Enum):
@@ -341,6 +342,7 @@ class HordeLib:
         list[GenMetadataEntry],
         ImageGenPayload,
         SigmaScheduleRequest | None,
+        ModelContext,
     ]:
         """Materialize the full family graph for a job, ready to be cut into a single stage."""
         from hordelib.pipeline.horde_compat import apply_model_compat, resolve_sigma_schedule
@@ -359,7 +361,7 @@ class HordeLib:
         # The finalized payload and the sigma schedule come back so a stage can apply what the graph
         # cannot carry. Converting again in the caller would re-decode the job's source images, which is
         # the expensive half of conversion.
-        return graph, outputs, faults, finalized, resolve_sigma_schedule(finalized, resolved_context)
+        return graph, outputs, faults, finalized, resolve_sigma_schedule(finalized, resolved_context), resolved_context
 
     def encode_text_stage(self, params: ImageGenerationParameters) -> tuple[bytes, bytes]:
         """Encode a job's prompts to (positive, negative) CONDITIONING blobs (loads only the CLIP).
@@ -369,7 +371,7 @@ class HordeLib:
         :class:`~hordelib.execution.interface.StageGraphUnsupportedError` for any other shape
         (split-loader families such as Qwen/Z-Image, where the loader-subset flags are no-ops).
         """
-        graph, _outputs, _faults, _typed, _sigma_schedule = self._materialize_stage_graph(params)
+        graph, _outputs, _faults, _typed, _sigma_schedule, _context = self._materialize_stage_graph(params)
         outputs = cut_encode_text_stage(graph)
         artifacts = self.backend.run_pipeline(graph.to_api_dict(), outputs=outputs)
         by_node = {a.source_node: a.data.getvalue() for a in artifacts}
@@ -420,7 +422,7 @@ class HordeLib:
             SampleStageResult: The serialized LATENT, plus the sampler-truncation record if the
                 backend bounded a solver-chosen sampler during this run.
         """
-        graph, _outputs, _faults, typed_payload, sigma_schedule = self._materialize_stage_graph(params)
+        graph, _outputs, _faults, typed_payload, sigma_schedule, context = self._materialize_stage_graph(params)
         outputs = cut_sample_stage(
             graph,
             positive_bytes=positive_conditioning_bytes,
@@ -429,15 +431,23 @@ class HordeLib:
         )
         # Sampling is the only stage the solver options affect, and this is that stage when a job is run
         # disaggregated, so they are applied here as well as on the monolithic path.
-        artifacts = self.backend.run_pipeline(
-            graph.to_api_dict(),
-            outputs=outputs,
-            progress_callback=self._make_comfyui_progress_adapter(progress_callback),
-            defer_vram_unload=defer_vram_unload,
-            device_free_truth_mb=device_free_truth_mb,
-            sampler_options=typed_payload.solver_options(),
-            sigma_schedule=sigma_schedule,
-        )
+        with record_job_vram_footprint(
+            stage="sample_stage",
+            model_name=context.horde_model_name,
+            baseline=str(context.baseline) if context.baseline is not None else None,
+            width=typed_payload.width,
+            height=typed_payload.height,
+            batch_size=typed_payload.n_iter,
+        ):
+            artifacts = self.backend.run_pipeline(
+                graph.to_api_dict(),
+                outputs=outputs,
+                progress_callback=self._make_comfyui_progress_adapter(progress_callback),
+                defer_vram_unload=defer_vram_unload,
+                device_free_truth_mb=device_free_truth_mb,
+                sampler_options=typed_payload.solver_options(),
+                sigma_schedule=sigma_schedule,
+            )
         # The backend brackets each run_pipeline call with the truncation recording, so a record on
         # this artifact belongs to this stage's run and cannot be a neighbouring run's leftover.
         return SampleStageResult(
@@ -453,7 +463,7 @@ class HordeLib:
         graph has none). Raises :class:`~hordelib.execution.interface.StageGraphUnsupportedError`
         otherwise (a txt2img graph, or a split-loader family).
         """
-        graph, _outputs, _faults, _typed, _sigma_schedule = self._materialize_stage_graph(params)
+        graph, _outputs, _faults, _typed, _sigma_schedule, _context = self._materialize_stage_graph(params)
         outputs = cut_vae_encode_stage(graph)
         artifacts = self.backend.run_pipeline(graph.to_api_dict(), outputs=outputs)
         return artifacts[0].data.getvalue()
@@ -476,7 +486,7 @@ class HordeLib:
         :class:`~hordelib.execution.interface.StageGraphUnsupportedError` for any other shape
         (split-loader families).
         """
-        graph, outputs, faults, _typed, _sigma_schedule = self._materialize_stage_graph(params)
+        graph, outputs, faults, _typed, _sigma_schedule, _context = self._materialize_stage_graph(params)
         cut_decode_stage(graph, latent_bytes=latent_bytes)
         artifacts = self.backend.run_pipeline(
             graph.to_api_dict(),
@@ -554,15 +564,23 @@ class HordeLib:
         if typed.tis:
             logger.info("Using TIs: count={}", len(typed.tis))
 
-        artifacts = self.backend.run_pipeline(
-            graph.to_api_dict(),
-            outputs=declared_outputs,
-            progress_callback=comfyui_progress_callback,
-            defer_vram_unload=defer_vram_unload,
-            device_free_truth_mb=device_free_truth_mb,
-            sampler_options=typed.solver_options(),
-            sigma_schedule=resolve_sigma_schedule(typed, context),
-        )
+        with record_job_vram_footprint(
+            stage="whole_job",
+            model_name=context.horde_model_name,
+            baseline=str(context.baseline) if context.baseline is not None else None,
+            width=typed.width,
+            height=typed.height,
+            batch_size=typed.n_iter,
+        ):
+            artifacts = self.backend.run_pipeline(
+                graph.to_api_dict(),
+                outputs=declared_outputs,
+                progress_callback=comfyui_progress_callback,
+                defer_vram_unload=defer_vram_unload,
+                device_free_truth_mb=device_free_truth_mb,
+                sampler_options=typed.solver_options(),
+                sigma_schedule=resolve_sigma_schedule(typed, context),
+            )
 
         ret_results = []
         for artifact in artifacts:
