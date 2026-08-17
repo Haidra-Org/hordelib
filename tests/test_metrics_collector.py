@@ -4,6 +4,8 @@ import pytest
 
 from hordelib.metrics import (
     DownloadEvent,
+    JobPhaseMetrics,
+    JobVramFootprint,
     MetricsCollector,
     ModelLoadEvent,
 )
@@ -142,3 +144,67 @@ class TestDownloadDrain:
         events = collector.drain_download_events()
         assert [event.success for event in events] == [True, False]
         assert collector.drain_download_events() == []
+
+
+class TestVramFootprint:
+    def test_absent_by_default(self, collector: MetricsCollector) -> None:
+        assert collector.snapshot_and_reset_job().vram_footprint is None
+
+    def test_recorded_then_reset(self, collector: MetricsCollector) -> None:
+        collector.record_vram_footprint(JobVramFootprint(stage="whole_job", model_name="Deliberate"))
+
+        snapshot = collector.snapshot_and_reset_job()
+        assert snapshot.vram_footprint is not None
+        assert snapshot.vram_footprint.model_name == "Deliberate"
+
+        assert collector.snapshot_and_reset_job().vram_footprint is None
+
+    def test_latest_record_wins(self, collector: MetricsCollector) -> None:
+        collector.record_vram_footprint(JobVramFootprint(peak_device_used_mb=1000.0))
+        collector.record_vram_footprint(JobVramFootprint(peak_device_used_mb=2000.0))
+
+        snapshot = collector.snapshot_and_reset_job()
+        assert snapshot.vram_footprint is not None
+        assert snapshot.vram_footprint.peak_device_used_mb == 2000.0
+
+    def test_every_field_defaults_to_none(self) -> None:
+        footprint = JobVramFootprint()
+        assert footprint.model_dump() == dict.fromkeys(JobVramFootprint.model_fields)
+
+    def test_round_trips_through_json(self) -> None:
+        footprint = JobVramFootprint(
+            peak_resident_weights_mb=13100.5,
+            peak_device_used_mb=13500.0,
+            sum_component_weights_mb=16400.0,
+            resident_weights_after_job_mb=11500.0,
+            model_name="Flux.1-Schnell fp8 (Compact)",
+            baseline="flux_1",
+            width=1024,
+            height=1024,
+            batch_size=1,
+            stage="sample_stage",
+        )
+        metrics = JobPhaseMetrics(vram_footprint=footprint, vram_device_used_high_water_mb=13500)
+
+        restored = JobPhaseMetrics.model_validate_json(metrics.model_dump_json())
+        assert restored == metrics
+        assert restored.vram_footprint == footprint
+
+    def test_older_producer_payload_still_validates(self) -> None:
+        """A payload from a producer predating the footprint fields deserializes with them unset."""
+        restored = JobPhaseMetrics.model_validate_json('{"vram_used_high_water_mb": 9000}')
+        assert restored.vram_used_high_water_mb == 9000
+        assert restored.vram_device_used_high_water_mb is None
+        assert restored.vram_footprint is None
+
+
+class TestDeviceUsedHighWater:
+    def test_tracked_separately_from_the_process_view(self, collector: MetricsCollector) -> None:
+        collector.record_memory_sample(vram_used_mb=9000, vram_device_used_mb=12000)
+        collector.record_memory_sample(vram_used_mb=11000, vram_device_used_mb=11500)
+
+        snapshot = collector.snapshot_and_reset_job()
+        assert snapshot.vram_used_high_water_mb == 11000
+        assert snapshot.vram_device_used_high_water_mb == 12000
+
+        assert collector.snapshot_and_reset_job().vram_device_used_high_water_mb is None

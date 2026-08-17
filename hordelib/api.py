@@ -68,6 +68,7 @@ from hordelib.horde import (
 from hordelib.metrics import (
     DownloadEvent,
     JobPhaseMetrics,
+    JobVramFootprint,
     MetricsCollector,
     ModelLoadEvent,
     SamplingStats,
@@ -113,6 +114,7 @@ from hordelib.utils.torch_memory import (
     get_torch_total_vram_mb,
     log_free_ram,
     offthread_vram_sampling_ready,
+    record_job_vram_footprint,
     record_job_vram_profile,
     record_resident_footprint,
 )
@@ -156,6 +158,7 @@ __all__ = [
     "ImageGenPayload",
     "ImagePipeline",
     "JobPhaseMetrics",
+    "JobVramFootprint",
     "MetricsCollector",
     "MissingFeatureDependencyError",
     "ModelLoadEvent",
@@ -207,6 +210,7 @@ __all__ = [
     "ProcessVramStats",
     "ResidentFootprint",
     "ResidentFootprintRecorder",
+    "record_job_vram_footprint",
     "record_job_vram_profile",
     "record_resident_footprint",
     "initialise",
