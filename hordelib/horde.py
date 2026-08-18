@@ -474,12 +474,19 @@ class HordeLib:
         *,
         latent_bytes: bytes,
         progress_callback: Callable[[ProgressReport], None] | None = None,
+        device_free_truth_mb: float | None = None,
     ) -> tuple[list[ResultingImageReturn], list[GenMetadataEntry]]:
         """Decode an injected LATENT to images (loads only the VAE), reusing the graph's image output.
 
         ``progress_callback`` receives progress through the same adapter the monolithic path uses.
         A tiled VAE decode reports per-tile step progress; a single-shot decode produces no
         intermediate steps, so the callback fires only if the backend emits one.
+
+        ``device_free_truth_mb`` is the caller-measured device-level free VRAM (MB) at dispatch. ComfyUI
+        sizes each decode batch by the free VRAM it reads, and a process-local reading under WDDM shows the
+        card as nearly empty however full it is, so an unclamped batch decode of several images allocates
+        its whole activation set at once beside whatever the card already holds and pages. Clamping the
+        backend's view to the measured figure makes it decode as many images per pass as actually fit.
 
         Supported only on the v1 family graph shape: a combined ``model_loader`` and a ``vae_decode``
         node feeding the reused image output. Raises
@@ -492,6 +499,7 @@ class HordeLib:
             graph.to_api_dict(),
             outputs=outputs,
             progress_callback=self._make_comfyui_progress_adapter(progress_callback),
+            device_free_truth_mb=device_free_truth_mb,
         )
         results = [ResultingImageReturn(image=Image.open(a.data), rawpng=a.data, faults=faults) for a in artifacts]
         return results, faults
@@ -1013,11 +1021,18 @@ class HordeLib:
         *,
         will_load_loras: bool,
         seamless_tiling_enabled: bool,
+        diffusion_model_only: bool = False,
     ) -> None:
         """Load a model into RAM ahead of inference (the worker's preload path).
 
         Wraps the HordeCheckpointLoader preload dance so consumers don't need to touch
         hordelib's ComfyUI node classes directly.
+
+        ``diffusion_model_only`` loads just the diffusion model (UNet) of a checkpoint, for a process that
+        will run the job's sample stage only: the text encoders and VAE are served by other lanes there,
+        and loading them here casts a private copy of the encoders per cached model and reads their bytes
+        from disk for nothing. A later request that needs the omitted components is a cache miss that
+        reloads the full checkpoint.
         """
         from hordelib.nodes.node_model_loader import HordeCheckpointLoader
 
@@ -1025,6 +1040,8 @@ class HordeLib:
             will_load_loras=will_load_loras,
             seamless_tiling_enabled=seamless_tiling_enabled,
             horde_model_name=horde_model_name,
+            output_vae=not diffusion_model_only,
+            output_clip=not diffusion_model_only,
             preloading=True,
         )
 
