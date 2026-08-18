@@ -187,9 +187,28 @@ child process pays no boot-time hashing cost). Extraction targets the same `vae/
 Set `HORDE_DISABLE_STANDALONE_VAE_PATH` truthy (`1`/`true`/`yes`/`on`) to disable the path entirely and
 restore the prior subset-load behaviour for every VAE-only request.
 
+### Weight page-in and CPU-side weight retention
+
+The zero-copy loader leaves a checkpoint's weights as views over the memory-mapped file, so their bytes are
+read from disk only when first touched, which is ComfyUI's `.to(device)` inside the model load: a page-fault
+driven read at a fraction of the disk's rate, sitting inside the sampling window. `hordelib/execution/
+weight_prefetch.py` moves that read off the critical path: after a cold checkpoint load
+(`node_model_loader`) and again before the sampling lease is acquired (`sampling_lease`), a daemon thread
+asks the OS to prefetch the module's CPU-resident weight ranges (`PrefetchVirtualMemory` on Windows,
+`madvise(MADV_WILLNEED)` elsewhere) and then touches one byte per page so the pages join the process's
+working set (a prefetch alone leaves them on the standby list, and the copy still soft-faults them in at a
+fraction of memory speed). Kill switch: `HORDELIB_DISABLE_WEIGHT_PREFETCH=1`.
+
+The matching unload path (`hordelib/execution/cpu_weight_retention.py`, hooked into `ModelPatcher.load` and
+`ModelPatcher.unpatch_model`) records each CPU tensor before the load replaces it and points the parameter
+back at that tensor at unload, so ComfyUI's device-to-host copy-back (over a second per UNet on every
+eviction, and a private copy of the weights per process) becomes a no-op; the retained tensor is byte-identical
+to what the copy would have produced. LoRA-patched keys (the patcher's own `backup`) are left to ComfyUI.
+Kill switch: `HORDELIB_DISABLE_CPU_WEIGHT_RETENTION=1`.
+
 ## The monkeypatches
 
-Six ComfyUI internals are patched at import time (`hordelib/execution/comfy_patches.py`),
+Seven ComfyUI internals are patched at import time (`hordelib/execution/comfy_patches.py`),
 all policy injections with no native hook:
 
 - `load_models_gpu` and `ModelPatcher.load`: force full GPU loads (with VRAM-overflow and
@@ -201,6 +220,8 @@ all policy injections with no native hook:
   PCIe round-trip each way, every job) to host a few hundred MB of autoencoder, when a genuine
   shortfall would only mean a tiled decode. Eviction remains possible when free VRAM cannot
   host even the support weights themselves.
+- `ModelPatcher.unpatch_model`: restore the recorded CPU tensors instead of copying weights back from the
+  device (see the section above).
 - `text_encoder_initial_device`: load text encoders on CPU first.
 - `comfy.lora.calculate_weight`: repair malformed "diff" patch tuples.
 - `IsChangedCache.get`: prompt-change logging.
@@ -217,7 +238,9 @@ ComfyUI sizes every free by the shortfall it computes from `get_free_memory`, wh
 driver's process-local view. Under WDDM that view reports memory sibling processes hold as free, so the
 shortfall comes out too small and the load overcommits the card. A caller that measures free VRAM at the
 device level (the worker parent, which holds the NVML figure) passes it as `device_free_truth_mb` on
-`run_pipeline`/`basic_inference`/`generate`; for the duration of that run
+`run_pipeline`/`basic_inference`/`generate`, and on the disaggregated `sample_stage` and `decode_stage`
+(ComfyUI sizes each VAE decode pass by the free VRAM it reads, so an unclamped batch decode on the image
+lane allocates its whole activation set at once); for the duration of that run
 `comfy_patches.free_memory_view_clamped` interposes `get_free_memory` so the reported free total is the
 lower of ComfyUI's own answer and a ceiling of what the process can obtain without evicting anything: the
 supplied figure, less this process's allocator growth since the run started, plus the memory free inside

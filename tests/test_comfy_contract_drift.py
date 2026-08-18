@@ -380,6 +380,16 @@ class TestMonkeypatchSignaturePins:
         parameters = inspect.signature(original_patcher_load).parameters
         assert "full_load" in parameters
 
+    def test_model_patcher_unpatch_model_signature(self, init_horde: None) -> None:
+        from hordelib.execution.comfy_patches import _originals
+
+        original_unpatch = _originals.get("model_patcher_unpatch_model")
+        assert original_unpatch is not None, "ModelPatcher.unpatch_model monkeypatch was never installed"
+        parameters = list(inspect.signature(original_unpatch).parameters)
+        # The hijack passes (patcher, device_to, unpatch_weights) positionally and restores CPU weights only
+        # for an unload to the offload device with weights unpatched, so both names must survive.
+        assert parameters[:3] == ["self", "device_to", "unpatch_weights"]
+
     def test_lora_calculate_weight_exists(self, init_horde: None) -> None:
         from hordelib.execution.comfy_patches import _originals
 

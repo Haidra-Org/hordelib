@@ -61,6 +61,20 @@ def set_gpu_sampling_lease(lease: SamplingLease | None, *, acquire_timeout_secon
         logger.info(f"GPU sampling lease registered (acquire timeout {acquire_timeout_seconds:.0f}s)")
 
 
+def _prefetch_sampling_model_weights(args: tuple[object, ...], kwargs: dict[str, object]) -> None:
+    """Kick a background page-in of the sampling model's CPU-resident weights; never raises."""
+    try:
+        model = kwargs.get("model", args[0] if args else None)
+        module = getattr(model, "model", None)
+        if module is None:
+            return
+        from hordelib.execution.weight_prefetch import prefetch_module_weights_async
+
+        prefetch_module_weights_async(module, label="sample")
+    except Exception as exc:
+        logger.debug(f"Sampling weight prefetch skipped: {exc}")
+
+
 def install_sampling_lease_hook() -> bool:
     """Monkey-patch ``comfy.sample.sample`` to hold the lease around the denoising loop.
 
@@ -80,6 +94,10 @@ def install_sampling_lease_hook() -> bool:
     original_sample = sample_module.sample
 
     def _leased_sample(*args: object, **kwargs: object) -> object:
+        # The model's RAM->VRAM move runs inside the lease and pages its weights in from the checkpoint mapping
+        # on first touch; asking the OS to prefetch them now lets that disk read overlap the wait for
+        # clearance instead of sitting in the sampling window.
+        _prefetch_sampling_model_weights(args, kwargs)
         lease = _sampling_lease
         acquired = False
         if lease is not None:

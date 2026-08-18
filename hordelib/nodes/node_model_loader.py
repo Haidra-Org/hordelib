@@ -283,6 +283,10 @@ class HordeCheckpointLoader:
         for component in result[:3]:
             capture_pristine_state(component)
 
+        # The diffusion weights are still lazy views over the checkpoint mapping; page them in now, off the
+        # critical path, so the load into VRAM that follows runs at memory speed rather than disk speed.
+        _prefetch_diffusion_weights(result[0], horde_model_name)
+
         # A disaggregated stage may have loaded only a subset, so a slot can be None; each helper is a no-op
         # when its component is absent.
         _apply_model_tiling(result[0], seamless_tiling_enabled)
@@ -507,6 +511,7 @@ class HordeCheckpointLoader:
             # component's cold pages (throttled and best-effort; a no-op for pages the comfy layer still
             # holds).
             trim_host_after_component_release()
+            _release_device_cache_after_eviction()
         collector.record_component_cache_held_mb(cache.held_mb())
 
     def _resolve_monolithic_ckpt_name(
@@ -565,6 +570,21 @@ class HordeCheckpointLoader:
         return full_path
 
 
+def _prefetch_diffusion_weights(model_patcher: Any, horde_model_name: str) -> None:
+    """Start a background page-in of a freshly loaded diffusion model's weights; never raises."""
+    if model_patcher is None:
+        return
+    try:
+        module = getattr(model_patcher, "model", None)
+        if module is None:
+            return
+        from hordelib.execution.weight_prefetch import prefetch_module_weights_async
+
+        prefetch_module_weights_async(module, label=horde_model_name)
+    except Exception as exc:
+        logger.debug("Diffusion weight prefetch skipped for {}: {}", horde_model_name, exc)
+
+
 def _release_single_slot_before_cold_load(cache: ComponentCache) -> None:
     """Release every resident entry before a cold load when the cache runs in single-slot mode.
 
@@ -579,6 +599,22 @@ def _release_single_slot_before_cold_load(cache: ComponentCache) -> None:
         # the cold load faults the replacement in (throttled and best-effort, no-op for pages the comfy
         # layer still holds).
         trim_host_after_component_release()
+        _release_device_cache_after_eviction()
+
+
+def _release_device_cache_after_eviction() -> None:
+    """Return the device memory of an evicted component to the driver.
+
+    An evicted entry may still hold weights on the device (a model retained across jobs is such an entry);
+    dropping the last reference frees them into torch's caching allocator, not to the card, and nothing on
+    the preload path empties that cache. Sibling processes then read the card as still full for as long as
+    this process idles, so a clearance that needed the room waits on it. Best-effort: a failure here only
+    means the memory returns at the next load's own free.
+    """
+    try:
+        comfy.model_management.soft_empty_cache()
+    except Exception as exc:
+        logger.debug("Device cache release after eviction failed: {}", exc)
 
 
 def _locate_vae_file(file_name: str) -> Path | None:

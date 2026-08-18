@@ -448,9 +448,15 @@ def _load_models_gpu_hijack(*args, **kwargs):
 def _model_patcher_load_hijack(*args, **kwargs):
     """Intercepts the comfy ModelPatcher.load function to force full load.
 
-    See _load_models_gpu_hijack for more information
+    See _load_models_gpu_hijack for more information. Before the load moves anything, the CPU tensors it is
+    about to replace are recorded so the matching unload can restore them instead of copying the weights
+    back from the device (see ``cpu_weight_retention``).
     """
     model_patcher = args[0]
+    from hordelib.execution.cpu_weight_retention import stash_cpu_origins
+
+    stash_cpu_origins(model_patcher.model)
+
     if _do_not_force_load_model_in_patcher(model_patcher):
         logger.debug("Not overriding model load")
         _originals["model_patcher_load"](*args, **kwargs)
@@ -461,6 +467,22 @@ def _model_patcher_load_hijack(*args, **kwargs):
 
     kwargs["full_load"] = True
     _originals["model_patcher_load"](*args, **kwargs)
+
+
+def _model_patcher_unpatch_model_hijack(model_patcher, device_to=None, unpatch_weights=True):
+    """Intercepts comfy ModelPatcher.unpatch_model to restore retained CPU weights instead of copying back.
+
+    Only an unload to the CPU offload device with weights being unpatched can restore; every other call is
+    passed through untouched. Keys the patcher backed up itself (LoRA-patched weights) are left for it.
+    """
+    if unpatch_weights and device_to is not None and getattr(device_to, "type", None) == "cpu":
+        from hordelib.execution.cpu_weight_retention import restore_cpu_origins
+
+        try:
+            restore_cpu_origins(model_patcher.model, skip_keys=set(model_patcher.backup.keys()))
+        except Exception as exc:
+            logger.warning("CPU weight restore skipped; falling back to the device copy-back: {}", exc)
+    return _originals["model_patcher_unpatch_model"](model_patcher, device_to, unpatch_weights)
 
 
 def _calculate_weight_hijack(*args, **kwargs):
@@ -603,6 +625,12 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
             "load",
             _model_patcher_load_hijack,
             _originals.get("model_patcher_load"),
+        ),
+        "model_patcher_unpatch_model": _MonkeyPatchBinding(
+            ModelPatcher,
+            "unpatch_model",
+            _model_patcher_unpatch_model_hijack,
+            _originals.get("model_patcher_unpatch_model"),
         ),
         "lora_calculate_weight": _MonkeyPatchBinding(
             comfy.lora,

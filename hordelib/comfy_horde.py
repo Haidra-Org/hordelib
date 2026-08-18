@@ -374,6 +374,12 @@ def do_comfy_import(
             "load",
             comfy_patches._model_patcher_load_hijack,
         )
+        comfy_patches.capture_and_patch(
+            "model_patcher_unpatch_model",
+            ModelPatcher,
+            "unpatch_model",
+            comfy_patches._model_patcher_unpatch_model_hijack,
+        )
 
         import comfy.lora
 
