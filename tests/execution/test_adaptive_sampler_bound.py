@@ -7,6 +7,13 @@ outside a full ``hordelib.initialise()``.
 
 import pytest
 import torch
+from horde_sdk.generation_parameters.image.consts import KNOWN_IMAGE_SAMPLERS
+from horde_sdk.generation_parameters.image.sampler_work import (
+    SamplerExecutionContractVersion,
+    SamplerWorkUnitCount,
+    TrajectoryStepCount,
+    maximum_sampler_work,
+)
 
 from hordelib.config_path import set_system_path
 from hordelib.execution.adaptive_sampler_bound import (
@@ -60,7 +67,8 @@ def test_iteration_bound_is_the_multiplier_rounded_up() -> None:
     assert iteration_bound_for(0) == 1
 
 
-def test_hostile_solver_terminates_at_the_bound_with_a_usable_tensor() -> None:
+@pytest.mark.parametrize("solver_order", [2, 3])
+def test_hostile_solver_terminates_at_the_sdk_bound_with_a_usable_tensor(solver_order: int) -> None:
     steps = 8
     noise = torch.randn(1, 4, 8, 8, generator=torch.Generator().manual_seed(1234))
     model = _StubDenoiser(hostile=True)
@@ -72,6 +80,7 @@ def test_hostile_solver_terminates_at_the_bound_with_a_usable_tensor() -> None:
         extra_args={"seed": 1234},
         callback=None,
         disable=True,
+        order=solver_order,
     )
 
     assert result.shape == noise.shape
@@ -86,6 +95,14 @@ def test_hostile_solver_terminates_at_the_bound_with_a_usable_tensor() -> None:
         iterations=iteration_bound_for(steps),
         capped=True,
     )
+    ceiling = maximum_sampler_work(
+        sampler=KNOWN_IMAGE_SAMPLERS.k_dpm_adaptive,
+        trajectory_steps=TrajectoryStepCount(steps),
+        execution_contract_version=SamplerExecutionContractVersion.V1,
+        adaptive_work_units_per_iteration=solver_order,
+    )
+    assert ceiling is not None
+    assert ceiling.work_units == SamplerWorkUnitCount(model.calls)
 
 
 def test_below_the_bound_matches_the_unpatched_sampler() -> None:

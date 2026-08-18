@@ -56,7 +56,7 @@ dependencies = [
     # hordelib.model_manager.compvis and the standalone-VAE path.
     "horde_model_reference>=7.6.0,<8.0.0",
     # 0.25.0 is the first release exposing ExtraTextEntry from horde_sdk.generation_parameters.image.
-    "horde-sdk>=0.25.0",
+    "horde-sdk>=0.29.0,<0.30.0",
     "kornia>=0.7.1",
     "logfire[system-metrics]==4.14.2",
     "loguru>=0.7.3",

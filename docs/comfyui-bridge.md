@@ -284,6 +284,10 @@ terminate, while the sample is already essentially converged.
 `ADAPTIVE_ITERATION_BUDGET_MULTIPLIER` (1.25) times the nominal step count and delivers the
 best-effort sample. Iterations past the schedule are tolerance polish with approximately no
 marginal quality, so a looser bound pays multiples of the advertised GPU cost for nothing.
+The multiplier is derived from the SDK policy, and `hordelib.api` exports
+`SAMPLER_EXECUTION_CONTRACT_VERSION` for bridges to place directly in their worker check-in. The
+contract version is fixed deliberately rather than following the SDK's latest version automatically:
+a dependency update must never claim backend behavior that hordelib has not implemented and tested.
 
 The seam is `comfy.samplers.ksampler` rather than `sample_dpm_adaptive`, because the factory is
 where the sampler function is built as a closure over the full `sigmas` tensor; the replacement
