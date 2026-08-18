@@ -26,11 +26,16 @@ re-exported through ``hordelib.api``, whose import must not drag torch into a co
 
 from __future__ import annotations
 
-import math
 import threading
 import typing
 from collections.abc import Callable
 
+from horde_sdk.generation_parameters.image.sampler_work import (
+    BOUNDED_DPM_ADAPTIVE_V1,
+    SamplerExecutionContractVersion,
+    TrajectoryStepCount,
+    maximum_adaptive_solver_iterations,
+)
 from loguru import logger
 from pydantic import BaseModel
 
@@ -40,7 +45,10 @@ if typing.TYPE_CHECKING:
 ADAPTIVE_SAMPLER_NAME: typing.Final[str] = "dpm_adaptive"
 """The ComfyUI sampler name whose iteration count is solver-chosen rather than schedule-chosen."""
 
-ADAPTIVE_ITERATION_BUDGET_MULTIPLIER: typing.Final[float] = 1.25
+ADAPTIVE_ITERATION_BUDGET_MULTIPLIER: typing.Final[float] = (
+    BOUNDED_DPM_ADAPTIVE_V1.iteration_multiplier_numerator
+    / BOUNDED_DPM_ADAPTIVE_V1.iteration_multiplier_denominator
+)
 """How many times the nominal step count the adaptive solver may iterate before it is stopped.
 
 Past the nominal schedule the solver is polishing against its error tolerance, which buys
@@ -52,6 +60,11 @@ case near the cost the schedule advertised. Adaptive runs that today settle arou
 nominal iteration count are truncated by this bound; that is the intent, as those iterations were
 buying polish rather than quality.
 """
+
+SAMPLER_EXECUTION_CONTRACT_VERSION: typing.Final[SamplerExecutionContractVersion] = (
+    SamplerExecutionContractVersion.V1
+)
+"""SDK sampler execution contract this backend guarantees on every render path."""
 
 SAMPLER_TRUNCATION_METADATA_KEY: typing.Final[str] = "sampler_truncation"
 """The ``OutputArtifact.metadata`` key carrying a :class:`SamplerTruncation` for a run."""
@@ -74,11 +87,18 @@ class SamplerTruncation(BaseModel):
     """
     capped: bool = True
     """Always true on a recorded truncation; present so consumers can branch on the flag."""
+    execution_contract_version: SamplerExecutionContractVersion = SAMPLER_EXECUTION_CONTRACT_VERSION
+    """The SDK execution contract whose adaptive bound produced this truncation."""
 
 
 def iteration_bound_for(nominal_steps: int) -> int:
     """Return the maximum solver iterations allowed for a schedule of *nominal_steps* steps."""
-    return max(1, math.ceil(ADAPTIVE_ITERATION_BUDGET_MULTIPLIER * nominal_steps))
+    if nominal_steps < 1:
+        return 1
+    return maximum_adaptive_solver_iterations(
+        trajectory_steps=TrajectoryStepCount(nominal_steps),
+        execution_policy=BOUNDED_DPM_ADAPTIVE_V1,
+    )
 
 
 class _IterationCapReached(Exception):

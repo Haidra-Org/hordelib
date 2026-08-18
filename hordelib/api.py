@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from hordelib import initialise, is_initialised
 from hordelib.execution.adaptive_sampler_bound import (
     ADAPTIVE_ITERATION_BUDGET_MULTIPLIER,
+    SAMPLER_EXECUTION_CONTRACT_VERSION,
     SamplerTruncation,
 )
 from hordelib.execution.component_cache import (
@@ -173,6 +174,7 @@ __all__ = [
     "SamplerTruncation",
     "SamplingLease",
     "SamplingStats",
+    "SAMPLER_EXECUTION_CONTRACT_VERSION",
     "SharedModelManager",
     "StripBackgroundPayload",
     "UpscalePayload",
