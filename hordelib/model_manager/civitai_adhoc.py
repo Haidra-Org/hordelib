@@ -94,6 +94,10 @@ Age-gating the prune reclaims leaked disk without ever deleting an in-flight wri
 """
 
 DOWNLOAD_CHUNK_SIZE = 1024 * 1024
+
+SLOW_METADATA_FETCH_SECONDS = 2.0
+"""A CivitAI metadata request slower than this is logged, so a fetch that dominates a job's LoRA wait is
+attributable to the API round trip rather than the weight transfer."""
 """Bytes pulled from the network per streamed read of a weight download.
 
 A weight file is transferred a chunk at a time rather than buffered whole in process memory (one LoRA
@@ -230,6 +234,8 @@ class _QueuedDownload[R]:
     A worker thread abandons an in-flight or queued download once the manager's current generation has
     moved past the value stamped here (see :meth:`CivitaiAdhocModelManager.cancel_active_downloads`),
     so a caller that has given up on a job can free the shared pool without killing its threads."""
+    enqueued_at: float = field(default_factory=time.perf_counter)
+    """When the item joined the queue, so a completed download can report how long it waited for a thread."""
     progress_callback: Callable[[int, int], None] | None = None
     """Optional per-chunk progress hook invoked as ``(downloaded_bytes, total_bytes)``.
 
@@ -668,7 +674,10 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 response = requests.get(url, timeout=timeout)
                 response.raise_for_status()
                 result = response.json()
-                self._metric_metadata_duration.record((time.perf_counter() - start_time) * 1000)
+                elapsed = time.perf_counter() - start_time
+                self._metric_metadata_duration.record(elapsed * 1000)
+                if elapsed >= SLOW_METADATA_FETCH_SECONDS:
+                    fetch_logger.info("adhoc.metadata_fetch_slow", url=truncated_url, seconds=round(elapsed, 1))
                 return result
             except (
                 requests.HTTPError,
@@ -1041,7 +1050,17 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 )
                 self._evict_adhoc_over_limit()
                 self.save_reference_to_disk()
-                download_logger.info("adhoc.download_success", filename=target.filename)
+                elapsed = max(time.perf_counter() - download_start, 1e-6)
+                download_logger.info(
+                    "adhoc.download_success",
+                    filename=target.filename,
+                    size_mb=round(downloaded_bytes / (1024 * 1024), 1),
+                    seconds=round(elapsed, 1),
+                    mb_per_s=round(downloaded_bytes / (1024 * 1024) / elapsed, 1),
+                    segmented=segmented is not None,
+                    queue_wait_seconds=round(overall_start - queued.enqueued_at, 1),
+                    setup_seconds=round(download_start - overall_start, 1),
+                )
                 return True
             except _DownloadCancelled:
                 download_logger.info("adhoc.download_cancelled", retries=retries)

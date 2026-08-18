@@ -194,6 +194,7 @@ def _resolve_loras(
     Mutates ``payload.prompt`` and replaces ``payload.loras`` with the valid entries
     (faithful port of the legacy LoRA loop in ``_final_pipeline_adjustments``).
     """
+    from hordelib.model_manager.civitai_adhoc import ReadOnlyModelManagerError
     from hordelib.shared_model_manager import SharedModelManager
 
     faults: list[GenMetadataEntry] = []
@@ -226,6 +227,18 @@ def _resolve_loras(
                     is_version=is_version,
                     job_context=job_context,
                 )
+            except ReadOnlyModelManagerError:
+                # This process only resolves files another process fetches; a file that is not present by
+                # now was not delivered in time, so the job runs without it and says so in its metadata.
+                logger.info(
+                    "Adhoc lora{} '{}' is not on disk and this process does not download; skipping it.",
+                    verstext,
+                    lora.name,
+                )
+                faults.append(
+                    GenMetadataEntry(type=METADATA_TYPE.lora, value=METADATA_VALUE.download_failed, ref=lora.name),
+                )
+                continue
             except Exception:
                 logger.bind(lora_name=lora.name).exception("Error fetching adhoc lora")
                 faults.append(
