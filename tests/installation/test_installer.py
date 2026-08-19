@@ -84,6 +84,52 @@ class TestEnsureComfyui:
         assert (root / "file.txt").read_text() == "two\n"
 
 
+class TestStagedClone:
+    """A clone is staged beside the target and renamed into place only once complete.
+
+    The install locks are advisory and some filesystems ignore them; the rename is what guarantees a
+    concurrent installer never sees (and never sweeps aside) a half-written tree under the final name.
+    """
+
+    def test_no_staging_directory_survives_a_successful_clone(self, tmp_path: Path, fake_upstream):
+        upstream, first_sha, _second_sha = fake_upstream
+        target = tmp_path / "ComfyUI"
+
+        installer_module._clone_at_ref(str(upstream), first_sha, target)
+
+        assert _git(["rev-parse", "HEAD"], target) == first_sha
+        assert list(tmp_path.glob(".ComfyUI.staging-*")) == []
+
+    def test_target_completed_by_another_installer_is_kept(self, tmp_path: Path, fake_upstream):
+        """A loser whose rename finds the target already present keeps the winner's checkout."""
+        upstream, first_sha, _second_sha = fake_upstream
+        target = tmp_path / "ComfyUI"
+        installer_module._clone_at_ref(str(upstream), first_sha, target)
+
+        # A second clone of the same target must neither raise nor disturb the existing checkout.
+        installer_module._clone_at_ref(str(upstream), first_sha, target)
+
+        assert _git(["rev-parse", "HEAD"], target) == first_sha
+        assert list(tmp_path.glob(".ComfyUI.staging-*")) == []
+
+    def test_dead_staging_directory_is_swept_and_a_live_one_kept(self, tmp_path: Path, fake_upstream):
+        """Only staging directories untouched past the lock timeout are removed; younger ones may
+        belong to a live installer whose lock this process cannot observe."""
+        upstream, first_sha, _second_sha = fake_upstream
+        target = tmp_path / "ComfyUI"
+        dead = tmp_path / ".ComfyUI.staging-999-deadbeef"
+        dead.mkdir()
+        expired = time.time() - installer_module.LOCK_TIMEOUT_SECONDS - 60
+        os.utime(dead, (expired, expired))
+        live = tmp_path / ".ComfyUI.staging-998-cafecafe"
+        live.mkdir()
+
+        installer_module._clone_at_ref(str(upstream), first_sha, target)
+
+        assert not dead.exists()
+        assert live.exists()
+
+
 def _run_children(script_source: str, tmp_path: Path, arguments: list[str]) -> None:
     """Start two children on ``script_source``, release them together, and require clean exits."""
     child_script = tmp_path / "child.py"

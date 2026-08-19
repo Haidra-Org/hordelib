@@ -4,6 +4,8 @@ import enum
 import hashlib
 import json
 import os
+import shutil
+import stat
 import subprocess
 import time
 import uuid
@@ -92,11 +94,72 @@ def _head_commit(repo_path: Path) -> str | None:
         return None
 
 
+def _remove_tree_best_effort(path: Path) -> None:
+    """Recursively delete ``path``, clearing the read-only flag git sets on object files on Windows.
+
+    Failures are swallowed: every caller is discarding a staging directory whose survival is only
+    cosmetic, and must not turn a completed install into an error.
+    """
+
+    def _clear_readonly_and_retry(func: object, failed_path: str, _exc_info: object) -> None:
+        try:
+            os.chmod(failed_path, stat.S_IWRITE)
+            func(failed_path)  # type: ignore[operator]
+        except OSError:
+            pass
+
+    shutil.rmtree(path, onexc=_clear_readonly_and_retry)
+
+
 def _clone_at_ref(repo_url: str, ref: str, target: Path) -> None:
+    """Clone ``repo_url`` at ``ref`` so a finished checkout appears at ``target`` all at once.
+
+    The clone lands in a process-unique staging directory beside the target and is renamed into
+    place only once the checkout is complete. The install locks serialise installers where the
+    filesystem honours them, but they are advisory: on filesystems that ignore them (network and
+    FUSE-backed mounts among others) concurrent installers otherwise clone into one directory and
+    sweep each other's half-written trees aside mid-clone. With the rename, a partial tree is never
+    visible under the final name: a concurrent installer sees either nothing or a complete clone,
+    and if another installer finishes the same target first, its clone stands and the caller's HEAD
+    verification judges it.
+    """
     target.parent.mkdir(parents=True, exist_ok=True)
+    _remove_dead_staging_dirs(target)
+    staging = target.parent / f".{target.name}.staging-{os.getpid()}-{uuid.uuid4().hex[:8]}"
     logger.info("Cloning repository: url={}, target={}", repo_url, target)
-    _run_git(["clone", repo_url, target.name], target.parent)
-    _run_git(["checkout", "--force", ref], target)
+    try:
+        _run_git(["clone", repo_url, staging.name], target.parent)
+        _run_git(["checkout", "--force", ref], staging)
+        try:
+            staging.rename(target)
+        except OSError:
+            if not target.exists():
+                raise
+            logger.info(
+                "Target appeared while cloning (another installer finished it first); "
+                "keeping the existing checkout: target={}",
+                target,
+            )
+    finally:
+        if staging.exists():
+            _remove_tree_best_effort(staging)
+
+
+def _remove_dead_staging_dirs(target: Path) -> None:
+    """Delete staging directories for ``target`` whose owning installer is certainly gone.
+
+    A killed installer leaves its staging directory behind. Only directories untouched for longer
+    than the lock timeout are removed: a younger one may belong to a live installer this process
+    cannot see holding the lock (the same advisory-lock caveat that motivates staging in the first
+    place), and deleting it would recreate the mid-clone sweep the staging scheme exists to prevent.
+    """
+    cutoff = time.time() - LOCK_TIMEOUT_SECONDS
+    for stale in target.parent.glob(f".{target.name}.staging-*"):
+        try:
+            if stale.is_dir() and stale.stat().st_mtime < cutoff:
+                _remove_tree_best_effort(stale)
+        except OSError:
+            continue
 
 
 def _target_lock(target: Path) -> FileLock:
