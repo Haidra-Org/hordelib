@@ -24,6 +24,7 @@ from hordelib.pipeline.constants import (
 )
 from hordelib.pipeline.context import ModelContext
 from hordelib.pipeline.families.image_gen.baselines import align_your_steps_model_type
+from hordelib.pipeline.families.image_gen.features import IMG2IMG_MASK
 from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.utils.image_utils import ImageUtils
 
@@ -271,6 +272,21 @@ def apply_model_compat(
     payload.hires_fix = False
 
     return payload, faults
+
+
+def disable_hires_fix_for_masked_img2img(payload: ImageGenPayload) -> ImageGenPayload:
+    """Disable hires fix when img2img carries a mask (explicit, or an alpha channel acting as one).
+
+    The masked img2img graph is single-pass, so the hires-fix first-pass shrink would become the
+    final output size. Masked payloads with a controlnet keep hires fix: the controlnet hires
+    graph has a real second pass. Must run before :func:`resize_sources_to_request`, which merges
+    the mask into the source alpha channel and makes every masked payload look alpha-masked.
+    """
+    if not payload.hires_fix or payload.control_type or not IMG2IMG_MASK.is_set(payload):
+        return payload
+    payload = payload.model_copy(deep=False)
+    payload.hires_fix = False
+    return payload
 
 
 def resize_sources_to_request(payload: ImageGenPayload) -> ImageGenPayload:

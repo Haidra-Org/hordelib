@@ -263,9 +263,14 @@ class HordeLib:
         tuple[OutputSpec, ...],
     ]:
         """The shared typed tail of the pipeline flow: resize -> resolve -> select -> materialize."""
-        from hordelib.pipeline.horde_compat import enforce_schedule_constraints, resize_sources_to_request
+        from hordelib.pipeline.horde_compat import (
+            disable_hires_fix_for_masked_img2img,
+            enforce_schedule_constraints,
+            resize_sources_to_request,
+        )
         from hordelib.pipeline.resolution import resolve_image_generation
 
+        typed = disable_hires_fix_for_masked_img2img(typed)
         typed = resize_sources_to_request(typed)
         typed, context, resolution_faults = resolve_image_generation(typed, context)
         typed, schedule_faults = enforce_schedule_constraints(typed)
@@ -1002,13 +1007,18 @@ class HordeLib:
             RuntimeError: If the model cannot be resolved (unknown to the reference or
                 missing from disk).
         """
-        from hordelib.pipeline.horde_compat import apply_model_compat, resize_sources_to_request
+        from hordelib.pipeline.horde_compat import (
+            apply_model_compat,
+            disable_hires_fix_for_masked_img2img,
+            resize_sources_to_request,
+        )
         from hordelib.pipeline.resolution import resolve_image_generation, resolve_image_model
         from hordelib.pipeline.sdk_adapter import to_image_gen_payload
 
         typed, _conversion_faults = to_image_gen_payload(params)
         context = resolve_image_model(typed.model)
         typed, _compat_faults = apply_model_compat(typed, context)
+        typed = disable_hires_fix_for_masked_img2img(typed)
         typed = resize_sources_to_request(typed)
         typed, context, _resolution_faults = resolve_image_generation(typed, context)
 
