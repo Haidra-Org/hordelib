@@ -56,7 +56,7 @@ dependencies = [
     # hordelib.model_manager.compvis and the standalone-VAE path.
     "horde_model_reference>=7.6.0,<8.0.0",
     # 0.25.0 is the first release exposing ExtraTextEntry from horde_sdk.generation_parameters.image.
-    "horde-sdk>=0.29.0,<0.30.0",
+    "horde-sdk>=0.29.3,<0.30.0",
     "kornia>=0.7.1",
     "logfire[system-metrics]==4.14.2",
     "loguru>=0.7.3",
@@ -139,9 +139,9 @@ cu132 = ["torch", "torchvision"]
 cpu = ["torch", "torchvision"]
 
 # --- Feature extras ----------------------------------------------------------------------------
-# These gate heavy/optional features out of the lean base so a base install stays close to ComfyUI's 
-# own dependency set. They are NOT in the [tool.uv] conflicts set, so any one torch-build extra above 
-# may be combined with any of these. The worker installs a feature extra in the dedicated capability 
+# These gate heavy/optional features out of the lean base so a base install stays close to ComfyUI's
+# own dependency set. They are NOT in the [tool.uv] conflicts set, so any one torch-build extra above
+# may be combined with any of these. The worker installs a feature extra in the dedicated capability
 # process that offers that feature (off by default unless configured).
 #
 # A call site that needs one of these guards its import via hordelib.utils.optional_deps so a missing
