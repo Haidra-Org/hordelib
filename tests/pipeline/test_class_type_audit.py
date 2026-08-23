@@ -27,6 +27,7 @@ COMFYUI_BUILTIN_NODES = {
     "EmptyLatentImage",
     "EmptySD3LatentImage",
     "GrowMask",
+    "ImageBlend",
     "ImageBlur",
     "ImageCompositeMasked",
     "ImageScale",

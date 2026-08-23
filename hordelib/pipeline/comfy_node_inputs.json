@@ -199,6 +199,15 @@
     ],
     "optional": []
   },
+  "ImageBlend": {
+    "required": [
+      "image1",
+      "image2",
+      "blend_factor",
+      "blend_mode"
+    ],
+    "optional": []
+  },
   "ImageBlur": {
     "required": [
       "image",

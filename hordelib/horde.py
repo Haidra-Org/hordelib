@@ -794,13 +794,14 @@ class HordeLib:
                                     strength=payload.get("facefixer_strength", 1.0),
                                     image_index=img_idx,
                                 ):
-                                    # facefixer_strength is deliberately not forwarded: the
-                                    # legacy mapping never wired it to codeformer_fidelity, so
-                                    # honoring it would change existing job output.
+                                    # facefixer_strength blends the restored image back over the
+                                    # pre-fix one; absent, it is 1.0 (full restoration), which is
+                                    # what the graph produced before the knob was honored.
                                     image_ret = self.post_process(
                                         FacefixPayload(
                                             model=post_processing,
                                             source_image=final_image,
+                                            strength=payload.get("facefixer_strength", 1.0),
                                         ),
                                     )
                                     single_image_faults += image_ret.faults
@@ -1120,14 +1121,15 @@ class HordeLib:
     def image_facefix(self, payload: dict) -> ResultingImageReturn:
         """Fix faces in an image (legacy dict surface; prefer :meth:`post_process`).
 
-        ``facefixer_strength`` in the dict is ignored, as it always has been: the legacy
-        parameter mapping never wired it to the graph's ``codeformer_fidelity`` input. Typed
-        callers can set :attr:`FacefixPayload.fidelity` explicitly.
+        ``facefixer_strength`` blends the restored image back over the input (1.0, the default when
+        absent, is full restoration). CodeFormer's ``codeformer_fidelity`` is a separate knob with
+        different meaning; typed callers set it through :attr:`FacefixPayload.fidelity`.
         """
         logger.debug("image_facefix called")
         return self.post_process(
             FacefixPayload(
                 model=payload["model"],
                 source_image=payload["source_image"],
+                strength=payload.get("facefixer_strength", 1.0),
             ),
         )

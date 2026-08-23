@@ -61,7 +61,15 @@ class FacefixPayload(_PostProcessingPayloadBase):
 
     model: str
     fidelity: float = 0.5
-    """CodeFormer fidelity weight (0 = strongest restoration, 1 = closest to input)."""
+    """CodeFormer fidelity weight (0 = strongest restoration, 1 = closest to input).
+
+    This is CodeFormer-specific and unrelated to :attr:`strength`: it steers the restoration
+    itself (identity versus quality) and GFPGAN's architecture ignores it entirely."""
+    strength: float = 1.0
+    """How much of the restored image is blended back over the input (1 = fully restored, 0 = untouched).
+
+    Fixer-agnostic by construction: the blend happens in image space after the restorer runs, so it
+    means the same thing for GFPGAN (which has no strength input of its own) and CodeFormers."""
 
     @field_validator("fidelity", mode="before")
     @classmethod
@@ -70,6 +78,15 @@ class FacefixPayload(_PostProcessingPayloadBase):
             value = float(value)
         except (TypeError, ValueError):
             return 0.5
+        return min(max(value, 0.0), 1.0)
+
+    @field_validator("strength", mode="before")
+    @classmethod
+    def _clamp_strength(cls, value: Any) -> float:
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return 1.0
         return min(max(value, 0.0), 1.0)
 
 
@@ -90,10 +107,10 @@ def post_processing_payload_from_horde_dict(data: dict[str, Any]) -> PostProcess
     ``model``, ``source_image``, and (for upscales) optional ``width``/``height`` meaning
     "shrink the result back to this size".
 
-    Note: ``facefixer_strength`` is deliberately *not* mapped onto ``FacefixPayload.fidelity``
-    — the legacy path silently ignored it (the graph's hardcoded 0.5 always applied), and
-    honoring it here would change output images for existing callers. Typed callers can set
-    ``fidelity`` explicitly.
+    ``facefixer_strength`` maps onto ``FacefixPayload.strength`` (the blend of the restored image
+    over the input), not onto ``fidelity``: fidelity is CodeFormer's identity/quality tradeoff and
+    means nothing to GFPGAN. Absent, strength defaults to 1.0, which is full restoration and leaves
+    output identical to a request that never named the knob.
     """
     model = data.get("model")
     if not isinstance(model, str):
@@ -113,7 +130,11 @@ def post_processing_payload_from_horde_dict(data: dict[str, Any]) -> PostProcess
                 rescale_height=data.get("height"),
             )
         case PostProcessorKind.facefixer:
-            return FacefixPayload(model=model, source_image=source_image)
+            return FacefixPayload(
+                model=model,
+                source_image=source_image,
+                strength=data.get("facefixer_strength", 1.0),
+            )
         case PostProcessorKind.strip_background:
             return StripBackgroundPayload(source_image=source_image)
         case _:

@@ -66,6 +66,11 @@ IMAGE_FACEFIX_DEFINITION: PostProcessingDefinition = PipelineDefinition(
     bindings=(
         *node("image_loader", "HordeImageLoader").bind(image="source_image"),
         *node("face_restore_with_model", "FaceRestoreCFWithModel").bind(codeformer_fidelity="fidelity"),
+        # The restorer replaces every detected face outright, so requested strength is honored as a
+        # blend of its output back over the untouched input: at 1.0 the blend returns the restored
+        # image bit-for-bit, at 0.0 the original. Doing it in the graph keeps one image encode and
+        # works for GFPGAN too, whose architecture takes no strength of its own.
+        *node("facefix_blend", "ImageBlend").bind(blend_factor="strength"),
     ),
     outputs=(OutputSpec(node="output_image"),),
     patch_steps=(_apply_model_file,),

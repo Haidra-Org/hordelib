@@ -13,7 +13,7 @@
     "inputs": {
       "filename_prefix": "ComfyUI",
       "images": [
-        "11",
+        "12",
         0
       ]
     },
@@ -47,6 +47,24 @@
     "class_type": "FaceRestoreCFWithModel",
     "_meta": {
       "title": "face_restore_with_model"
+    }
+  },
+  "12": {
+    "inputs": {
+      "blend_factor": 1,
+      "blend_mode": "normal",
+      "image1": [
+        "1",
+        0
+      ],
+      "image2": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "ImageBlend",
+    "_meta": {
+      "title": "facefix_blend"
     }
   }
 }

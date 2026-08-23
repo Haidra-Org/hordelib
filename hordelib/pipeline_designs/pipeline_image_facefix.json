@@ -1,6 +1,6 @@
 {
-  "last_node_id": 11,
-  "last_link_id": 14,
+  "last_node_id": 12,
+  "last_link_id": 16,
   "nodes": [
     {
       "id": 6,
@@ -14,13 +14,13 @@
         "1": 416.33331298828125
       },
       "flags": {},
-      "order": 3,
+      "order": 4,
       "mode": 0,
       "inputs": [
         {
           "name": "images",
           "type": "IMAGE",
-          "link": 14
+          "link": 16
         }
       ],
       "title": "output_image",
@@ -81,7 +81,8 @@
           "name": "IMAGE",
           "type": "IMAGE",
           "links": [
-            13
+            13,
+            15
           ],
           "slot_index": 0
         },
@@ -145,6 +146,52 @@
         "retinaface_resnet50",
         0.5
       ]
+    },
+    {
+      "id": 12,
+      "type": "ImageBlend",
+      "pos": [
+        397,
+        331
+      ],
+      "size": {
+        "0": 315,
+        "1": 102
+      },
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "type": "IMAGE",
+          "link": 15
+        },
+        {
+          "name": "image2",
+          "type": "IMAGE",
+          "link": 14
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            16
+          ],
+          "shape": 3,
+          "slot_index": 0
+        }
+      ],
+      "title": "facefix_blend",
+      "properties": {
+        "Node name for S&R": "ImageBlend"
+      },
+      "widgets_values": [
+        1,
+        "normal"
+      ]
     }
   ],
   "links": [
@@ -167,6 +214,22 @@
     [
       14,
       11,
+      0,
+      12,
+      1,
+      "IMAGE"
+    ],
+    [
+      15,
+      1,
+      0,
+      12,
+      0,
+      "IMAGE"
+    ],
+    [
+      16,
+      12,
       0,
       6,
       0,

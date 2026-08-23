@@ -52,14 +52,22 @@ class TestPayloadFromDict:
         assert payload.rescale_width == 320
         assert payload.rescale_height == 256
 
-    def test_facefix_ignores_facefixer_strength(self, source_image: Image.Image) -> None:
-        # The legacy path never wired facefixer_strength to the graph; the dict surface
-        # preserves that so existing callers keep getting identical images.
+    def test_facefix_strength_maps_to_blend_not_fidelity(self, source_image: Image.Image) -> None:
+        # facefixer_strength is the blend of the restored image over the input; CodeFormer's
+        # fidelity is a different knob and is left at its default.
         payload = post_processing_payload_from_horde_dict(
             {"model": "CodeFormers", "source_image": source_image, "facefixer_strength": 0.9},
         )
         assert isinstance(payload, FacefixPayload)
+        assert payload.strength == 0.9
         assert payload.fidelity == 0.5
+
+    def test_facefix_strength_defaults_to_full_restoration(self, source_image: Image.Image) -> None:
+        payload = post_processing_payload_from_horde_dict(
+            {"model": "GFPGAN", "source_image": source_image},
+        )
+        assert isinstance(payload, FacefixPayload)
+        assert payload.strength == 1.0
 
     def test_strip_background(self, source_image: Image.Image) -> None:
         payload = post_processing_payload_from_horde_dict(
@@ -85,6 +93,16 @@ class TestFidelityClamping:
         assert (
             FacefixPayload(model="CodeFormers", source_image=source_image, fidelity="bogus").fidelity == 0.5  # type: ignore[arg-type]
         )
+
+
+class TestStrengthClamping:
+    def test_clamps_out_of_range(self, source_image: Image.Image) -> None:
+        assert FacefixPayload(model="GFPGAN", source_image=source_image, strength=2.0).strength == 1.0
+        assert FacefixPayload(model="GFPGAN", source_image=source_image, strength=-1).strength == 0.0
+
+    def test_coerces_garbage_to_full_restoration(self, source_image: Image.Image) -> None:
+        assert FacefixPayload(model="GFPGAN", source_image=source_image, strength="bogus").strength == 1.0  # type: ignore[arg-type]
+        assert FacefixPayload(model="GFPGAN", source_image=source_image, strength=None).strength == 1.0  # type: ignore[arg-type]
 
 
 class TestRegistrySelection:
@@ -130,6 +148,23 @@ class TestMaterialization:
         assert model_loader["inputs"]["model_name"] == "codeformer.pth"
         restore = next(n for n in graph.values() if n["_meta"]["title"] == "face_restore_with_model")
         assert restore["inputs"]["codeformer_fidelity"] == 0.7
+
+    def test_facefix_graph_binds_strength_to_blend(self, source_image: Image.Image) -> None:
+        payload = FacefixPayload(model="GFPGAN", source_image=source_image, strength=0.25)
+        context = PostProcessingContext(model_name="GFPGAN", model_file="GFPGANv1.4.pth")
+        graph = IMAGE_FACEFIX_DEFINITION.materialize(payload, context).to_api_dict()
+
+        blend = next(n for n in graph.values() if n["_meta"]["title"] == "facefix_blend")
+        assert blend["inputs"]["blend_factor"] == 0.25
+        assert blend["inputs"]["blend_mode"] == "normal"
+
+    def test_default_strength_is_full_restoration(self, source_image: Image.Image) -> None:
+        # An unset facefixer_strength must leave the blend a pass-through of the restored image.
+        payload = FacefixPayload(model="GFPGAN", source_image=source_image)
+        context = PostProcessingContext(model_name="GFPGAN", model_file="GFPGANv1.4.pth")
+        graph = IMAGE_FACEFIX_DEFINITION.materialize(payload, context).to_api_dict()
+        blend = next(n for n in graph.values() if n["_meta"]["title"] == "facefix_blend")
+        assert blend["inputs"]["blend_factor"] == 1.0
 
     def test_default_fidelity_matches_legacy_graph_value(self, source_image: Image.Image) -> None:
         # The packaged graph hardcodes 0.5; the payload default must reproduce it exactly so
