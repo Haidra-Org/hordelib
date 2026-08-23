@@ -1,22 +1,23 @@
 repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v6.0.0
     hooks:
     -   id: check-yaml
     -   id: end-of-file-fixer
     -   id: trailing-whitespace
 -   repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.1
+    rev: v0.16.4
     hooks:
     -    id: ruff
     -    id: ruff-format
 -   repo: https://github.com/pre-commit/mirrors-mypy
-    rev: 'v1.10.0'
+    rev: 'v2.3.1'
     hooks:
     -   id: mypy
         exclude: ^examples/.*$ # FIXME
         additional_dependencies: [
-            pydantic,
+            pydantic~=2.0,
+            pydantic-settings~=2.0,
             strenum,
             types-colorama,
             types-docutils,
@@ -30,6 +31,6 @@ repos:
             types-tabulate,
             types-tqdm,
             types-urllib3,
-            horde_sdk==0.14.3,
-            horde_model_reference==0.9.0,
+            horde_sdk==0.29.3,
+            horde_model_reference==7.6.1,
         ]

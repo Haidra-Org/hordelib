@@ -165,25 +165,25 @@ def get_device_stats(index: int = 0) -> NvmlDeviceStats | None:
         return None
 
     temperature_sensor = getattr(pynvml, "NVML_TEMPERATURE_GPU", 0)
-    power_milliwatts = _best_effort_int(lambda: pynvml.nvmlDeviceGetPowerUsage(handle), field="power", index=index)
+    power_milliwatts = _best_effort_int(lambda: pynvml.nvmlDeviceGetPowerUsage(handle), field="power", index=index)  # type: ignore[attr-defined]
     return NvmlDeviceStats(
         name=_device_name(pynvml, handle),
         memory=memory,
         utilization_gpu_percent=get_device_utilization_percent(index) or 0,
         temperature_celsius=_best_effort_int(
-            lambda: pynvml.nvmlDeviceGetTemperature(handle, temperature_sensor),
+            lambda: pynvml.nvmlDeviceGetTemperature(handle, temperature_sensor),  # type: ignore[attr-defined]
             field="temperature",
             index=index,
         ),
         power_watts=round(power_milliwatts / 1000),
-        fan_speed_percent=_best_effort_int(lambda: pynvml.nvmlDeviceGetFanSpeed(handle), field="fan", index=index),
+        fan_speed_percent=_best_effort_int(lambda: pynvml.nvmlDeviceGetFanSpeed(handle), field="fan", index=index),  # type: ignore[attr-defined]
         pcie_link_generation=_best_effort_int(
-            lambda: pynvml.nvmlDeviceGetCurrPcieLinkGeneration(handle),
+            lambda: pynvml.nvmlDeviceGetCurrPcieLinkGeneration(handle),  # type: ignore[attr-defined]
             field="pcie_gen",
             index=index,
         ),
         pcie_link_width=_best_effort_int(
-            lambda: pynvml.nvmlDeviceGetCurrPcieLinkWidth(handle),
+            lambda: pynvml.nvmlDeviceGetCurrPcieLinkWidth(handle),  # type: ignore[attr-defined]
             field="pcie_width",
             index=index,
         ),

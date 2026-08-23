@@ -310,7 +310,12 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         return True  # FIXME: baseline matching disabled pending normalised baseline data.
 
     @override
-    def _parse_civitai_item(
+    def _parse_civitai_item(self, item: dict, *, adhoc: bool = False) -> HordeLoraModelRecord | None:
+        """Return a validated :class:`HordeLoraModelRecord` for a CivitAI item, or ``None`` if rejected."""
+        record, _ = self._parse_civitai_item_with_reason(item, adhoc=adhoc)
+        return record
+
+    def _parse_civitai_item_with_reason(
         self,
         item: dict,
         *,
@@ -319,7 +324,7 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         HordeLoraModelRecord | None,
         LoRaRejectionReason | None,
     ]:
-        """Return a single-version :class:`HordeLoraModelRecord` for a CivitAI item, or ``None``."""
+        """Return a single-version :class:`HordeLoraModelRecord` (plus rejection reason) for a CivitAI item."""
         parse_logger = logger.bind(manager="lora", adhoc=adhoc)
         version_data: dict[Any, Any] = {}
         if "modelId" in item:
@@ -610,7 +615,7 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             logger.bind(manager="lora").warning("lora.queue_metadata_missing", requested_ids=lora_ids)
             return
         for item in data.get("items", []):
-            record, rejection_reason = self._parse_civitai_item(item, adhoc=adhoc)
+            record, rejection_reason = self._parse_civitai_item_with_reason(item, adhoc=adhoc)
             if not record:
                 continue
             if self._is_already_available(record):
@@ -666,9 +671,9 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         if "items" in data:
             if len(data["items"]) == 0:
                 raise he.ModelEmpty("Lora appears empty")
-            record, rejection_reason = self._parse_civitai_item(data["items"][0], adhoc=True)
+            record, rejection_reason = self._parse_civitai_item_with_reason(data["items"][0], adhoc=True)
         else:
-            record, rejection_reason = self._parse_civitai_item(data, adhoc=True)
+            record, rejection_reason = self._parse_civitai_item_with_reason(data, adhoc=True)
         if not record:
             record = None
         return record, rejection_reason

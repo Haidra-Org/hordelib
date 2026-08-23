@@ -111,7 +111,7 @@ def build_pending_provider(
         primary_api_url=primary_api_url,
         apikey=apikey,
         categories=categories,
-        **overrides,
+        **overrides,  # type: ignore[arg-type]  # working around this is a pain, and the overrides are trivial anyway
     )
 
 

@@ -46,8 +46,7 @@ ADAPTIVE_SAMPLER_NAME: typing.Final[str] = "dpm_adaptive"
 """The ComfyUI sampler name whose iteration count is solver-chosen rather than schedule-chosen."""
 
 ADAPTIVE_ITERATION_BUDGET_MULTIPLIER: typing.Final[float] = (
-    BOUNDED_DPM_ADAPTIVE_V1.iteration_multiplier_numerator
-    / BOUNDED_DPM_ADAPTIVE_V1.iteration_multiplier_denominator
+    BOUNDED_DPM_ADAPTIVE_V1.iteration_multiplier_numerator / BOUNDED_DPM_ADAPTIVE_V1.iteration_multiplier_denominator
 )
 """How many times the nominal step count the adaptive solver may iterate before it is stopped.
 
@@ -61,9 +60,7 @@ nominal iteration count are truncated by this bound; that is the intent, as thos
 buying polish rather than quality.
 """
 
-SAMPLER_EXECUTION_CONTRACT_VERSION: typing.Final[SamplerExecutionContractVersion] = (
-    SamplerExecutionContractVersion.V1
-)
+SAMPLER_EXECUTION_CONTRACT_VERSION: typing.Final[SamplerExecutionContractVersion] = SamplerExecutionContractVersion.V1
 """SDK sampler execution contract this backend guarantees on every render path."""
 
 SAMPLER_TRUNCATION_METADATA_KEY: typing.Final[str] = "sampler_truncation"

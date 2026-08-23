@@ -44,12 +44,35 @@ class _AnnotatorFileLike(Protocol):
     :func:`_prefetch_annotator_files`).
     """
 
-    repo: str
-    subfolder: str
-    filename: str
-    sha256: str | None
-    preprocessors: tuple[str, ...]
-    control_types: tuple[str, ...]
+    @property
+    def repo(self) -> str:
+        """The HuggingFace repo id the file lives in (e.g. ``lllyasviel/Annotators``)."""
+        ...
+
+    @property
+    def subfolder(self) -> str:
+        """The subfolder within the repo, if any."""
+        ...
+
+    @property
+    def filename(self) -> str:
+        """The file name within the repo (and ``subfolder``)."""
+        ...
+
+    @property
+    def sha256(self) -> str | None:
+        """The file's sha256, or None until the upload tool backfills it."""
+        ...
+
+    @property
+    def preprocessors(self) -> tuple[str, ...]:
+        """The ``comfyui_controlnet_aux`` node class(es) that load this file."""
+        ...
+
+    @property
+    def control_types(self) -> tuple[str, ...]:
+        """The horde control type(s) this file serves."""
+        ...
 
     @property
     def relative_path(self) -> str:
