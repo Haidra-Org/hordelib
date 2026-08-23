@@ -8,6 +8,8 @@ is stubbed and the recording bracket is driven directly.
 import io
 from typing import Any
 
+from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
+
 from hordelib.execution.adaptive_sampler_bound import (
     SAMPLER_TRUNCATION_METADATA_KEY,
     SamplerTruncation,
@@ -17,6 +19,8 @@ from hordelib.execution.adaptive_sampler_bound import (
 from hordelib.execution.in_process import InProcessComfyBackend
 from hordelib.execution.interface import OutputArtifact, OutputKind, OutputSpec
 from hordelib.horde import HordeLib, SampleStageResult
+from hordelib.pipeline.context import ModelContext
+from hordelib.pipeline.payload import ImageGenPayload
 
 _TRUNCATION = SamplerTruncation(sampler="dpm_adaptive", nominal_steps=20, iterations=25)
 
@@ -44,9 +48,15 @@ class _StubGraph:
         return {}
 
 
-class _StubTypedPayload:
-    def solver_options(self) -> None:
-        return None
+_TYPED_PAYLOAD = ImageGenPayload(model="stub_model")
+_MODEL_CONTEXT = ModelContext(
+    horde_model_name="stub_model",
+    baseline=KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1,
+)
+"""What materialization resolves alongside the graph: the finalized payload and the model's context.
+
+The stage reads both for the footprint it records around the run, so they are the real types rather
+than stubs; nothing here needs weights or a model reference lookup to construct them."""
 
 
 def _sample_stage_with(metadata: dict[str, Any], monkeypatch) -> SampleStageResult:
@@ -58,7 +68,7 @@ def _sample_stage_with(metadata: dict[str, Any], monkeypatch) -> SampleStageResu
     monkeypatch.setattr(
         HordeLib,
         "_materialize_stage_graph",
-        lambda _self, _params: (_StubGraph(), (), [], _StubTypedPayload(), None),
+        lambda _self, _params: (_StubGraph(), (), [], _TYPED_PAYLOAD, None, _MODEL_CONTEXT),
     )
     monkeypatch.setattr(
         horde_module,
