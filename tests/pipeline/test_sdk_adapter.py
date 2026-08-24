@@ -186,6 +186,37 @@ def test_controlnet_component_with_source_image() -> None:
     assert isinstance(payload.source_image, PIL.Image.Image)
 
 
+def test_controlnet_component_carries_control_strength() -> None:
+    """An explicit control strength reaches the payload."""
+    components = [
+        ControlnetGenerationParameters(
+            controlnet_type="canny",
+            source_image=_png_bytes(),
+            control_map=None,
+            control_strength=0.35,
+        ),
+    ]
+    payload, faults = to_image_gen_payload(_make_params(components=components))
+
+    assert not faults
+    assert payload.control_strength == 0.35
+
+
+def test_controlnet_component_without_control_strength_keeps_the_default() -> None:
+    """An unset control strength leaves the payload default of 1.0 in place."""
+    components = [
+        ControlnetGenerationParameters(
+            controlnet_type="canny",
+            source_image=_png_bytes(),
+            control_map=None,
+        ),
+    ]
+    payload, faults = to_image_gen_payload(_make_params(components=components))
+
+    assert not faults
+    assert payload.control_strength == 1.0
+
+
 def test_hires_fix_component_sets_two_pass_overrides() -> None:
     """The hires component's explicit two-pass values become authoritative payload overrides."""
     first_pass = BasicImageGenerationParameters(

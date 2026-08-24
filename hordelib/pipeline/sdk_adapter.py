@@ -176,6 +176,8 @@ def to_image_gen_payload(
         payload_fields["control_type"] = str(controlnet_params.controlnet_type)
         payload_fields["image_is_control"] = control_uses_premade_map
         payload_fields["return_control_map"] = controlnet_params.return_control_map
+        if controlnet_params.control_strength is not None:
+            payload_fields["control_strength"] = controlnet_params.control_strength
         control_image = controlnet_params.control_map if control_uses_premade_map else controlnet_params.source_image
         if source_image is None:
             source_image = _decode_image(control_image, METADATA_TYPE.source_image, faults)
