@@ -157,12 +157,14 @@ def apply_controlnet(graph: ComfyGraph, payload: ImageGenPayload, context: Model
         return_control_map=payload.return_control_map,
         width=payload.width,
         height=payload.height,
+        seed=payload.seed,
     )
     graph.set_inputs(controlnet_params)
     logger.info(
         "controlnet.configured",
         model_name=controlnet_params["controlnet_model_loader.control_net_name"],
-        preprocessor=controlnet_params["preprocessor.preprocessor"],
+        # Shuffle names no preprocessor by name: its node is swapped for the seeded detector class.
+        preprocessor=controlnet_params.get("preprocessor.preprocessor") or graph.raw["preprocessor"]["class_type"],
         return_control_map=payload.return_control_map,
         image_is_control=payload.image_is_control,
     )

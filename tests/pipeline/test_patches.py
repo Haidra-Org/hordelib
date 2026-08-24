@@ -10,6 +10,7 @@ from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 
 from hordelib.execution.graph_utils import fix_node_names
 from hordelib.pipeline.patches import (
+    SHUFFLE_PREPROCESSOR_CLASS_TYPE,
     RemixImage,
     ResolvedLora,
     apply_layerdiffuse,
@@ -216,6 +217,81 @@ class TestConfigureControlnet:
         assert params["controlnet_model_loader.control_net_name"] == "diff_control_sd15_canny_fp16.safetensors"
         assert params["preprocessor.preprocessor"] == "CannyEdgePreprocessor"
         assert params["preprocessor.resolution"] == 512
+
+    def test_canny_stays_on_the_all_in_one_preprocessor_node(self):
+        graph = _graph("controlnet")
+        configure_controlnet(
+            graph,
+            control_type="canny",
+            image_is_control=False,
+            return_control_map=False,
+            width=512,
+            height=512,
+            seed=99,
+        )
+        assert graph["preprocessor"]["class_type"] == "AIO_Preprocessor"
+        assert "seed" not in graph["preprocessor"]["inputs"]
+
+    def test_shuffle_becomes_a_seeded_detector_node(self):
+        # Shuffle is the one randomised detector: on the all-in-one node it would take the detector's
+        # unseeded default and give a different picture for the same request every time.
+        graph = _graph("controlnet")
+        params = configure_controlnet(
+            graph,
+            control_type="shuffle",
+            image_is_control=False,
+            return_control_map=False,
+            width=512,
+            height=512,
+            seed=123456789,
+        )
+        assert graph["preprocessor"]["class_type"] == SHUFFLE_PREPROCESSOR_CLASS_TYPE
+        assert graph["preprocessor"]["inputs"]["seed"] == 123456790
+        assert "preprocessor" not in graph["preprocessor"]["inputs"]
+        assert "preprocessor.preprocessor" not in params
+        assert params["controlnet_model_loader.control_net_name"] == "control_v11e_sd15_shuffle_fp16.safetensors"
+        assert params["preprocessor.resolution"] == 512
+
+    def test_shuffle_seed_zero_is_still_seeded(self):
+        # The detector reads a seed of 0 as "no seed", so a request that asked for 0 must be shifted.
+        graph = _graph("controlnet")
+        configure_controlnet(
+            graph,
+            control_type="shuffle",
+            image_is_control=False,
+            return_control_map=False,
+            width=512,
+            height=512,
+            seed=0,
+        )
+        assert graph["preprocessor"]["inputs"]["seed"] == 1
+
+    def test_shuffle_with_premade_map_stays_on_the_all_in_one_node(self):
+        graph = _graph("controlnet")
+        params = configure_controlnet(
+            graph,
+            control_type="shuffle",
+            image_is_control=True,
+            return_control_map=False,
+            width=512,
+            height=512,
+            seed=7,
+        )
+        assert graph["preprocessor"]["class_type"] == "AIO_Preprocessor"
+        assert params["preprocessor.preprocessor"] == "none"
+
+    def test_color_params(self):
+        graph = _graph("controlnet")
+        params = configure_controlnet(
+            graph,
+            control_type="color",
+            image_is_control=False,
+            return_control_map=False,
+            width=512,
+            height=512,
+        )
+        assert params["preprocessor.preprocessor"] == "ColorPreprocessor"
+        assert params["controlnet_model_loader.control_net_name"] == "t2iadapter_color_sd14v1.pth"
 
     def test_image_is_control_passes_through(self):
         graph = _graph("controlnet")

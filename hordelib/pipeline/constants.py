@@ -114,6 +114,8 @@ CONTROLNET_IMAGE_PREPROCESSOR_MAP = {
     "tile": "TilePreprocessor",
     "tile_ttplanet_guided": "TTPlanet_TileGF_Preprocessor",
     "tile_ttplanet_simple": "TTPlanet_TileSimple_Preprocessor",
+    "color": "ColorPreprocessor",
+    "shuffle": "ShufflePreprocessor",
 }
 
 ONNXRUNTIME_GATED_PREPROCESSORS: frozenset[str] = frozenset()
@@ -131,7 +133,6 @@ CONTROLNET_MODEL_MAP = {
     "openpose": "control_openpose_fp16.safetensors",
     "seg": "control_seg_fp16.safetensors",
     "scribble": "control_scribble_fp16.safetensors",
-    "fakescribble": "control_scribble_fp16.safetensors",
     "fakescribbles": "control_scribble_fp16.safetensors",
     "mlsd": "control_mlsd_fp16.safetensors",
     "hough": "control_mlsd_fp16.safetensors",
@@ -157,6 +158,11 @@ CONTROLNET_MODEL_MAP = {
     "tile": "control_v11f1e_sd15_tile_fp16.safetensors",
     "tile_ttplanet_guided": "control_v11f1e_sd15_tile_fp16.safetensors",
     "tile_ttplanet_simple": "control_v11f1e_sd15_tile_fp16.safetensors",
+    "color": "t2iadapter_color_sd14v1.pth",
+    # ComfyUI keys global average pooling on a "_shuffle" in the filename, which the shuffle
+    # controlnet needs to guide on the whole image rather than position by position; renaming the
+    # file loses that.
+    "shuffle": "control_v11e_sd15_shuffle_fp16.safetensors",
 }
 """Horde control_type to controlnet model filename."""
 
@@ -199,6 +205,8 @@ CONTROLNET_ANNOTATOR_DOWNLOAD_BYTES = {
     "tile": 0,
     "tile_ttplanet_guided": 0,
     "tile_ttplanet_simple": 0,
+    "color": 0,
+    "shuffle": 0,
 }
 """Horde control_type to an estimated annotator-checkpoint download size in bytes (ROM)."""
 

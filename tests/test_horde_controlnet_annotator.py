@@ -74,3 +74,45 @@ class TestControlnetAnnotator:
             f"images_expected/{img_filename}",
             pil_image,
         )
+
+    def test_shuffle_control_map_is_reproducible(
+        self,
+        hordelib_instance: HordeLib,
+        shared_model_manager: type[SharedModelManager],
+    ):
+        """The content-shuffle detector is randomised, so the request's seed has to reach it.
+
+        Without a seed it draws from global numpy state and the same request returns a different
+        control map on every run, which no requester can build on.
+        """
+        assert shared_model_manager.manager.controlnet
+
+        image = PIL.Image.open("images/test_annotator.jpg")
+        width, height = image.size
+        data = {
+            "sampler_name": "k_dpmpp_2m",
+            "cfg_scale": 7.5,
+            "denoising_strength": 1.0,
+            "seed": 123456789,
+            "height": height,
+            "width": width,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": "shuffle",
+            "image_is_control": False,
+            "return_control_map": True,
+            "prompt": "this is not used here",
+            "ddim_steps": 25,
+            "n_iter": 1,
+            "model": "Deliberate",
+            "source_image": image,
+            "source_processing": "img2img",
+        }
+
+        first_control_map = hordelib_instance.basic_inference_single_image(data).image
+        second_control_map = hordelib_instance.basic_inference_single_image(data).image
+        assert isinstance(first_control_map, PIL.Image.Image)
+        assert isinstance(second_control_map, PIL.Image.Image)
+        assert first_control_map.tobytes() == second_control_map.tobytes()

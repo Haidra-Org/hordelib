@@ -201,6 +201,55 @@ def insert_remix_image_chain(graph: GraphDict, extra_images: Sequence[RemixImage
     reconnect_input(graph, "sampler_stage_c.positive", f"unclip_conditioning_{len(extra_images)}")
 
 
+SHUFFLE_CONTROL_TYPE = "shuffle"
+"""The one control type whose detector is randomised, and so needs the request's seed."""
+
+SHUFFLE_PREPROCESSOR_CLASS_TYPE = "ShufflePreprocessor"
+"""The comfyui_controlnet_aux node class that exposes the content-shuffle detector's seed."""
+
+_SHUFFLE_SEED_CEILING = 0xFFFFFFFFFFFFFFFF
+"""The largest seed the shuffle preprocessor node accepts (its declared INT maximum)."""
+
+
+def shuffle_preprocessor_seed(seed: int) -> int:
+    """Return a non-zero shuffle-detector seed derived from a request seed.
+
+    The detector treats a seed of 0 as "unseeded" and falls back to global numpy state, so a request
+    that legitimately asked for seed 0 would shuffle differently on every run. Shifting into 1..max
+    keeps every distinct request seed on its own picture while staying inside the node's declared range.
+
+    Args:
+        seed: The request's seed.
+
+    Returns:
+        int: A seed in ``1..0xFFFFFFFFFFFFFFFF``.
+    """
+    return (seed % _SHUFFLE_SEED_CEILING) + 1
+
+
+def _route_through_shuffle_preprocessor(graph: GraphDict, *, seed: int) -> None:
+    """Mutate the preprocessor node into the seeded content-shuffle detector.
+
+    The AIO preprocessor node passes on only the inputs it declares, and a seed is not among them, so
+    shuffle would run unseeded and give a different picture for the same request every time. The
+    detector's own node class takes the seed, so the node becomes that class for shuffle alone; every
+    other control type stays on the AIO path.
+
+    Args:
+        graph: The pipeline graph to mutate.
+        seed: The request's seed.
+    """
+    preprocessor_node = graph.get("preprocessor")
+    if preprocessor_node is None:
+        logger.error("Controlnet preprocessor node missing from graph: control_type={}", SHUFFLE_CONTROL_TYPE)
+        return
+
+    preprocessor_node["class_type"] = SHUFFLE_PREPROCESSOR_CLASS_TYPE
+    # The AIO node's preprocessor-by-name input has no counterpart on the detector's own node.
+    preprocessor_node["inputs"].pop("preprocessor", None)
+    preprocessor_node["inputs"]["seed"] = shuffle_preprocessor_seed(seed)
+
+
 def configure_controlnet(
     graph: GraphDict,
     *,
@@ -209,16 +258,19 @@ def configure_controlnet(
     return_control_map: bool,
     width: int,
     height: int,
+    seed: int = 0,
 ) -> dict[str, Any]:
-    """Configure the controlnet model loader and AIO preprocessor for a control type.
+    """Configure the controlnet model loader and preprocessor for a control type.
 
     Args:
-        graph: The pipeline graph to mutate (only for the ``return_control_map`` rewire).
+        graph: The pipeline graph to mutate (the ``return_control_map`` rewire and, for shuffle, the
+            swap to the seeded detector node).
         control_type: The horde control type (e.g. ``"canny"``).
         image_is_control: The source image already is the control map.
         return_control_map: Return the annotated control map instead of a generation.
         width: Requested generation width.
         height: Requested generation height.
+        seed: The request's seed, used only by the randomised shuffle detector.
 
     Returns:
         dict[str, Any]: Dotted graph params to apply.
@@ -240,8 +292,11 @@ def configure_controlnet(
     if not image_is_control and aux_preprocessor in ONNXRUNTIME_GATED_PREPROCESSORS:
         ensure_feature_available(FEATURE_KIND.controlnet)
 
-    # "none" makes the AIO_Preprocessor node pass the (already-control-map) image through
-    params["preprocessor.preprocessor"] = "none" if image_is_control else aux_preprocessor
+    if not image_is_control and control_type == SHUFFLE_CONTROL_TYPE:
+        _route_through_shuffle_preprocessor(graph, seed=seed)
+    else:
+        # "none" makes the AIO_Preprocessor node pass the (already-control-map) image through
+        params["preprocessor.preprocessor"] = "none" if image_is_control else aux_preprocessor
 
     # Run detection at the generation resolution (the aux node resamples internally)
     params["preprocessor.resolution"] = min(width, height)
