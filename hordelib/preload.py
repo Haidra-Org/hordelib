@@ -22,6 +22,9 @@ Two optimisations keep this cheap after the first time:
   rather than the existence-guarded ``custom_hf_download``; its repo ships only a
   ``pytorch_model.bin``, so with the Hub reachable ``transformers`` issues a safetensors
   auto-conversion lookup (several API calls) on every load even when nothing needs downloading.
+  A preprocessor whose own Hub-hosted files are not cached fails offline; it alone is re-run with
+  the Hub reachable and the pass continues, so one cold repo costs one download rather than a
+  second full pass over every detector.
 """
 
 import contextlib
@@ -383,23 +386,24 @@ def _record_annotators_verified(ref: str) -> None:
 
 @contextlib.contextmanager
 def _hub_offline(enabled: bool) -> Iterator[None]:
-    """Force ``huggingface_hub``/``transformers`` into offline mode for the duration if enabled.
+    """Hold ``huggingface_hub``/``transformers`` in offline mode (or online, when ``enabled`` is False).
 
     The offline flag is captured from the environment into ``huggingface_hub.constants.HF_HUB_OFFLINE``
     at import time, but consulted dynamically via ``is_offline_mode()`` on every request. Since the
     hub is already imported by the time preload runs, toggling the live module attribute (not just
-    the env var, which has already been read) is what actually takes effect.
+    the env var, which has already been read) is what actually takes effect. Both directions are set
+    explicitly so an online window can be opened inside an offline one; the previous state is restored
+    on exit.
     """
-    if not enabled:
-        yield
-        return
-
     import huggingface_hub.constants as hf_constants
 
     previous_attr = hf_constants.HF_HUB_OFFLINE
     previous_env = os.environ.get("HF_HUB_OFFLINE")
-    hf_constants.HF_HUB_OFFLINE = True
-    os.environ["HF_HUB_OFFLINE"] = "1"
+    hf_constants.HF_HUB_OFFLINE = enabled
+    if enabled:
+        os.environ["HF_HUB_OFFLINE"] = "1"
+    else:
+        os.environ.pop("HF_HUB_OFFLINE", None)
     try:
         yield
     finally:
@@ -458,7 +462,20 @@ def _run_preload(*, force_offline: bool) -> bool:
                     current=i + 1,
                     total=len(preprocessors),
                 )
-                aio_preprocessor_class().execute(preprocessor, test_image, resolution=64)
+                try:
+                    aio_preprocessor_class().execute(preprocessor, test_image, resolution=64)
+                except Exception as e:
+                    if not force_offline:
+                        raise
+                    # Offline, a failure means this detector's Hub-hosted files are not in the cache. Only
+                    # this detector needs the Hub; the ones already verified stay verified.
+                    logger.warning(
+                        "Offline annotator preload of {} failed ({}); retrying it with the HuggingFace Hub reachable",
+                        preprocessor,
+                        e,
+                    )
+                    with _hub_offline(False):
+                        aio_preprocessor_class().execute(preprocessor, test_image, resolution=64)
 
         return True
     except Exception as e:
@@ -511,11 +528,6 @@ def download_all_controlnet_annotators() -> bool:
             )
 
         succeeded = _run_preload(force_offline=force_offline)
-        if not succeeded and force_offline:
-            # A forced-offline run can only fail because a checkpoint is unexpectedly missing from
-            # the cache (offline blocks the download). Retry once with the Hub reachable.
-            logger.warning("Offline annotator preload failed; retrying with the HuggingFace Hub reachable")
-            succeeded = _run_preload(force_offline=False)
 
         if succeeded:
             if ref is not None:

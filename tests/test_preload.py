@@ -18,18 +18,21 @@ import hordelib.horde
 import hordelib.preload as preload
 
 
-def _install_fake_backend(monkeypatch, *, on_execute=None):
-    """Wire up GPU-free fakes for HordeLib + node lookup, returning the construction log."""
+def _install_fake_backend(monkeypatch, *, on_execute=None, preprocessors=("MiDaS-NormalMapPreprocessor",)):
+    """Wire up GPU-free fakes for HordeLib + node lookup, returning the construction log.
+
+    ``on_execute`` receives the preprocessor name being run.
+    """
     constructed: list[object] = []
 
     class _FakeNode:
-        def execute(self, *args, **kwargs):
+        def execute(self, preprocessor, *args, **kwargs):
             if on_execute is not None:
-                on_execute()
+                on_execute(preprocessor)
             return
 
     class _FakeHordeLib:
-        CONTROLNET_IMAGE_PREPROCESSOR_MAP = {"normal": "MiDaS-NormalMapPreprocessor"}
+        CONTROLNET_IMAGE_PREPROCESSOR_MAP = {name: name for name in preprocessors}
 
         def __init__(self):
             constructed.append(self)
@@ -47,7 +50,7 @@ def test_preload_forces_offline_when_midas_cached(monkeypatch):
     """When the MiDaS checkpoint is already cached, the preload runs with the Hub offline."""
     offline_during_execute: list[bool] = []
     _install_fake_backend(
-        monkeypatch, on_execute=lambda: offline_during_execute.append(hf_constants.is_offline_mode())
+        monkeypatch, on_execute=lambda _name: offline_during_execute.append(hf_constants.is_offline_mode())
     )
     monkeypatch.setattr(preload, "_midas_already_cached", lambda: True)
 
@@ -62,7 +65,7 @@ def test_preload_stays_online_when_midas_not_cached(monkeypatch):
     """A cold cache must keep the Hub reachable so first-time downloads can proceed."""
     offline_during_execute: list[bool] = []
     _install_fake_backend(
-        monkeypatch, on_execute=lambda: offline_during_execute.append(hf_constants.is_offline_mode())
+        monkeypatch, on_execute=lambda _name: offline_during_execute.append(hf_constants.is_offline_mode())
     )
     monkeypatch.setattr(preload, "_midas_already_cached", lambda: False)
 
@@ -71,10 +74,10 @@ def test_preload_stays_online_when_midas_not_cached(monkeypatch):
 
 
 def test_preload_retries_online_when_offline_run_fails(monkeypatch):
-    """If a forced-offline run fails (a checkpoint is missing), retry once with the Hub reachable."""
+    """A preprocessor that fails offline (its files are not cached) is retried alone with the Hub reachable."""
     runs: list[bool] = []
 
-    def _record_and_maybe_fail():
+    def _record_and_maybe_fail(_name):
         offline = hf_constants.is_offline_mode()
         runs.append(offline)
         if offline:
@@ -84,8 +87,46 @@ def test_preload_retries_online_when_offline_run_fails(monkeypatch):
     monkeypatch.setattr(preload, "_midas_already_cached", lambda: True)
 
     assert preload.download_all_controlnet_annotators()
-    assert runs == [True, False], "expected a failed offline run followed by an online retry"
-    assert len(constructed) == 2, "the retry should rebuild the backend"
+    assert runs == [True, False], "expected a failed offline attempt followed by an online retry"
+    assert len(constructed) == 1, "the retry runs inside the same pass; the backend is not rebuilt"
+
+
+def test_preload_online_retry_covers_only_the_failed_preprocessor(monkeypatch):
+    """Verified preprocessors are not re-run when a later one needs the Hub."""
+    runs: list[tuple[str, bool]] = []
+
+    def _record_and_fail_second_offline(name):
+        offline = hf_constants.is_offline_mode()
+        runs.append((name, offline))
+        if offline and name == "second":
+            raise OSError("checkpoint missing from cache")
+
+    _install_fake_backend(
+        monkeypatch,
+        on_execute=_record_and_fail_second_offline,
+        preprocessors=("first", "second", "third"),
+    )
+    monkeypatch.setattr(preload, "_midas_already_cached", lambda: True)
+    was_offline_before = hf_constants.HF_HUB_OFFLINE
+
+    assert preload.download_all_controlnet_annotators()
+    assert runs == [("first", True), ("second", True), ("second", False), ("third", True)]
+    assert hf_constants.HF_HUB_OFFLINE == was_offline_before, "offline flag must be restored afterwards"
+
+
+def test_preload_online_failure_fails_the_pass(monkeypatch):
+    """A preprocessor that also fails with the Hub reachable fails the verify; nothing is retried twice."""
+    runs: list[bool] = []
+
+    def _always_fail(_name):
+        runs.append(hf_constants.is_offline_mode())
+        raise OSError("detector cannot load")
+
+    _install_fake_backend(monkeypatch, on_execute=_always_fail)
+    monkeypatch.setattr(preload, "_midas_already_cached", lambda: True)
+
+    assert not preload.download_all_controlnet_annotators()
+    assert runs == [True, False]
 
 
 def test_preload_skips_when_already_verified(monkeypatch):
