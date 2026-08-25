@@ -94,6 +94,29 @@ _preload_completed = False
 # The only preprocessor whose model is loaded through ``transformers`` rather than the
 # existence-guarded ``custom_hf_download``. See module docstring for why this matters.
 _MIDAS_REPO_ID = "Intel/dpt-hybrid-midas"
+
+TRANSFORMERS_ANNOTATOR_REPOS: tuple[str, ...] = (
+    "Intel/dpt-hybrid-midas",
+    "Intel/dpt-large",
+    "Intel/zoedepth-nyu-kitti",
+    "LiheYoung/Depth-Anything",
+    "LiheYoung/depth-anything-base-hf",
+    "LiheYoung/depth-anything-large-hf",
+    "LiheYoung/depth-anything-small-hf",
+    "depth-anything/Depth-Anything-V2-Base",
+    "depth-anything/Depth-Anything-V2-Giant",
+    "depth-anything/Depth-Anything-V2-Large",
+    "depth-anything/Depth-Anything-V2-Metric-Hypersim-Large",
+    "depth-anything/Depth-Anything-V2-Metric-VKITTI-Large",
+    "depth-anything/Depth-Anything-V2-Small",
+    "shi-labs/oneformer_ade20k_swin_large",
+    "shi-labs/oneformer_coco_swin_large",
+)
+"""HuggingFace repos the ControlNet detectors load through ``transformers``.
+
+These resolve through the HuggingFace hub cache (configs and weights alike), unlike the checkpoints
+``custom_hf_download`` places in the annotator directory. They are the complete set of hub entries an
+annotator run can leave in a cache, which is what a cache relocation has to carry across."""
 _MIDAS_REQUIRED_FILES = ("config.json", "preprocessor_config.json", "pytorch_model.bin")
 
 _ANNOTATOR_NODE_NAME = "comfyui_controlnet_aux"
@@ -261,6 +284,26 @@ def _annotator_ckpts_dir() -> Path | None:
         return None
 
 
+def hub_cache_dir() -> str | None:
+    """The HuggingFace hub cache directory in effect for this process, or None when the hub is unavailable."""
+    try:
+        import huggingface_hub.constants as hf_constants
+    except Exception:
+        return None
+    return str(hf_constants.HF_HUB_CACHE)
+
+
+def _marker_key(ref: str) -> str:
+    """The marker text for ``ref``: the pin plus the hub cache the verified detectors live in.
+
+    The transformers-backed detectors keep their weights in the hub cache, so a verify only vouches for
+    the cache it ran against. Keying the marker on that location makes a relocated cache read as stale, and
+    the one re-verify that follows warms the new location in the helper process before any job asks for a
+    detector there.
+    """
+    return f"{ref}\n{hub_cache_dir() or ''}"
+
+
 def _preload_marker_path() -> Path | None:
     """Return the on-disk marker path, or None if the annotator directory is unknown."""
     ckpts_dir = _annotator_ckpts_dir()
@@ -275,7 +318,7 @@ def _annotators_already_verified(ref: str) -> bool:
     if marker is None:
         return False
     try:
-        return marker.is_file() and marker.read_text(encoding="utf-8").strip() == ref
+        return marker.is_file() and marker.read_text(encoding="utf-8").strip() == _marker_key(ref).strip()
     except OSError:
         return False
 
@@ -368,6 +411,46 @@ def annotators_resolvable(control_types: Iterable[str]) -> bool | None:
     return all(_annotator_file_resolvable(entry, ckpts_dir) for entry in needed)
 
 
+def annotator_verify_marker_predates_location_key() -> bool:
+    """Whether the on-disk verify marker was written before the marker carried the hub cache location.
+
+    Such a marker holds the pin alone. It is the one durable sign that this install ran the annotator
+    verify while the hub cache was wherever the environment put it, which is what a worker relocating the
+    cache needs to know before it carries entries across: an install with no marker, or one in the current
+    format, never fetched into an ambient cache under this pin. Import-safe, like the other marker reads.
+    """
+    marker = _preload_marker_path()
+    if marker is None:
+        return False
+    try:
+        if not marker.is_file():
+            return False
+        lines = [line for line in marker.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except OSError:
+        return False
+    return len(lines) == 1
+
+
+def annotator_verify_marker_hub_cache_dir() -> str | None:
+    """The hub cache the on-disk verify marker was written against, or None when the marker holds no location.
+
+    The second line of a current-format marker names the hub cache the verified transformers-backed
+    detectors were fetched into. A worker relocating its cache reads it to carry those entries across from
+    exactly there. A pin-only marker (see :func:`annotator_verify_marker_predates_location_key`) and a
+    missing marker both yield None.
+    """
+    marker = _preload_marker_path()
+    if marker is None:
+        return None
+    try:
+        if not marker.is_file():
+            return None
+        lines = [line.strip() for line in marker.read_text(encoding="utf-8").splitlines() if line.strip()]
+    except OSError:
+        return None
+    return lines[1] if len(lines) >= 2 else None
+
+
 def _record_annotators_verified(ref: str) -> None:
     """Persist that annotators for ``ref`` are downloaded and verified on this machine.
 
@@ -379,7 +462,7 @@ def _record_annotators_verified(ref: str) -> None:
         return
     try:
         marker.parent.mkdir(parents=True, exist_ok=True)
-        marker.write_text(ref + "\n", encoding="utf-8")
+        marker.write_text(_marker_key(ref) + "\n", encoding="utf-8")
     except OSError as e:
         logger.warning("Could not write annotator preload marker: error={}", e)
 

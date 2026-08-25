@@ -145,7 +145,7 @@ def test_annotators_present_true_when_marker_matches(monkeypatch, tmp_path):
     """``controlnet_annotators_present`` reads the on-disk marker the same way the preload skip does."""
     monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
     monkeypatch.setattr(preload, "_pinned_annotator_ref", lambda: "ref-xyz")
-    (tmp_path / preload._PRELOAD_MARKER_NAME).write_text("ref-xyz\n", encoding="utf-8")
+    (tmp_path / preload._PRELOAD_MARKER_NAME).write_text(preload._marker_key("ref-xyz") + "\n", encoding="utf-8")
 
     assert preload.controlnet_annotators_present() is True
 
@@ -157,7 +157,7 @@ def test_annotators_present_false_when_marker_absent_or_stale(monkeypatch, tmp_p
 
     assert preload.controlnet_annotators_present() is False
 
-    (tmp_path / preload._PRELOAD_MARKER_NAME).write_text("ref-old\n", encoding="utf-8")
+    (tmp_path / preload._PRELOAD_MARKER_NAME).write_text(preload._marker_key("ref-old") + "\n", encoding="utf-8")
     assert preload.controlnet_annotators_present() is False
 
 
@@ -279,3 +279,51 @@ def test_preload_constructs_hordelib_before_node_lookup(monkeypatch):
 
     assert preload.download_all_controlnet_annotators()
     assert constructed, "preload did not construct a HordeLib instance"
+
+
+def test_marker_is_stale_when_the_hub_cache_moves(monkeypatch, tmp_path):
+    """A marker written against one hub cache does not vouch for another location."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    monkeypatch.setattr(preload, "_pinned_annotator_ref", lambda: "ref-xyz")
+    monkeypatch.setattr(preload, "hub_cache_dir", lambda: str(tmp_path / "hub-a"))
+    preload._record_annotators_verified("ref-xyz")
+    assert preload._annotators_already_verified("ref-xyz")
+
+    monkeypatch.setattr(preload, "hub_cache_dir", lambda: str(tmp_path / "hub-b"))
+
+    assert not preload._annotators_already_verified("ref-xyz")
+
+
+def test_marker_from_before_the_location_key_is_stale(monkeypatch, tmp_path):
+    """A marker holding only the pin (the earlier format) re-verifies once."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    monkeypatch.setattr(preload, "_pinned_annotator_ref", lambda: "ref-xyz")
+    (tmp_path / preload._PRELOAD_MARKER_NAME).write_text("ref-xyz\n", encoding="utf-8")
+
+    assert not preload._annotators_already_verified("ref-xyz")
+
+
+def test_pin_only_marker_predates_the_location_key(monkeypatch, tmp_path):
+    """A marker holding only the pin is recognised as pre-location; the current format and no marker are not."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    assert not preload.annotator_verify_marker_predates_location_key()
+
+    (tmp_path / preload._PRELOAD_MARKER_NAME).write_text("ref-xyz\n", encoding="utf-8")
+    assert preload.annotator_verify_marker_predates_location_key()
+
+    monkeypatch.setattr(preload, "hub_cache_dir", lambda: str(tmp_path / "hub"))
+    preload._record_annotators_verified("ref-xyz")
+    assert not preload.annotator_verify_marker_predates_location_key()
+
+
+def test_marker_reports_the_hub_cache_it_was_written_against(monkeypatch, tmp_path):
+    """A current-format marker names its hub cache; a pin-only or missing marker names none."""
+    monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path))
+    assert preload.annotator_verify_marker_hub_cache_dir() is None
+
+    (tmp_path / preload._PRELOAD_MARKER_NAME).write_text("ref-xyz\n", encoding="utf-8")
+    assert preload.annotator_verify_marker_hub_cache_dir() is None
+
+    monkeypatch.setattr(preload, "hub_cache_dir", lambda: str(tmp_path / "hub-a"))
+    preload._record_annotators_verified("ref-xyz")
+    assert preload.annotator_verify_marker_hub_cache_dir() == str(tmp_path / "hub-a")
