@@ -85,6 +85,13 @@ class FeatureImpact(BaseModel):
     """The job phase this feature's VRAM is consumed in; drives the per-phase split of the estimate."""
     applies_to_baselines: list[str] | None = None
     """Baseline values this feature is available for (None = all)."""
+    vram_delta_mb_by_baseline: dict[str, int] = {}
+    """Resident weight (MB) of the feature's auxiliary model per baseline, overriding :attr:`vram_delta_mb`.
+
+    An auxiliary model is sized by the baseline it pairs with (an SDXL controlnet is several times an SD1.5
+    one), so a single flat delta either under-charges the heavy family or over-charges the light one. A
+    baseline listed here is charged its own weight; unlisted baselines keep the flat delta. A caller that has
+    resolved the exact auxiliary model still wins through ``aux_model_weights_mb``."""
     notes: str = ""
 
 
@@ -403,6 +410,10 @@ _FEATURE_SEEDS: list[FeatureImpact] = [
         ram_delta_mb=3000,
         download=DownloadTrigger(triggered=True, typical_size_mb=1500),
         applies_to_baselines=_SDXL_AND_EARLIER,
+        # An SDXL controlnet lands as ~2.5 GB of fp16 weights (the qr-code monster checkpoint is 5.0 GB fp32
+        # on disk, halved on load) before any annotator; the flat delta sized for SD1.5 (~700 MB plus
+        # annotator) under-charges it by a third of its weight.
+        vram_delta_mb_by_baseline={"stable_diffusion_xl": 3000},
         notes="Includes the annotator/preprocessor models; SD15 controlnets ~700MB, SDXL ~2.5GB.",
     ),
     FeatureImpact(
@@ -529,7 +540,7 @@ def estimate_job_burden(
         if aux_model_weights_mb is not None and kind in aux_model_weights_mb:
             weight_mb = round(aux_model_weights_mb[kind])
         else:
-            weight_mb = impact.vram_delta_mb
+            weight_mb = impact.vram_delta_mb_by_baseline.get(baseline, impact.vram_delta_mb)
         if kind == FEATURE_KIND.post_processing_upscale:
             # Tiled upscalers process fixed-size tiles, so the activation peak is flat with the generation
             # resolution and grows with the upscale factor (a 4x tile output is 16x the pixels of its input

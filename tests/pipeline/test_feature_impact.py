@@ -362,3 +362,42 @@ class TestUpscaleFactorActivation:
             post_processing_upscale_factor=4.0,
         )
         assert with_factor.vram_post_processing_mb == without.vram_post_processing_mb
+
+
+class TestPerBaselineFeatureWeights:
+    """An auxiliary model is sized by the baseline it pairs with, so its weight is charged per baseline."""
+
+    def test_an_sdxl_controlnet_is_charged_more_than_an_sd15_one(self) -> None:
+        """The controlnet weight delta on SDXL exceeds the flat SD1.5 delta at the same output size."""
+        sd15 = estimate_job_burden(baseline="stable_diffusion_1", width=1024, height=1024)
+        sd15_cn = estimate_job_burden(
+            baseline="stable_diffusion_1",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.controlnet],
+        )
+        sdxl = estimate_job_burden(baseline="stable_diffusion_xl", width=1024, height=1024)
+        sdxl_cn = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.controlnet],
+        )
+        assert sdxl_cn.vram_mb - sdxl.vram_mb > sd15_cn.vram_mb - sd15.vram_mb
+
+    def test_a_resolved_aux_weight_still_wins_over_the_baseline_table(self) -> None:
+        """A caller that measured the exact controlnet supplies its weight; the per-baseline seed yields to it."""
+        seeded = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.controlnet],
+        )
+        resolved = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.controlnet],
+            aux_model_weights_mb={FEATURE_KIND.controlnet: 700.0},
+        )
+        assert resolved.vram_mb < seeded.vram_mb
