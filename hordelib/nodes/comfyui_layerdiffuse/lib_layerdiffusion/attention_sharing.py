@@ -78,6 +78,12 @@ class AttentionSharingUnit(torch.nn.Module):
     def __init__(self, module, frames=2, use_control=True, rank=256):
         super().__init__()
 
+        # A resident model keeps whatever object patches its last run applied, so a patcher built on it after
+        # an earlier layer-diffuse run finds these units in place of the attention blocks. Wrap the attention
+        # underneath rather than the stale unit, which carries no projection layers of its own.
+        if isinstance(module, AttentionSharingUnit):
+            module = module.original_module[0]
+
         self.heads = module.heads
         self.frames = frames
         self.original_module = [module]
