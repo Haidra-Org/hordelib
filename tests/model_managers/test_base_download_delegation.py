@@ -184,6 +184,34 @@ def test_tainted_model_files_cleared_before_redownload(tmp_path: Path, monkeypat
     assert manager.download_model("m") is True
 
 
+def test_validated_redownload_lifts_the_taint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Once the re-fetched bytes validate, the model is available again and stays so across reloads."""
+    manager = _make_manager(tmp_path)
+    manager.model_reference = {"m": _record(file_name="taint.pth")}
+    manager.tainted_models = ["m"]
+    monkeypatch.setattr(base_module.download_engine, "download_record_files", lambda record, root, **kwargs: True)
+    monkeypatch.setattr(manager, "validate_model", lambda name: True)
+
+    assert manager.download_model("m") is True
+
+    assert manager.tainted_models == []
+    assert manager.available_models == ["m"]
+
+
+def test_failed_redownload_keeps_the_taint(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Bytes that do not validate leave the model tainted, so it is never offered against them."""
+    manager = _make_manager(tmp_path)
+    manager.model_reference = {"m": _record(file_name="taint.pth")}
+    manager.tainted_models = ["m"]
+    monkeypatch.setattr(base_module.download_engine, "download_record_files", lambda record, root, **kwargs: True)
+    monkeypatch.setattr(manager, "validate_model", lambda name: False)
+
+    assert manager.download_model("m") is False
+
+    assert manager.tainted_models == ["m"]
+    assert manager.available_models == []
+
+
 def test_download_file_wrapper_targets_model_folder(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     manager = _make_manager(tmp_path)
     captured: dict[str, object] = {}

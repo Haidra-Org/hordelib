@@ -613,7 +613,15 @@ class BaseModelManager[RecordT: GenericModelRecord | dict[str, Any]](ABC):
         )
         if not download_succeeded:
             return False
-        return self.validate_model(model_name)
+        validated = self.validate_model(model_name)
+        if validated and is_model_tainted:
+            # The taint described the bytes that were just replaced. Left in place it outlives every reload
+            # of the model database (the reload rebuilds available_models from is_model_available, which
+            # reads the taint), so the model would stay unavailable for the rest of the process.
+            self.tainted_models.remove(model_name)
+            if model_name not in self.available_models:
+                self.available_models.append(model_name)
+        return validated
 
     def download_all_models(
         self,
