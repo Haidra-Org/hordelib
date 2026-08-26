@@ -56,9 +56,24 @@ def test_build_provider_none_without_categories(monkeypatch: pytest.MonkeyPatch)
     assert build_pending_provider() is None
 
 
-def test_build_provider_none_without_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_provider_falls_back_to_anonymous_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An opted-in category with no configured key still gets a provider, on the anonymous key.
+
+    The PRIMARY accepts the anonymous key for pending reads, so requiring a key would make beta
+    unreachable for every consumer that has not been handed one.
+    """
     monkeypatch.setenv(BETA_CATEGORIES_ENV_VAR, "image_generation")
     monkeypatch.delenv(BETA_API_KEY_ENV_VAR, raising=False)
+    provider = build_pending_provider()
+    assert provider is not None
+    assert provider.source_id == PENDING_SOURCE_ID
+    assert provider.provided_categories() == {IMG}
+
+
+def test_build_provider_none_when_api_key_set_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An explicitly empty key is an opt-out, distinct from leaving it unset."""
+    monkeypatch.setenv(BETA_CATEGORIES_ENV_VAR, "image_generation")
+    monkeypatch.setenv(BETA_API_KEY_ENV_VAR, "")
     assert build_pending_provider() is None
 
 

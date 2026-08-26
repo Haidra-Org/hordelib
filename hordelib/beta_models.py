@@ -11,7 +11,9 @@ Environment variables:
     HORDELIB_BETA_MODEL_CATEGORIES: Comma-separated category values to opt into beta
         (e.g. ``"image_generation"``). Empty/unset disables beta entirely.
     HORDELIB_BETA_MODELS_API_KEY: A reader-level AI-Horde API key used to authenticate the
-        pending-model reads. Typically populated by the worker from its existing key.
+        pending-model reads. Typically populated by the worker from its existing key; unset
+        falls back to the anonymous key, which the PRIMARY accepts for pending reads. Setting
+        it to an empty string disables beta.
 
 The PRIMARY URL is taken from ``horde_model_reference_settings.primary_api_url`` (env
 ``HORDE_MODEL_REFERENCE_PRIMARY_API_URL``), so it stays consistent with the canonical fetch.
@@ -34,6 +36,8 @@ from loguru import logger
 
 BETA_CATEGORIES_ENV_VAR = "HORDELIB_BETA_MODEL_CATEGORIES"
 BETA_API_KEY_ENV_VAR = "HORDELIB_BETA_MODELS_API_KEY"
+
+ANONYMOUS_API_KEY = "0000000000"
 
 
 def beta_model_categories() -> set[MODEL_REFERENCE_CATEGORY]:
@@ -67,8 +71,9 @@ def build_pending_provider(
 ) -> PendingModelProvider | None:
     """Construct the pending (beta) model provider from the environment, or ``None``.
 
-    Returns ``None`` (with a log line explaining why) when beta is not fully configured:
-    no categories opted in, no API key, or no PRIMARY URL to read from.
+    Returns ``None`` (with a log line explaining why) when beta is not configured: no categories
+    opted in, no PRIMARY URL to read from, or the API key explicitly set empty. An *unset* key
+    resolves to :data:`ANONYMOUS_API_KEY`.
 
     Args:
         timeout_seconds: Per-request HTTP timeout override. ``None`` keeps the provider's default.
@@ -80,10 +85,10 @@ def build_pending_provider(
     if not categories:
         return None
 
-    apikey = os.getenv(BETA_API_KEY_ENV_VAR)
+    apikey = os.getenv(BETA_API_KEY_ENV_VAR, ANONYMOUS_API_KEY)
     if not apikey:
         logger.warning(
-            "{} is set but {} is not; beta models will not be loaded.",
+            "{} is set but {} is empty; beta models will not be loaded.",
             BETA_CATEGORIES_ENV_VAR,
             BETA_API_KEY_ENV_VAR,
         )
