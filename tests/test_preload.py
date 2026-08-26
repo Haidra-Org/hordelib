@@ -10,6 +10,8 @@ unnoticed — so this test exercises the cold path with everything comfy/GPU mon
 out.
 """
 
+import os
+
 import huggingface_hub.constants as hf_constants
 import pytest
 
@@ -327,3 +329,80 @@ def test_marker_reports_the_hub_cache_it_was_written_against(monkeypatch, tmp_pa
     monkeypatch.setattr(preload, "hub_cache_dir", lambda: str(tmp_path / "hub-a"))
     preload._record_annotators_verified("ref-xyz")
     assert preload.annotator_verify_marker_hub_cache_dir() == str(tmp_path / "hub-a")
+
+
+class TestHuggingFaceCacheIsolation:
+    """The hub cache must resolve under ``AIWORKER_CACHE_HOME`` so every consumer of that root shares it."""
+
+    def test_noop_without_a_cache_root(self, monkeypatch):
+        """With no cache root declared there is nothing to isolate to, so the hub keeps its own defaults."""
+        monkeypatch.delenv("AIWORKER_CACHE_HOME", raising=False)
+        monkeypatch.setenv("HF_HOME", "/somewhere/ambient")
+        before = dict(os.environ)
+        preload.apply_huggingface_cache_isolation()
+        assert os.environ == before
+
+    def test_points_the_hub_at_the_cache_root(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("AIWORKER_CACHE_HOME", str(tmp_path))
+        monkeypatch.delenv("HF_HOME", raising=False)
+        preload.apply_huggingface_cache_isolation()
+        assert os.environ["HF_HOME"] == str(tmp_path / preload.HUGGINGFACE_HOME_DIRNAME)
+
+    def test_ambient_hub_cache_variables_are_replaced(self, monkeypatch, tmp_path):
+        """``HF_HUB_CACHE``/``HUGGINGFACE_HUB_CACHE`` outrank ``HF_HOME``, so setting it alone is not enough."""
+        monkeypatch.setenv("AIWORKER_CACHE_HOME", str(tmp_path))
+        monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "elsewhere" / "hub"))
+        monkeypatch.setenv("HUGGINGFACE_HUB_CACHE", str(tmp_path / "elsewhere" / "hub"))
+        preload.apply_huggingface_cache_isolation()
+        assert "HF_HUB_CACHE" not in os.environ
+        assert "HUGGINGFACE_HUB_CACHE" not in os.environ
+        assert os.environ["HF_HOME"] == str(tmp_path / preload.HUGGINGFACE_HOME_DIRNAME)
+
+    def test_records_the_ambient_locations_it_displaced(self, monkeypatch, tmp_path):
+        """The displaced directories are the only record of where a pre-isolation install left its entries."""
+        monkeypatch.setenv("AIWORKER_CACHE_HOME", str(tmp_path))
+        monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "ambient" / "hub"))
+        monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
+        monkeypatch.delenv("HF_HOME", raising=False)
+        monkeypatch.delenv("HUGGINGFACE_HUB_CACHE", raising=False)
+        preload.apply_huggingface_cache_isolation()
+        recorded = os.environ[preload.LEGACY_HUB_CACHES_ENV_VAR].split(os.pathsep)
+        assert str(tmp_path / "ambient" / "hub") in recorded
+        assert str(tmp_path / "xdg" / "huggingface" / "hub") in recorded
+
+    def test_repeat_application_never_records_its_own_target(self, monkeypatch, tmp_path):
+        """A second call must not read the isolated location as a legacy one and copy entries onto themselves."""
+        monkeypatch.setenv("AIWORKER_CACHE_HOME", str(tmp_path))
+        monkeypatch.delenv("HF_HOME", raising=False)
+        preload.apply_huggingface_cache_isolation()
+        preload.apply_huggingface_cache_isolation()
+        target_hub = os.path.join(str(tmp_path / preload.HUGGINGFACE_HOME_DIRNAME), "hub")
+        recorded = [entry for entry in os.environ[preload.LEGACY_HUB_CACHES_ENV_VAR].split(os.pathsep) if entry]
+        assert os.environ["HF_HOME"] == str(tmp_path / preload.HUGGINGFACE_HOME_DIRNAME)
+        assert target_hub not in recorded
+
+    def test_the_marker_key_follows_the_isolated_location(self, monkeypatch, tmp_path):
+        """The verify marker is what two processes disagree over when their hub caches differ."""
+        monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path / "annotators"))
+        (tmp_path / "annotators").mkdir()
+        monkeypatch.setattr(preload, "hub_cache_dir", lambda: str(tmp_path / "isolated" / "hub"))
+        preload._record_annotators_verified("ref-xyz")
+        assert preload._annotators_already_verified("ref-xyz")
+
+        monkeypatch.setattr(preload, "hub_cache_dir", lambda: str(tmp_path / "ambient" / "hub"))
+        assert not preload._annotators_already_verified("ref-xyz")
+
+    def test_presence_helpers_isolate_before_reading(self, monkeypatch, tmp_path):
+        """A no-boot caller must not read the marker against a hub cache the engine will never use."""
+        monkeypatch.setenv("AIWORKER_CACHE_HOME", str(tmp_path))
+        monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path / "annotators"))
+        monkeypatch.setenv("HF_HOME", str(tmp_path / "ambient"))
+        (tmp_path / "annotators").mkdir()
+        monkeypatch.setattr(preload, "_pinned_annotator_ref", lambda: "ref-xyz")
+        isolated_hub = os.path.join(str(tmp_path / preload.HUGGINGFACE_HOME_DIRNAME), "hub")
+        monkeypatch.setattr(preload, "hub_cache_dir", lambda: isolated_hub)
+        preload._record_annotators_verified("ref-xyz")
+
+        # The ambient HF_HOME above is what an un-isolated caller would read the marker against.
+        assert preload.controlnet_annotators_present() is True
+        assert os.environ["HF_HOME"] == str(tmp_path / preload.HUGGINGFACE_HOME_DIRNAME)

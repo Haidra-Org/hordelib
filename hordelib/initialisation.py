@@ -60,6 +60,14 @@ def initialise(
     """
     global _is_initialised
 
+    # The HuggingFace stack freezes its cache location into module constants at import, so this has to
+    # run before anything pulls it in (ComfyUI's custom nodes and transformers both do). Without it the
+    # transformers-backed annotators resolve a hub cache outside AIWORKER_CACHE_HOME, which refetches
+    # what a sibling process already holds and invalidates its verify marker.
+    from hordelib.preload import apply_huggingface_cache_isolation
+
+    apply_huggingface_cache_isolation()
+
     # Device pinning must happen before ComfyUI (and torch) is imported; CUDA_VISIBLE_DEVICES
     # has no effect after torch.cuda is initialised. Apply the mask here, ahead of everything else.
     if device_index is not None:
