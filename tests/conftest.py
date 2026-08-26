@@ -8,6 +8,14 @@ import pytest
 
 os.environ["TESTS_ONGOING"] = "1"
 
+# Share the HuggingFace cache with anything else using this AIWORKER_CACHE_HOME, before the imports below
+# reach huggingface_hub (which freezes its cache location at import). A suite that resolved its own hub
+# cache would refetch every transformers-backed annotator a worker on this box already holds, and would
+# leave a verify marker naming its own location, so the worker's next start refetches them right back.
+from hordelib.preload import apply_huggingface_cache_isolation
+
+apply_huggingface_cache_isolation()
+
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.horde import HordeLib

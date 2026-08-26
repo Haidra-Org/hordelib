@@ -29,6 +29,7 @@ Two optimisations keep this cheap after the first time:
 
 import contextlib
 import os
+import sys
 import threading
 from collections.abc import Iterable, Iterator
 from pathlib import Path
@@ -282,6 +283,98 @@ def _annotator_ckpts_dir() -> Path | None:
     except Exception as e:
         logger.debug("Could not derive the annotator checkpoint directory: error={}", e)
         return None
+
+
+HUGGINGFACE_HOME_DIRNAME = "hf_transformers"
+"""The shared HuggingFace home under ``AIWORKER_CACHE_HOME``.
+
+The name is ``horde_safety``'s: it has always put the safety models' transformers cache there when it
+found a cache root and no ``HF_HOME``, so an existing install already holds those weights at this
+location. Sharing it, rather than naming a second isolated directory, is what lets everything reading
+this cache root use one hub cache without any process fetching again what another already has."""
+
+HUGGINGFACE_CACHE_ENV_VARS: tuple[str, ...] = ("HF_HOME", "HF_HUB_CACHE", "HUGGINGFACE_HUB_CACHE")
+"""The variables the HuggingFace stack reads its cache location from; the latter two outrank ``HF_HOME``."""
+
+LEGACY_HUB_CACHES_ENV_VAR = "AIWORKER_HF_LEGACY_HUB_CACHES"
+"""Where the hub cache resolved before isolation took over, ``os.pathsep``-joined.
+
+Recorded by :func:`apply_huggingface_cache_isolation`, which is the only moment the ambient values are
+still visible. A consumer that wants to carry :data:`TRANSFORMERS_ANNOTATOR_REPOS` entries into the
+isolated cache reads this to know where to look."""
+
+
+def huggingface_home_for(cache_home: str) -> str:
+    """The shared ``HF_HOME`` for a cache root."""
+    return os.path.join(cache_home, HUGGINGFACE_HOME_DIRNAME)
+
+
+def _legacy_hub_cache_dirs(*, target_hub_dir: str) -> list[str]:
+    """The hub cache directories a pre-isolation process may have populated, excluding the target itself.
+
+    An ambient ``HF_HUB_CACHE``/``HUGGINGFACE_HUB_CACHE`` names the hub directory outright; an ambient
+    ``HF_HOME`` holds it under ``hub``; and with none of them set the hub used its own default under the
+    user's cache directory (``XDG_CACHE_HOME`` or ``~/.cache``).
+    """
+    candidates: list[str] = []
+    for name in ("HF_HUB_CACHE", "HUGGINGFACE_HUB_CACHE"):
+        value = os.environ.get(name)
+        if value:
+            candidates.append(value)
+    ambient_home = os.environ.get("HF_HOME")
+    if ambient_home:
+        candidates.append(os.path.join(ambient_home, "hub"))
+    user_cache = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+    candidates.append(os.path.join(user_cache, "huggingface", "hub"))
+    target = os.path.normcase(os.path.normpath(target_hub_dir))
+    seen: set[str] = set()
+    legacy: list[str] = []
+    for candidate in candidates:
+        key = os.path.normcase(os.path.normpath(candidate))
+        if key == target or key in seen:
+            continue
+        seen.add(key)
+        legacy.append(candidate)
+    return legacy
+
+
+def apply_huggingface_cache_isolation() -> None:
+    """Point the HuggingFace stack at the shared cache under ``AIWORKER_CACHE_HOME``, process-wide.
+
+    ``AIWORKER_CACHE_HOME`` is the operator's promise that every model file lands under one root. The
+    transformers-backed detectors in :data:`TRANSFORMERS_ANNOTATOR_REPOS` fetch through the HuggingFace
+    hub cache, which defaults to the home drive and is outranked by an ambient
+    ``HF_HUB_CACHE``/``HUGGINGFACE_HUB_CACHE``, so those variables are replaced rather than merely warned
+    about. Two processes resolving different hub caches each fetch what the other already holds, and
+    because the verify marker records the cache it ran against (:func:`_marker_key`), each one's run also
+    reads the other's marker as stale, so the refetching repeats rather than settling.
+
+    Callers apply this before anything imports ``huggingface_hub``: that package freezes its cache
+    location into module constants at import, so a later call cannot move it. A no-op without
+    ``AIWORKER_CACHE_HOME``, in which case the hub stack keeps its own defaults.
+    """
+    cache_home = os.environ.get("AIWORKER_CACHE_HOME")
+    if not cache_home:
+        return
+    huggingface_home = huggingface_home_for(cache_home)
+    overridden = [name for name in HUGGINGFACE_CACHE_ENV_VARS if os.environ.get(name) not in (None, huggingface_home)]
+    legacy_hub_dirs = _legacy_hub_cache_dirs(target_hub_dir=os.path.join(huggingface_home, "hub"))
+    for name in HUGGINGFACE_CACHE_ENV_VARS:
+        os.environ.pop(name, None)
+    os.environ["HF_HOME"] = huggingface_home
+    os.environ[LEGACY_HUB_CACHES_ENV_VAR] = os.pathsep.join(legacy_hub_dirs)
+    if overridden:
+        logger.warning(
+            "Overriding ambient {}: AIWORKER_CACHE_HOME isolation owns the HuggingFace cache location ({}).",
+            ", ".join(overridden),
+            huggingface_home,
+        )
+    if "huggingface_hub.constants" in sys.modules:
+        logger.warning(
+            "huggingface_hub was imported before the cache was isolated; it keeps the location it resolved "
+            "at import and will not move to {} in this process.",
+            huggingface_home,
+        )
 
 
 def hub_cache_dir() -> str | None:
