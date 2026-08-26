@@ -366,6 +366,23 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         vram_support_weights_mb=7900,
         vram_decode_spike_mb=3200,
     ),
+    BaselineBurden(
+        baseline="krea2_turbo",
+        vram_base_mb=14485,
+        ram_base_mb=14000,
+        vram_per_megapixel_mb=1200,
+        native_resolution=(1024, 1024),
+        min_recommended_vram_mb=12000,
+        max_recommended_batch=2,
+        typical_disk_gb=8.0,
+        # The DiT plus its text encoder and VAE stay resident together. The prior folded estimate of 10000
+        # charged roughly half the real set, so the forecast read it as comfortably co-resident and never gave
+        # Z-Image the card it needs. Split from the measured weights (test_registry_footprint_calibration): the
+        # core diffusion weights and the support components each carried separately.
+        vram_weights_mb=11800,
+        vram_support_weights_mb=7900,
+        vram_decode_spike_mb=3200,
+    ),
 ]
 
 _FALLBACK_BASELINE_BURDEN = BaselineBurden(

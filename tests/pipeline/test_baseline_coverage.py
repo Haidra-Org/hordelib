@@ -28,6 +28,7 @@ BASELINE_EXPECTED_TEMPLATE: dict[KNOWN_IMAGE_GENERATION_BASELINE, str] = {
     KNOWN_IMAGE_GENERATION_BASELINE.flux_dev: "flux",
     KNOWN_IMAGE_GENERATION_BASELINE.qwen_image: "qwen",
     KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo: "z_image",
+    KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo: "krea2",
 }
 """The template a canonical txt2img payload must select for each supported baseline."""
 
