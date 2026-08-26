@@ -34,6 +34,7 @@ FORCE_LOAD_SKIP_CLASS_NAMES: tuple[str, ...] = (
     "Flux",
     "QwenImage",
     "Lumina2",
+    "Krea2",
 )
 """The comfy ``model_base`` class names hordelib must keep in lockstep with ComfyUI.
 
