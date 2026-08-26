@@ -431,6 +431,10 @@ def controlnet_annotators_present() -> bool | None:
         cannot be determined (the pinned ref or the annotator directory is unknown).
     """
     try:
+        # A no-boot caller never reached hordelib.initialise(), so nothing has pointed the hub at the
+        # cache root yet. The marker records the hub cache its verify ran against, so reading it against
+        # an un-isolated location reports a stale marker for annotators that are in fact present.
+        apply_huggingface_cache_isolation()
         ref = _pinned_annotator_ref()
         if ref is None:
             return None
@@ -481,6 +485,9 @@ def annotators_resolvable(control_types: Iterable[str]) -> bool | None:
     vacuously resolvable. Returns ``None`` only when the file catalog or the checkpoint directory cannot be
     determined, so a caller treats the unknown as "do not claim missing" rather than nagging spuriously.
     """
+    # Before the hub-cache probe below imports huggingface_hub, which freezes the cache location it finds.
+    # A no-boot caller has not initialised, so without this the probe reads a cache the engine will not use.
+    apply_huggingface_cache_isolation()
     try:
         from horde_model_reference import annotator_catalog
     except Exception as e:

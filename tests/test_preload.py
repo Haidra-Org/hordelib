@@ -391,3 +391,18 @@ class TestHuggingFaceCacheIsolation:
 
         monkeypatch.setattr(preload, "hub_cache_dir", lambda: str(tmp_path / "ambient" / "hub"))
         assert not preload._annotators_already_verified("ref-xyz")
+
+    def test_presence_helpers_isolate_before_reading(self, monkeypatch, tmp_path):
+        """A no-boot caller must not read the marker against a hub cache the engine will never use."""
+        monkeypatch.setenv("AIWORKER_CACHE_HOME", str(tmp_path))
+        monkeypatch.setenv("AUX_ANNOTATOR_CKPTS_PATH", str(tmp_path / "annotators"))
+        monkeypatch.setenv("HF_HOME", str(tmp_path / "ambient"))
+        (tmp_path / "annotators").mkdir()
+        monkeypatch.setattr(preload, "_pinned_annotator_ref", lambda: "ref-xyz")
+        isolated_hub = os.path.join(str(tmp_path / preload.HUGGINGFACE_HOME_DIRNAME), "hub")
+        monkeypatch.setattr(preload, "hub_cache_dir", lambda: isolated_hub)
+        preload._record_annotators_verified("ref-xyz")
+
+        # The ambient HF_HOME above is what an un-isolated caller would read the marker against.
+        assert preload.controlnet_annotators_present() is True
+        assert os.environ["HF_HOME"] == str(tmp_path / preload.HUGGINGFACE_HOME_DIRNAME)
