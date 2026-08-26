@@ -21,6 +21,7 @@ __all__ = [
     "CASCADE_BASELINES",
     "FLUX_BASELINES",
     "IMAGE_BASELINE_PROFILES",
+    "KREA2_BASELINES",
     "AlignYourStepsModelType",
     "BaselineProfile",
     "LoaderKind",
@@ -66,7 +67,7 @@ Z_IMAGE_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
 )
 
 KREA2_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
-    {KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo},
+    {KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo},
 )
 
 FLUX_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
@@ -113,6 +114,12 @@ IMAGE_BASELINE_PROFILES: MappingProxyType[KNOWN_IMAGE_GENERATION_BASELINE, Basel
                 loader=LoaderKind.UNET,
                 # Z-Image (incl. Z-Image-Turbo) loads as comfy's Lumina2 model_base class.
                 force_load_skip_classes=("Lumina2",),
+            ),
+            BaselineProfile(
+                baseline=KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo,
+                loader=LoaderKind.UNET,
+                # Krea 2 (K2) is a single-stream MMDiT; comfy detects it as the Krea2 model_base class.
+                force_load_skip_classes=("Krea2",),
             ),
         )
     },

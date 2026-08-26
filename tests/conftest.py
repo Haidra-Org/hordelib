@@ -138,7 +138,7 @@ _stable_cascade_base_model_name = "Stable Cascade 1.0"
 _flux1_schnell_fp8_base_model_name = "Flux.1-Schnell fp8 (Compact)"
 _qwen_fp8_base_model_name = "Qwen-Image_fp8"
 _z_image_turbo_base_model_name = "Z-Image-Turbo"
-_krea2_turbo_base_model_name = "Krea2-Turbo"
+_krea2_turbo_base_model_name = "Krea2-Turbo_fp8"
 _am_pony_xl_model_name = "AMPonyXL"
 _rev_animated_model_name = "Rev Animated"
 

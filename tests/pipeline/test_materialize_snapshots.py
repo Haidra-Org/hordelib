@@ -42,6 +42,7 @@ CASCADE = KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade
 FLUX = KNOWN_IMAGE_GENERATION_BASELINE.flux_1
 QWEN = KNOWN_IMAGE_GENERATION_BASELINE.qwen_image
 Z_IMAGE = KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo
+KREA2 = KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo
 
 _FIXED_SEED = 123456789
 
@@ -192,6 +193,7 @@ SNAPSHOT_CASES: list[tuple[str, dict[str, Any], ModelContext]] = [
     ),
     ("qwen", {}, _context(QWEN)),
     ("z_image", {}, _context(Z_IMAGE)),
+    ("krea2", {}, _context(KREA2)),
     (
         "creative_upscale",
         {

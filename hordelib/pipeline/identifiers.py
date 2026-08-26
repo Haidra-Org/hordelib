@@ -33,6 +33,7 @@ class ImagePipeline(StrEnum):
     FLUX = "flux"
     QWEN = "qwen"
     Z_IMAGE = "z_image"
+    KREA2 = "krea2"
     CONTROLNET_ANNOTATOR = "controlnet_annotator"
     CONTROLNET_HIRES_FIX = "controlnet_hires_fix"
     CONTROLNET = "controlnet"

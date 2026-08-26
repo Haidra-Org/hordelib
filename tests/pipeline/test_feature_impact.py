@@ -35,7 +35,7 @@ class TestRegistryCoverage:
         assert get_baseline_burden("stable_diffusion_xl") is not None
         assert get_baseline_burden("not_a_baseline") is None
 
-    @pytest.mark.parametrize("baseline", ["qwen_image", "z_image_turbo"])
+    @pytest.mark.parametrize("baseline", ["qwen_image", "z_image_turbo", "krea2_turbo"])
     def test_whole_card_baselines_seed_their_resident_weights(self, baseline: str) -> None:
         """Whole-card baselines must seed ``vram_weights_mb`` explicitly.
 

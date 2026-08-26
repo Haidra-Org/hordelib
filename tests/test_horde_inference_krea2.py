@@ -1,4 +1,4 @@
-# test_horde_inference_z_image.py
+# test_horde_inference_krea2.py
 
 import pytest
 from PIL import Image
@@ -6,12 +6,12 @@ from PIL import Image
 from hordelib.horde import HordeLib
 
 
-class TestHordeInferenceZImageTurbo:
+class TestHordeInferenceKrea2Turbo:
     @pytest.mark.default_krea2_turbo_model
     def test_krea2_turbo_text_to_image(
         self,
         hordelib_instance: HordeLib,
-        z_image_turbo_base_model_name: str,
+        krea2_turbo_base_model_name: str,
     ):
         data = {
             "sampler_name": "er_sde",

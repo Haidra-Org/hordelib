@@ -1,4 +1,4 @@
-"""The Z-Image-Turbo pipeline: split-files loading on the standard sampler."""
+"""The Krea 2 Turbo pipeline: split-files loading on the standard sampler."""
 
 from hordelib.pipeline.context import ModelContext
 from hordelib.pipeline.definition import OutputSpec, PipelineDefinition, SelectionTier, pipeline_graph
@@ -12,7 +12,7 @@ __all__ = ["KREA2"]
 KREA2: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefinition(
     name="krea2",
     graph_file=pipeline_graph("krea2"),
-    selector=ImageSelector(tier=SelectionTier.BASELINE_FAMILY, order=5, baselines=KREA2_BASELINES),
+    selector=ImageSelector(tier=SelectionTier.BASELINE_FAMILY, order=6, baselines=KREA2_BASELINES),
     bindings=bindings.compose(
         bindings.SAMPLER_CORE,
         bindings.EMPTY_LATENT,
