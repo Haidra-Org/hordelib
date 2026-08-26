@@ -168,7 +168,7 @@ controlnet = [
     "yacs",
     "albumentations",
     "scikit-learn",
-    "timm", 
+    "timm",
 ]
 
 [tool.uv]
