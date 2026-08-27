@@ -387,6 +387,25 @@ def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Itera
         model_management.get_free_memory = original_get_free_memory
 
 
+_partial_load_patchers: set[int] = set()
+"""Ids of the ModelPatchers ComfyUI is currently partial-loading because their weights do not fit free VRAM.
+
+Set for the duration of one ``load_models_gpu`` call by :func:`_partial_load_allowed`, and read by
+:func:`_model_patcher_load_hijack` so it does not force a full load of a model the outer hijack already
+decided cannot fit. Keyed by id because a patcher is not hashable."""
+
+
+@contextlib.contextmanager
+def _partial_load_allowed(models) -> typing.Iterator[None]:
+    """Let ComfyUI's own partial (low-VRAM) load stand for ``models`` inside the scope."""
+    ids = {id(model_patcher) for model_patcher in models}
+    _partial_load_patchers.update(ids)
+    try:
+        yield
+    finally:
+        _partial_load_patchers.difference_update(ids)
+
+
 @logfire.instrument("comfy.load_models_gpu_hijack")
 def _load_models_gpu_hijack(*args, **kwargs):
     """Intercepts the comfy load_models_gpu function to force full load.
@@ -413,7 +432,11 @@ def _load_models_gpu_hijack(*args, **kwargs):
         logger.info("comfy.model_load_skipped", model_count=len(models))
         kwargs["memory_required"] = 1e30
         kwargs.pop("force_full_load", None)
-        _originals["load_models_gpu"](*args, **kwargs)
+        # ComfyUI will size a partial load for these patchers. The ModelPatcher.load hijack below must let
+        # that stand: forcing full_load there loads the whole weight set into free VRAM the check above
+        # just found too small, and the process OOMs.
+        with _partial_load_allowed(models):
+            _originals["load_models_gpu"](*args, **kwargs)
         return
 
     requested_working_bytes = kwargs.get("memory_required", 0)
@@ -458,7 +481,7 @@ def _model_patcher_load_hijack(*args, **kwargs):
 
     stash_cpu_origins(model_patcher.model)
 
-    if _do_not_force_load_model_in_patcher(model_patcher):
+    if id(model_patcher) in _partial_load_patchers or _do_not_force_load_model_in_patcher(model_patcher):
         logger.debug("Not overriding model load")
         _originals["model_patcher_load"](*args, **kwargs)
         return

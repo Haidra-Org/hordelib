@@ -212,7 +212,10 @@ Seven ComfyUI internals are patched at import time (`hordelib/execution/comfy_pa
 all policy injections with no native hook:
 
 - `load_models_gpu` and `ModelPatcher.load`: force full GPU loads (with VRAM-overflow and
-  model-class guards) so sibling worker processes sharing a GPU behave predictably. Small
+  model-class guards) so sibling worker processes sharing a GPU behave predictably. When the
+  overflow guard declines the full load, ComfyUI sizes a partial (low-VRAM) load instead, and the
+  `ModelPatcher.load` hijack lets that stand for those patchers (`_partial_load_allowed`) rather
+  than forcing the whole weight set into free VRAM the guard just found too small. Small
   support-model loads (VAEs) additionally have their caller-supplied working-memory estimate
   clamped *and* the free-memory target capped near their own weights for the duration of the
   load: ComfyUI otherwise frees the worst-case decode estimate (or, failing that, its ~1GB
