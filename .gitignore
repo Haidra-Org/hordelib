@@ -174,3 +174,5 @@ optuna_stud*.db
 
 *.ensure.lock
 *.ensure.json
+
+ComfyUI.lock
