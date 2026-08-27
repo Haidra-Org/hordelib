@@ -366,6 +366,24 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         vram_support_weights_mb=7900,
         vram_decode_spike_mb=3200,
     ),
+    BaselineBurden(
+        baseline="krea2_turbo",
+        vram_base_mb=15200,
+        ram_base_mb=20000,
+        vram_per_megapixel_mb=1500,
+        native_resolution=(1024, 1024),
+        min_recommended_vram_mb=14000,
+        max_recommended_batch=1,
+        typical_disk_gb=20.0,
+        # The fp8 MMDiT and its Qwen3-VL-4B text encoder plus the Qwen-Image VAE stay resident together;
+        # the weight figures are the published component sizes (12.2 GiB DiT, 4.9 GiB encoder, 0.24 GiB
+        # VAE) rather than a device measurement, so they are honest about the card demand but the
+        # activation-inclusive vram_base is still an estimate. test_registry_footprint_calibration
+        # corrects both from a real job once the checkpoint reaches the GPU runner.
+        vram_weights_mb=12600,
+        vram_support_weights_mb=5300,
+        vram_decode_spike_mb=3500,
+    ),
 ]
 
 _FALLBACK_BASELINE_BURDEN = BaselineBurden(

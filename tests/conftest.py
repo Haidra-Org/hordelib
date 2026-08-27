@@ -8,6 +8,14 @@ import pytest
 
 os.environ["TESTS_ONGOING"] = "1"
 
+# Share the HuggingFace cache with anything else using this AIWORKER_CACHE_HOME, before the imports below
+# reach huggingface_hub (which freezes its cache location at import). A suite that resolved its own hub
+# cache would refetch every transformers-backed annotator a worker on this box already holds, and would
+# leave a verify marker naming its own location, so the worker's next start refetches them right back.
+from hordelib.preload import apply_huggingface_cache_isolation
+
+apply_huggingface_cache_isolation()
+
 
 from hordelib.comfy_horde import Comfy_Horde
 from hordelib.horde import HordeLib
@@ -138,6 +146,7 @@ _stable_cascade_base_model_name = "Stable Cascade 1.0"
 _flux1_schnell_fp8_base_model_name = "Flux.1-Schnell fp8 (Compact)"
 _qwen_fp8_base_model_name = "Qwen-Image_fp8"
 _z_image_turbo_base_model_name = "Z-Image-Turbo"
+_krea2_turbo_base_model_name = "Krea2-Turbo_fp8"
 _am_pony_xl_model_name = "AMPonyXL"
 _rev_animated_model_name = "Rev Animated"
 
@@ -149,6 +158,7 @@ _all_model_names = [
     _flux1_schnell_fp8_base_model_name,
     _qwen_fp8_base_model_name,
     _z_image_turbo_base_model_name,
+    _krea2_turbo_base_model_name,
     _am_pony_xl_model_name,
     _rev_animated_model_name,
 ]
@@ -204,6 +214,15 @@ def z_image_turbo_base_model_name(shared_model_manager: type[SharedModelManager]
     if _z_image_turbo_base_model_name not in shared_model_manager.manager.compvis.model_reference:
         pytest.skip(f"{_z_image_turbo_base_model_name} is not (yet) in the horde model reference")
     return _z_image_turbo_base_model_name
+
+
+@pytest.fixture(scope="session")
+def krea2_turbo_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    """The default Krea2-Turbo model name used for testing."""
+    assert shared_model_manager.manager.compvis is not None
+    if _krea2_turbo_base_model_name not in shared_model_manager.manager.compvis.model_reference:
+        pytest.skip(f"{_krea2_turbo_base_model_name} is not (yet) in the horde model reference")
+    return _krea2_turbo_base_model_name
 
 
 @pytest.fixture(scope="session")

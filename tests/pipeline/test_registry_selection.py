@@ -110,6 +110,7 @@ EXPECTED_SELECTION_ORDER = [
     "flux",
     "qwen",
     "z_image",
+    "krea2",
     "controlnet_annotator",
     "controlnet_hires_fix",
     "controlnet",

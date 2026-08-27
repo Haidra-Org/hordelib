@@ -455,6 +455,15 @@ wheels = [
 ]
 
 [[package]]
+name = "boolean-py"
+version = "5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c4/cf/85379f13b76f3a69bca86b60237978af17d6aa0bc5998978c3b8cf05abb2/boolean_py-5.0.tar.gz", hash = "sha256:60cbc4bad079753721d32649545505362c754e121570ada4658b852a3a318d95", size = 37047, upload-time = "2025-04-03T10:39:49.734Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/e5/ca/78d423b324b8d77900030fa59c4aa9054261ef0925631cd2501dd015b7b7/boolean_py-5.0-py3-none-any.whl", hash = "sha256:ef28a70bd43115208441b53a045d1549e2f0ec6e3d08a9d142cbc41c1938e8d9", size = 26577, upload-time = "2025-04-03T10:39:48.449Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2026.7.22"
 source = { registry = "https://pypi.org/simple" }
@@ -690,14 +699,11 @@ wheels = [
 
 [[package]]
 name = "click"
-version = "8.4.2"
+version = "8.5.0"
 source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32' or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu132') or (extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132')" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/76/d4/81420972a676e8ffea40450d8c8c92943e7218a78fe9b64359836cc9876b/click-8.4.2.tar.gz", hash = "sha256:9a6cea6e60b17ebe0a44c5cc636d94f09bd66142c1cd7d8b4cd731c4917a15f6", size = 338000, upload-time = "2026-06-24T17:45:15.148Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c7/0e/7fa0ef50764b67090eca4114772a2abf8b6148198475e54c660b97caeee6/click-8.5.0.tar.gz", hash = "sha256:ba0d2089de75ea0310e2dde03160e6ca10009947fb95a182f9b54021bb272e34", size = 382235, upload-time = "2026-08-26T13:33:14.56Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fb/e2/79c688af8b210d232694e31e59da9f6ec747bae31c3f5946e4e9b98860d5/click-8.4.2-py3-none-any.whl", hash = "sha256:e6f9f66136c816745b9d65817da91d61d957fb16e02e4dcd0552553c5a197b76", size = 119243, upload-time = "2026-06-24T17:45:13.73Z" },
+    { url = "https://files.pythonhosted.org/packages/58/50/6c0d534c5f134586a8e1ba4e330569e32f057e33372ae556463212fb4cd3/click-8.5.0-py3-none-any.whl", hash = "sha256:255bc9599cf7748b4b1a446ccc735421bd08a2ae529a8b88597d3de5664ee360", size = 125251, upload-time = "2026-08-26T13:33:12.928Z" },
 ]
 
 [[package]]
@@ -1068,10 +1074,10 @@ wheels = [
 
 [[package]]
 name = "cuda-pathfinder"
-version = "1.6.1"
+version = "1.7.0"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e3/1e/2942a0d6d52240d439f44384a40c65d359d9ca70325b65b265c020113121/cuda_pathfinder-1.6.1-py3-none-any.whl", hash = "sha256:cc8ec4cb0881fa5bcbf96b6dd75d50e55352b74dd33d4f3d884e192e7c2b6ef8", size = 60238, upload-time = "2026-08-18T02:57:50.087Z" },
+    { url = "https://files.pythonhosted.org/packages/62/01/a7171c5e2e8755597bd8f1c1eb228a0876f502afdf25f936061f5dbe2880/cuda_pathfinder-1.7.0-py3-none-any.whl", hash = "sha256:e9d67e950f3d5992b854dfd25917c3719d0c21d3057b11abe86ba6feec526138", size = 63091, upload-time = "2026-08-24T04:13:56.054Z" },
 ]
 
 [[package]]
@@ -1519,26 +1525,26 @@ wheels = [
 
 [[package]]
 name = "gitpython"
-version = "3.1.59"
+version = "3.1.60"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "gitdb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ca/dc/126b28e76b24a9268ba931ad3e012f71ebdadf62fd9f17758f7074bb0b20/gitpython-3.1.59.tar.gz", hash = "sha256:0a1475cfdc38a5bfba1a3e9a4a9da52a39749ecec322b772915c019f94e5b7e4", size = 230445, upload-time = "2026-08-10T12:03:20.271Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/84/14/e6b1a48d831755a53c2029351fcef82e70db4a08f338daefe29d8d0cf31c/gitpython-3.1.60.tar.gz", hash = "sha256:e936431879fa85581b4311fa63492ea52251909e2d655b6529c704c904ddcc24", size = 230793, upload-time = "2026-08-25T18:33:46.102Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ef/ed/ae57eb7d344f43f87b74b3a281ead6ec7d6394eef72a7b1dcb28dd089550/gitpython-3.1.59-py3-none-any.whl", hash = "sha256:67a82f537384578643624c8b2c531938a9b82be431663e575dcf638526631d4c", size = 220996, upload-time = "2026-08-10T12:03:18.804Z" },
+    { url = "https://files.pythonhosted.org/packages/71/63/ba28697918b7c190af9f3f21940d03e8814e25dd4ddd39d6929f3a553995/gitpython-3.1.60-py3-none-any.whl", hash = "sha256:39548bffb8fa0f3a548133348868bb4838e79d73283052207dc97781a569b6b4", size = 221893, upload-time = "2026-08-25T18:33:44.75Z" },
 ]
 
 [[package]]
 name = "googleapis-common-protos"
-version = "1.75.1"
+version = "1.75.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "protobuf" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/72/73/74bcab964c9a7a61f2bb71e8179b0f13e6fa98f7ce00fd168aab291e4a2e/googleapis_common_protos-1.75.1.tar.gz", hash = "sha256:d3042c6c5a2d4e67113104d6b6818b59b6bd92a197f2a91508e801fe815cf071", size = 150967, upload-time = "2026-08-06T06:24:51.972Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c0/90/fb8f1c84537fbf210c1f53a53ae473a805f6599c5a40b93c1bbadd211f7a/googleapis_common_protos-1.75.2.tar.gz", hash = "sha256:8829a3d1e4508c5b7b9a6b9525f7fccff611f8531644579a76466c29295d4bb2", size = 154083, upload-time = "2026-08-25T19:19:13.028Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9a/51/186c02b8549b69ccda44429cf6ff5081e4b61a602ddfe6a8020d1be31d1b/googleapis_common_protos-1.75.1-py3-none-any.whl", hash = "sha256:28a1934bcd33b9c9da66ac301a0a4227e3367f095a17d0375cb98f0a09d93b79", size = 300626, upload-time = "2026-08-06T06:23:46.696Z" },
+    { url = "https://files.pythonhosted.org/packages/47/5b/1c9e55363c3b1890a98cae813de5b4ea327845756cd8fb7ee690140c7eac/googleapis_common_protos-1.75.2-py3-none-any.whl", hash = "sha256:6b83302f554ea93a0f48409c7fc2050f954bcbcddb7e3a9c76d4a823cb22920e", size = 307002, upload-time = "2026-08-25T19:18:08.927Z" },
 ]
 
 [[package]]
@@ -1729,6 +1735,7 @@ controlnet = [
     { name = "mediapipe" },
     { name = "onnxruntime" },
     { name = "scikit-learn" },
+    { name = "timm" },
     { name = "trimesh", extra = ["easy"] },
     { name = "yacs" },
 ]
@@ -1807,8 +1814,8 @@ requires-dist = [
     { name = "fuzzywuzzy", specifier = ">=0.18.0" },
     { name = "fvcore", marker = "extra == 'controlnet'" },
     { name = "gitpython", specifier = ">=3.1.45" },
-    { name = "horde-model-reference", specifier = ">=7.6.0,<8.0.0" },
-    { name = "horde-sdk", specifier = ">=0.30.0,<0.31.0" },
+    { name = "horde-model-reference", specifier = ">=8.4.0,<9.0.0" },
+    { name = "horde-sdk", specifier = ">=0.31.0,<0.32.0" },
     { name = "kornia", specifier = ">=0.7.1" },
     { name = "logfire", extras = ["system-metrics"], specifier = "==4.14.2" },
     { name = "loguru", specifier = ">=0.7.3" },
@@ -1842,6 +1849,7 @@ requires-dist = [
     { name = "spandrel-extra-arches", marker = "extra == 'upscale-extra'", specifier = ">=0.2.0" },
     { name = "sqlalchemy", specifier = ">=2.0.0" },
     { name = "strenum", specifier = ">=0.4.15" },
+    { name = "timm", marker = "extra == 'controlnet'" },
     { name = "tokenizers", specifier = ">=0.13.3" },
     { name = "torch", marker = "extra == 'cpu'", index = "https://download.pytorch.org/whl/cpu", conflict = { package = "horde-engine", extra = "cpu" } },
     { name = "torch", marker = "extra == 'cu126'", index = "https://download.pytorch.org/whl/cu126", conflict = { package = "horde-engine", extra = "cu126" } },
@@ -1892,12 +1900,13 @@ dev = [
 
 [[package]]
 name = "horde-model-reference"
-version = "7.6.1"
+version = "8.4.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiofiles" },
     { name = "haidra-core" },
     { name = "httpx" },
+    { name = "license-expression" },
     { name = "loguru" },
     { name = "pydantic" },
     { name = "python-dotenv" },
@@ -1907,14 +1916,14 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "ujson" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/1a/3c/714fdd7b04a572f2be6fd1dc0b555232d01650c7c47a9fc4828588251940/horde_model_reference-7.6.1.tar.gz", hash = "sha256:6e4fd0b7650640b66672337bb31877a4c93c2240c5e26bd7547c0f410e340b32", size = 884122, upload-time = "2026-08-04T01:09:34.763Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/90/63/eb7e70dc5d5db2f7128f9de6ca15b8cc02e5e4168512c9d55c6d8b5a1802/horde_model_reference-8.4.0.tar.gz", hash = "sha256:a3fa0b358a69064dbb463c6f5ca2a81fca2aafab11de4e8a54e77c313922c4ad", size = 982579, upload-time = "2026-08-26T19:35:56.869Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/dc/a7/e84fb34611e85341989e8aa53daa358d8668c04454cbd68d32fb44107801/horde_model_reference-7.6.1-py3-none-any.whl", hash = "sha256:72ad6cfa55b9938267a0cbd5f5fdeb719f3768a511bad65810154d1095eeb48d", size = 393153, upload-time = "2026-08-04T01:09:32.696Z" },
+    { url = "https://files.pythonhosted.org/packages/32/53/bb01ff925aba602b6ac414c2869ec87c7e6a275d10c466870ba4666a4cc6/horde_model_reference-8.4.0-py3-none-any.whl", hash = "sha256:abc31b5dc6fa65225edb852b231fb99e94cda13626f53557017a0ec5fd123ae0", size = 450028, upload-time = "2026-08-26T19:35:55.309Z" },
 ]
 
 [[package]]
 name = "horde-sdk"
-version = "0.30.0"
+version = "0.31.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiodns" },
@@ -1931,9 +1940,9 @@ dependencies = [
     { name = "requests" },
     { name = "strenum" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/df/36/356ae263c5af3fd71409f3e8e2d7a1bbc03ce593cdb4adf36e17305d3615/horde_sdk-0.30.0.tar.gz", hash = "sha256:325d3157a5b2486fbff978970e8767399a6dadefe65d77db2227be19985059f4", size = 4897531, upload-time = "2026-08-24T18:38:27.105Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ea/f4/aea5abaf3892d6c41c3b3651c69ee866d032e6b2cc704c8de8ee8db979d8/horde_sdk-0.31.0.tar.gz", hash = "sha256:783e454a5574a62beefeaf98eb9e3f155d1129bc1f5a70e8b8e9ddb10bb642a7", size = 4898129, upload-time = "2026-08-26T20:01:13.848Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/aa/a5/692cb580994c356fd0e0ec6a600c30b92a0745680414d33443e0007828e6/horde_sdk-0.30.0-py3-none-any.whl", hash = "sha256:e309f949814f7e12b14226e3c532d6b890a1f83db2e40d8c3e3c79ef17f0ff76", size = 301145, upload-time = "2026-08-24T18:38:25.737Z" },
+    { url = "https://files.pythonhosted.org/packages/bd/05/d534660719b0b9b97d2fc5cc2da751e1e0e0b892a2dcc215e06fa8313bd0/horde_sdk-0.31.0-py3-none-any.whl", hash = "sha256:b0c86869b02ac28417b1a55603f5c98116e3a22821bb199d4da4283454fbf77c", size = 301145, upload-time = "2026-08-26T20:01:12.31Z" },
 ]
 
 [[package]]
@@ -2344,6 +2353,18 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/6c/f0/89eb11dffbe9279ff37144dec786927314502ae0b114f1449dc78c458aab/librt-0.15.0-cp315-cp315t-win32.whl", hash = "sha256:c16d15ee371643ab48dc8248a3e680ebbeca573a13af2c3dd0c985b142d77162", size = 104313, upload-time = "2026-08-07T10:49:12.305Z" },
     { url = "https://files.pythonhosted.org/packages/6d/4a/1f1978c200f563beda63c36adff2d65bbecb81e365e8e69e572f5f70fbc6/librt-0.15.0-cp315-cp315t-win_amd64.whl", hash = "sha256:dbd605739f228912dc49027cb764456b9757750bdc2b6b7773164db7096c6fd1", size = 126889, upload-time = "2026-08-07T10:49:13.881Z" },
     { url = "https://files.pythonhosted.org/packages/38/a6/800800bfed7b1fb10fc3f3d557785c3854e80d3f7a9800d784b176a1fc2d/librt-0.15.0-cp315-cp315t-win_arm64.whl", hash = "sha256:84d244b00604d17df3fc7736c327892d6bba66181254aa4087be807b6c342bdc", size = 110700, upload-time = "2026-08-07T10:49:15.499Z" },
+]
+
+[[package]]
+name = "license-expression"
+version = "30.4.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "boolean-py" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/40/71/d89bb0e71b1415453980fd32315f2a037aad9f7f70f695c7cec7035feb13/license_expression-30.4.4.tar.gz", hash = "sha256:73448f0aacd8d0808895bdc4b2c8e01a8d67646e4188f887375398c761f340fd", size = 186402, upload-time = "2025-07-22T11:13:32.17Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/af/40/791891d4c0c4dab4c5e187c17261cedc26285fd41541577f900470a45a4d/license_expression-30.4.4-py3-none-any.whl", hash = "sha256:421788fdcadb41f049d2dc934ce666626265aeccefddd25e162a26f23bcbf8a4", size = 120615, upload-time = "2025-07-22T11:13:31.217Z" },
 ]
 
 [[package]]
@@ -4009,11 +4030,11 @@ wheels = [
 
 [[package]]
 name = "platformdirs"
-version = "4.11.3"
+version = "4.11.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b8/d7/e7bfbc86e9f99ff7807e24de7703f032e9c9ba80bb355cf26e0e9bc5a75e/platformdirs-4.11.3.tar.gz", hash = "sha256:66a73d38a849810252df809a3d8bcbda8e26f6c189920e7535ad608a48dbb5ab", size = 33050, upload-time = "2026-08-13T22:43:27.52Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/50/bb/ebc6636e1ae41314f796ebb7215fd28febb45f9aac72f2b04cb74b5071dc/platformdirs-4.11.4.tar.gz", hash = "sha256:f3373be828247211d0febabea97e238c3dfde8a60b3c90c32756fb52cb21556d", size = 34079, upload-time = "2026-08-24T14:53:49.676Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/19/a9/c34aebedd3a4c9afe5101b1b8713710b3fec18087c8a36c35d2f909861bd/platformdirs-4.11.3-py3-none-any.whl", hash = "sha256:5ed065d443751de711da036041a7a214122efc4a4de393b3f4137ba5576540e7", size = 23491, upload-time = "2026-08-13T22:43:26.121Z" },
+    { url = "https://files.pythonhosted.org/packages/28/be/0ff05fcd2938fb58ad9219bd54135968342d214737e012d62d43f06a2dd6/platformdirs-4.11.4-py3-none-any.whl", hash = "sha256:e34ff91a24bcddc6d939b878bdf3f5c437c9c46fe9e212b1bf455fdf1ee57586", size = 23741, upload-time = "2026-08-24T14:53:48.406Z" },
 ]
 
 [[package]]
@@ -4041,11 +4062,11 @@ wheels = [
 
 [[package]]
 name = "portalocker"
-version = "4.2.0"
+version = "4.3.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/66/92/d15473a60e4cb7bc450e10d3160d7d531d6fa8cb144e31395afd76cf4be2/portalocker-4.2.0.tar.gz", hash = "sha256:f4c5024903126159c4798e6aec6c32e30a0759db39bf795c0dbeb180a2e8c843", size = 259245, upload-time = "2026-08-22T00:22:15.62Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0d/8e/27672cd2dde9d2345ead0352146a401be4ec0af132be86ca7a2db24afb09/portalocker-4.3.0.tar.gz", hash = "sha256:69bf8e46769d66eb0a23219b9550253d2c3b5f03400202a2333784c1e6395e32", size = 263582, upload-time = "2026-08-25T18:05:20.267Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/32/49/abd8a4154c911cc6c247edb7195d14846b614314c58ae09cf710d7d56098/portalocker-4.2.0-py3-none-any.whl", hash = "sha256:b33a8ce7d9b74922123a6fe64c2d785c015e5e9049ce7f1db5bd44e288731460", size = 128016, upload-time = "2026-08-22T00:22:14.254Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/76/57be9bb352b3f91c80671a7b7ce2cd51f99ad324c89df82a098df9b9e609/portalocker-4.3.0-py3-none-any.whl", hash = "sha256:aa91709ccfc322b8225171392d64a2f9fc833f15f5ab741cfba6d3fba285ce31", size = 129554, upload-time = "2026-08-25T18:05:18.64Z" },
 ]
 
 [[package]]
@@ -4494,14 +4515,14 @@ wheels = [
 
 [[package]]
 name = "python-discovery"
-version = "1.5.2"
+version = "1.5.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "filelock" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/38/b7/ac44da2cf0e53ada0e419033c2d058219c95dc1403126f163304c9e814b1/python_discovery-1.5.2.tar.gz", hash = "sha256:45fd4f20a4e3f9b7bf2e0817870bc8e3b320a19658da177af800768c82dbf354", size = 82350, upload-time = "2026-08-12T14:05:26.419Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/b2/8f/3c92c45737f654f2488ab3662b7604a55d3d35146d37c9ce80f5c95b95a6/python_discovery-1.5.3.tar.gz", hash = "sha256:e500eb24025fb7c4876c1fdcfbafd9028a10c71b661aee38cb6fb0de594518c1", size = 82477, upload-time = "2026-08-24T14:48:46.396Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/71/45/689603d04b3bb8d7faa00f25c24acef993aab7813b3dbbfc472a459ab0b5/python_discovery-1.5.2-py3-none-any.whl", hash = "sha256:3e338c2d0f15dfaeea57493f4c2c6caebe0e998ea815c30ae8bf8ee21f1112d3", size = 38350, upload-time = "2026-08-12T14:05:25.113Z" },
+    { url = "https://files.pythonhosted.org/packages/30/12/823d9a321904ccfd2969a24b84fdfd1e6614c707ec569c62879bf1dbc6c5/python_discovery-1.5.3-py3-none-any.whl", hash = "sha256:8305296358f1aa2ed302a25b84be7df84fef8ca47c7dce2da63cb7325333044e", size = 38290, upload-time = "2026-08-24T14:48:45.305Z" },
 ]
 
 [[package]]
@@ -5501,29 +5522,56 @@ wheels = [
 ]
 
 [[package]]
+name = "timm"
+version = "1.0.28"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "huggingface-hub" },
+    { name = "pyyaml" },
+    { name = "safetensors" },
+    { name = "torch", version = "2.12.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(python_full_version < '3.15' and sys_platform == 'darwin' and extra == 'extra-12-horde-engine-cpu') or (python_full_version >= '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (python_full_version >= '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (python_full_version >= '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu132') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu132') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132')" },
+    { name = "torch", version = "2.12.1", source = { registry = "https://pypi.org/simple" }, marker = "(extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu132') or (extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra != 'extra-12-horde-engine-cu126' and extra != 'extra-12-horde-engine-cu130' and extra != 'extra-12-horde-engine-cu132')" },
+    { name = "torch", version = "2.12.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(python_full_version >= '3.15' and extra == 'extra-12-horde-engine-cpu') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu132') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cpu') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132')" },
+    { name = "torch", version = "2.12.1+cu126", source = { registry = "https://download.pytorch.org/whl/cu126" }, marker = "extra == 'extra-12-horde-engine-cu126' or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu132') or (extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132')" },
+    { name = "torch", version = "2.12.1+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "extra == 'extra-12-horde-engine-cu130' or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (extra == 'extra-12-horde-engine-cpu' and extra != 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132')" },
+    { name = "torch", version = "2.12.1+cu132", source = { registry = "https://download.pytorch.org/whl/cu132" }, marker = "(extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (extra != 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra != 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132')" },
+    { name = "torchvision", version = "0.27.1", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(python_full_version < '3.15' and sys_platform == 'darwin' and extra == 'extra-12-horde-engine-cpu') or (python_full_version >= '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (python_full_version >= '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (python_full_version >= '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu132') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu132') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132')" },
+    { name = "torchvision", version = "0.27.1", source = { registry = "https://pypi.org/simple" }, marker = "(extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu132') or (extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra != 'extra-12-horde-engine-cu126' and extra != 'extra-12-horde-engine-cu130' and extra != 'extra-12-horde-engine-cu132')" },
+    { name = "torchvision", version = "0.27.1+cpu", source = { registry = "https://download.pytorch.org/whl/cpu" }, marker = "(python_full_version >= '3.15' and extra == 'extra-12-horde-engine-cpu') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu132') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (python_full_version < '3.15' and extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cpu') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (sys_platform != 'darwin' and extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132')" },
+    { name = "torchvision", version = "0.27.1+cu126", source = { registry = "https://download.pytorch.org/whl/cu126" }, marker = "extra == 'extra-12-horde-engine-cu126' or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu132') or (extra == 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132')" },
+    { name = "torchvision", version = "0.27.1+cu130", source = { registry = "https://download.pytorch.org/whl/cu130" }, marker = "extra == 'extra-12-horde-engine-cu130' or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132') or (extra == 'extra-12-horde-engine-cpu' and extra != 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132')" },
+    { name = "torchvision", version = "0.27.1+cu132", source = { registry = "https://download.pytorch.org/whl/cu132" }, marker = "(extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu126') or (extra == 'extra-12-horde-engine-cpu' and extra == 'extra-12-horde-engine-cu130') or (extra == 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu130') or (extra != 'extra-12-horde-engine-cu130' and extra == 'extra-12-horde-engine-cu132') or (extra != 'extra-12-horde-engine-cpu' and extra != 'extra-12-horde-engine-cu126' and extra == 'extra-12-horde-engine-cu132')" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/35/03/e41389ac641747bfec48d016fde8be1eade1901e6f2c1aedcb0c8cb4b5d9/timm-1.0.28.tar.gz", hash = "sha256:3789d313fdd5541a327b60180d70dbb4bdec73db8ff0655e413db3c3d134a9a4", size = 2451413, upload-time = "2026-07-11T17:24:32.615Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c1/76/de1bfac17d183c49c6d0887903d3064ced51cf1d9ba7a8d611c1a8808c4f/timm-1.0.28-py3-none-any.whl", hash = "sha256:e577b88da96b3a722ea5e2f042455ce6f715d398304d8e63b17d126ed7d89968", size = 2597944, upload-time = "2026-07-11T17:24:30.869Z" },
+]
+
+[[package]]
 name = "tokenizers"
-version = "0.22.2"
+version = "0.23.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "huggingface-hub" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/73/6f/f80cfef4a312e1fb34baf7d85c72d4411afde10978d4657f8cdd811d3ccc/tokenizers-0.22.2.tar.gz", hash = "sha256:473b83b915e547aa366d1eee11806deaf419e17be16310ac0a14077f1e28f917", size = 372115, upload-time = "2026-01-05T10:45:15.988Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c1/60/21f715d9faba5f5407ff759472ade058ec4a507ad62bcea47cb847239a73/tokenizers-0.23.1.tar.gz", hash = "sha256:1feeeadf865a7915adc25445dea30e9933e593c31bb96c277cee36de227c8bfa", size = 365748, upload-time = "2026-04-27T14:43:25.606Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/97/5dbfabf04c7e348e655e907ed27913e03db0923abb5dfdd120d7b25630e1/tokenizers-0.22.2-cp39-abi3-macosx_10_12_x86_64.whl", hash = "sha256:544dd704ae7238755d790de45ba8da072e9af3eea688f698b137915ae959281c", size = 3100275, upload-time = "2026-01-05T10:41:02.158Z" },
-    { url = "https://files.pythonhosted.org/packages/2e/47/174dca0502ef88b28f1c9e06b73ce33500eedfac7a7692108aec220464e7/tokenizers-0.22.2-cp39-abi3-macosx_11_0_arm64.whl", hash = "sha256:1e418a55456beedca4621dbab65a318981467a2b188e982a23e117f115ce5001", size = 2981472, upload-time = "2026-01-05T10:41:00.276Z" },
-    { url = "https://files.pythonhosted.org/packages/d6/84/7990e799f1309a8b87af6b948f31edaa12a3ed22d11b352eaf4f4b2e5753/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2249487018adec45d6e3554c71d46eb39fa8ea67156c640f7513eb26f318cec7", size = 3290736, upload-time = "2026-01-05T10:40:32.165Z" },
-    { url = "https://files.pythonhosted.org/packages/78/59/09d0d9ba94dcd5f4f1368d4858d24546b4bdc0231c2354aa31d6199f0399/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:25b85325d0815e86e0bac263506dd114578953b7b53d7de09a6485e4a160a7dd", size = 3168835, upload-time = "2026-01-05T10:40:38.847Z" },
-    { url = "https://files.pythonhosted.org/packages/47/50/b3ebb4243e7160bda8d34b731e54dd8ab8b133e50775872e7a434e524c28/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:bfb88f22a209ff7b40a576d5324bf8286b519d7358663db21d6246fb17eea2d5", size = 3521673, upload-time = "2026-01-05T10:40:56.614Z" },
-    { url = "https://files.pythonhosted.org/packages/e0/fa/89f4cb9e08df770b57adb96f8cbb7e22695a4cb6c2bd5f0c4f0ebcf33b66/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:1c774b1276f71e1ef716e5486f21e76333464f47bece56bbd554485982a9e03e", size = 3724818, upload-time = "2026-01-05T10:40:44.507Z" },
-    { url = "https://files.pythonhosted.org/packages/64/04/ca2363f0bfbe3b3d36e95bf67e56a4c88c8e3362b658e616d1ac185d47f2/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:df6c4265b289083bf710dff49bc51ef252f9d5be33a45ee2bed151114a56207b", size = 3379195, upload-time = "2026-01-05T10:40:51.139Z" },
-    { url = "https://files.pythonhosted.org/packages/2e/76/932be4b50ef6ccedf9d3c6639b056a967a86258c6d9200643f01269211ca/tokenizers-0.22.2-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:369cc9fc8cc10cb24143873a0d95438bb8ee257bb80c71989e3ee290e8d72c67", size = 3274982, upload-time = "2026-01-05T10:40:58.331Z" },
-    { url = "https://files.pythonhosted.org/packages/1d/28/5f9f5a4cc211b69e89420980e483831bcc29dade307955cc9dc858a40f01/tokenizers-0.22.2-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:29c30b83d8dcd061078b05ae0cb94d3c710555fbb44861139f9f83dcca3dc3e4", size = 9478245, upload-time = "2026-01-05T10:41:04.053Z" },
-    { url = "https://files.pythonhosted.org/packages/6c/fb/66e2da4704d6aadebf8cb39f1d6d1957df667ab24cff2326b77cda0dcb85/tokenizers-0.22.2-cp39-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:37ae80a28c1d3265bb1f22464c856bd23c02a05bb211e56d0c5301a435be6c1a", size = 9560069, upload-time = "2026-01-05T10:45:10.673Z" },
-    { url = "https://files.pythonhosted.org/packages/16/04/fed398b05caa87ce9b1a1bb5166645e38196081b225059a6edaff6440fac/tokenizers-0.22.2-cp39-abi3-musllinux_1_2_i686.whl", hash = "sha256:791135ee325f2336f498590eb2f11dc5c295232f288e75c99a36c5dbce63088a", size = 9899263, upload-time = "2026-01-05T10:45:12.559Z" },
-    { url = "https://files.pythonhosted.org/packages/05/a1/d62dfe7376beaaf1394917e0f8e93ee5f67fea8fcf4107501db35996586b/tokenizers-0.22.2-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:38337540fbbddff8e999d59970f3c6f35a82de10053206a7562f1ea02d046fa5", size = 10033429, upload-time = "2026-01-05T10:45:14.333Z" },
-    { url = "https://files.pythonhosted.org/packages/fd/18/a545c4ea42af3df6effd7d13d250ba77a0a86fb20393143bbb9a92e434d4/tokenizers-0.22.2-cp39-abi3-win32.whl", hash = "sha256:a6bf3f88c554a2b653af81f3204491c818ae2ac6fbc09e76ef4773351292bc92", size = 2502363, upload-time = "2026-01-05T10:45:20.593Z" },
-    { url = "https://files.pythonhosted.org/packages/65/71/0670843133a43d43070abeb1949abfdef12a86d490bea9cd9e18e37c5ff7/tokenizers-0.22.2-cp39-abi3-win_amd64.whl", hash = "sha256:c9ea31edff2968b44a88f97d784c2f16dc0729b8b143ed004699ebca91f05c48", size = 2747786, upload-time = "2026-01-05T10:45:18.411Z" },
-    { url = "https://files.pythonhosted.org/packages/72/f4/0de46cfa12cdcbcd464cc59fde36912af405696f687e53a091fb432f694c/tokenizers-0.22.2-cp39-abi3-win_arm64.whl", hash = "sha256:9ce725d22864a1e965217204946f830c37876eee3b2ba6fc6255e8e903d5fcbc", size = 2612133, upload-time = "2026-01-05T10:45:17.232Z" },
+    { url = "https://files.pythonhosted.org/packages/87/39/b87a87d5bb9470610b80a2d31df42fcffeaf35118b8b97952b2aff598cc7/tokenizers-0.23.1-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:e03d6ffcbe0d56ee9c1ccd070e70a13fa750727c0277e138152acbc0252c2224", size = 3146732, upload-time = "2026-04-27T14:43:15.427Z" },
+    { url = "https://files.pythonhosted.org/packages/e2/6a/068ed9f6e444c9d7e9d55ce134181325700f3d7f30410721bdc8f848d727/tokenizers-0.23.1-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:e0948bbb1ac1d7cdfc9fb6d62c596e3b7550036ad60ecd654a66ad273326324e", size = 3054954, upload-time = "2026-04-27T14:43:13.745Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/36/e006edf031154cba92b8416057d92c3abe3635e4c4b0aa0b5b9bb39dde70/tokenizers-0.23.1-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1bf13402aff9bc533c89cb849ec3b412dc3fbeacc9744840e423d7bf3f7dc0e3", size = 3374081, upload-time = "2026-04-27T14:43:01.241Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/ef/7735d226f9c7f874a6bee5e3f27fb25ecabdf207d37b8cf45286d0795893/tokenizers-0.23.1-cp310-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:f836ca703b89ae07919a309f9651f7a88fd5a33d5f718ba5ad0870ec0256bad6", size = 3247641, upload-time = "2026-04-27T14:43:03.856Z" },
+    { url = "https://files.pythonhosted.org/packages/b9/d9/24827036f6e21297bfffda0768e58eb6096a4f411e932964a01707857931/tokenizers-0.23.1-cp310-abi3-manylinux_2_17_i686.manylinux2014_i686.whl", hash = "sha256:ae848657742035523fdf261773630cb819a26995fcd3d9ecae0c1daf6e5a4959", size = 3585624, upload-time = "2026-04-27T14:43:10.664Z" },
+    { url = "https://files.pythonhosted.org/packages/0c/9a/22f3582b3a4f49358293a5206e25317621ee4526bfe9cdaa0f07a12e770e/tokenizers-0.23.1-cp310-abi3-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:53b09e85775d5187941e7bab30e941b4134ab4a7dd8c68e783d231fb7ca27c51", size = 3844062, upload-time = "2026-04-27T14:43:05.643Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/65/b8f8814eef95800f20721384136d9a1d22241d50b2874357cb70542c392f/tokenizers-0.23.1-cp310-abi3-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:ea5a0ce170074329faaa8ea3f6400ecde604b6678192688533af80980daae71a", size = 3460098, upload-time = "2026-04-27T14:43:08.854Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/d5/1353e5f677ec27c2494fb6a6725e82d56c985f53e90ec511369e7e4f02c6/tokenizers-0.23.1-cp310-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5075b405006415ea148a992d093699c66eb01952bf59f4d5727089a98bda45a4", size = 3346235, upload-time = "2026-04-27T14:43:12.377Z" },
+    { url = "https://files.pythonhosted.org/packages/71/89/39b6b8fc073fb6d413d0147aa333dc7eff7be65639ac9d19930a0b21bf33/tokenizers-0.23.1-cp310-abi3-manylinux_2_31_riscv64.whl", hash = "sha256:56f3a77de629917652f876294dc9fe6bad4a0c43bc229dc72e59bb23a0f4729a", size = 3426398, upload-time = "2026-04-27T14:43:07.264Z" },
+    { url = "https://files.pythonhosted.org/packages/0f/80/127c854da64827e5b79264ce524993a90dddcb320e5cd42412c5c02f9e8a/tokenizers-0.23.1-cp310-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:9d10a6d957ef01896dc274e890eee27d41bd0e74ef31e60616f0fc311345184e", size = 9823279, upload-time = "2026-04-27T14:43:17.222Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/ba/44c2502feb1a058f096ddfb4e0996ef3225a01a388e1a9b094e91689fe93/tokenizers-0.23.1-cp310-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:1974288a609c343774f1b897c8b482c791ab17b75ab5c8c2b1737565c1d82288", size = 9644986, upload-time = "2026-04-27T14:43:19.45Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/c1/464019a9fb059870bfe4eebb4ba12208f3042035e258bf5e782906bd3847/tokenizers-0.23.1-cp310-abi3-musllinux_1_2_i686.whl", hash = "sha256:120468fb4c24faf0543c835a4fabafa4deb3f20a035c9b6e83d0b553a97615d4", size = 9976181, upload-time = "2026-04-27T14:43:21.463Z" },
+    { url = "https://files.pythonhosted.org/packages/79/94/3ac1432bda31626071e9b6a12709b97ae05131c804b94c8f3ac622c5da32/tokenizers-0.23.1-cp310-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:e3d8f40ea6268047de7046906326abed5134f27d4e8447b23763afe5808c8a96", size = 10113853, upload-time = "2026-04-27T14:43:23.617Z" },
+    { url = "https://files.pythonhosted.org/packages/6a/dd/631b21433c771b1382535326f0eca80b9c9cee2e64961dd993bc9ac4669e/tokenizers-0.23.1-cp310-abi3-win32.whl", hash = "sha256:93120a930b919416da7cd10a2f606ac9919cc69cacae7980fa2140e277660948", size = 2536263, upload-time = "2026-04-27T14:43:29.888Z" },
+    { url = "https://files.pythonhosted.org/packages/97/c9/2553f72aaf65a2797d4229e37fa7fbe38ffbf3e32912d31bdd78b3323e59/tokenizers-0.23.1-cp310-abi3-win_amd64.whl", hash = "sha256:e7bfaf995c1bdbbd21d13539decb6650967013759318627d85daeb7881af16b7", size = 2798223, upload-time = "2026-04-27T14:43:28.51Z" },
+    { url = "https://files.pythonhosted.org/packages/cd/2b/2be299bab55fc595e3d38567edb1a87f86e594842968fa9515a07bdcf422/tokenizers-0.23.1-cp310-abi3-win_arm64.whl", hash = "sha256:a26197957d8e4425dfba746315f3c425ea00cfa8367c5fbc4ec73447893dcea9", size = 2664127, upload-time = "2026-04-27T14:43:26.949Z" },
 ]
 
 [[package]]
@@ -5984,7 +6032,7 @@ wheels = [
 
 [[package]]
 name = "transformers"
-version = "5.15.1"
+version = "5.16.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "huggingface-hub" },
@@ -5997,9 +6045,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2a/92/c50c61da7046bbb59a4d011291aeadcfb4d7980ab36fdb31e93823a3fb93/transformers-5.15.1.tar.gz", hash = "sha256:27c996bd9075ddc82d40f8590dfdc81ea45f611bfca477e0db5d7fd257a482f7", size = 9378434, upload-time = "2026-08-19T11:28:20.33Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ad/2e/ba418680ab901dae269360bb8642485eae04f1af91ee2ebb8bd6f3607305/transformers-5.16.1.tar.gz", hash = "sha256:17b0eac726ddc55e84ac58946063e0c6d37fd000c456b581f050ea0f4e822869", size = 9650542, upload-time = "2026-08-26T14:48:58.789Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/41/c4/a12e1d9b387fb0c40a57116db82b457e8c771cb419163cda29204d74a595/transformers-5.15.1-py3-none-any.whl", hash = "sha256:b7cdf238ff583e3a58dbc7fa34da1aaf091ce063141f65a30538160bd5afe93f", size = 11749582, upload-time = "2026-08-19T11:28:16.726Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/4d/ee3728674c0bbc637bb4af88ccf0be697f92e4e90b55f5dc110c44d61b61/transformers-5.16.1-py3-none-any.whl", hash = "sha256:2f2d5b98a5ad3718713653734298fa620754ed683702a635ebb587df3ed29c7e", size = 12080592, upload-time = "2026-08-26T14:48:55.083Z" },
 ]
 
 [[package]]
@@ -6331,7 +6379,7 @@ wheels = [
 
 [[package]]
 name = "virtualenv"
-version = "21.7.4"
+version = "21.7.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "distlib" },
@@ -6339,9 +6387,9 @@ dependencies = [
     { name = "platformdirs" },
     { name = "python-discovery" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2d/dc/a6eb1ddfa7f1e390fa599b078453c97edb3f6f846b34fb4eac3e8ea16401/virtualenv-21.7.4.tar.gz", hash = "sha256:c9d960c95fa458171e58222a5ccab7465298e4b6559977865e627c4719f1e825", size = 5345511, upload-time = "2026-08-10T22:54:33.316Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/60/fc54e876e34f94dd0cf0185aaecfd4bfa906653f003d9b2fb21428642fca/virtualenv-21.7.5.tar.gz", hash = "sha256:a73c4246fba3c8901ff9717399f466e00eeca5a3834981f1a6ebb4f1e94de2f8", size = 5346743, upload-time = "2026-08-25T05:39:16.14Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/40/4c/eb2f52aeeaf30dbd073d315a251a63ae2b8263171ec4428c135140cb0802/virtualenv-21.7.4-py3-none-any.whl", hash = "sha256:376ec93cd6aab3044fa395d7db226db38043b7b5748948044b2a87168525e843", size = 5324444, upload-time = "2026-08-10T22:54:31.515Z" },
+    { url = "https://files.pythonhosted.org/packages/ca/d8/401141bf45637be916c86d325bd821c5838c7eff83294b934cd94e774e4f/virtualenv-21.7.5-py3-none-any.whl", hash = "sha256:e36ca889510ab6cb0b1dca93c59e5431dd4422a3c88f487358d470c90af8c07a", size = 5324697, upload-time = "2026-08-25T05:39:14.229Z" },
 ]
 
 [[package]]

@@ -143,6 +143,20 @@ class TestRegistryFootprintCalibration:
         profile = _measure_profile(hordelib_instance, z_image_turbo_base_model_name, steps=4)
         _verify_seeds_against_profile("z_image_turbo", profile)
 
+    @pytest.mark.default_krea2_turbo_model
+    def test_krea2_turbo_seeds_match_measured(
+        self,
+        hordelib_instance: HordeLib,
+        krea2_turbo_base_model_name: str,
+    ) -> None:
+        """Krea 2 Turbo fp8: the MMDiT, its Qwen3-VL text encoder and the VAE.
+
+        Its seeds come from the published component file sizes rather than a device measurement, so this
+        is where the activation-inclusive figures get corrected from a real job.
+        """
+        profile = _measure_profile(hordelib_instance, krea2_turbo_base_model_name, steps=8)
+        _verify_seeds_against_profile("krea2_turbo", profile)
+
     @pytest.mark.default_qwen_model
     def test_qwen_image_seeds_match_measured(
         self,
