@@ -8,7 +8,7 @@
       "scheduler": "simple",
       "denoise": 1,
       "model": [
-        "66",
+        "37",
         0
       ],
       "positive": [
@@ -110,19 +110,6 @@
     "class_type": "EmptySD3LatentImage",
     "_meta": {
       "title": "empty_latent_image"
-    }
-  },
-  "66": {
-    "inputs": {
-      "shift": 3.1000000000000005,
-      "model": [
-        "37",
-        0
-      ]
-    },
-    "class_type": "ModelSamplingAuraFlow",
-    "_meta": {
-      "title": "model_sampling_aura_flow"
     }
   },
   "75": {

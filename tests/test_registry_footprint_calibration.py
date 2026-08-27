@@ -40,10 +40,10 @@ _JOB_HEIGHT = 1024
 _JOB_BATCH = 1
 
 
-def _seed_sampling_peak_mb(baseline: str) -> float:
+def _seed_sampling_peak_mb(baseline: str, model_name: str | None = None) -> float:
     """The registry's predicted sampling VRAM peak for the measured job (``vram_base`` plus activations)."""
-    burden = get_baseline_burden(baseline)
-    assert burden is not None, f"no burden seed for baseline {baseline!r}"
+    burden = get_baseline_burden(baseline, model_name)
+    assert burden is not None, f"no burden seed for baseline {baseline!r} (model {model_name!r})"
     megapixels = (_JOB_WIDTH * _JOB_HEIGHT) / 1_000_000
     return float(burden.vram_base_mb + round(burden.vram_per_megapixel_mb * megapixels * _JOB_BATCH))
 
@@ -79,20 +79,21 @@ def _measure_profile(instance: HordeLib, model_name: str, *, steps: int) -> JobV
     return profiler.profile()
 
 
-def _verify_seeds_against_profile(baseline: str, profile: JobVramProfile) -> None:
+def _verify_seeds_against_profile(baseline: str, profile: JobVramProfile, model_name: str | None = None) -> None:
     """Report the measured profile, hard-assert the footprint safety invariant, detect the vram_base gap.
 
     The footprint check is the hard guard (its failure is the co-residency over-commit). The activation-peak
     check is a detector: when ``vram_base_mb`` under-counts the device high-water it xfails with the number to
     set, so the seed is corrected from the measurement instead of a table value that has drifted.
     """
-    burden = get_baseline_burden(baseline)
+    burden = get_baseline_burden(baseline, model_name)
     assert burden is not None
     seed_footprint = float(burden.resident_footprint_estimate_mb())
-    seed_sampling_peak = _seed_sampling_peak_mb(baseline)
+    seed_sampling_peak = _seed_sampling_peak_mb(baseline, model_name)
+    label = model_name or baseline
 
     logger.info(
-        f"[footprint calibration] {baseline}: "
+        f"[footprint calibration] {label}: "
         f"peak_resident_weights={profile.peak_resident_weights_mb:.0f} MB, "
         f"peak_device_used={profile.peak_device_used_mb:.0f} MB, "
         f"sum_components={profile.sum_component_weights_mb:.0f} MB "
@@ -102,7 +103,7 @@ def _verify_seeds_against_profile(baseline: str, profile: JobVramProfile) -> Non
 
     assert profile.peak_resident_weights_mb > 0, "no on-device weights were observed during the job"
     assert seed_footprint >= profile.peak_resident_weights_mb * (1 - _UNDER_COUNT_TOLERANCE), (
-        f"{baseline}: footprint seed {seed_footprint:.0f} MB is below the measured peak simultaneous weights "
+        f"{label}: footprint seed {seed_footprint:.0f} MB is below the measured peak simultaneous weights "
         f"{profile.peak_resident_weights_mb:.0f} MB. A footprint under what the device actually holds grants "
         f"co-residency room that does not exist. Raise vram_weights_mb / vram_support_weights_mb."
     )
@@ -114,7 +115,7 @@ def _verify_seeds_against_profile(baseline: str, profile: JobVramProfile) -> Non
     if seed_sampling_peak < profile.peak_device_used_mb * (1 - _UNDER_COUNT_TOLERANCE):
         needed_base = round(profile.peak_device_used_mb - (seed_sampling_peak - burden.vram_base_mb))
         logger.warning(
-            f"[footprint calibration] {baseline}: sampling-peak seed {seed_sampling_peak:.0f} MB is below the "
+            f"[footprint calibration] {label}: sampling-peak seed {seed_sampling_peak:.0f} MB is below the "
             f"measured device high-water {profile.peak_device_used_mb:.0f} MB; consider raising vram_base_mb "
             f"toward ~{needed_base} MB (verify the peak phase before setting)."
         )
@@ -155,7 +156,7 @@ class TestRegistryFootprintCalibration:
         is where the activation-inclusive figures get corrected from a real job.
         """
         profile = _measure_profile(hordelib_instance, krea2_turbo_base_model_name, steps=8)
-        _verify_seeds_against_profile("krea2_turbo", profile)
+        _verify_seeds_against_profile("qwen_image", profile, model_name=krea2_turbo_base_model_name)
 
     @pytest.mark.default_qwen_model
     def test_qwen_image_seeds_match_measured(

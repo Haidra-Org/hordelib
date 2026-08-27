@@ -30,10 +30,10 @@
       "inputs": {
         "ckpt_name": "snapshot_model.safetensors",
         "file_type": "unet",
-        "horde_model_name": "Snapshot Model",
+        "horde_model_name": "Krea2-Turbo_fp8",
         "model_name": "snapshot_model.safetensors",
         "seamless_tiling_enabled": false,
-        "unet_name": "krea2_turbo_fp8_scaled.safetensors",
+        "unet_name": "qwen_image_fp8_e4m3fn.safetensors",
         "weight_dtype": "default",
         "will_load_loras": false
       }
@@ -134,5 +134,5 @@
       }
     }
   },
-  "pipeline": "krea2"
+  "pipeline": "qwen"
 }

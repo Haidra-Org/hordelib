@@ -28,12 +28,14 @@ BASELINE_EXPECTED_TEMPLATE: dict[KNOWN_IMAGE_GENERATION_BASELINE, str] = {
     KNOWN_IMAGE_GENERATION_BASELINE.flux_dev: "flux",
     KNOWN_IMAGE_GENERATION_BASELINE.qwen_image: "qwen",
     KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo: "z_image",
-    KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo: "krea2",
 }
 """The template a canonical txt2img payload must select for each supported baseline."""
 
 UNSUPPORTED_BASELINES: set[KNOWN_IMAGE_GENERATION_BASELINE] = {
     KNOWN_IMAGE_GENERATION_BASELINE.infer,
+    # Krea 2 is a Qwen-Image-family model served on the qwen_image baseline and selected by model
+    # name, so this enum member is not keyed on anywhere in hordelib.
+    KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo,
 }
 """Baselines consciously not (yet) given a pipeline family.
 

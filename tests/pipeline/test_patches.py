@@ -11,6 +11,7 @@ from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 from hordelib.execution.graph_utils import fix_node_names
 from hordelib.pipeline.patches import (
     SHUFFLE_PREPROCESSOR_CLASS_TYPE,
+    FlowShiftNode,
     RemixImage,
     ResolvedLora,
     apply_layerdiffuse,
@@ -104,14 +105,14 @@ class TestInsertModelSamplingShift:
     def test_no_shift_is_a_noop(self):
         graph = _flux_graph()
         before = json.dumps(graph, default=str, sort_keys=True)
-        insert_model_sampling_shift(graph, None, flux=True)
+        insert_model_sampling_shift(graph, None, node=FlowShiftNode.FLUX)
         assert json.dumps(graph, default=str, sort_keys=True) == before
 
     def test_flux_gets_the_node_between_the_model_and_its_consumers(self):
         graph = _flux_graph()
         model_source = graph["cfg_guider"]["inputs"]["model"][0]
 
-        insert_model_sampling_shift(graph, 2.5, flux=True)
+        insert_model_sampling_shift(graph, 2.5, node=FlowShiftNode.FLUX)
 
         assert graph["model_sampling_shift"]["class_type"] == "ModelSamplingFlux"
         assert graph["model_sampling_shift"]["inputs"]["model"] == [model_source, 0]
@@ -122,7 +123,7 @@ class TestInsertModelSamplingShift:
         # Equal base and max shift make the node's area interpolation constant, so the requested
         # value is the shift the model runs with rather than one end of a range.
         graph = _flux_graph()
-        insert_model_sampling_shift(graph, 2.5, flux=True)
+        insert_model_sampling_shift(graph, 2.5, node=FlowShiftNode.FLUX)
         inputs = graph["model_sampling_shift"]["inputs"]
         assert inputs["max_shift"] == 2.5
         assert inputs["base_shift"] == 2.5
@@ -134,19 +135,30 @@ class TestInsertModelSamplingShift:
             [ResolvedLora(filename="a.safetensors", strength_model=1.0, strength_clip=1.0)],
             flux=True,
         )
-        insert_model_sampling_shift(graph, 3.0, flux=True)
+        insert_model_sampling_shift(graph, 3.0, node=FlowShiftNode.FLUX)
 
         assert graph["model_sampling_shift"]["inputs"]["model"] == ["lora_0", 0]
         assert graph["cfg_guider"]["inputs"]["model"][0] == "model_sampling_shift"
 
-    def test_a_graph_that_already_has_a_shift_node_has_its_input_set(self):
+    def test_aura_flow_gets_the_node_between_the_model_and_the_sampler(self):
         graph = _graph("qwen")
-        assert graph["model_sampling_aura_flow"]["inputs"]["shift"] != 4.0
+        model_source = graph["sampler"]["inputs"]["model"][0]
 
-        insert_model_sampling_shift(graph, 4.0)
+        insert_model_sampling_shift(graph, 4.0, node=FlowShiftNode.AURA_FLOW)
 
-        assert graph["model_sampling_aura_flow"]["inputs"]["shift"] == 4.0
+        assert graph["model_sampling_aura_flow"]["class_type"] == "ModelSamplingAuraFlow"
+        assert graph["model_sampling_aura_flow"]["inputs"] == {"model": [model_source, 0], "shift": 4.0}
+        assert graph["sampler"]["inputs"]["model"][0] == "model_sampling_aura_flow"
         assert "model_sampling_shift" not in graph
+
+    def test_the_aura_flow_shift_sits_on_top_of_the_lora_chain(self):
+        graph = _graph("qwen")
+        insert_lora_chain(graph, [ResolvedLora(filename="a.safetensors", strength_model=1.0, strength_clip=1.0)])
+
+        insert_model_sampling_shift(graph, 3.0, node=FlowShiftNode.AURA_FLOW)
+
+        assert graph["model_sampling_aura_flow"]["inputs"]["model"] == ["lora_0", 0]
+        assert graph["sampler"]["inputs"]["model"][0] == "model_sampling_aura_flow"
 
     def test_a_model_without_a_shift_is_left_alone(self):
         graph = _sd_graph()

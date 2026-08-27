@@ -101,6 +101,19 @@ def test_selection(payload_dict, baseline, expected):
     assert definition.name == expected
 
 
+@pytest.mark.parametrize("model_name", ["Krea2-Turbo_fp8", "Qwen-Image_fp8"])
+def test_the_qwen_baseline_serves_its_whole_family_from_one_pipeline(model_name):
+    """Krea 2 shares the qwen_image baseline and its graph; what differs is patched in per model."""
+    registry = build_default_registry()
+    payload = ImageGenPayload.from_horde_dict({})
+    context = ModelContext(horde_model_name=model_name, baseline=QWEN)
+
+    definition = registry.select(payload, context)
+
+    assert definition is not None
+    assert definition.name == "qwen"
+
+
 EXPECTED_SELECTION_ORDER = [
     "qr_code",
     "creative_upscale",
@@ -110,7 +123,6 @@ EXPECTED_SELECTION_ORDER = [
     "flux",
     "qwen",
     "z_image",
-    "krea2",
     "controlnet_annotator",
     "controlnet_hires_fix",
     "controlnet",

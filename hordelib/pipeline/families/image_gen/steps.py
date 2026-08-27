@@ -6,6 +6,9 @@ is a no-op). New pipelines opt into exactly the steps they need; the established
 share the full sequence, whose observable behavior is pinned by the snapshot corpus.
 """
 
+from pathlib import Path
+from typing import Any
+
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE, get_baseline_native_resolution
 from loguru import logger
 
@@ -15,6 +18,8 @@ from hordelib.pipeline.families.image_gen.baselines import (
     FLUX_BASELINES,
     IMAGE_BASELINE_PROFILES,
     LoaderKind,
+    resolve_clip_type,
+    resolve_flow_shift,
 )
 from hordelib.pipeline.graph import ComfyGraph
 from hordelib.pipeline.patches import (
@@ -35,6 +40,7 @@ from hordelib.utils.image_utils import ImageUtils
 
 __all__ = [
     "IMAGE_PATCH_STEPS",
+    "apply_component_loaders",
     "apply_controlnet",
     "apply_hires_fix_resolution",
     "apply_img2img_rewire",
@@ -48,6 +54,12 @@ __all__ = [
     "apply_upscale_sampler_steps",
 ]
 
+TEXT_ENCODER_FILE_PURPOSES = ("text_encoders", "text_encoder")
+"""The ``file_purpose`` spellings the reference uses for a standalone text encoder."""
+
+VAE_FILE_PURPOSE = "vae"
+"""The ``file_purpose`` the reference uses for a standalone VAE."""
+
 
 def apply_lora_chain(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
     """Insert the resolved LoRA chain between the model loader and its consumers."""
@@ -56,12 +68,41 @@ def apply_lora_chain(graph: ComfyGraph, payload: ImageGenPayload, context: Model
 
 
 def apply_flow_shift(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
-    """Set the flow model's timestep shift when the payload asks for one.
+    """Insert the flow model's timestep shift node, at the payload's shift or its baseline's default.
 
     Runs after the LoRA chain so the shift is applied to the model the LoRAs produced, which is the
     order comfy's own flux workflows use.
     """
-    insert_model_sampling_shift(graph.raw, payload.flow_shift, flux=context.baseline in FLUX_BASELINES)
+    node, shift = resolve_flow_shift(context.baseline, context.horde_model_name, payload.flow_shift)
+    insert_model_sampling_shift(graph.raw, shift, node=node)
+
+
+def apply_component_loaders(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
+    """Point a split-files graph's CLIP and VAE loaders at the resolved model's own component files.
+
+    The graphs carry one family member's filenames and CLIP type as defaults; the record's files and
+    the model's resolved CLIP type are what it actually loads, which is what lets every model of a
+    family share one graph however its components differ. The loader nodes take a bare filename
+    resolved inside comfy's own component folder, not the ``../<folder>/`` path the manager reports.
+    """
+    updates: dict[str, Any] = {}
+
+    encoder_file = next(
+        (context.extra_files[purpose] for purpose in TEXT_ENCODER_FILE_PURPOSES if purpose in context.extra_files),
+        None,
+    )
+    if encoder_file is not None:
+        updates["clip_loader.clip_name"] = Path(encoder_file).name
+
+    clip_type = resolve_clip_type(context.baseline, context.horde_model_name)
+    if clip_type is not None:
+        updates["clip_loader.type"] = clip_type
+
+    vae_file = context.extra_files.get(VAE_FILE_PURPOSE)
+    if vae_file is not None:
+        updates["vae_loader.vae_name"] = Path(vae_file).name
+
+    graph.set_inputs(updates)
 
 
 def apply_main_model(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
@@ -261,6 +302,7 @@ IMAGE_PATCH_STEPS: tuple[PatchStep[ImageGenPayload, ModelContext], ...] = (
     apply_lora_chain,
     apply_flow_shift,
     apply_main_model,
+    apply_component_loaders,
     apply_cascade_stage_models,
     apply_hires_fix_resolution,
     apply_upscale_sampler_steps,

@@ -366,8 +366,11 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         vram_support_weights_mb=7900,
         vram_decode_spike_mb=3200,
     ),
-    BaselineBurden(
-        baseline="krea2_turbo",
+]
+
+MODEL_BURDEN_OVERRIDES: dict[str, BaselineBurden] = {
+    "Krea2-Turbo_fp8": BaselineBurden(
+        baseline="qwen_image",
         vram_base_mb=15200,
         ram_base_mb=20000,
         vram_per_megapixel_mb=1500,
@@ -384,7 +387,13 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         vram_support_weights_mb=5300,
         vram_decode_spike_mb=3500,
     ),
-]
+}
+"""Burdens keyed by horde model name, for a model whose demand differs from its baseline's seed.
+
+A baseline seed is the family's typical model; a family member with its own weight set (a different
+text encoder, a quantized DiT) is charged its own figures here rather than distorting the family seed.
+"""
+
 
 _FALLBACK_BASELINE_BURDEN = BaselineBurden(
     baseline="unknown",
@@ -497,8 +506,14 @@ def get_feature_impact_registry() -> FeatureImpactRegistry:
     return _REGISTRY
 
 
-def get_baseline_burden(baseline: str) -> BaselineBurden | None:
-    """Return the burden entry for *baseline*, or None when it has no registry entry."""
+def get_baseline_burden(baseline: str, model_name: str | None = None) -> BaselineBurden | None:
+    """Return the burden entry for *model_name* if it has one, else for *baseline*, else None.
+
+    A caller that knows which model it is estimating should pass the name: a model with its own
+    entry in :data:`MODEL_BURDEN_OVERRIDES` is charged that rather than its baseline's family seed.
+    """
+    if model_name is not None and model_name in MODEL_BURDEN_OVERRIDES:
+        return MODEL_BURDEN_OVERRIDES[model_name]
     return _REGISTRY.baselines.get(baseline)
 
 
@@ -509,6 +524,7 @@ def estimate_job_burden(
     height: int,
     batch: int = 1,
     features: list[FEATURE_KIND] | None = None,
+    model_name: str | None = None,
     model_record: ImageGenerationModelRecord | None = None,
     aux_model_weights_mb: dict[FEATURE_KIND, float] | None = None,
     post_processing_upscale_factor: float = 1.0,
@@ -533,11 +549,15 @@ def estimate_job_burden(
     ``vram_delta_per_upscale_factor_sq_mb`` term is charged against ``factor**2``; the default of 1.0 gives
     the base tile cost.
 
+    ``model_name`` (or ``model_record.name``) selects a per-model burden override when one exists
+    (see :data:`MODEL_BURDEN_OVERRIDES`), falling back to the baseline seed otherwise.
+
     Never raises on unknown baselines: pre-flight callers need an answer for every
     job, so unknown baselines use a heavy fallback seed and are flagged via
     ``baseline_known=False``.
     """
-    burden = _REGISTRY.baselines.get(baseline)
+    resolved_model_name = model_name or (model_record.name if model_record is not None else None)
+    burden = get_baseline_burden(baseline, resolved_model_name)
     baseline_known = burden is not None
     if burden is None:
         burden = _FALLBACK_BASELINE_BURDEN
