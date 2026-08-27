@@ -77,7 +77,7 @@ def materialize(
     resolve_path: Callable[[str], str],
     *,
     temp_dir: str | Path,
-    clip_type_resolver: Callable[[str], str | None] | None = None,
+    baseline_resolver: Callable[[str], str | None] | None = None,
 ) -> MaterializedComponent:
     """Load *component* into a comfy module ready to publish.
 
@@ -87,11 +87,12 @@ def materialize(
             ``file_name``; for an embedded source it is the carrier's ``model_name`` (the checkpoint to load
             or slice). The lane owns file layout, so it supplies this.
         temp_dir: Directory a sliced monolithic VAE's standalone file is written to.
-        clip_type_resolver: Maps a source model name to the comfy ``CLIPType`` name its pipeline loads the
-            text encoder with (e.g. ``"qwen_image"``, ``"lumina2"``). A split-file text encoder must be loaded
-            with the same type the consumer's pipeline uses, or the wrapped module differs and no consumer
-            adopts it. ``None`` (or an unknown name) falls back to ``stable_diffusion``. Only consulted for a
-            split-file text encoder; the source model is the one ``materialize`` actually chose.
+        baseline_resolver: Maps a source model name to its reference baseline. A split-file text encoder must
+            be loaded with the same comfy ``CLIPType`` the consumer's pipeline uses, or the wrapped module
+            differs and no consumer adopts it; the baseline and the model name are what
+            :func:`hordelib.pipeline.families.image_gen.baselines.resolve_clip_type` needs to say which that
+            is. Only consulted for a split-file text encoder; the source model is the one ``materialize``
+            actually chose.
 
     Returns:
         The loaded module, the component's content hash, and its publish label.
@@ -107,7 +108,7 @@ def materialize(
         content_hash=component.content_hash,
         resolve_path=resolve_path,
         temp_dir=Path(temp_dir),
-        clip_type_resolver=clip_type_resolver,
+        baseline_resolver=baseline_resolver,
     )
     return MaterializedComponent(
         module=module,
@@ -124,7 +125,7 @@ def _load_component_module(
     content_hash: str,
     resolve_path: Callable[[str], str],
     temp_dir: Path,
-    clip_type_resolver: Callable[[str], str | None] | None = None,
+    baseline_resolver: Callable[[str], str | None] | None = None,
 ) -> Any:
     """Load the shared submodule for one component via comfy (rig-only path; comfy/torch imported lazily)."""
     import comfy.sd
@@ -152,25 +153,29 @@ def _load_component_module(
 
         # A split-file text encoder (e.g. Qwen/Z-Image). It must be loaded with the same CLIPType the
         # consumer's pipeline uses (qwen_image, lumina2, ...); the wrong type wraps the encoder differently
-        # and no consumer's module hash would match. The resolver maps the chosen source model to that type.
+        # and no consumer's module hash would match.
         clip_path = resolve_path(_require_file_name(source))
         clip = comfy.sd.load_clip(
             ckpt_paths=[clip_path],
             embedding_directory=None,
-            clip_type=_resolve_clip_type(source.model_name, clip_type_resolver),
+            clip_type=_resolve_clip_type(source.model_name, baseline_resolver),
         )
         return clip.cond_stage_model
 
 
-def _resolve_clip_type(model_name: str, clip_type_resolver: Callable[[str], str | None] | None) -> Any:
+def _resolve_clip_type(model_name: str, baseline_resolver: Callable[[str], str | None] | None) -> Any:
     """Return the comfy ``CLIPType`` for a split-file text encoder, defaulting to ``STABLE_DIFFUSION``.
 
-    ``clip_type_resolver`` maps the source model name to a comfy type name (case-insensitive); an unknown or
-    missing name falls back to ``STABLE_DIFFUSION``, matching comfy's own ``CLIPLoader`` default.
+    The type comes from the same table the pipeline layer patches ``clip_loader.type`` from, so a component
+    loaded here is the module the pipeline would have loaded. A baseline that names no type (or no resolver
+    at all) falls back to ``STABLE_DIFFUSION``, matching comfy's own ``CLIPLoader`` default.
     """
     import comfy.sd
 
-    type_name = clip_type_resolver(model_name) if clip_type_resolver is not None else None
+    from hordelib.pipeline.families.image_gen.baselines import resolve_clip_type
+
+    baseline = baseline_resolver(model_name) if baseline_resolver is not None else None
+    type_name = resolve_clip_type(baseline, model_name)
     return getattr(comfy.sd.CLIPType, (type_name or "stable_diffusion").upper(), comfy.sd.CLIPType.STABLE_DIFFUSION)
 
 

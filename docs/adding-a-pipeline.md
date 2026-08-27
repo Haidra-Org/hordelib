@@ -81,7 +81,11 @@ Field by field:
 - `patch_steps` — opt in to what you need from
   `hordelib/pipeline/families/image_gen/steps.py` (each step is payload/context-gated, so it
   is a no-op when it does not apply). At minimum you almost always want
-  `steps.apply_main_model`.
+  `steps.apply_main_model`; a graph with `clip_loader`/`vae_loader` nodes also wants
+  `steps.apply_component_loaders`, which replaces their filenames and CLIP type with the
+  resolved model's own (see [adding-a-baseline.md](adding-a-baseline.md)). One model that
+  differs from its family only in components or flow shift belongs in the override table
+  there, not in a pipeline of its own.
 
 ## Checklist for a real image pipeline
 

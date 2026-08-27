@@ -2,8 +2,10 @@
 
 Baseline knowledge for the image family lives here (and in the per-pipeline selectors), not
 scattered through patch steps or the execution layer: each baseline with non-default behavior
-gets a :class:`BaselineProfile` row declaring how its weights load and which comfy
-``model_base`` classes must never be force-loaded onto the GPU.
+gets a :class:`BaselineProfile` row declaring how its weights load, which comfy ``model_base``
+classes must never be force-loaded onto the GPU, the CLIP type its text encoder is loaded with,
+and the flow-matching shift its sampling takes. A single model that deviates from its baseline's
+row gets an :class:`ModelOverride` in :data:`IMAGE_MODEL_OVERRIDES` rather than a graph of its own.
 
 ``execution/comfy_patches.py`` consumes the profiles lazily (it must stay importable without
 horde_model_reference), and its startup tripwire cross-checks the profile class names against
@@ -16,19 +18,25 @@ from types import MappingProxyType
 
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 
+from hordelib.pipeline.patches import FlowShiftNode
+
 __all__ = [
     "ALIGN_YOUR_STEPS_MODEL_TYPES",
     "CASCADE_BASELINES",
     "FLUX_BASELINES",
     "IMAGE_BASELINE_PROFILES",
-    "KREA2_BASELINES",
+    "IMAGE_MODEL_OVERRIDES",
     "AlignYourStepsModelType",
     "BaselineProfile",
+    "FlowShiftNode",
     "LoaderKind",
+    "ModelOverride",
     "QWEN_BASELINES",
     "UNET_LOADER_BASELINES",
     "Z_IMAGE_BASELINES",
     "align_your_steps_model_type",
+    "resolve_clip_type",
+    "resolve_flow_shift",
 ]
 
 
@@ -51,6 +59,28 @@ class BaselineProfile:
     force_load_skip_classes: tuple[str, ...] = ()
     """comfy ``model_base`` class names of this baseline that must never be force-loaded
     (large models whose forced full GPU load would OOM/segfault on smaller cards)."""
+    clip_type: str | None = None
+    """The comfy ``CLIPType`` a split-file text encoder is loaded with; None for a baseline whose
+    text encoder comes out of the checkpoint."""
+    flow_shift_node: FlowShiftNode | None = None
+    """The shift node this baseline's graph takes; None for a baseline whose sampling has no shift."""
+    default_flow_shift: float | None = None
+    """The shift applied when the payload requests none; None leaves the model unshifted."""
+
+
+@dataclass(frozen=True)
+class ModelOverride:
+    """One model's deviations from its baseline's profile.
+
+    A family member can ship its own components (a different text encoder, hence a different CLIP
+    type) or be distilled so that the family's shift no longer applies to it, without being a
+    baseline of its own.
+    """
+
+    clip_type: str | None = None
+    """Overrides the baseline's CLIP type; None keeps it."""
+    applies_flow_shift: bool = True
+    """False when this model takes no shift node even though its baseline does."""
 
 
 CASCADE_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
@@ -64,10 +94,6 @@ QWEN_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
 
 Z_IMAGE_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
     {KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo},
-)
-
-KREA2_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
-    {KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo},
 )
 
 FLUX_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
@@ -95,37 +121,99 @@ IMAGE_BASELINE_PROFILES: MappingProxyType[KNOWN_IMAGE_GENERATION_BASELINE, Basel
             BaselineProfile(
                 baseline=KNOWN_IMAGE_GENERATION_BASELINE.flux_1,
                 force_load_skip_classes=("Flux",),
+                flow_shift_node=FlowShiftNode.FLUX,
             ),
             BaselineProfile(
                 baseline=KNOWN_IMAGE_GENERATION_BASELINE.flux_schnell,
                 force_load_skip_classes=("Flux",),
+                flow_shift_node=FlowShiftNode.FLUX,
             ),
             BaselineProfile(
                 baseline=KNOWN_IMAGE_GENERATION_BASELINE.flux_dev,
                 force_load_skip_classes=("Flux",),
+                flow_shift_node=FlowShiftNode.FLUX,
             ),
             BaselineProfile(
                 baseline=KNOWN_IMAGE_GENERATION_BASELINE.qwen_image,
                 loader=LoaderKind.UNET,
-                force_load_skip_classes=("QwenImage",),
+                # Krea 2 is a Qwen-family model loaded on this baseline; comfy detects its
+                # single-stream MMDiT as the Krea2 model_base class.
+                force_load_skip_classes=("QwenImage", "Krea2"),
+                clip_type="qwen_image",
+                flow_shift_node=FlowShiftNode.AURA_FLOW,
+                # The shift Qwen-Image is served with; carried as a float artifact of the workflow
+                # the graph was exported from, kept exactly so the submitted prompt is unchanged.
+                default_flow_shift=3.1000000000000005,
             ),
             BaselineProfile(
                 baseline=KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo,
                 loader=LoaderKind.UNET,
                 # Z-Image (incl. Z-Image-Turbo) loads as comfy's Lumina2 model_base class.
                 force_load_skip_classes=("Lumina2",),
-            ),
-            BaselineProfile(
-                baseline=KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo,
-                loader=LoaderKind.UNET,
-                # Krea 2 (K2) is a single-stream MMDiT; comfy detects it as the Krea2 model_base class.
-                force_load_skip_classes=("Krea2",),
+                clip_type="lumina2",
             ),
         )
     },
 )
 """Baselines with non-default loading behavior; absent baselines use checkpoint loading and
 have no force-load policy."""
+
+IMAGE_MODEL_OVERRIDES: MappingProxyType[str, ModelOverride] = MappingProxyType(
+    {
+        # Krea 2 Turbo rides the qwen_image baseline with its own Qwen3-VL encoder, and is distilled
+        # to run unshifted.
+        "Krea2-Turbo_fp8": ModelOverride(clip_type="krea2", applies_flow_shift=False),
+    },
+)
+"""Per-model deviations from the baseline profiles, keyed by horde model name."""
+
+
+def _profile_for(baseline: KNOWN_IMAGE_GENERATION_BASELINE | str | None) -> BaselineProfile | None:
+    """Return the profile for *baseline*, accepting the raw reference spelling, else None."""
+    if baseline is None:
+        return None
+    try:
+        return IMAGE_BASELINE_PROFILES.get(KNOWN_IMAGE_GENERATION_BASELINE(baseline))
+    except ValueError:
+        return None
+
+
+def resolve_clip_type(
+    baseline: KNOWN_IMAGE_GENERATION_BASELINE | str | None,
+    model_name: str | None = None,
+) -> str | None:
+    """Return the comfy ``CLIPType`` name a model's split-file text encoder must be loaded with.
+
+    The same answer serves the graph's ``clip_loader`` and the component lane's standalone load of that
+    encoder: loading one encoder under two types produces two different modules, and no consumer would
+    adopt the other's. None means the baseline has no split-file encoder to type.
+    """
+    override = IMAGE_MODEL_OVERRIDES.get(model_name) if model_name is not None else None
+    if override is not None and override.clip_type is not None:
+        return override.clip_type
+    profile = _profile_for(baseline)
+    return profile.clip_type if profile is not None else None
+
+
+def resolve_flow_shift(
+    baseline: KNOWN_IMAGE_GENERATION_BASELINE | str | None,
+    model_name: str | None,
+    requested: float | None,
+) -> tuple[FlowShiftNode | None, float | None]:
+    """Return the shift node this model's graph takes and the shift to apply to it.
+
+    A None node means the model's sampling has no shift, whatever was requested. The baseline's own
+    default stands in when the payload asks for nothing, so a family's graph is shifted the way the
+    model was trained without every caller having to know the number.
+    """
+    override = IMAGE_MODEL_OVERRIDES.get(model_name) if model_name is not None else None
+    if override is not None and not override.applies_flow_shift:
+        return None, requested
+    profile = _profile_for(baseline)
+    if profile is None:
+        return None, requested
+    return profile.flow_shift_node, requested if requested is not None else profile.default_flow_shift
+
 
 UNET_LOADER_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
     profile.baseline for profile in IMAGE_BASELINE_PROFILES.values() if profile.loader is LoaderKind.UNET

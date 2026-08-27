@@ -42,7 +42,6 @@ CASCADE = KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade
 FLUX = KNOWN_IMAGE_GENERATION_BASELINE.flux_1
 QWEN = KNOWN_IMAGE_GENERATION_BASELINE.qwen_image
 Z_IMAGE = KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo
-KREA2 = KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo
 
 _FIXED_SEED = 123456789
 
@@ -192,8 +191,22 @@ SNAPSHOT_CASES: list[tuple[str, dict[str, Any], ModelContext]] = [
         _context(FLUX, resolved_loras=_TWO_LORAS, will_load_loras=True),
     ),
     ("qwen", {}, _context(QWEN)),
+    ("qwen_flow_shift", {"flow_shift": 2.0}, _context(QWEN)),
     ("z_image", {}, _context(Z_IMAGE)),
-    ("krea2", {}, _context(KREA2)),
+    # Krea 2 rides the qwen graph with its own encoder, CLIP type and no shift node, all of it
+    # driven by the record's files and the per-model override.
+    (
+        "qwen_krea2",
+        {},
+        _context(
+            QWEN,
+            horde_model_name="Krea2-Turbo_fp8",
+            extra_files={
+                "text_encoders": "../text_encoders/qwen3vl_4b_fp8_scaled.safetensors",
+                "vae": "../vae/qwen_image_vae.safetensors",
+            },
+        ),
+    ),
     (
         "creative_upscale",
         {

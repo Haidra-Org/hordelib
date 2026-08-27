@@ -7,6 +7,7 @@ they can be unit-tested without a GPU.
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import StrEnum, auto
 from typing import Any
 
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
@@ -77,48 +78,69 @@ def insert_lora_chain(
         reconnect_input(graph, "clip_skip.clip", last)
 
 
+class FlowShiftNode(StrEnum):
+    """The comfy node a flow-matching model applies its timestep shift with."""
+
+    AURA_FLOW = auto()
+    """``ModelSamplingAuraFlow``, inserted ahead of the sampler."""
+    FLUX = auto()
+    """``ModelSamplingFlux``, inserted ahead of the guider and scheduler."""
+
+
 FLOW_SHIFT_NODE = "model_sampling_shift"
-"""Title of the node inserted to set a flow model's timestep shift."""
+"""Title of the ``ModelSamplingFlux`` node inserted to set a flux model's timestep shift."""
 
-_AURA_FLOW_SHIFT_NODE = "model_sampling_aura_flow"
-"""Title of the shift node the qwen graph already carries, whose input is set rather than inserted."""
+AURA_FLOW_SHIFT_NODE = "model_sampling_aura_flow"
+"""Title of the ``ModelSamplingAuraFlow`` node inserted to set a qwen-family model's timestep shift."""
 
 
-def insert_model_sampling_shift(graph: GraphDict, shift: float | None, *, flux: bool = False) -> None:
-    """Set the timestep shift of a flow-matching model, inserting the node that applies it if needed.
+def insert_model_sampling_shift(
+    graph: GraphDict,
+    shift: float | None,
+    *,
+    node: FlowShiftNode | None = None,
+) -> None:
+    """Insert the node that applies a flow-matching model's timestep shift, between the model and its consumers.
 
-    Shift moves where the sampler spends its steps along the flow trajectory; flow-matching models are
-    trained with a resolution-dependent shift, and the graphs that already need one carry the node
-    that applies it. A graph carrying such a node (qwen's ``ModelSamplingAuraFlow``) has its input set,
-    which is what makes the requested value mean the same thing whichever family serves it.
+    Shift moves where the sampler spends its steps along the flow trajectory, and a model is trained with
+    one; which node applies it is a property of the family, so the caller names the node its baseline takes
+    and a model whose sampling has no shift (``node`` None) ignores the request. The node goes between
+    whatever currently feeds the sampling nodes (the model loader, or the last LoRA when a chain was
+    inserted first) and those nodes, mirroring how the LoRA chain rewires them.
 
-    Flux graphs carry no such node, so ``ModelSamplingFlux`` is inserted between whatever currently
-    feeds the sampling nodes (the model loader, or the last LoRA when a chain was inserted first) and
-    those nodes, mirroring how the LoRA chain rewires them. That node derives its shift by
-    interpolating ``base_shift`` to ``max_shift`` across the latent's area; setting both to the
-    requested value makes the interpolation constant, so the request means one shift rather than a
-    resolution-dependent range, and the node's width and height inputs stop affecting the result.
+    ``ModelSamplingFlux`` derives its shift by interpolating ``base_shift`` to ``max_shift`` across the
+    latent's area; setting both to the requested value makes the interpolation constant, so the request
+    means one shift rather than a resolution-dependent range, and the node's width and height inputs stop
+    affecting the result.
 
     Args:
         graph: The pipeline graph to mutate.
-        shift: The requested shift; None leaves the graph exactly as it was.
-        flux: Whether this is a Flux pipeline (different model consumers, and a different node).
+        shift: The shift to apply; None leaves the graph exactly as it was.
+        node: The shift node this model's family applies its shift with, or None for no shift.
     """
     if shift is None:
         return
 
-    if _AURA_FLOW_SHIFT_NODE in graph:
-        graph[_AURA_FLOW_SHIFT_NODE]["inputs"]["shift"] = shift
-        return
-
-    if not flux:
+    if node is None:
         logger.warning("A flow shift was requested for a model whose sampling has no shift; ignoring it.")
         return
 
-    model_source = graph["cfg_guider"]["inputs"]["model"][0]
+    if node is FlowShiftNode.AURA_FLOW:
+        graph[AURA_FLOW_SHIFT_NODE] = {
+            "inputs": {
+                "model": [graph["sampler"]["inputs"]["model"][0], 0],
+                "shift": shift,
+            },
+            "class_type": "ModelSamplingAuraFlow",
+            "_meta": {"title": AURA_FLOW_SHIFT_NODE},
+        }
+        reconnect_input(graph, "sampler.model", AURA_FLOW_SHIFT_NODE)
+        reconnect_input(graph, "upscale_sampler.model", AURA_FLOW_SHIFT_NODE)
+        return
+
     graph[FLOW_SHIFT_NODE] = {
         "inputs": {
-            "model": [model_source, 0],
+            "model": [graph["cfg_guider"]["inputs"]["model"][0], 0],
             "max_shift": shift,
             "base_shift": shift,
             "width": 1024,
