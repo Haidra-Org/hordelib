@@ -5,6 +5,8 @@ from PIL import Image
 
 from hordelib.horde import HordeLib
 
+from .testing_shared_functions import check_single_inference_image_similarity
+
 
 class TestHordeInferenceKrea2Turbo:
     @pytest.mark.default_krea2_turbo_model
@@ -41,3 +43,8 @@ class TestHordeInferenceKrea2Turbo:
 
         img_filename = "krea2_turbo_text_to_image.png"
         pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )

@@ -5,6 +5,8 @@ from PIL import Image
 
 from hordelib.horde import HordeLib
 
+from .testing_shared_functions import check_single_inference_image_similarity
+
 
 class TestHordeInferenceQwen:
     @pytest.mark.default_qwen_model
@@ -41,3 +43,8 @@ class TestHordeInferenceQwen:
 
         img_filename = "qwen_image_fp8_text_to_image.png"
         pil_image.save(f"images/{img_filename}", quality=100)
+
+        assert check_single_inference_image_similarity(
+            f"images_expected/{img_filename}",
+            pil_image,
+        )
