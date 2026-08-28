@@ -156,7 +156,17 @@ class TestRegistryFootprintCalibration:
         is where the activation-inclusive figures get corrected from a real job.
         """
         profile = _measure_profile(hordelib_instance, krea2_turbo_base_model_name, steps=8)
-        _verify_seeds_against_profile("qwen_image", profile, model_name=krea2_turbo_base_model_name)
+        _verify_seeds_against_profile("krea2_turbo", profile)
+
+    @pytest.mark.default_anima_model
+    def test_anima_turbo_seeds_match_measured(
+        self,
+        hordelib_instance: HordeLib,
+        anima_turbo_base_model_name: str,
+    ) -> None:
+        """Anima Turbo: DiT, Qwen3-0.6B text encoder and Qwen image VAE."""
+        profile = _measure_profile(hordelib_instance, anima_turbo_base_model_name, steps=8)
+        _verify_seeds_against_profile("anima", profile)
 
     @pytest.mark.default_qwen_model
     def test_qwen_image_seeds_match_measured(

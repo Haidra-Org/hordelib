@@ -42,11 +42,13 @@ its members is a variable rather than a second graph:
 - **Flow shift.** The shift node is inserted on demand (`apply_flow_shift`), never carried in
   the graph: `resolve_flow_shift` names the node the baseline uses (`ModelSamplingAuraFlow` for
   qwen, `ModelSamplingFlux` for flux) and the shift to apply, which is the payload's
-  `flow_shift` or the baseline's default. A model that takes no shift (Krea 2 Turbo) declares
-  `applies_flow_shift=False` in its override, and a requested shift is warned about and ignored.
+  `flow_shift` or the baseline's default. A baseline that takes no external shift (Krea 2 Turbo,
+  or Anima whose Comfy model config applies its native shift) leaves `flow_shift_node=None`; a
+  requested Horde shift is warned about and ignored.
 
-A model needs its own pipeline only when its graph *shape* differs; differing components,
-CLIP type or shift do not qualify.
+A baseline needs its own pipeline only when its graph *shape* differs. Krea, Anima, and Qwen
+therefore keep distinct baseline identities and profiles while selecting the same `qwen` graph;
+differing components, CLIP type, or native shift do not require another graph template.
 
 ## Checklist
 

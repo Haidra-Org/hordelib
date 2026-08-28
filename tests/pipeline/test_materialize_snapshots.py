@@ -41,6 +41,8 @@ SD2 = KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_2_768
 CASCADE = KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade
 FLUX = KNOWN_IMAGE_GENERATION_BASELINE.flux_1
 QWEN = KNOWN_IMAGE_GENERATION_BASELINE.qwen_image
+KREA2 = KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo
+ANIMA = KNOWN_IMAGE_GENERATION_BASELINE.anima
 Z_IMAGE = KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo
 
 _FIXED_SEED = 123456789
@@ -193,16 +195,27 @@ SNAPSHOT_CASES: list[tuple[str, dict[str, Any], ModelContext]] = [
     ("qwen", {}, _context(QWEN)),
     ("qwen_flow_shift", {"flow_shift": 2.0}, _context(QWEN)),
     ("z_image", {}, _context(Z_IMAGE)),
-    # Krea 2 rides the qwen graph with its own encoder, CLIP type and no shift node, all of it
-    # driven by the record's files and the per-model override.
+    # Krea 2 and Anima retain their own baseline identities while reusing the qwen graph shape.
     (
         "qwen_krea2",
         {},
         _context(
-            QWEN,
+            KREA2,
             horde_model_name="Krea2-Turbo_fp8",
             extra_files={
                 "text_encoders": "../text_encoders/qwen3vl_4b_fp8_scaled.safetensors",
+                "vae": "../vae/qwen_image_vae.safetensors",
+            },
+        ),
+    ),
+    (
+        "qwen_anima",
+        {"cfg_scale": 1.0, "ddim_steps": 8},
+        _context(
+            ANIMA,
+            horde_model_name="Anima-Turbo-v1.1",
+            extra_files={
+                "text_encoders": "../text_encoders/qwen_3_06b_base.safetensors",
                 "vae": "../vae/qwen_image_vae.safetensors",
             },
         ),

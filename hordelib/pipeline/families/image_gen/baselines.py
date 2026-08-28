@@ -5,7 +5,7 @@ scattered through patch steps or the execution layer: each baseline with non-def
 gets a :class:`BaselineProfile` row declaring how its weights load, which comfy ``model_base``
 classes must never be force-loaded onto the GPU, the CLIP type its text encoder is loaded with,
 and the flow-matching shift its sampling takes. A single model that deviates from its baseline's
-row gets an :class:`ModelOverride` in :data:`IMAGE_MODEL_OVERRIDES` rather than a graph of its own.
+row can get an :class:`ModelOverride` in :data:`IMAGE_MODEL_OVERRIDES` rather than a graph of its own.
 
 ``execution/comfy_patches.py`` consumes the profiles lazily (it must stay importable without
 horde_model_reference), and its startup tripwire cross-checks the profile class names against
@@ -31,7 +31,7 @@ __all__ = [
     "FlowShiftNode",
     "LoaderKind",
     "ModelOverride",
-    "QWEN_BASELINES",
+    "QWEN_GRAPH_BASELINES",
     "UNET_LOADER_BASELINES",
     "Z_IMAGE_BASELINES",
     "align_your_steps_model_type",
@@ -88,9 +88,14 @@ CASCADE_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
 )
 """Stable Cascade (a single member; selectors take baseline sets uniformly)."""
 
-QWEN_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
-    {KNOWN_IMAGE_GENERATION_BASELINE.qwen_image},
+QWEN_GRAPH_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
+    {
+        KNOWN_IMAGE_GENERATION_BASELINE.qwen_image,
+        KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo,
+        KNOWN_IMAGE_GENERATION_BASELINE.anima,
+    },
 )
+"""Architecturally distinct split-file baselines that share the same standard sampler graph shape."""
 
 Z_IMAGE_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
     {KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo},
@@ -136,14 +141,26 @@ IMAGE_BASELINE_PROFILES: MappingProxyType[KNOWN_IMAGE_GENERATION_BASELINE, Basel
             BaselineProfile(
                 baseline=KNOWN_IMAGE_GENERATION_BASELINE.qwen_image,
                 loader=LoaderKind.UNET,
-                # Krea 2 is a Qwen-family model loaded on this baseline; comfy detects its
-                # single-stream MMDiT as the Krea2 model_base class.
-                force_load_skip_classes=("QwenImage", "Krea2"),
+                force_load_skip_classes=("QwenImage",),
                 clip_type="qwen_image",
                 flow_shift_node=FlowShiftNode.AURA_FLOW,
                 # The shift Qwen-Image is served with; carried as a float artifact of the workflow
                 # the graph was exported from, kept exactly so the submitted prompt is unchanged.
                 default_flow_shift=3.1000000000000005,
+            ),
+            BaselineProfile(
+                baseline=KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo,
+                loader=LoaderKind.UNET,
+                force_load_skip_classes=("Krea2",),
+                clip_type="krea2",
+            ),
+            BaselineProfile(
+                baseline=KNOWN_IMAGE_GENERATION_BASELINE.anima,
+                loader=LoaderKind.UNET,
+                force_load_skip_classes=("Anima",),
+                # ComfyUI detects Anima's Qwen3-0.6B wrapper from the encoder weights through
+                # its default CLIP loader path. The model config supplies Anima's native shift.
+                clip_type="stable_diffusion",
             ),
             BaselineProfile(
                 baseline=KNOWN_IMAGE_GENERATION_BASELINE.z_image_turbo,
@@ -159,11 +176,7 @@ IMAGE_BASELINE_PROFILES: MappingProxyType[KNOWN_IMAGE_GENERATION_BASELINE, Basel
 have no force-load policy."""
 
 IMAGE_MODEL_OVERRIDES: MappingProxyType[str, ModelOverride] = MappingProxyType(
-    {
-        # Krea 2 Turbo rides the qwen_image baseline with its own Qwen3-VL encoder, and is distilled
-        # to run unshifted.
-        "Krea2-Turbo_fp8": ModelOverride(clip_type="krea2", applies_flow_shift=False),
-    },
+    {},
 )
 """Per-model deviations from the baseline profiles, keyed by horde model name."""
 
