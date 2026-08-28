@@ -366,11 +366,8 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         vram_support_weights_mb=7900,
         vram_decode_spike_mb=3200,
     ),
-]
-
-MODEL_BURDEN_OVERRIDES: dict[str, BaselineBurden] = {
-    "Krea2-Turbo_fp8": BaselineBurden(
-        baseline="qwen_image",
+    BaselineBurden(
+        baseline="krea2_turbo",
         vram_base_mb=15200,
         ram_base_mb=20000,
         vram_per_megapixel_mb=1500,
@@ -387,7 +384,25 @@ MODEL_BURDEN_OVERRIDES: dict[str, BaselineBurden] = {
         vram_support_weights_mb=5300,
         vram_decode_spike_mb=3500,
     ),
-}
+    BaselineBurden(
+        baseline="anima",
+        vram_base_mb=7500,
+        ram_base_mb=10000,
+        vram_per_megapixel_mb=1200,
+        native_resolution=(1024, 1024),
+        min_recommended_vram_mb=8000,
+        max_recommended_batch=1,
+        typical_disk_gb=5.7,
+        # Published bf16 component sizes: 4.18 GB diffusion model, 1.19 GB Qwen3-0.6B encoder,
+        # and the 254 MB Qwen-Image VAE. Activation-inclusive figures remain estimates until the
+        # GPU calibration test can run against a pending model record.
+        vram_weights_mb=4300,
+        vram_support_weights_mb=1500,
+        vram_decode_spike_mb=3200,
+    ),
+]
+
+MODEL_BURDEN_OVERRIDES: dict[str, BaselineBurden] = {}
 """Burdens keyed by horde model name, for a model whose demand differs from its baseline's seed.
 
 A baseline seed is the family's typical model; a family member with its own weight set (a different

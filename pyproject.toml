@@ -54,7 +54,7 @@ dependencies = [
     "gitpython>=3.1.45",
     # 7.6.0 is the first release carrying horde_model_reference.component_identity, imported by
     # hordelib.model_manager.compvis and the standalone-VAE path.
-    "horde_model_reference>=8.4.0,<9.0.0",
+    "horde_model_reference>=8.5.0,<9.0.0",
     # 0.25.0 is the first release exposing ExtraTextEntry from horde_sdk.generation_parameters.image.
     "horde-sdk>=0.31.0,<0.32.0",
     "kornia>=0.7.1",
@@ -306,6 +306,7 @@ markers = [
     "default_qwen_model: marks tests as default_qwen_model (deselect with '-m \"not default_qwen_model\"')",
     "default_z_image_turbo_model: marks tests as default_z_image_turbo_model (deselect with '-m \"not default_z_image_turbo_model\"')",
     "default_krea2_turbo_model: marks tests as default_krea2_turbo_model (deselect with '-m \"not default_krea2_turbo_model\"')",
+    "default_anima_model: marks tests as default_anima_model (deselect with '-m \"not default_anima_model\"')",
     "refined_sdxl_model: marks tests as refined_sdxl_model (deselect with '-m \"not refined_sdxl_model\"')",
     "patch_harness: instrumentation-only tests for ComfyUI monkeypatch impact",
 ]

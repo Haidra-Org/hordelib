@@ -61,6 +61,8 @@ class TestForceLoadSkipResolution:
         # The class names must match comfy.model_base exactly; the old "qwen_image" fragment
         # never matched the comfy class QwenImage (str(type()).lower() == "...qwenimage...").
         assert "QwenImage" in comfy_patches.models_not_to_force_load
+        assert "Krea2" in comfy_patches.models_not_to_force_load
+        assert "Anima" in comfy_patches.models_not_to_force_load
         assert "Flux" in comfy_patches.models_not_to_force_load
         assert "qwen_image" not in comfy_patches.models_not_to_force_load
 
@@ -75,6 +77,16 @@ class TestForceLoadSkipResolution:
             [KNOWN_IMAGE_GENERATION_BASELINE.stable_cascade],
         )
         assert resolved == ["StableCascade_C", "StableCascade_B"]
+
+    @pytest.mark.parametrize(
+        ("baseline", "expected"),
+        [
+            (KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo, ["Krea2"]),
+            (KNOWN_IMAGE_GENERATION_BASELINE.anima, ["Anima"]),
+        ],
+    )
+    def test_graph_compatible_baselines_keep_distinct_load_policies(self, baseline, expected) -> None:
+        assert comfy_patches.resolve_force_load_skip_entries([baseline]) == expected
 
     def test_raw_strings_pass_through_and_dedupe(self) -> None:
         resolved = comfy_patches.resolve_force_load_skip_entries(

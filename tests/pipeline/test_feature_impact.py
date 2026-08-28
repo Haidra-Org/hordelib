@@ -15,7 +15,6 @@ from hordelib.feature_impact import (
 
 _BASELINES_WITHOUT_OWN_BURDEN = {
     KNOWN_IMAGE_GENERATION_BASELINE.infer,
-    KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo,
 }
 
 
@@ -26,8 +25,7 @@ class TestRegistryCoverage:
         missing = [
             baseline.value
             for baseline in KNOWN_IMAGE_GENERATION_BASELINE
-            # "infer" is a directive, not a baseline; flux_1 is the canonical flux value. krea2_turbo is
-            # served as a qwen_image model, charged through MODEL_BURDEN_OVERRIDES by name.
+            # "infer" is a directive, not a runnable baseline; flux_1 is the canonical flux value.
             if baseline not in _BASELINES_WITHOUT_OWN_BURDEN and baseline.value not in registry.baselines
         ]
         assert not missing, f"Baselines without a feature-impact entry: {missing}"
@@ -41,24 +39,15 @@ class TestRegistryCoverage:
         assert get_baseline_burden("stable_diffusion_xl") is not None
         assert get_baseline_burden("not_a_baseline") is None
 
-    def test_model_name_override_beats_the_baseline_seed(self) -> None:
-        """A model with its own burden entry is charged that, not its family's seed."""
-        family_seed = get_baseline_burden("qwen_image")
-        override = get_baseline_burden("qwen_image", "Krea2-Turbo_fp8")
-        assert family_seed is not None
-        assert override is not None
-        assert override.vram_weights_mb != family_seed.vram_weights_mb
-        assert get_baseline_burden("qwen_image", "Some-Other-Qwen-Model") == family_seed
-
-    def test_estimate_uses_the_model_override(self) -> None:
-        """``model_name`` reaches the burden lookup, so an overridden model estimates differently."""
-        krea2 = estimate_job_burden(baseline="qwen_image", width=1024, height=1024, model_name="Krea2-Turbo_fp8")
+    def test_distinct_baselines_have_distinct_burden_seeds(self) -> None:
+        """Graph sharing does not collapse baseline-specific resource accounting."""
+        krea2 = estimate_job_burden(baseline="krea2_turbo", width=1024, height=1024)
         qwen = estimate_job_burden(baseline="qwen_image", width=1024, height=1024)
         assert krea2.vram_mb != qwen.vram_mb
 
     @pytest.mark.parametrize(
         ("baseline", "model_name"),
-        [("qwen_image", None), ("z_image_turbo", None), ("qwen_image", "Krea2-Turbo_fp8")],
+        [("qwen_image", None), ("z_image_turbo", None), ("krea2_turbo", None), ("anima", None)],
     )
     def test_whole_card_baselines_seed_their_resident_weights(self, baseline: str, model_name: str | None) -> None:
         """Whole-card baselines must seed ``vram_weights_mb`` explicitly.
@@ -72,7 +61,10 @@ class TestRegistryCoverage:
         assert burden.vram_weights_mb > 0
         assert burden.resident_weight_estimate_mb() == burden.vram_weights_mb
 
-    @pytest.mark.parametrize("baseline", ["flux_1", "flux_schnell", "flux_dev", "stable_diffusion_xl"])
+    @pytest.mark.parametrize(
+        "baseline",
+        ["flux_1", "flux_schnell", "flux_dev", "stable_diffusion_xl", "krea2_turbo", "anima"],
+    )
     def test_multi_component_baselines_seed_support_weights(self, baseline: str) -> None:
         """Multi-component checkpoints must charge their force-loaded support components.
 

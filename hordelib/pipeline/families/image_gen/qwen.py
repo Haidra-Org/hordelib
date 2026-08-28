@@ -3,7 +3,7 @@
 from hordelib.pipeline.context import ModelContext
 from hordelib.pipeline.definition import OutputSpec, PipelineDefinition, SelectionTier, pipeline_graph
 from hordelib.pipeline.families.image_gen import bindings, steps
-from hordelib.pipeline.families.image_gen.baselines import QWEN_BASELINES
+from hordelib.pipeline.families.image_gen.baselines import QWEN_GRAPH_BASELINES
 from hordelib.pipeline.families.image_gen.features import ImageSelector
 from hordelib.pipeline.payload import ImageGenPayload
 
@@ -12,7 +12,7 @@ __all__ = ["QWEN"]
 QWEN: PipelineDefinition[ImageGenPayload, ModelContext] = PipelineDefinition(
     name="qwen",
     graph_file=pipeline_graph("qwen"),
-    selector=ImageSelector(tier=SelectionTier.BASELINE_FAMILY, order=4, baselines=QWEN_BASELINES),
+    selector=ImageSelector(tier=SelectionTier.BASELINE_FAMILY, order=4, baselines=QWEN_GRAPH_BASELINES),
     bindings=bindings.compose(
         bindings.SAMPLER_CORE,
         bindings.EMPTY_LATENT,

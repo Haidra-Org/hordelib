@@ -147,6 +147,7 @@ _flux1_schnell_fp8_base_model_name = "Flux.1-Schnell fp8 (Compact)"
 _qwen_fp8_base_model_name = "Qwen-Image_fp8"
 _z_image_turbo_base_model_name = "Z-Image-Turbo"
 _krea2_turbo_base_model_name = "Krea2-Turbo_fp8"
+_anima_turbo_base_model_name = "Anima-Turbo-v1.1"
 _am_pony_xl_model_name = "AMPonyXL"
 _rev_animated_model_name = "Rev Animated"
 
@@ -159,6 +160,7 @@ _all_model_names = [
     _qwen_fp8_base_model_name,
     _z_image_turbo_base_model_name,
     _krea2_turbo_base_model_name,
+    _anima_turbo_base_model_name,
     _am_pony_xl_model_name,
     _rev_animated_model_name,
 ]
@@ -223,6 +225,15 @@ def krea2_turbo_base_model_name(shared_model_manager: type[SharedModelManager]) 
     if _krea2_turbo_base_model_name not in shared_model_manager.manager.compvis.model_reference:
         pytest.skip(f"{_krea2_turbo_base_model_name} is not (yet) in the horde model reference")
     return _krea2_turbo_base_model_name
+
+
+@pytest.fixture(scope="session")
+def anima_turbo_base_model_name(shared_model_manager: type[SharedModelManager]) -> str:
+    """The default Anima Turbo model name used for testing once its pending record is published."""
+    assert shared_model_manager.manager.compvis is not None
+    if _anima_turbo_base_model_name not in shared_model_manager.manager.compvis.model_reference:
+        pytest.skip(f"{_anima_turbo_base_model_name} is not (yet) in the horde model reference")
+    return _anima_turbo_base_model_name
 
 
 @pytest.fixture(scope="session")
