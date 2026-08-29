@@ -14,7 +14,7 @@ from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 from hordelib.pipeline.context import ModelContext
 from hordelib.pipeline.families.image import build_default_registry
 from hordelib.pipeline.families.image_gen.baselines import resolve_clip_type, resolve_flow_shift
-from hordelib.pipeline.patches import FlowShiftNode
+from hordelib.pipeline.patches import FlowShiftNode, ResolvedLora
 from hordelib.pipeline.payload import ImageGenPayload
 
 QWEN = KNOWN_IMAGE_GENERATION_BASELINE.qwen_image
@@ -46,6 +46,7 @@ def _materialize(
     extra_files: dict[str, str],
     *,
     baseline: KNOWN_IMAGE_GENERATION_BASELINE = QWEN,
+    resolved_loras: list[ResolvedLora] | None = None,
     **payload_overrides: Any,
 ):
     payload = ImageGenPayload.from_horde_dict({"seed": 1, "prompt": "variant test", **payload_overrides})
@@ -54,6 +55,8 @@ def _materialize(
         baseline=baseline,
         main_file="variant_model.safetensors",
         extra_files=extra_files,
+        resolved_loras=resolved_loras or [],
+        will_load_loras=bool(resolved_loras),
     )
     definition = build_default_registry().select(payload, context)
     assert definition is not None
@@ -139,3 +142,32 @@ def test_anima_runs_the_shared_graph_with_its_own_encoder_and_native_model_shift
     assert graph.node("vae_loader")["inputs"]["vae_name"] == "qwen_image_vae.safetensors"
     assert not graph.has_node("model_sampling_aura_flow")
     assert graph.node("sampler")["inputs"]["model"][0] == "model_loader"
+
+
+@pytest.mark.parametrize(
+    ("baseline", "model_name", "extra_files", "has_horde_flow_shift"),
+    [
+        (QWEN, "Qwen-Image_fp8", QWEN_FILES, True),
+        (KREA2, KREA2_MODEL_NAME, KREA2_FILES, False),
+        (ANIMA, "Anima-Turbo-v1.1", ANIMA_FILES, False),
+    ],
+)
+def test_qwen_family_loras_patch_the_model_and_text_encoder(
+    baseline: KNOWN_IMAGE_GENERATION_BASELINE,
+    model_name: str,
+    extra_files: dict[str, str],
+    has_horde_flow_shift: bool,
+):
+    lora = ResolvedLora(filename="test.safetensors", strength_model=0.8, strength_clip=0.7)
+    _, graph = _materialize(model_name, extra_files, baseline=baseline, resolved_loras=[lora])
+
+    assert graph.node("lora_0")["inputs"]["model"] == ["model_loader", 0]
+    assert graph.node("lora_0")["inputs"]["clip"] == ["clip_loader", 0]
+    assert graph.node("prompt")["inputs"]["clip"] == ["lora_0", 1]
+    assert graph.node("negative_prompt")["inputs"]["clip"] == ["lora_0", 1]
+
+    if has_horde_flow_shift:
+        assert graph.node("model_sampling_aura_flow")["inputs"]["model"] == ["lora_0", 0]
+        assert graph.node("sampler")["inputs"]["model"] == ["model_sampling_aura_flow", 0]
+    else:
+        assert graph.node("sampler")["inputs"]["model"] == ["lora_0", 0]

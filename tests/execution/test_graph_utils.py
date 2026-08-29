@@ -100,6 +100,18 @@ class TestReconnectInput:
         assert reconnect_input(named_sd_graph, "sampler.model", "layer_diffuse_apply") is True
         assert named_sd_graph["sampler"]["inputs"]["model"][0] == "layer_diffuse_apply"
 
+    def test_reconnects_to_specific_output_index(self, named_sd_graph: dict):
+        assert (
+            reconnect_input(
+                named_sd_graph,
+                "prompt.clip",
+                "model_loader",
+                output_index=1,
+            )
+            is True
+        )
+        assert named_sd_graph["prompt"]["inputs"]["clip"] == ["model_loader", 1]
+
     def test_missing_output_returns_none(self, named_sd_graph: dict):
         before = copy.deepcopy(named_sd_graph)
         assert reconnect_input(named_sd_graph, "sampler.model", "no_such_node") is None

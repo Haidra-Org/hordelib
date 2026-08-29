@@ -88,6 +88,19 @@ class TestInsertLoraChain:
         insert_lora_chain(graph, [ResolvedLora(filename="a", strength_model=1, strength_clip=1)])
         assert "upscale_sampler" not in graph  # no phantom node created
 
+    def test_split_component_loaders_patch_model_and_clip(self):
+        graph = _graph("qwen")
+        insert_lora_chain(
+            graph,
+            [ResolvedLora(filename="a.safetensors", strength_model=0.8, strength_clip=0.7)],
+        )
+
+        assert graph["lora_0"]["inputs"]["model"] == ["model_loader", 0]
+        assert graph["lora_0"]["inputs"]["clip"] == ["clip_loader", 0]
+        assert graph["prompt"]["inputs"]["clip"] == ["lora_0", 1]
+        assert graph["negative_prompt"]["inputs"]["clip"] == ["lora_0", 1]
+        assert graph["sampler"]["inputs"]["model"] == ["lora_0", 0]
+
     def test_flux_targets(self):
         graph = _flux_graph()
         insert_lora_chain(
