@@ -1179,6 +1179,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
             extra_headers=None,
             connections=self._download_connections,
             max_retries=self.MAX_RETRIES,
+            allow_redirects=True,
         )
 
     def _discard_partial(self, filepath: str, hashpath: str) -> None:
