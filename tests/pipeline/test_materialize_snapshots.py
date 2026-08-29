@@ -193,6 +193,11 @@ SNAPSHOT_CASES: list[tuple[str, dict[str, Any], ModelContext]] = [
         _context(FLUX, resolved_loras=_TWO_LORAS, will_load_loras=True),
     ),
     ("qwen", {}, _context(QWEN)),
+    (
+        "qwen_loras",
+        {},
+        _context(QWEN, resolved_loras=_TWO_LORAS, will_load_loras=True),
+    ),
     ("qwen_flow_shift", {"flow_shift": 2.0}, _context(QWEN)),
     ("z_image", {}, _context(Z_IMAGE)),
     # Krea 2 and Anima retain their own baseline identities while reusing the qwen graph shape.

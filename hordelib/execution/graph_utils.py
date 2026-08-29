@@ -59,7 +59,13 @@ def apply_dotted_params(graph: GraphDict, params: dict[str, Any]) -> int:
     return num_skipped
 
 
-def reconnect_input(graph: GraphDict, input: str, output: str) -> bool | None:
+def reconnect_input(
+    graph: GraphDict,
+    input: str,
+    output: str,
+    *,
+    output_index: int | None = None,
+) -> bool | None:
     """Connect the named node input to the named node's output.
 
     Used for dynamic switching of pipeline graphs.
@@ -68,6 +74,7 @@ def reconnect_input(graph: GraphDict, input: str, output: str) -> bool | None:
         graph: The graph to mutate.
         input: The dotted input to rewire (e.g. ``"sampler.model"``).
         output: The name of the node to connect the input to.
+        output_index: The output slot to use. When omitted, keep the current slot.
 
     Returns:
         ``True`` on success, ``None`` if the input or output does not exist in this graph.
@@ -94,6 +101,8 @@ def reconnect_input(graph: GraphDict, input: str, output: str) -> bool | None:
 
     logger.debug("Reconnected input to output", input_name=input, output_name=output)
     current[0] = output
+    if output_index is not None:
+        current[1] = output_index
     return True
 
 

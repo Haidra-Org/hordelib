@@ -41,10 +41,9 @@ def insert_lora_chain(
 ) -> None:
     """Inject a chain of HordeLoraLoader nodes between the model loader and its consumers.
 
-    The first LoRA connects to ``model_loader``; each subsequent LoRA chains from the previous
-    one. The last LoRA replaces the model/clip sources of the samplers and clip_skip (or, for
-    Flux pipelines, of ``cfg_guider``/``basic_scheduler``). Targets absent from the graph are
-    skipped, matching the variant pipelines that lack them (e.g. no ``upscale_sampler``).
+    The first LoRA connects to the graph's model and CLIP loaders; each subsequent LoRA chains
+    from the previous one. The last LoRA replaces the model and CLIP sources used downstream.
+    Targets absent from the graph are skipped.
 
     Args:
         graph: The pipeline graph to mutate.
@@ -54,12 +53,15 @@ def insert_lora_chain(
     if not loras:
         return
 
+    has_standalone_clip_loader = "clip_loader" in graph
     for index, lora in enumerate(loras):
-        source = "model_loader" if index == 0 else f"lora_{index - 1}"
+        model_source = "model_loader" if index == 0 else f"lora_{index - 1}"
+        clip_source = "clip_loader" if index == 0 and has_standalone_clip_loader else model_source
+        clip_output = 0 if index == 0 and has_standalone_clip_loader else 1
         graph[f"lora_{index}"] = {
             "inputs": {
-                "model": [source, 0],
-                "clip": [source, 1],
+                "model": [model_source, 0],
+                "clip": [clip_source, clip_output],
                 "lora_name": lora.filename,
                 "strength_model": lora.strength_model,
                 "strength_clip": lora.strength_clip,
@@ -75,6 +77,11 @@ def insert_lora_chain(
     else:
         reconnect_input(graph, "sampler.model", last)
         reconnect_input(graph, "upscale_sampler.model", last)
+
+    if has_standalone_clip_loader:
+        reconnect_input(graph, "prompt.clip", last, output_index=1)
+        reconnect_input(graph, "negative_prompt.clip", last, output_index=1)
+    else:
         reconnect_input(graph, "clip_skip.clip", last)
 
 
