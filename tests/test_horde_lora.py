@@ -9,6 +9,10 @@ from hordelib.shared_model_manager import SharedModelManager
 
 from .testing_shared_functions import check_single_lora_image_similarity
 
+_QWEN_ANALOG_LORA_VERSION: str = "2257724"
+_KREA2_DETAIL_SLIDER_LORA_VERSION: str = "3068874"
+_ANIMA_KANZARIN_LORA_VERSION: str = "2980620"
+
 
 class TestHordeLora:
     @pytest.fixture(autouse=True, scope="class")
@@ -17,6 +21,171 @@ class TestHordeLora:
         shared_model_manager.manager.lora.download_default_models()
         shared_model_manager.manager.lora.wait_for_downloads()
         yield
+
+    @pytest.mark.slow
+    @pytest.mark.default_qwen_model
+    def test_qwen_image_lora(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        qwen_image_fp8_base_model_name: str,
+    ):
+        assert shared_model_manager.manager.lora
+        assert shared_model_manager.manager.lora.fetch_adhoc_lora(
+            _QWEN_ANALOG_LORA_VERSION,
+            timeout=300,
+            is_version=True,
+        )
+
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 2.5,
+            "denoising_strength": 1.0,
+            "seed": 1886,
+            "height": 1024,
+            "width": 1024,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "An analog photo of a woman waiting at a rain-soaked train station at night",
+            "loras": [
+                {
+                    "name": _QWEN_ANALOG_LORA_VERSION,
+                    "model": 1.0,
+                    "clip": 1.0,
+                    "is_version": True,
+                },
+            ],
+            "ddim_steps": 20,
+            "n_iter": 1,
+            "model": qwen_image_fp8_base_model_name,
+        }
+        base_data = data.copy()
+        base_data["loras"] = []
+        base_result = hordelib_instance.basic_inference_single_image(base_data)
+        result = hordelib_instance.basic_inference_single_image(data)
+
+        assert isinstance(base_result, ResultingImageReturn)
+        assert isinstance(base_result.image, Image.Image)
+        assert isinstance(result, ResultingImageReturn)
+        assert isinstance(result.image, Image.Image)
+        assert not result.faults
+        assert base_result.image.tobytes() != result.image.tobytes()
+        result.image.save("images/qwen_image_analog_lora.png", quality=100)
+
+    @pytest.mark.slow
+    @pytest.mark.default_krea2_turbo_model
+    def test_krea2_detail_slider_lora(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        krea2_turbo_base_model_name: str,
+    ):
+        assert shared_model_manager.manager.lora
+        assert shared_model_manager.manager.lora.fetch_adhoc_lora(
+            _KREA2_DETAIL_SLIDER_LORA_VERSION,
+            timeout=300,
+            is_version=True,
+        )
+
+        data = {
+            "sampler_name": "er_sde",
+            "cfg_scale": 1.0,
+            "denoising_strength": 1.0,
+            "seed": 1413,
+            "height": 1024,
+            "width": 1024,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "An ornate clockwork owl perched in an old library, intricate metal feathers",
+            "loras": [
+                {
+                    "name": _KREA2_DETAIL_SLIDER_LORA_VERSION,
+                    "model": 1.0,
+                    "clip": 1.0,
+                    "is_version": True,
+                },
+            ],
+            "ddim_steps": 8,
+            "n_iter": 1,
+            "model": krea2_turbo_base_model_name,
+        }
+        base_data = data.copy()
+        base_data["loras"] = []
+        base_result = hordelib_instance.basic_inference_single_image(base_data)
+        result = hordelib_instance.basic_inference_single_image(data)
+
+        assert isinstance(base_result, ResultingImageReturn)
+        assert isinstance(base_result.image, Image.Image)
+        assert isinstance(result, ResultingImageReturn)
+        assert isinstance(result.image, Image.Image)
+        assert not result.faults
+        assert base_result.image.tobytes() != result.image.tobytes()
+        result.image.save("images/krea2_detail_slider_lora.png", quality=100)
+
+    @pytest.mark.slow
+    @pytest.mark.default_anima_model
+    def test_anima_kanzarin_lora(
+        self,
+        shared_model_manager: type[SharedModelManager],
+        hordelib_instance: HordeLib,
+        anima_turbo_base_model_name: str,
+    ):
+        assert shared_model_manager.manager.lora
+        assert shared_model_manager.manager.lora.fetch_adhoc_lora(
+            _ANIMA_KANZARIN_LORA_VERSION,
+            timeout=300,
+            is_version=True,
+        )
+
+        data = {
+            "sampler_name": "k_euler",
+            "cfg_scale": 1.0,
+            "denoising_strength": 1.0,
+            "seed": 2026,
+            "height": 1024,
+            "width": 1024,
+            "karras": False,
+            "tiling": False,
+            "hires_fix": False,
+            "clip_skip": 1,
+            "control_type": None,
+            "image_is_control": False,
+            "return_control_map": False,
+            "prompt": "@k4nz4r1n, a mage standing beneath a luminous moon, detailed anime illustration",
+            "loras": [
+                {
+                    "name": _ANIMA_KANZARIN_LORA_VERSION,
+                    "model": 1.0,
+                    "clip": 1.0,
+                    "is_version": True,
+                },
+            ],
+            "ddim_steps": 8,
+            "n_iter": 1,
+            "model": anima_turbo_base_model_name,
+        }
+        base_data = data.copy()
+        base_data["loras"] = []
+        base_result = hordelib_instance.basic_inference_single_image(base_data)
+        result = hordelib_instance.basic_inference_single_image(data)
+
+        assert isinstance(base_result, ResultingImageReturn)
+        assert isinstance(base_result.image, Image.Image)
+        assert isinstance(result, ResultingImageReturn)
+        assert isinstance(result.image, Image.Image)
+        assert not result.faults
+        assert base_result.image.tobytes() != result.image.tobytes()
+        result.image.save("images/anima_kanzarin_lora.png", quality=100)
 
     @pytest.mark.default_sd15_model
     def test_text_to_image_lora_red(
