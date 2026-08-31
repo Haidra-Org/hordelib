@@ -130,6 +130,21 @@ import inspect
 import logging
 
 
+_LOG_ONCE_MESSAGE_PREFIXES = (
+    # ComfyUI re-scans the whole custom-node directory on every pipeline load; the first scan names each
+    # node once (worth having), the re-scans repeat the identical lines hundreds of times a minute.
+    "Trying to load custom node",
+    # comfy_kitchen's dequantization fallback repeats the identical line for the same (op, layout)
+    # combination on every forward pass; the first sighting is the whole signal.
+    "Unhandled op ",
+)
+"""Message prefixes whose distinct messages are forwarded once per process and then suppressed.
+
+For these, the first occurrence of each exact message carries all the insight and every repeat is
+byte-identical noise, so the dedup keeps the signal (including each new distinct message, e.g. a node
+path or op/layout combination not seen before) without the flood."""
+
+
 class InterceptHandler(logging.Handler):
     """
     Add logging handler to augment python stdlib logging.
@@ -149,6 +164,7 @@ class InterceptHandler(logging.Handler):
 
     _ignored_message_contents: set[str]
     _ignored_libraries: list[str]
+    _seen_once_messages: set[str]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -159,6 +175,7 @@ class InterceptHandler(logging.Handler):
         self._ignored_libraries = [
             "numba.core",
         ]
+        self._seen_once_messages = set()
 
     def add_ignored_message_content(self, content: str) -> None:
         """Add a message content to ignore."""
@@ -208,6 +225,11 @@ class InterceptHandler(logging.Handler):
         for ignored_message_content in self._ignored_message_contents:
             if ignored_message_content in message:
                 return
+
+        if message.startswith(_LOG_ONCE_MESSAGE_PREFIXES):
+            if message in self._seen_once_messages:
+                return
+            self._seen_once_messages.add(message)
 
         # Get corresponding Loguru level if it exists
         level: str | int
@@ -721,9 +743,14 @@ _LAST_LOW_VRAM_WARN_TIME: float = 0.0
 inference reserve warns periodically rather than on every (very frequent) log_free_ram call."""
 _LOW_VRAM_WARN_INTERVAL_SECONDS: float = 15.0
 
+_LAST_FREE_RAM_LOG_TIME: float = 0.0
+"""Wall time of the last free-VRAM/RAM debug line, so a pipeline calling log_free_ram once per node
+reports periodically rather than on every node."""
+_FREE_RAM_LOG_INTERVAL_SECONDS: float = 5.0
+
 
 def log_free_ram() -> None:
-    global _LAST_LOW_VRAM_WARN_TIME
+    global _LAST_LOW_VRAM_WARN_TIME, _LAST_FREE_RAM_LOG_TIME
 
     # Report the *device-wide* free VRAM (mem_get_info), not comfy's get_free_memory: the latter adds back
     # this process's reserved-but-inactive torch allocator cache, over-stating free by several GB and
@@ -751,7 +778,12 @@ def log_free_ram() -> None:
         else ""
     )
 
-    logger.debug(f"Free VRAM: {free_vram_mb:0.0f} MB{cache_note}, Free RAM: {free_ram_mb:0.0f} MB{offloaded_note}")
+    now_for_log = time.time()
+    if now_for_log - _LAST_FREE_RAM_LOG_TIME >= _FREE_RAM_LOG_INTERVAL_SECONDS:
+        _LAST_FREE_RAM_LOG_TIME = now_for_log
+        logger.debug(
+            f"Free VRAM: {free_vram_mb:0.0f} MB{cache_note}, Free RAM: {free_ram_mb:0.0f} MB{offloaded_note}",
+        )
 
     # A driver-level system-memory fallback (e.g. the Windows WDDM shared-memory pool, on by default) spills
     # device allocations to host RAM once free VRAM nears zero, collapsing the sampling rate the same way
@@ -857,6 +889,11 @@ class Comfy_Horde:
 
         self._comfyui_callback = comfyui_callback
         self.aggressive_unloading = aggressive_unloading
+        # The node named by the previous ExecutingEvent and when it started, so the next event can report
+        # how long it ran: the per-node line then attributes graph time to the nodes that actually consume
+        # it (clip encode, VAE decode, weight loads) instead of only marking traversal order.
+        self._executing_node_name: str | None = None
+        self._executing_node_started_at: float | None = None
         self.last_run_retained_weights_evicted = False
         """Whether the last run kept a retention deferral that the device did not honour.
 
@@ -980,7 +1017,22 @@ class Comfy_Horde:
                     cached_nodes=event.nodes,
                 )
         elif isinstance(event, ExecutingEvent):
-            logger.debug("ComfyUI executing node", node_name=event.node)
+            # getattr with defaults rather than reads of __init__ state: the receipt-throttle tests drive
+            # this method against a bare stand-in object, a supported way to call it.
+            now = time.perf_counter()
+            previous_node = getattr(self, "_executing_node_name", None)
+            previous_started_at = getattr(self, "_executing_node_started_at", None)
+            if previous_node is not None and previous_started_at is not None:
+                logger.debug(
+                    "ComfyUI executing node",
+                    node_name=event.node,
+                    previous_node=previous_node,
+                    previous_seconds=round(now - previous_started_at, 3),
+                )
+            else:
+                logger.debug("ComfyUI executing node", node_name=event.node)
+            self._executing_node_name = event.node
+            self._executing_node_started_at = now
             if event.node == VAE_DECODE_NODE_TITLE:
                 logger.info("Decoding image from VAE. This may take a while for large images.")
 

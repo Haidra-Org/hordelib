@@ -48,10 +48,10 @@ def apply_dotted_params(graph: GraphDict, params: dict[str, Any]) -> int:
 
         if not skip:
             if not current.get(keys[-1]):
-                logger.debug("Template parameter created: key={}", key)
+                logger.trace("Template parameter created: key={}", key)
             current[keys[-1]] = value
 
-    logger.debug(
+    logger.trace(
         "Attempted to set parameters: requested_count={}, skipped_count={}",
         len(params),
         num_skipped,

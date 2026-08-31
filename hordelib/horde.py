@@ -643,15 +643,19 @@ class HordeLib:
             # Record progress metric
             progress_gauge.set(comfyui_progress.percent)
 
-            # Log progress event
-            logger.info(
-                "horde.progress_update",
-                percent=comfyui_progress.percent,
-                current_step=comfyui_progress.current_step,
-                total_steps=comfyui_progress.total_steps,
-                rate=comfyui_progress.rate,
-                rate_unit=comfyui_progress.rate_unit.name,
-            )
+            # Log progress event. Every step would flood the log at this level, so only every fifth
+            # step is reported, plus the first and last step of the job so the run's bounds are visible.
+            current_step = comfyui_progress.current_step
+            total_steps = comfyui_progress.total_steps
+            if current_step == 1 or current_step == total_steps or current_step % 5 == 0:
+                logger.info(
+                    "horde.progress_update",
+                    percent=comfyui_progress.percent,
+                    current_step=current_step,
+                    total_steps=total_steps,
+                    rate=comfyui_progress.rate,
+                    rate_unit=comfyui_progress.rate_unit.name,
+                )
 
             cls._emit_progress(
                 progress_callback,
