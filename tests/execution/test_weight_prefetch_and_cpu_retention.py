@@ -80,3 +80,61 @@ def test_kill_switches_disable_both_mechanisms(monkeypatch: pytest.MonkeyPatch) 
     module = _module()
     assert stash_cpu_origins(module) == 0
     assert weight_prefetch.prefetch_module_weights_async(module) is None
+
+
+class _WrapperWeight(torch.Tensor):
+    """A minimal ``__tensor_flatten__`` wrapper whose dispatch path is forbidden.
+
+    Mirrors a quantized weight: the wrapper reports a logical compute dtype while the real bytes live in an
+    inner plain tensor. Any op reaching ``__torch_dispatch__`` would, in the real layout classes, fall back
+    to materialising a dense dequantized copy, so the helpers must reach the inner tensor without ever
+    dispatching through the wrapper.
+    """
+
+    @staticmethod
+    def __new__(cls, qdata: torch.Tensor) -> _WrapperWeight:
+        return torch.Tensor._make_wrapper_subclass(cls, qdata.shape, dtype=torch.bfloat16, device=qdata.device)
+
+    def __init__(self, qdata: torch.Tensor) -> None:
+        self._qdata = qdata
+
+    def __tensor_flatten__(self) -> tuple[list[str], None]:
+        return ["_qdata"], None
+
+    @classmethod
+    def __torch_dispatch__(cls, func, types, args=(), kwargs=None):
+        raise AssertionError(f"a weight page-in helper dispatched {func} through the wrapper")
+
+
+def test_touch_unwraps_tensor_subclasses_without_dispatching() -> None:
+    inner = torch.zeros(256, 256, dtype=torch.uint8)
+    touched = touch_cpu_weights([_WrapperWeight(inner)])
+    assert touched == inner.numel() * inner.element_size()
+
+
+def test_collect_ranges_covers_a_wrapped_weight_via_its_inner_storage() -> None:
+    inner = torch.zeros(256, 256, dtype=torch.uint8)
+    module = torch.nn.Module()
+    module.register_buffer("weight", _WrapperWeight(inner))
+    ranges = collect_cpu_weight_ranges(module)
+    total = sum(length for _, length in ranges)
+    assert total >= inner.numel() * inner.element_size()
+
+
+def test_touch_never_dequantizes_a_real_comfy_kitchen_fp8_weight(caplog: pytest.LogCaptureFixture) -> None:
+    """Bump canary: page-touching a comfy_kitchen fp8 weight must not hit the dequantization fallback.
+
+    The fallback logs "Unhandled op ..., dequantizing" and materialises a dense compute-dtype copy, which
+    for a whole checkpoint is twice the file's bytes and tens of seconds of CPU per touch pass. A
+    comfy_kitchen or torch bump that changes the wrapper protocol or the dispatch tables could
+    reintroduce that silently; this pins the contract against the installed library.
+    """
+    pytest.importorskip("comfy_kitchen.tensor.fp8")
+    base = pytest.importorskip("comfy_kitchen.tensor.base")
+
+    weight = base.QuantizedTensor.from_float(torch.randn(128, 128), "TensorCoreFP8Layout")
+    with caplog.at_level("DEBUG", logger="comfy_kitchen"):
+        touched = touch_cpu_weights([weight])
+
+    assert touched > 0
+    assert not any("dequantizing" in record.message for record in caplog.records)

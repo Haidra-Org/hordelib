@@ -52,12 +52,37 @@ def weight_prefetch_disabled() -> bool:
     return os.environ.get(_DISABLE_ENV_VAR, "").strip().lower() in _TRUTHY_VALUES
 
 
+def _plain_storage_tensors(tensors: Iterable[torch.Tensor]) -> Iterable[torch.Tensor]:
+    """Yield the plain storage-backed tensors underneath ``tensors``, unwrapping tensor subclasses.
+
+    A wrapper subclass (a quantized weight) advertises its inner tensors via ``__tensor_flatten__``.
+    Reading the wrapper itself goes through ``__torch_dispatch__`` at the wrapper's *logical* dtype, and an
+    op the layout does not handle falls back to materialising a dense dequantized copy: a page-touch pass
+    over an fp8 checkpoint that way dequantizes every weight to its compute dtype on the CPU, twice the
+    bytes of the file and tens of seconds of work, per pass. ``untyped_storage()`` raises for wrappers too,
+    which silently emptied the prefetch hint for quantized checkpoints. The inner tensors are the bytes
+    that actually exist, so both the hint and the touch operate on them.
+    """
+    for tensor in tensors:
+        if getattr(type(tensor), "__tensor_flatten__", None) is None:
+            yield tensor
+            continue
+        try:
+            inner_names, _context = tensor.__tensor_flatten__()
+        except Exception:
+            yield tensor
+            continue
+        yield from _plain_storage_tensors(getattr(tensor, name) for name in inner_names)
+
+
 def collect_cpu_weight_ranges(module: torch.nn.Module) -> list[tuple[int, int]]:
     """Return coalesced ``(address, length)`` ranges covering the module's CPU-resident weights and buffers."""
     spans: list[tuple[int, int]] = []
-    tensors: Iterable[torch.Tensor] = (
-        *(p.data for p in module.parameters(recurse=True)),
-        *module.buffers(recurse=True),
+    tensors: Iterable[torch.Tensor] = _plain_storage_tensors(
+        (
+            *(p.data for p in module.parameters(recurse=True)),
+            *module.buffers(recurse=True),
+        ),
     )
     for tensor in tensors:
         if tensor.device.type != "cpu" or tensor.is_meta or tensor.numel() == 0:
@@ -141,8 +166,10 @@ def touch_cpu_weights(tensors: Iterable[torch.Tensor]) -> int:
     """Read one element per page of every tensor so its pages are mapped into the process; returns bytes touched."""
     touched = 0
     with torch.no_grad():
-        for tensor in tensors:
-            if not tensor.is_contiguous():
+        for tensor in _plain_storage_tensors(tensors):
+            # A 0-dim tensor (a quantization scale scalar) cannot be reinterpreted by view(dtype); its
+            # handful of bytes needs no paging help either.
+            if not tensor.is_contiguous() or tensor.dim() == 0:
                 continue
             # A byte view strided by the page size reads one byte per page; the sum is discarded.
             as_bytes = tensor.view(torch.uint8).reshape(-1)
