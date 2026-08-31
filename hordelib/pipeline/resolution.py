@@ -241,10 +241,12 @@ def _resolve_loras(
                 continue
             except Exception:
                 logger.bind(lora_name=lora.name).exception("Error fetching adhoc lora")
+                # A failed fetch is one fault for this lora, whether it raised or returned nothing;
+                # falling through to the empty-result branch would record the same entry twice.
                 faults.append(
                     GenMetadataEntry(type=METADATA_TYPE.lora, value=METADATA_VALUE.download_failed, ref=lora.name),
                 )
-                adhoc_lora = None
+                continue
             if not adhoc_lora:
                 logger.info(
                     f"Adhoc lora requested{verstext} '{lora.name} could not be found in CivitAI. Ignoring!",
