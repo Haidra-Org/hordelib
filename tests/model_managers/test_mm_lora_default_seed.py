@@ -177,7 +177,7 @@ def test_present_default_not_reenqueued_and_reference_keeps_both(tmp_path: Path)
     manager = _seedable_manager(tmp_path)
 
     item = _default_metadata_item("Curated Default", 333, 3003)
-    parsed, _ = manager._parse_civitai_item(item)
+    parsed = manager._parse_civitai_item(item)
     assert parsed is not None
     _register(manager, parsed)
     _write_weight_file(manager, parsed.versions["3003"].filename)
