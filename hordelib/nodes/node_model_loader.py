@@ -217,6 +217,12 @@ class HordeCheckpointLoader:
         collector = get_metrics_collector()
 
         entry = cache.get(cache_key, will_mutate=will_mutate)
+        if entry is not None and not self._entry_serves_requested_file(entry, ckpt_name):
+            logger.info(
+                "Cached load of {} holds a different declared file than this request asks for; loading from disk.",
+                horde_model_name,
+            )
+            entry = None
         if entry is not None:
             # Indexed access, not unpacking: the cached tuple mirrors load_checkpoint_guess_config's return,
             # which carries trailing elements beyond (model, clip, vae) that this reuse path never touches.
@@ -513,6 +519,21 @@ class HordeCheckpointLoader:
             trim_host_after_component_release()
             _release_device_cache_after_eviction()
         collector.record_component_cache_held_mb(cache.held_mb())
+
+    @staticmethod
+    def _entry_serves_requested_file(entry: ComponentCacheEntry, ckpt_name: str | None) -> bool:
+        """Whether a cached checkpoint entry holds the file an explicitly-named request asks for.
+
+        The cache identity is the horde model name, but one model may declare several checkpoint files
+        served through the same loader node (Stable Cascade's stage_b and stage_c load under one model
+        name), and a name-keyed hit would hand one stage's weights to the other stage's sampler. The entry
+        records the path it was loaded from, so a request naming a different file loads from disk instead
+        of serving the wrong weights. A request naming no file keeps the name-only behavior and takes
+        whichever declared file the entry holds.
+        """
+        if not ckpt_name:
+            return True
+        return Path(entry.source_ckpt_path).name == Path(ckpt_name).name
 
     def _resolve_monolithic_ckpt_name(
         self,
