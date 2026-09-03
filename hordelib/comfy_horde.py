@@ -358,8 +358,23 @@ def do_comfy_import(
         )
 
         from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config
+        import comfy.sd1_clip
+        from comfy.text_encoders.anima import AnimaTEModel
         from comfy.model_management import current_loaded_models as _comfy_current_loaded_models
         import comfy.model_management
+
+        comfy_patches.capture_and_patch(
+            "load_embed",
+            comfy.sd1_clip,
+            "load_embed",
+            comfy_patches.load_embed_hijack,
+        )
+        comfy_patches.capture_and_patch(
+            "anima_encode_token_weights",
+            AnimaTEModel,
+            "encode_token_weights",
+            comfy_patches.anima_encode_token_weights_hijack,
+        )
 
         comfy_patches.capture_and_patch(
             "load_models_gpu",

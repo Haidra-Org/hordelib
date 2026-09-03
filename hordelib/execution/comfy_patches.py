@@ -12,6 +12,7 @@ itself is importable at any time.
 import contextlib
 import hashlib
 import json
+import numbers
 import typing
 from collections.abc import Callable
 
@@ -81,6 +82,58 @@ The declaration itself lives in the image family's ``BaselineProfile`` table
 (:mod:`hordelib.pipeline.families.image_gen.baselines`); this cache is populated lazily from
 it to keep this module importable without horde_model_reference.
 """
+
+
+def load_embed_hijack(
+    embedding_name: str,
+    embedding_directory: str | list[str] | None,
+    embedding_size: int,
+    embed_key: str | None = None,
+) -> typing.Any:
+    """Reject learned tensors whose width does not fit the active text encoder.
+
+    ComfyUI validates list-form embeddings while loading them, but its common
+    ``string_to_param`` and fallback-dictionary paths return the first tensor without
+    checking its width. Letting that tensor enter another encoder can turn it into a
+    malformed token stream instead of merely ignoring an incompatible embedding.
+    """
+    embed = _originals["load_embed"](embedding_name, embedding_directory, embedding_size, embed_key)
+    if not torch.is_tensor(embed):
+        return embed
+    if embed.ndim > 0 and embed.shape[-1] == embedding_size:
+        return embed
+
+    actual_width = embed.shape[-1] if embed.ndim > 0 else 0
+    logger.warning(
+        "Ignoring embedding with incompatible text-encoder width: embedding={}, actual={}, expected={}",
+        embedding_name,
+        actual_width,
+        embedding_size,
+    )
+    return None
+
+
+def _integer_only_token_batches(token_batches: list[list[tuple]], *, pad_token: int = 0) -> list[list[tuple]]:
+    """Drop learned tensors from an ID-only token stream, preserving nonempty batches."""
+    sanitized_batches: list[list[tuple]] = []
+    dropped = 0
+    for batch in token_batches:
+        sanitized = [entry for entry in batch if entry and isinstance(entry[0], numbers.Integral)]
+        dropped += len(batch) - len(sanitized)
+        if not sanitized:
+            tuple_length = len(batch[0]) if batch else 2
+            sanitized = [(pad_token, 1.0, 0) if tuple_length >= 3 else (pad_token, 1.0)]
+        sanitized_batches.append(sanitized)
+    if dropped:
+        logger.warning("Ignored {} learned embedding token(s) in Anima's ID-only T5 stream", dropped)
+    return sanitized_batches
+
+
+def anima_encode_token_weights_hijack(model: typing.Any, token_weight_pairs: dict[str, list[list[tuple]]]):
+    """Keep incompatible learned tensors out of Anima's integer-only T5 ID conversion."""
+    sanitized_pairs = token_weight_pairs.copy()
+    sanitized_pairs["t5xxl"] = _integer_only_token_batches(token_weight_pairs["t5xxl"])
+    return _originals["anima_encode_token_weights"](model, sanitized_pairs)
 
 
 def _baseline_class_names() -> dict:
@@ -624,7 +677,9 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
     import comfy.lora
     import comfy.model_management as model_management
     import comfy.samplers
+    import comfy.sd1_clip
     from comfy.model_patcher import ModelPatcher
+    from comfy.text_encoders.anima import AnimaTEModel
 
     bindings: dict[str, _MonkeyPatchBinding] = {
         "ksampler_factory": _MonkeyPatchBinding(
@@ -668,6 +723,18 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
             "text_encoder_initial_device",
             text_encoder_initial_device_hijack,
             _originals.get("text_encoder_initial_device"),
+        ),
+        "load_embed": _MonkeyPatchBinding(
+            comfy.sd1_clip,
+            "load_embed",
+            load_embed_hijack,
+            _originals.get("load_embed"),
+        ),
+        "anima_encode_token_weights": _MonkeyPatchBinding(
+            AnimaTEModel,
+            "encode_token_weights",
+            anima_encode_token_weights_hijack,
+            _originals.get("anima_encode_token_weights"),
         ),
     }
 

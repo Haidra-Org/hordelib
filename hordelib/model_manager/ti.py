@@ -18,8 +18,8 @@ import logfire
 import requests
 from fuzzywuzzy import fuzz
 from horde_model_reference import horde_model_reference_paths
-from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY
-from horde_model_reference.model_reference_records import DownloadRecord
+from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE, MODEL_REFERENCE_CATEGORY
+from horde_model_reference.model_reference_records import DownloadRecord, ImageGenerationModelRecord
 from strenum import StrEnum
 
 from hordelib.exceptions import CivitAIResourceNotFound
@@ -40,6 +40,37 @@ MAX_ADHOC_TI_SIZE_KB = 20000
 
 TI_CACHE_SIZE_DEFAULT_MB = 1024
 """The default cache budget in megabytes; embeddings are tiny, so this rarely binds."""
+
+_TI_BASE_MODEL_FAMILIES: dict[str, str] = {
+    "sd 1.4": "sd1",
+    "sd 1.5": "sd1",
+    "sd 2.0": "sd2",
+    "sd 2.0 512": "sd2",
+    "sd 2.0 768": "sd2",
+    "sd 2.1": "sd2",
+    "sd 2.1 768": "sd2",
+    "sdxl 0.9": "sdxl",
+    "sdxl 1.0": "sdxl",
+    # Both are SDXL-derived and use the same CLIP-L/CLIP-G embedding widths.
+    "pony": "sdxl",
+    "illustrious": "sdxl",
+}
+"""CivitAI TI base-model labels grouped by compatible text-encoder family."""
+
+
+def _image_model_baseline_family(baseline: KNOWN_IMAGE_GENERATION_BASELINE | str | None) -> str | None:
+    """Return the text-encoder family represented by an image-model baseline."""
+    if baseline is None:
+        return None
+    baseline_value = str(baseline).casefold().replace("_", " ").replace("-", " ")
+    baseline_value = " ".join(baseline_value.split())
+    if baseline_value == "stable diffusion 1":
+        return "sd1"
+    if baseline_value in {"stable diffusion 2", "stable diffusion 2 512", "stable diffusion 2 768"}:
+        return "sd2"
+    if baseline_value == "stable diffusion xl":
+        return "sdxl"
+    return None
 
 
 class TIRejectionReason(StrEnum):
@@ -174,9 +205,24 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
         if record:
             record.last_used = now_timestamp()
 
-    def do_baselines_match(self, ti_name: str | int, model_details) -> bool:
-        """Return whether the embedding's baseline is compatible (currently always ``True``)."""
-        return True  # FIXME: baseline matching disabled pending normalised baseline data.
+    def do_baselines_match(
+        self,
+        ti_name: str | int,
+        model_details: ImageGenerationModelRecord | None,
+    ) -> bool:
+        """Return whether the TI and image model use a compatible text-encoder family.
+
+        Textual-inversion tensors are text-encoder weights, not generally portable model
+        add-ons. Unknown CivitAI labels and non-SD model families are therefore rejected
+        conservatively; the caller reports ``baseline_mismatch`` and continues without the TI.
+        """
+        ti_details = self.get_model_reference_info(ti_name)
+        if ti_details is None or model_details is None:
+            return False
+
+        ti_family = _TI_BASE_MODEL_FAMILIES.get(ti_details.base_model.casefold().strip())
+        model_family = _image_model_baseline_family(model_details.baseline)
+        return ti_family is not None and ti_family == model_family
 
     # ------------------------------------------------------------------
     # CivitAI parsing

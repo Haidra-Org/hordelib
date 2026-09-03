@@ -403,6 +403,22 @@ class TestMonkeypatchSignaturePins:
 
         assert _originals.get("text_encoder_initial_device") is not None
 
+    def test_embedding_compatibility_guards_patched(self, init_horde: None) -> None:
+        from hordelib.execution.comfy_patches import _originals
+
+        original_load_embed = _originals.get("load_embed")
+        assert original_load_embed is not None, "load_embed compatibility guard was never installed"
+        assert list(inspect.signature(original_load_embed).parameters) == [
+            "embedding_name",
+            "embedding_directory",
+            "embedding_size",
+            "embed_key",
+        ]
+
+        original_anima_encode = _originals.get("anima_encode_token_weights")
+        assert original_anima_encode is not None, "Anima token-stream guard was never installed"
+        assert list(inspect.signature(original_anima_encode).parameters) == ["self", "token_weight_pairs"]
+
     def test_ksampler_factory_signature(self, init_horde: None) -> None:
         from hordelib.execution.comfy_patches import _originals
 

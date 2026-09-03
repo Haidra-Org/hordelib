@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 import requests
+from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 
 from hordelib.model_manager.civitai_adhoc import SkipDownload, _QueuedDownload
 from hordelib.model_manager.civitai_records import HordeTextualInversionModelRecord
@@ -49,6 +50,29 @@ class TestModelManagerTI:
         assert len(mmti.get_ti_triggers("Fast Negative Embedding")) > 0
         # We can't rely on triggers not changing
         assert mmti.find_ti_trigger("Fast Negative Embedding", "FastNegativeV2") is not None
+        mmti.stop_all()
+
+    @pytest.mark.parametrize(
+        ("ti_base_model", "image_baseline", "expected"),
+        [
+            ("SD 1.5", KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1, True),
+            ("SD 2.1 768", KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_2_768, True),
+            ("SDXL 1.0", KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl, True),
+            ("Pony", KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl, True),
+            ("Illustrious", KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl, True),
+            ("SD 1.5", KNOWN_IMAGE_GENERATION_BASELINE.anima, False),
+            ("Other", KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1, False),
+        ],
+    )
+    def test_ti_baseline_compatibility(self, ti_base_model, image_baseline, expected):
+        mmti = TextualInversionModelManager()
+        record = _make_ti_record()
+        record.base_model = ti_base_model
+        mmti.model_reference = {record.name.lower(): record}
+        mmti._rebuild_indices()
+
+        model_details = Mock(baseline=image_baseline)
+        assert mmti.do_baselines_match(record.name, model_details) is expected
         mmti.stop_all()
 
     def test_fetch_adhoc_ti(self):
