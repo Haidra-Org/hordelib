@@ -142,13 +142,16 @@ def test_export_produces_a_loadable_bundle_that_passes_the_gate(exported: Export
 
 def test_gate_failure_raises_and_publishes_nothing(trained_run: tuple[Path, Path]) -> None:
     run_dir, clean_path = trained_run
+    # The distilled net still has to predict a positive basis job: export refuses an artifact that
+    # prices nothing before it ever reaches the accuracy gate, and the gate is what this test is
+    # about. The thresholds, not the training budget, are what make the run unacceptable.
     impossible = ExportConfig(
         trials=1,
-        synthetic_samples_per_row=1,
+        synthetic_samples_per_row=2,
         hidden_width_choices=(16,),
-        min_epochs=1,
-        max_epochs=2,
-        early_stopping_patience=1,
+        min_epochs=200,
+        max_epochs=300,
+        early_stopping_patience=50,
         batch_size=64,
         median_ape_threshold=1e-9,
         p90_ape_threshold=1e-9,

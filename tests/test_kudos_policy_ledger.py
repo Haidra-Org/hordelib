@@ -24,6 +24,7 @@ from hordelib.kudos_training.ledger import (
     LedgerUnit,
     PayloadFeatures,
     PredictedSeconds,
+    PricedFeature,
     PricingBasis,
     UnknownBaselineError,
     compose_user_price,
@@ -55,6 +56,16 @@ The ledger's premiums must reproduce these exactly: v1 is a port, so any differe
 that was never decided.
 """
 
+PORTED_FEATURE_PREMIUMS = {
+    ("qr_code", "stable_diffusion_xl"): 4.0,
+    ("hires_fix", "stable_cascade"): 7.0,
+}
+"""What the served baseline catalog charges for a shape-changing feature, per family.
+
+These replace the family's own multiplier on the server rather than stacking with it, so the ledger
+must carry them as replacements too.
+"""
+
 PROVISIONAL_BASELINES = frozenset(
     {"flux_1", "flux_dev", "flux_schnell", "z_image_turbo", "krea2_turbo", "anima", "qwen_image"},
 )
@@ -74,6 +85,16 @@ def basis() -> PricingBasis:
 @pytest.fixture()
 def ledger_document() -> dict[str, Any]:
     return json.loads(DEFAULT_LEDGER_PATH.read_text(encoding="utf-8"))
+
+
+def _errors(error: LedgerSchemaError) -> list[tuple[tuple[str | int, ...], str]]:
+    """Return the wrapped validation report as (location, error type) pairs.
+
+    Asserting on the report rather than on a formatted sentence keeps the check specific to the
+    field that failed and to why, which is what a silent default would have hidden.
+    """
+    assert error.validation_error is not None
+    return [(entry["loc"], entry["type"]) for entry in error.validation_error.errors()]
 
 
 def _write(tmp_path: Path, document: dict[str, Any]) -> Path:
@@ -155,40 +176,46 @@ def test_served_variety_is_a_worker_reward_placeholder(ledger: KudosPolicyLedger
 
 def test_loader_rejects_a_missing_item(tmp_path: Path, ledger_document: dict[str, Any]) -> None:
     del ledger_document["user_price"]["ti_kudos"]
-    with pytest.raises(LedgerSchemaError, match=r"user_price is missing \['ti_kudos'\]"):
+    with pytest.raises(LedgerSchemaError) as raised:
         load_ledger(_write(tmp_path, ledger_document))
+    assert _errors(raised.value) == [(("user_price", "ti_kudos"), "missing")]
 
 
 def test_loader_rejects_an_unrecognised_key(tmp_path: Path, ledger_document: dict[str, Any]) -> None:
     """A typo must fail the load rather than take a default, which would price a policy nobody set."""
     ledger_document["user_price"]["lora_wait_kudo"] = ledger_document["user_price"]["lora_wait_kudos"]
-    with pytest.raises(LedgerSchemaError, match="unrecognised keys"):
+    with pytest.raises(LedgerSchemaError) as raised:
         load_ledger(_write(tmp_path, ledger_document))
+    assert _errors(raised.value) == [(("user_price", "lora_wait_kudo"), "extra_forbidden")]
 
 
 def test_loader_rejects_a_wrong_unit(tmp_path: Path, ledger_document: dict[str, Any]) -> None:
     ledger_document["user_price"]["ti_kudos"]["unit"] = LedgerUnit.MULTIPLIER.value
-    with pytest.raises(LedgerSchemaError, match="unit must be 'kudos_per_job'"):
+    with pytest.raises(LedgerSchemaError, match="unit must be 'kudos_per_job'") as raised:
         load_ledger(_write(tmp_path, ledger_document))
+    assert _errors(raised.value) == [(("user_price", "ti_kudos"), "value_error")]
 
 
 def test_loader_rejects_a_non_numeric_value(tmp_path: Path, ledger_document: dict[str, Any]) -> None:
     ledger_document["user_price"]["lora_wait_kudos"]["value"] = "three"
-    with pytest.raises(LedgerSchemaError, match="value must be a number"):
+    with pytest.raises(LedgerSchemaError) as raised:
         load_ledger(_write(tmp_path, ledger_document))
+    assert _errors(raised.value) == [(("user_price", "lora_wait_kudos", "value"), "float_type")]
 
 
 def test_loader_rejects_empty_provenance(tmp_path: Path, ledger_document: dict[str, Any]) -> None:
     ledger_document["user_price"]["ti_kudos"]["provenance"] = "   "
-    with pytest.raises(LedgerSchemaError, match="must be a non-empty string"):
+    with pytest.raises(LedgerSchemaError, match="must be a non-empty string") as raised:
         load_ledger(_write(tmp_path, ledger_document))
+    assert _errors(raised.value) == [(("user_price", "ti_kudos", "provenance"), "value_error")]
 
 
 def test_loader_rejects_baseline_maps_that_disagree(tmp_path: Path, ledger_document: dict[str, Any]) -> None:
     """A family priced in one map and absent from another would apply half a policy."""
     del ledger_document["user_price"]["quality_premium"]["flux_1"]
-    with pytest.raises(LedgerSchemaError, match=r"price different baselines.*flux_1"):
+    with pytest.raises(LedgerSchemaError, match=r"price different baselines.*flux_1") as raised:
         load_ledger(_write(tmp_path, ledger_document))
+    assert _errors(raised.value) == [(("user_price",), "value_error")]
 
 
 def test_loader_rejects_malformed_json(tmp_path: Path) -> None:
@@ -292,6 +319,114 @@ def test_adders_sit_inside_the_baseline_premium(ledger: KudosPolicyLedger, basis
     assert breakdown.total_kudos == pytest.approx(subtotal * 2.0)
 
 
+def test_shipped_ledger_ports_the_catalog_feature_premiums(ledger: KudosPolicyLedger) -> None:
+    """Only the families the catalog prices a feature for carry one, at the catalog's number."""
+    carried = {
+        (feature, baseline): item.value
+        for feature, entries in ledger.user_price.feature_premium.items()
+        for baseline, item in entries.items()
+    }
+    assert carried == PORTED_FEATURE_PREMIUMS
+    for feature, entries in ledger.user_price.feature_premium.items():
+        for baseline, item in entries.items():
+            assert item.unit is LedgerUnit.MULTIPLIER, (feature, baseline)
+            assert item.provisional is True, (feature, baseline)
+            assert item.provenance.strip()
+
+
+def test_feature_premium_replaces_the_baseline_premium_rather_than_multiplying_it(
+    ledger: KudosPolicyLedger,
+    basis: PricingBasis,
+) -> None:
+    """The server substitutes the feature's multiplier for the family's, so a stacked price is wrong."""
+    plain = compose_user_price(
+        PredictedSeconds(sampler_window=18.0),
+        PayloadFeatures(baseline="stable_diffusion_xl"),
+        ledger,
+        basis,
+    )
+    qr_code = compose_user_price(
+        PredictedSeconds(sampler_window=18.0),
+        PayloadFeatures(baseline="stable_diffusion_xl", workflow="qr_code"),
+        ledger,
+        basis,
+    )
+    assert plain.feature_premium is None
+    assert plain.total_kudos == pytest.approx(plain.measured_subtotal_kudos * 2.0)
+    assert qr_code.capability_premium == 2.0
+    assert qr_code.feature_premium == 4.0
+    assert qr_code.total_kudos == pytest.approx(qr_code.measured_subtotal_kudos * 4.0)
+
+
+def test_hires_fix_premium_applies_only_where_the_catalog_prices_one(
+    ledger: KudosPolicyLedger,
+    basis: PricingBasis,
+) -> None:
+    priced = compose_user_price(
+        PredictedSeconds(sampler_window=22.5),
+        PayloadFeatures(baseline="stable_cascade", hires_fix=True),
+        ledger,
+        basis,
+    )
+    assert priced.feature_premium == 7.0
+    assert priced.total_kudos == pytest.approx(priced.measured_subtotal_kudos * 7.0)
+
+    unpriced = compose_user_price(
+        PredictedSeconds(sampler_window=22.5),
+        PayloadFeatures(baseline="stable_diffusion_xl", hires_fix=True),
+        ledger,
+        basis,
+    )
+    assert unpriced.feature_premium is None
+    assert unpriced.total_kudos == pytest.approx(unpriced.measured_subtotal_kudos * 2.0)
+
+
+def test_qr_code_wins_over_hires_fix(ledger: KudosPolicyLedger, basis: PricingBasis) -> None:
+    """A request carrying both pays the QR-code premium, which is the order the server resolves."""
+    features = PayloadFeatures(baseline="stable_diffusion_xl", hires_fix=True, workflow="qr_code")
+    assert features.priced_feature() is PricedFeature.QR_CODE
+    breakdown = compose_user_price(PredictedSeconds(sampler_window=18.0), features, ledger, basis)
+    assert breakdown.feature_premium == 4.0
+
+
+def test_feature_premium_sits_outside_the_adders_like_the_baseline_premium(
+    ledger: KudosPolicyLedger,
+    basis: PricingBasis,
+) -> None:
+    breakdown = compose_user_price(
+        PredictedSeconds(sampler_window=10.0),
+        PayloadFeatures(baseline="stable_diffusion_xl", loras_count=2, tis_count=1, workflow="qr_code"),
+        ledger,
+        basis,
+    )
+    subtotal = DEFAULT_BASIS_KUDOS + 6.0 + 1.0
+    assert breakdown.measured_subtotal_kudos == pytest.approx(subtotal)
+    assert breakdown.total_kudos == pytest.approx(subtotal * 4.0)
+
+
+def test_loader_rejects_a_feature_premium_nobody_reads(
+    tmp_path: Path,
+    ledger_document: dict[str, Any],
+) -> None:
+    """A misspelled feature would look settled while never reaching a price."""
+    premiums = ledger_document["user_price"]["feature_premium"]
+    premiums["qrcode"] = premiums.pop("qr_code")
+    with pytest.raises(LedgerSchemaError, match="unrecognised feature 'qrcode'") as raised:
+        load_ledger(_write(tmp_path, ledger_document))
+    assert _errors(raised.value) == [(("user_price",), "value_error")]
+
+
+def test_loader_rejects_a_feature_premium_for_an_unpriced_baseline(
+    tmp_path: Path,
+    ledger_document: dict[str, Any],
+) -> None:
+    premiums = ledger_document["user_price"]["feature_premium"]["qr_code"]
+    premiums["a_family_the_ledger_does_not_price"] = premiums["stable_diffusion_xl"]
+    with pytest.raises(LedgerSchemaError, match="a_family_the_ledger_does_not_price") as raised:
+        load_ledger(_write(tmp_path, ledger_document))
+    assert _errors(raised.value) == [(("user_price",), "value_error")]
+
+
 def test_amortized_surcharge_is_priced_at_the_sampler_weight(
     tmp_path: Path,
     ledger_document: dict[str, Any],
@@ -329,16 +464,23 @@ def test_provisional_flags_do_not_change_the_arithmetic(
     for item_name in ("lora_wait_kudos", "ti_kudos"):
         item = ledger_document["user_price"][item_name]
         item["provisional"] = not item["provisional"]
+    for entries in ledger_document["user_price"]["feature_premium"].values():
+        for entry in entries.values():
+            entry["provisional"] = not entry["provisional"]
     flipped = load_ledger(_write(tmp_path, ledger_document))
 
-    features = PayloadFeatures(baseline="flux_1", loras_count=2, tis_count=1)
     predicted = PredictedSeconds(sampler_window=30.0, pp_lane=5.0)
-    assert compose_user_price(predicted, features, flipped, basis) == compose_user_price(
-        predicted,
-        features,
-        ledger,
-        basis,
-    )
+    for features in (
+        PayloadFeatures(baseline="flux_1", loras_count=2, tis_count=1),
+        PayloadFeatures(baseline="stable_diffusion_xl", workflow="qr_code"),
+        PayloadFeatures(baseline="stable_cascade", hires_fix=True),
+    ):
+        assert compose_user_price(predicted, features, flipped, basis) == compose_user_price(
+            predicted,
+            features,
+            ledger,
+            basis,
+        )
 
 
 def test_worker_reward_adds_the_horde_funded_variety_term(
@@ -398,6 +540,8 @@ def test_golden_pricing_cases_compose_to_their_recorded_breakdown(ledger: KudosP
                 model_name=features["model_name"],
                 loras_count=features["loras_count"],
                 tis_count=features["tis_count"],
+                hires_fix=features["hires_fix"],
+                workflow=features["workflow"],
             ),
             ledger,
             basis,

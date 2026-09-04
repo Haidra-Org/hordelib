@@ -9,6 +9,7 @@ CPU-only: nothing here loads a model or touches a GPU.
 """
 
 import pytest
+from horde_sdk.generation_parameters.alchemy.consts import KNOWN_FACEFIXERS, KNOWN_UPSCALERS
 from horde_sdk.generation_parameters.image.constraints_document import SAMPLER_CONSTRAINTS_DOCUMENT_SCHEMA_VERSION
 from horde_sdk.generation_parameters.image.consts import KNOWN_IMAGE_SAMPLERS
 from horde_sdk.generation_parameters.image.sampler_work import SamplerExecutionContractVersion
@@ -20,7 +21,9 @@ from hordelib.pipeline.constants import (
     SAMPLERS_MAP,
     SCHEDULERS,
     SOURCE_IMAGE_PROCESSING_OPTIONS,
+    UPSCALER_SCALE_FACTORS,
 )
+from hordelib.pipeline.payload_pp import STRIP_BACKGROUND_NAME
 
 MANIFEST_REVISION_ADVICE = (
     "hordelib now offers a value the frozen kudos manifest does not carry, so the encoder would "
@@ -28,6 +31,14 @@ MANIFEST_REVISION_ADVICE = (
     "(hordelib/kudos_training/kudos_feature_manifest_vNN.json) covering it and retrain, or record a "
     "deliberate decision to keep collapsing it."
 )
+
+
+BACKEND_DEFAULT_NAME = "BACKEND_DEFAULT"
+"""The name that asks the worker for whichever post-processor it defaults to.
+
+It selects a model rather than naming one, so it is not a vocabulary slot: whichever upscaler or
+face fixer it resolves to is already priced under that model's own name.
+"""
 
 
 def _vocabulary(name: str) -> set[str]:
@@ -56,8 +67,7 @@ def test_manifest_identity() -> None:
     assert manifest.target == "sampler_window_seconds"
     assert manifest.sampler_semantics.horde_sdk_version == "0.29.0"
     assert (
-        manifest.sampler_semantics.constraints_document_schema_version
-        == SAMPLER_CONSTRAINTS_DOCUMENT_SCHEMA_VERSION
+        manifest.sampler_semantics.constraints_document_schema_version == SAMPLER_CONSTRAINTS_DOCUMENT_SCHEMA_VERSION
     )
     assert manifest.sampler_semantics.execution_contract_version is SamplerExecutionContractVersion.V1
     assert len(manifest.sampler_semantics.constraints_artifact_sha256) == 64
@@ -88,6 +98,22 @@ def test_control_type_vocabulary_covers_hordelib() -> None:
     live = set(CONTROLNET_IMAGE_PREPROCESSOR_MAP) | {"None"}
     missing = sorted(live - _vocabulary("control_type"))
     assert not missing, f"control types absent from the manifest: {missing}. {MANIFEST_REVISION_ADVICE}"
+
+
+def test_post_processing_vocabulary_covers_hordelib() -> None:
+    """Every post-processor the pipeline can actually run must hold a slot.
+
+    A post-processor outside the vocabulary is dropped rather than collapsed, so it would be priced
+    as though it had never been requested.
+    """
+    live = (
+        set(UPSCALER_SCALE_FACTORS)
+        | {upscaler.value for upscaler in KNOWN_UPSCALERS}
+        | {facefixer.value for facefixer in KNOWN_FACEFIXERS}
+        | {STRIP_BACKGROUND_NAME}
+    ) - {BACKEND_DEFAULT_NAME}
+    missing = sorted(live - _vocabulary("post_processing"))
+    assert not missing, f"post-processors absent from the manifest: {missing}. {MANIFEST_REVISION_ADVICE}"
 
 
 def test_source_processing_vocabulary_covers_hordelib() -> None:

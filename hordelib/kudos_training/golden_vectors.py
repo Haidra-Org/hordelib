@@ -291,6 +291,33 @@ PRICING_CASES: Final[tuple[PricingCase, ...]] = (
         payload_features=PayloadFeatures(baseline="stable_diffusion_1"),
     ),
     PricingCase(
+        name="qr_code_workflow_premium",
+        note=(
+            "The catalog's QR-code multiplier replaces this family's baseline multiplier rather than "
+            "stacking on it, as the server resolves the two."
+        ),
+        predicted_seconds=PredictedSeconds(sampler_window=18.0),
+        payload_features=PayloadFeatures(baseline="stable_diffusion_xl", workflow="qr_code"),
+    ),
+    PricingCase(
+        name="hires_fix_premium",
+        note="The catalog's high-resolution multiplier replaces this family's baseline multiplier.",
+        predicted_seconds=PredictedSeconds(sampler_window=22.5),
+        payload_features=PayloadFeatures(baseline="stable_cascade", hires_fix=True),
+    ),
+    PricingCase(
+        name="qr_code_wins_over_hires_fix",
+        note="A request carrying both features pays the QR-code premium, which is the order the server takes them in.",
+        predicted_seconds=PredictedSeconds(sampler_window=18.0),
+        payload_features=PayloadFeatures(baseline="stable_diffusion_xl", hires_fix=True, workflow="qr_code"),
+    ),
+    PricingCase(
+        name="hires_fix_without_a_catalog_entry",
+        note="A family the catalog prices no high-resolution multiplier for keeps its own baseline multiplier.",
+        predicted_seconds=PredictedSeconds(sampler_window=18.0),
+        payload_features=PayloadFeatures(baseline="stable_diffusion_xl", hires_fix=True),
+    ),
+    PricingCase(
         name="unmeasured_model_surcharges_nothing",
         note=(
             "A model with no measured churn entry adds no surcharge, so an unpopulated map cannot "
@@ -374,6 +401,8 @@ def build_golden_document(
                     "model_name": pricing_case.payload_features.model_name,
                     "loras_count": pricing_case.payload_features.loras_count,
                     "tis_count": pricing_case.payload_features.tis_count,
+                    "hires_fix": pricing_case.payload_features.hires_fix,
+                    "workflow": pricing_case.payload_features.workflow,
                 },
                 "expected_user_price": _breakdown_to_document(breakdown),
             },
@@ -427,7 +456,7 @@ def write_golden_document(
     return document
 
 
-def _breakdown_to_document(breakdown: PriceBreakdown) -> dict[str, float]:
+def _breakdown_to_document(breakdown: PriceBreakdown) -> dict[str, float | None]:
     """Convert a composed price into the fixture's per-line-item mapping."""
     return {
         "sampler_seconds_kudos": breakdown.sampler_seconds_kudos,
@@ -437,6 +466,7 @@ def _breakdown_to_document(breakdown: PriceBreakdown) -> dict[str, float]:
         "ti_kudos": breakdown.ti_kudos,
         "measured_subtotal_kudos": breakdown.measured_subtotal_kudos,
         "capability_premium": breakdown.capability_premium,
+        "feature_premium": breakdown.feature_premium,
         "quality_premium": breakdown.quality_premium,
         "total_kudos": breakdown.total_kudos,
     }

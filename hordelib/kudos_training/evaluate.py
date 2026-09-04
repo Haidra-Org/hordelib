@@ -390,6 +390,7 @@ def _ledger_prices(
                 model_name=row["model_name"],
                 loras_count=int(row["loras_count"]),
                 tis_count=int(row["tis_count"]),
+                hires_fix=bool(row["hires_fix"]),
             ),
             ledger,
             basis,
