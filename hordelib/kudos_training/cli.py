@@ -1,8 +1,8 @@
 """The ``kudos-train`` command line: file-in/file-out wrappers over the pipeline stages.
 
 Each stage is a plain function first (importable by an eventual scheduled runner) and a CLI second;
-this module only parses arguments and prints where the artifacts landed. The ``export`` and
-``verify`` stages are not yet implemented and deliberately absent rather than stubbed.
+this module only parses arguments and prints where the artifacts landed. The ``verify`` stage is
+not yet implemented and deliberately absent rather than stubbed.
 """
 
 import argparse
@@ -59,6 +59,17 @@ def main(argv: list[str] | None = None) -> int:
         help="Policy ledger file the composed prices are charged under (default: shipped revision).",
     )
 
+    export_parser = subparsers.add_parser("export", help="Distil the reference model into the served npz MLP.")
+    export_parser.add_argument("--run", type=Path, required=True, help="A train-stage run directory.")
+    export_parser.add_argument("--data", type=Path, required=True, help="The cleaned snapshot the run trained on.")
+    export_parser.add_argument("--trials", type=int, default=None, help="Hyperparameter trials (default: 50).")
+    export_parser.add_argument(
+        "--ledger",
+        type=Path,
+        default=None,
+        help="Policy ledger the golden vectors' prices compose under (default: shipped revision).",
+    )
+
     args = parser.parse_args(argv)
 
     if args.stage == "assemble":
@@ -101,8 +112,24 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {split_name}: median APE {metrics['median_ape']:.3f}, p90 APE {metrics['p90_ape']:.3f}")
         return 0
 
-    from hordelib.kudos_training.evaluate import evaluate
     from hordelib.kudos_training.ledger import load_ledger
+
+    if args.stage == "export":
+        from hordelib.kudos_training.export import ExportConfig, export
+
+        export_ledger = load_ledger(args.ledger) if args.ledger is not None else None
+        export_config = ExportConfig(trials=args.trials) if args.trials is not None else None
+        exported = export(args.run, args.data, ledger=export_ledger, config=export_config)
+        print(f"artifact: {exported.model_path}")
+        print(f"bundle: {exported.metadata_path}, {exported.golden_vectors_path}")
+        print(
+            f"acceptance on {exported.held_out_rows} held-out rows: "
+            f"median APE {exported.median_ape:.4f}, p90 APE {exported.p90_ape:.4f}",
+        )
+        print(f"basis job: {exported.basis_seconds} seconds")
+        return 0
+
+    from hordelib.kudos_training.evaluate import evaluate
 
     ledger = load_ledger(args.ledger) if args.ledger is not None else None
     evaluation = evaluate(args.run, args.data, against_npz=args.against, ledger=ledger)
