@@ -292,11 +292,21 @@
         "stable_diffusion_xl",
         "stable_cascade",
         "flux_1",
+        "qwen_image",
+        "z_image_turbo",
+        "krea2_turbo",
+        "anima",
         "other"
       ],
+      "value_aliases": {
+        "stable_diffusion_2_512": "stable_diffusion_2",
+        "stable_diffusion_2_768": "stable_diffusion_2",
+        "flux_schnell": "flux_1",
+        "flux_dev": "flux_1"
+      },
       "unknown_collapse": "other",
       "default": "other",
-      "description": "Model family. New in v22, so the server stops applying a per-baseline multiplier for the time component. Ordered by family age rather than sorted."
+      "description": "Model family, snapshotting the model reference's image baselines at authoring time; the reference's resolution and distillation variants alias to their family. New in v22, so the server stops applying a per-baseline multiplier for the time component. Ordered by family age rather than sorted."
     },
     {
       "kind": "categorical",

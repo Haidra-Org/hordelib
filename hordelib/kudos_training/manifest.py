@@ -16,6 +16,8 @@ This module imports numpy and the standard library only. It is consumed by proce
 server, the worker) that must not pay for torch to price a job.
 """
 
+import hashlib
+import json
 from dataclasses import dataclass, field
 from enum import StrEnum, auto
 from functools import lru_cache
@@ -285,6 +287,16 @@ class KudosFeatureManifest(BaseModel):
 
     features: tuple[Feature, ...]
     """The features, in vector order."""
+
+    def content_sha256(self) -> str:
+        """Hash of the manifest's content, independent of file formatting.
+
+        Two manifests that encode identically hash identically, whatever their whitespace or line
+        endings, so a corpus definition can carry this and an assembler can refuse rows encoded
+        under a manifest other than the one being trained against.
+        """
+        canonical = json.dumps(self.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
+        return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
     @model_validator(mode="after")
     def _check_features(self) -> "KudosFeatureManifest":

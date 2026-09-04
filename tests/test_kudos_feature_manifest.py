@@ -9,6 +9,7 @@ CPU-only: nothing here loads a model or touches a GPU.
 """
 
 import pytest
+from horde_model_reference.model_consts.image import KNOWN_IMAGE_GENERATION_BASELINE
 from horde_sdk.generation_parameters.alchemy.consts import KNOWN_FACEFIXERS, KNOWN_UPSCALERS
 from horde_sdk.generation_parameters.image.constraints_document import SAMPLER_CONSTRAINTS_DOCUMENT_SCHEMA_VERSION
 from horde_sdk.generation_parameters.image.consts import KNOWN_IMAGE_SAMPLERS
@@ -92,6 +93,18 @@ def test_ddim_api_spelling_is_an_explicit_alias() -> None:
 def test_scheduler_vocabulary_covers_hordelib() -> None:
     missing = sorted(set(SCHEDULERS) - _vocabulary("scheduler"))
     assert not missing, f"schedulers absent from the manifest: {missing}. {MANIFEST_REVISION_ADVICE}"
+
+
+def test_baseline_vocabulary_covers_the_model_reference() -> None:
+    """Every baseline the model reference can assign holds a slot or aliases to one.
+
+    A baseline outside the vocabulary collapses to ``other`` and is priced as the average of whatever
+    else landed there, which for a heavy family under-prices every job on it.
+    """
+    live = {baseline.value for baseline in KNOWN_IMAGE_GENERATION_BASELINE} - {"infer"}
+    covered = _vocabulary("baseline") | set(_aliases("baseline"))
+    missing = sorted(live - covered)
+    assert not missing, f"baselines absent from the manifest: {missing}. {MANIFEST_REVISION_ADVICE}"
 
 
 def test_control_type_vocabulary_covers_hordelib() -> None:

@@ -72,6 +72,12 @@ differing components, CLIP type, or native shift do not require another graph te
    to the new pipeline's name.
 5. **GPU oracle**: add an inference test (`tests/test_horde_inference_<name>.py`) with
    reference outputs in `images_expected/`.
-6. **Worker**: zero changes required. The worker resolves models via the reference and
+6. **Kudos manifest**: add the baseline to the `baseline` vocabulary in
+   `hordelib/kudos_training/kudos_feature_manifest_v22.json` (or alias a resolution or
+   distillation variant to its family under `value_aliases`) and regenerate
+   `tests/kudos_golden_vectors_v22.json` with `python -m hordelib.kudos_training.golden_vectors`.
+   `tests/test_kudos_feature_manifest.py` fails until this is done, because an unlisted
+   baseline is priced as the average of everything else that collapsed to `other`.
+7. **Worker**: zero changes required. The worker resolves models via the reference and
    passes baseline enums through `hordelib.api`; new baselines flow through automatically
    once the worker's model list includes them.
