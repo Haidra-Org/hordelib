@@ -15,6 +15,7 @@ an axis mismatch that skipping cannot explain is a hard error, because it means 
 diverged and every later label would be wrong.
 """
 
+import gzip
 import hashlib
 import json
 import tomllib
@@ -336,7 +337,10 @@ def _parse_stats_file(stats_path: Path) -> tuple[_SessionStart, list[_JobComplet
     """Parse one stats JSONL file into its session_start and job_completed events."""
     session_starts: list[_SessionStart] = []
     records: list[_JobCompletedEvent] = []
-    with stats_path.open(encoding="utf-8") as handle:
+    # The worker compresses rotated stats files in place, so a corpus session is as likely to arrive as
+    # ``.jsonl.gz`` as plain JSONL.
+    opener = gzip.open if stats_path.suffix == ".gz" else open
+    with opener(stats_path, "rt", encoding="utf-8") as handle:
         for line_number, line in enumerate(handle, start=1):
             stripped = line.strip()
             if not stripped:
