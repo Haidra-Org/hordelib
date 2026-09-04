@@ -16,8 +16,11 @@ from hordelib.kudos_training.manifest import KudosFeatureManifest
 if TYPE_CHECKING:
     import pandas as pd
 
-_SOURCE_MODES_WITH_IMAGE = ("img2img", "inpainting")
-"""Source-processing modes that carry a source image; inpainting additionally carries a mask."""
+SOURCE_MODES_WITH_IMAGE = ("img2img", "inpainting")
+"""Source-processing modes that carry a source image."""
+
+SOURCE_MODE_WITH_MASK = "inpainting"
+"""The source-processing mode that additionally carries a mask."""
 
 
 def row_to_payload(row: Mapping[Hashable, Any]) -> dict[str, Any]:
@@ -37,8 +40,8 @@ def row_to_payload(row: Mapping[Hashable, Any]) -> dict[str, Any]:
         "cfg_scale": row["cfg_scale"],
         "denoising_strength": row["denoising_strength"],
         "hires_fix": row["hires_fix"],
-        "source_image": source_processing in _SOURCE_MODES_WITH_IMAGE,
-        "source_mask": source_processing == "inpainting",
+        "source_image": source_processing in SOURCE_MODES_WITH_IMAGE,
+        "source_mask": source_processing == SOURCE_MODE_WITH_MASK,
         "n_images": row["n_images"],
         "loras_count": row["loras_count"],
         "tis_count": row["tis_count"],
@@ -68,4 +71,4 @@ def frame_to_matrix(frame: "pd.DataFrame", manifest: KudosFeatureManifest) -> np
     return matrix
 
 
-__all__ = ["frame_to_matrix", "row_to_payload"]
+__all__ = ["SOURCE_MODE_WITH_MASK", "SOURCE_MODES_WITH_IMAGE", "frame_to_matrix", "row_to_payload"]
