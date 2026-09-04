@@ -10,6 +10,11 @@ The v21 evaluator vendored here reproduces the AI-Horde server's pricing path: t
 predicts per-image seconds from the v21 hand-written feature vector, and payment composes as
 ``npz_seconds / basis_seconds x 11 x baseline_multiplier x n_images (+3 per lora, +1 per TI)``.
 That reconstruction reproduced 99.6% of 2473 observed payments within 1%.
+
+The candidate's own prices are composed through the policy ledger rather than read off the
+prediction, so the per-cell report shows the kudos a job would actually be charged beside the
+seconds the model predicts for it. A row whose baseline the ledger does not price is left blank and
+counted rather than priced at par, since a silent par would read as a deliberate policy.
 """
 
 import json
@@ -21,10 +26,20 @@ from typing import TYPE_CHECKING, Any
 import numpy as np
 
 from hordelib.kudos_training.encoding import frame_to_matrix
+from hordelib.kudos_training.ledger import (
+    DEFAULT_BASIS_KUDOS,
+    KudosPolicyLedger,
+    PayloadFeatures,
+    PredictedSeconds,
+    PricingBasis,
+    compose_user_price,
+    default_ledger,
+)
 from hordelib.kudos_training.manifest import KudosFeatureManifest, default_manifest
 from hordelib.utils.optional_deps import require
 
 if TYPE_CHECKING:
+    import lightgbm as lgb
     import pandas as pd
 
 _MIN_CELL_ROWS = 2
@@ -105,6 +120,11 @@ class EvaluateResult:
     candidate_spread: float | None
     v21_spread: float | None
     test_median_ape: float | None
+    ledger_version: str
+    """Policy ledger revision the composed prices in the report were priced under."""
+
+    rows_without_ledger_baseline: int
+    """Rows the ledger could not price because it carries no premium for their baseline."""
 
 
 def _float_or(value: Any, default: float) -> float:
@@ -227,6 +247,7 @@ def evaluate(
     *,
     manifest: KudosFeatureManifest | None = None,
     against_npz: Path | None = None,
+    ledger: KudosPolicyLedger | None = None,
 ) -> EvaluateResult:
     """Evaluate a training run: per-cell table, spread ratios, and the v21 comparison.
 
@@ -235,6 +256,8 @@ def evaluate(
         clean_path: The cleaned snapshot the run trained from.
         manifest: Feature manifest the run encoded against. Defaults to the shipped revision.
         against_npz: The live v21 npz; when given, v21 prices the same rows for comparison.
+        ledger: Policy ledger the composed prices are charged under. Defaults to the shipped
+            revision.
 
     Returns:
         Headline numbers; the full report lands in ``run_dir/evaluation.json`` and the per-cell
@@ -246,6 +269,7 @@ def evaluate(
     import pandas as pd
 
     active_manifest = manifest if manifest is not None else default_manifest()
+    active_ledger = ledger if ledger is not None else default_ledger()
 
     frame = pd.read_parquet(clean_path)
     splits = json.loads((run_dir / "splits.json").read_text(encoding="utf-8"))
@@ -260,6 +284,14 @@ def evaluate(
     # The candidate prices resource-seconds directly, so its payment-per-actual-second is the
     # prediction ratio; a perfectly calibrated model would hold it at 1.0 for every cell.
     frame["candidate_pay_per_second"] = frame["predicted_seconds"] / frame["sampler_window_seconds"]
+
+    basis = PricingBasis(
+        basis_seconds=_predicted_basis_seconds(booster, active_manifest),
+        basis_kudos=DEFAULT_BASIS_KUDOS,
+    )
+    ledger_prices, rows_without_ledger_baseline = _ledger_prices(frame, active_ledger, basis)
+    frame["ledger_price_kudos"] = ledger_prices
+    frame["ledger_pay_per_second"] = frame["ledger_price_kudos"] / frame["sampler_window_seconds"]
 
     v21_model = _V21Model(against_npz) if against_npz is not None else None
     if v21_model is not None:
@@ -287,6 +319,11 @@ def evaluate(
         "clean_snapshot": clean_path.name,
         "rows": int(len(frame)),
         "cells_in_spread": int(per_cell["cell_id"].notna().sum()),
+        "ledger_version": active_ledger.ledger_version,
+        "ledger_reference_machine": active_ledger.reference_machine,
+        "basis_seconds": basis.basis_seconds,
+        "basis_kudos": basis.basis_kudos,
+        "rows_without_ledger_baseline": rows_without_ledger_baseline,
         "candidate_pay_per_second_spread": candidate_spread,
         "v21_pay_per_second_spread": v21_spread,
         "acceptance_target_spread": 1.5,
@@ -294,6 +331,8 @@ def evaluate(
         "notes": [
             "spread ratios are computed over all cleaned rows (per-cell medians), not the test slice alone: "
             "the standard corpus has ~3 replicates per cell, so a per-split per-cell table would be empty",
+            "ledger_price_kudos is what a job would be charged under the policy ledger, composed from the "
+            "predicted seconds; it is a policy output and not a model metric",
         ],
     }
     report_path = run_dir / "evaluation.json"
@@ -304,7 +343,59 @@ def evaluate(
         candidate_spread=candidate_spread,
         v21_spread=v21_spread,
         test_median_ape=test_median_ape,
+        ledger_version=active_ledger.ledger_version,
+        rows_without_ledger_baseline=rows_without_ledger_baseline,
     )
+
+
+def _predicted_basis_seconds(booster: "lgb.Booster", manifest: KudosFeatureManifest) -> float:
+    """Return the candidate model's predicted seconds for the manifest's basis job.
+
+    The horde's price scale is anchored on one reference job rather than on an absolute rate, so a
+    candidate that is uniformly faster than v21 must not deflate every price; taking the anchor from
+    the candidate itself keeps the scale fixed while the model changes underneath it.
+    """
+    vector = manifest.to_vector(manifest.basis_payload).reshape(1, -1)
+    return float(np.exp(np.asarray(booster.predict(vector), dtype=np.float64)).item())
+
+
+def _ledger_prices(
+    frame: "pd.DataFrame",
+    ledger: KudosPolicyLedger,
+    basis: PricingBasis,
+) -> tuple[list[float], int]:
+    """Compose the ledger price of every row, blanking the rows the ledger cannot price.
+
+    Args:
+        frame: Rows carrying a ``predicted_seconds`` column.
+        ledger: The policy ledger to price under.
+        basis: The seconds-to-kudos anchor.
+
+    Returns:
+        One price per row in frame order (NaN where the ledger prices no such baseline), and how
+        many rows were left unpriced.
+    """
+    prices: list[float] = []
+    unpriced = 0
+    for row in frame.to_dict(orient="records"):
+        baseline = row["baseline"]
+        if not ledger.knows_baseline(baseline):
+            prices.append(float("nan"))
+            unpriced += 1
+            continue
+        breakdown = compose_user_price(
+            PredictedSeconds(sampler_window=float(row["predicted_seconds"])),
+            PayloadFeatures(
+                baseline=str(baseline),
+                model_name=row["model_name"],
+                loras_count=int(row["loras_count"]),
+                tis_count=int(row["tis_count"]),
+            ),
+            ledger,
+            basis,
+        )
+        prices.append(breakdown.total_kudos)
+    return prices, unpriced
 
 
 def _per_cell_table(frame: "pd.DataFrame") -> "pd.DataFrame":
@@ -315,6 +406,8 @@ def _per_cell_table(frame: "pd.DataFrame") -> "pd.DataFrame":
         "actual_median_seconds": ("sampler_window_seconds", "median"),
         "predicted_median_seconds": ("predicted_seconds", "median"),
         "median_ape": ("ape", "median"),
+        "ledger_price_kudos": ("ledger_price_kudos", "median"),
+        "ledger_pay_per_second": ("ledger_pay_per_second", "median"),
         "candidate_pay_per_second": ("candidate_pay_per_second", "median"),
     }
     if "v21_pay_per_second" in frame.columns:

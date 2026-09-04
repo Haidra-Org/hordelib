@@ -52,6 +52,12 @@ def main(argv: list[str] | None = None) -> int:
     evaluate_parser.add_argument("--run", type=Path, required=True, help="A train-stage run directory.")
     evaluate_parser.add_argument("--data", type=Path, required=True, help="The cleaned snapshot the run trained on.")
     evaluate_parser.add_argument("--against", type=Path, default=None, help="The live v21 npz, for the comparison.")
+    evaluate_parser.add_argument(
+        "--ledger",
+        type=Path,
+        default=None,
+        help="Policy ledger file the composed prices are charged under (default: shipped revision).",
+    )
 
     args = parser.parse_args(argv)
 
@@ -96,12 +102,17 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     from hordelib.kudos_training.evaluate import evaluate
+    from hordelib.kudos_training.ledger import load_ledger
 
-    evaluation = evaluate(args.run, args.data, against_npz=args.against)
+    ledger = load_ledger(args.ledger) if args.ledger is not None else None
+    evaluation = evaluate(args.run, args.data, against_npz=args.against, ledger=ledger)
     print(f"report: {evaluation.report_path}")
     print(f"candidate pay-per-second spread: {evaluation.candidate_spread}")
     if evaluation.v21_spread is not None:
         print(f"v21 pay-per-second spread:       {evaluation.v21_spread}")
+    print(f"prices composed under ledger {evaluation.ledger_version}")
+    if evaluation.rows_without_ledger_baseline:
+        print(f"  {evaluation.rows_without_ledger_baseline} rows left unpriced (baseline absent from the ledger)")
     return 0
 
 

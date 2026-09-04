@@ -1,0 +1,287 @@
+{
+  "ledger_version": "v1",
+  "manifest_version": "v22",
+  "reference_machine": "tazlin-4070tis",
+  "notes": {
+    "measured_time_component": "Recorded rather than applied: it names the share of a family's ported multiplier that the model's predicted seconds already carry, so the residual premium beside it is what the ledger still charges and composition must not apply both.",
+    "amortized_model_surcharge": "Keyed by model name; an entry's value is that model's expected per-job load-and-eviction seconds, the probability a job triggers a load times the measured load duration plus the re-read cost of the models it displaces, recomputed from the training snapshot at each round and priced at the sampler-second weight.",
+    "served_variety_kudos_per_assigned_swap": "Counted by the server from its own assignment history, as a change of model between consecutive jobs it handed the same worker, so nothing in a submit payload can inflate it."
+  },
+  "user_price": {
+    "resource_weights": {
+      "sampler_second": {
+        "value": 1.0,
+        "unit": "relative_weight",
+        "provenance": "The numeraire by definition: the serialized sampler slot is the resource every other one is weighted against.",
+        "provisional": false
+      },
+      "pp_lane_second": {
+        "value": 0.35,
+        "unit": "relative_weight",
+        "provenance": "Declared policy: post-processing runs beside the sampler on a disaggregated worker, so a lane-second costs less than a sampler-second without being free, and the figure is provisional until fleet saturation telemetry can estimate it.",
+        "provisional": true
+      }
+    },
+    "measured_time_component": {
+      "infer": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par, and expected to stay there: the catalog charges this family no multiplier, so there is no measured-time share for the model to absorb.",
+        "provisional": false
+      },
+      "stable_diffusion_1": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par, and expected to stay there: the catalog charges this family no multiplier, so there is no measured-time share for the model to absorb.",
+        "provisional": false
+      },
+      "stable_diffusion_2_512": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par, and expected to stay there: the catalog charges this family no multiplier, so there is no measured-time share for the model to absorb.",
+        "provisional": false
+      },
+      "stable_diffusion_2_768": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par, and expected to stay there: the catalog charges this family no multiplier, so there is no measured-time share for the model to absorb.",
+        "provisional": false
+      },
+      "stable_diffusion_xl": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par until the v22 prediction is fitted on this family's cells, at which point the share of the 2x that is measured runtime moves into the model and the residual premium beside it falls by the same factor.",
+        "provisional": true
+      },
+      "stable_cascade": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par until the v22 prediction is fitted on this family's cells, at which point the share of the 4x that is measured runtime moves into the model and the residual premium beside it falls by the same factor.",
+        "provisional": true
+      },
+      "flux_1": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par until the 4090 corpus supplies this family's cells, at which point the share of the 8x that is measured runtime moves into the v22 prediction and the residual premium beside it falls by the same factor.",
+        "provisional": true
+      },
+      "flux_dev": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par until the 4090 corpus supplies this family's cells, at which point the share of the 8x that is measured runtime moves into the v22 prediction and the residual premium beside it falls by the same factor.",
+        "provisional": true
+      },
+      "flux_schnell": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par until the 4090 corpus supplies this family's cells, at which point the share of the 8x that is measured runtime moves into the v22 prediction and the residual premium beside it falls by the same factor.",
+        "provisional": true
+      },
+      "z_image_turbo": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par until the 4090 corpus supplies this family's cells, at which point the share of the 8x that is measured runtime moves into the v22 prediction and the residual premium beside it falls by the same factor.",
+        "provisional": true
+      },
+      "krea2_turbo": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par until the 4090 corpus supplies this family's cells, at which point the share of the 8x that is measured runtime moves into the v22 prediction and the residual premium beside it falls by the same factor.",
+        "provisional": true
+      },
+      "anima": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par until the 4090 corpus supplies this family's cells, at which point the share of the 8x that is measured runtime moves into the v22 prediction and the residual premium beside it falls by the same factor.",
+        "provisional": true
+      },
+      "qwen_image": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par until the 4090 corpus supplies this family's cells, at which point the share of the 12x that is measured runtime moves into the v22 prediction and the residual premium beside it falls by the same factor.",
+        "provisional": true
+      }
+    },
+    "capability_premium": {
+      "infer": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par: the served baseline catalog prices this family at 1.0x, so it is paid for its measured seconds and nothing else.",
+        "provisional": false
+      },
+      "stable_diffusion_1": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par: the served baseline catalog prices this family at 1.0x, so it is paid for its measured seconds and nothing else.",
+        "provisional": false
+      },
+      "stable_diffusion_2_512": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par: the served baseline catalog prices this family at 1.0x, so it is paid for its measured seconds and nothing else.",
+        "provisional": false
+      },
+      "stable_diffusion_2_768": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par: the served baseline catalog prices this family at 1.0x, so it is paid for its measured seconds and nothing else.",
+        "provisional": false
+      },
+      "stable_diffusion_xl": {
+        "value": 2.0,
+        "unit": "multiplier",
+        "provenance": "Ported from the served baseline catalog's horde_policy.kudos of 2x for this family, attributed in full to capability rent because the catalog number does not separate scarcity from quality preference.",
+        "provisional": false
+      },
+      "stable_cascade": {
+        "value": 4.0,
+        "unit": "multiplier",
+        "provenance": "Ported from the served baseline catalog's horde_policy.kudos of 4x for this family, attributed in full to capability rent because the catalog number does not separate scarcity from quality preference.",
+        "provisional": false
+      },
+      "flux_1": {
+        "value": 8.0,
+        "unit": "multiplier",
+        "provenance": "Ported from the served baseline catalog's horde_policy.kudos of 8x for this family, attributed in full to capability rent because the catalog number does not separate scarcity from quality preference, and provisional until the 4090 corpus measures what serving this family actually costs on hardware that can hold it.",
+        "provisional": true
+      },
+      "flux_dev": {
+        "value": 8.0,
+        "unit": "multiplier",
+        "provenance": "Ported from the served baseline catalog's horde_policy.kudos of 8x for this family, attributed in full to capability rent because the catalog number does not separate scarcity from quality preference, and provisional until the 4090 corpus measures what serving this family actually costs on hardware that can hold it.",
+        "provisional": true
+      },
+      "flux_schnell": {
+        "value": 8.0,
+        "unit": "multiplier",
+        "provenance": "Ported from the served baseline catalog's horde_policy.kudos of 8x for this family, attributed in full to capability rent because the catalog number does not separate scarcity from quality preference, and provisional until the 4090 corpus measures what serving this family actually costs on hardware that can hold it.",
+        "provisional": true
+      },
+      "z_image_turbo": {
+        "value": 8.0,
+        "unit": "multiplier",
+        "provenance": "Ported from the served baseline catalog's horde_policy.kudos of 8x for this family, attributed in full to capability rent because the catalog number does not separate scarcity from quality preference, and provisional until the 4090 corpus measures what serving this family actually costs on hardware that can hold it.",
+        "provisional": true
+      },
+      "krea2_turbo": {
+        "value": 8.0,
+        "unit": "multiplier",
+        "provenance": "Ported from the served baseline catalog's horde_policy.kudos of 8x for this family, attributed in full to capability rent because the catalog number does not separate scarcity from quality preference, and provisional until the 4090 corpus measures what serving this family actually costs on hardware that can hold it.",
+        "provisional": true
+      },
+      "anima": {
+        "value": 8.0,
+        "unit": "multiplier",
+        "provenance": "Ported from the served baseline catalog's horde_policy.kudos of 8x for this family, attributed in full to capability rent because the catalog number does not separate scarcity from quality preference, and provisional until the 4090 corpus measures what serving this family actually costs on hardware that can hold it.",
+        "provisional": true
+      },
+      "qwen_image": {
+        "value": 12.0,
+        "unit": "multiplier",
+        "provenance": "Ported from the served baseline catalog's horde_policy.kudos of 12x for this family, attributed in full to capability rent because the catalog number does not separate scarcity from quality preference, and provisional until the 4090 corpus measures what serving this family actually costs on hardware that can hold it.",
+        "provisional": true
+      }
+    },
+    "quality_premium": {
+      "infer": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "stable_diffusion_1": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "stable_diffusion_2_512": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "stable_diffusion_2_768": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "stable_diffusion_xl": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "stable_cascade": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "flux_1": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "flux_dev": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "flux_schnell": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "z_image_turbo": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "krea2_turbo": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "anima": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "qwen_image": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      }
+    },
+    "amortized_model_surcharge": {},
+    "lora_wait_kudos": {
+      "value": 3.0,
+      "unit": "kudos_per_lora",
+      "provenance": "The flat per-lora adder the server applies today to cover the download a request can force; provisional until the corpus measures the probability of a cache miss times the residual dispatch wait that replaces it.",
+      "provisional": true
+    },
+    "ti_kudos": {
+      "value": 1.0,
+      "unit": "kudos_per_job",
+      "provenance": "The flat adder the server applies today to any request naming a textual inversion; provisional until a measured fetch wait replaces it.",
+      "provisional": true
+    }
+  },
+  "worker_reward": {
+    "served_variety_kudos_per_assigned_swap": {
+      "value": 0.0,
+      "unit": "kudos_per_swap",
+      "provenance": "Placeholder: the rate is derived from the reference machine's measured per-swap cost, the load seconds on the first job after a swap plus the re-read cost of the models that swap displaced, which the corpus does not yet carry.",
+      "provisional": true
+    }
+  }
+}
