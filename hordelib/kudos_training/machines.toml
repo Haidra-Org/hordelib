@@ -1,0 +1,12 @@
+# Known developer machines admissible as kudos-training data sources.
+#
+# The assembler requires every stats file set to name one of these ids and stamps the id onto every
+# row, so cross-machine data stays attributable. Data is trusted-machines-only in this round; adding
+# a machine here is the act of trusting its measurements.
+
+[machines.tazlin-4070tis]
+gpu_model = "NVIDIA GeForce RTX 4070 Ti SUPER"
+vram_mb = 16376
+cpu_class = "desktop"
+os = "Windows 11 Pro for Workstations"
+notes = "Primary development machine; WDDM driver model."

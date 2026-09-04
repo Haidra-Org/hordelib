@@ -171,6 +171,16 @@ controlnet = [
     "timm",
 ]
 
+# Kudos model training pipeline (hordelib.kudos_training stages beyond the manifest/encoder, which
+# stay numpy-only in base). Operator tooling, never needed to price or serve a job, so it stays out
+# of base; the stage modules guard these imports via hordelib.utils.optional_deps.
+kudos-training = [
+    "pandas>=2.2",
+    "pyarrow>=17.0",
+    "lightgbm>=4.5",
+    "optuna>=4.0",
+]
+
 [tool.uv]
 python-preference = "managed"
 conflicts = [
@@ -222,6 +232,7 @@ explicit = true
 
 [project.scripts]
 horde-engine-install = "hordelib.installation.__main__:main"
+kudos-train = "hordelib.kudos_training.cli:main"
 
 [project.urls]
 "Homepage" = "https://github.com/Haidra-Org/hordelib"
@@ -264,6 +275,7 @@ only-include = ["hordelib", "README.md", "LICENSE"]
 dev = [
     "coverage>=7.11.1",
     "mypy>=1.18.2",
+    "pandas-stubs>=2.2",
     "pre-commit>=4.3.0",
     "prometheus-client>=0.23.1",
     "pytest>=8.4.2",

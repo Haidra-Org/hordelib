@@ -1,0 +1,384 @@
+{
+  "manifest_version": "v22",
+  "sampler_semantics": {
+    "horde_sdk_version": "0.29.0",
+    "constraints_document_schema_version": "1.0",
+    "constraints_artifact_sha256": "b46f7becf7ea5583ea0a7fe8ba1253e21b528b0ebda5b15e78445ef79e2e8533",
+    "execution_contract_version": "1.0"
+  },
+  "target": "sampler_window_seconds",
+  "basis_payload": {
+    "width": 512,
+    "height": 512,
+    "steps": 50,
+    "cfg_scale": 7.5,
+    "denoising_strength": 1.0,
+    "control_strength": 1.0,
+    "scheduler": "karras",
+    "hires_fix": false,
+    "source_image": false,
+    "source_mask": false,
+    "source_processing": "txt2img",
+    "sampler_name": "k_euler",
+    "control_type": "None",
+    "baseline": "stable_diffusion_1",
+    "post_processing": [],
+    "n_images": 1,
+    "loras_count": 0,
+    "tis_count": 0,
+    "queue_depth_at_dispatch": 0
+  },
+  "features": [
+    {
+      "kind": "float",
+      "name": "height",
+      "payload_keys": [
+        "height"
+      ],
+      "divisor": 1024.0,
+      "default": 512.0,
+      "description": "Requested image height in pixels.",
+      "clamp_min": 64.0,
+      "clamp_max": 4096.0
+    },
+    {
+      "kind": "float",
+      "name": "width",
+      "payload_keys": [
+        "width"
+      ],
+      "divisor": 1024.0,
+      "default": 512.0,
+      "description": "Requested image width in pixels.",
+      "clamp_min": 64.0,
+      "clamp_max": 4096.0
+    },
+    {
+      "kind": "float",
+      "name": "trajectory_steps",
+      "payload_keys": [
+        "steps",
+        "ddim_steps"
+      ],
+      "divisor": 100.0,
+      "default": 30.0,
+      "description": "Requested denoising-trajectory steps, before sampler-specific work expansion. `steps` and `ddim_steps` are payload spellings; this value is never multiplied by a sampler work rate.",
+      "clamp_min": 1.0,
+      "clamp_max": 500.0
+    },
+    {
+      "kind": "float",
+      "name": "cfg_scale",
+      "payload_keys": [
+        "cfg_scale"
+      ],
+      "divisor": 30.0,
+      "default": 7.5,
+      "description": "Classifier-free guidance strength.",
+      "clamp_min": 0.0,
+      "clamp_max": 100.0
+    },
+    {
+      "kind": "float",
+      "name": "denoising_strength",
+      "payload_keys": [
+        "denoising_strength"
+      ],
+      "divisor": 1.0,
+      "default": 1.0,
+      "description": "img2img denoise fraction; 1.0 for txt2img, which is also the default.",
+      "clamp_min": 0.0,
+      "clamp_max": 1.0
+    },
+    {
+      "kind": "float",
+      "name": "control_strength",
+      "payload_keys": [
+        "control_strength"
+      ],
+      "divisor": 1.0,
+      "default": 1.0,
+      "description": "ControlNet conditioning strength, falling back to denoising_strength as in v21.",
+      "fallback_feature": "denoising_strength",
+      "clamp_min": 0.0,
+      "clamp_max": 1.0
+    },
+    {
+      "kind": "float",
+      "name": "hires_fix",
+      "payload_keys": [
+        "hires_fix"
+      ],
+      "divisor": 1.0,
+      "default": 0.0,
+      "description": "Whether the two-pass high-resolution path runs.",
+      "bool_as_float": true
+    },
+    {
+      "kind": "float",
+      "name": "source_image",
+      "payload_keys": [
+        "source_image"
+      ],
+      "divisor": 1.0,
+      "default": 0.0,
+      "description": "Whether a source image was supplied.",
+      "bool_as_float": true
+    },
+    {
+      "kind": "float",
+      "name": "source_mask",
+      "payload_keys": [
+        "source_mask"
+      ],
+      "divisor": 1.0,
+      "default": 0.0,
+      "description": "Whether a source mask was supplied.",
+      "bool_as_float": true
+    },
+    {
+      "kind": "float",
+      "name": "n_images",
+      "payload_keys": [
+        "n_images",
+        "batch_count"
+      ],
+      "divisor": 8.0,
+      "default": 1.0,
+      "description": "Images generated in the batch. New in v22: v21 priced one image and the server multiplied.",
+      "clamp_min": 1.0,
+      "clamp_max": 64.0
+    },
+    {
+      "kind": "float",
+      "name": "loras_count",
+      "payload_keys": [
+        "loras_count"
+      ],
+      "divisor": 5.0,
+      "default": 0.0,
+      "description": "Number of loras applied. New in v22.",
+      "clamp_min": 0.0,
+      "clamp_max": 5.0
+    },
+    {
+      "kind": "float",
+      "name": "tis_count",
+      "payload_keys": [
+        "tis_count"
+      ],
+      "divisor": 5.0,
+      "default": 0.0,
+      "description": "Number of textual inversions applied. New in v22.",
+      "clamp_min": 0.0,
+      "clamp_max": 20.0
+    },
+    {
+      "kind": "float",
+      "name": "megapixels",
+      "payload_keys": [],
+      "divisor": 2.0,
+      "default": 0.0,
+      "description": "width * height / 1e6, from the clamped width and height. New in v22.",
+      "derived": "megapixels",
+      "clamp_min": 0.0
+    },
+    {
+      "kind": "float",
+      "name": "queue_depth_at_dispatch",
+      "payload_keys": [
+        "queue_depth_at_dispatch"
+      ],
+      "divisor": 4.0,
+      "default": 0.0,
+      "description": "Jobs queued on the worker when this one dispatched, recorded rather than filtered on.",
+      "clamp_min": 0.0,
+      "clamp_max": 64.0
+    },
+    {
+      "kind": "categorical",
+      "name": "sampler_name",
+      "payload_keys": [
+        "sampler_name"
+      ],
+      "vocabulary": [
+        "ddim",
+        "ddpm",
+        "deis",
+        "dpmpp_2m_cfg_pp",
+        "dpmpp_2m_sde",
+        "dpmpp_2m_sde_heun",
+        "dpmpp_2s_ancestral_cfg_pp",
+        "dpmpp_3m_sde",
+        "dpmsolver",
+        "er_sde",
+        "euler_ancestral_cfg_pp",
+        "euler_cfg_pp",
+        "exp_heun_2_x0",
+        "exp_heun_2_x0_sde",
+        "gradient_estimation",
+        "gradient_estimation_cfg_pp",
+        "heunpp2",
+        "ipndm",
+        "ipndm_v",
+        "k_dpm_2",
+        "k_dpm_2_a",
+        "k_dpm_adaptive",
+        "k_dpm_fast",
+        "k_dpmpp_2m",
+        "k_dpmpp_2s_a",
+        "k_dpmpp_sde",
+        "k_euler",
+        "k_euler_a",
+        "k_heun",
+        "k_lms",
+        "lcm",
+        "plms",
+        "res_multistep",
+        "res_multistep_ancestral",
+        "res_multistep_ancestral_cfg_pp",
+        "res_multistep_cfg_pp",
+        "sa_solver",
+        "sa_solver_pece",
+        "seeds_2",
+        "seeds_3",
+        "uni_pc",
+        "uni_pc_bh2"
+      ],
+      "value_aliases": {
+        "DDIM": "ddim"
+      },
+      "unknown_collapse": "k_euler",
+      "default": "k_euler",
+      "description": "Horde sampler name, snapshotting hordelib's SAMPLERS_MAP at authoring time. An unknown sampler is priced as k_euler, which under-prices a slower new solver until a manifest revision adds it."
+    },
+    {
+      "kind": "categorical",
+      "name": "scheduler",
+      "payload_keys": [
+        "scheduler"
+      ],
+      "vocabulary": [
+        "align_your_steps",
+        "beta",
+        "ddim_uniform",
+        "exponential",
+        "gits",
+        "karras",
+        "kl_optimal",
+        "linear_quadratic",
+        "normal",
+        "sgm_uniform",
+        "simple"
+      ],
+      "unknown_collapse": "karras",
+      "default": "karras",
+      "boolean_fallback": {
+        "payload_key": "karras",
+        "when_true": "karras",
+        "when_false": "normal"
+      },
+      "description": "Sigma schedule, snapshotting hordelib's SCHEDULERS at authoring time. A live horde payload still selects its schedule through the `karras` boolean rather than by name, so a payload with no scheduler is read from that flag: true resolves to karras and false to normal, the two schedules the flag has always meant. With neither present the SDK's karras default of true applies, so the feature defaults to karras."
+    },
+    {
+      "kind": "categorical",
+      "name": "baseline",
+      "payload_keys": [
+        "baseline"
+      ],
+      "vocabulary": [
+        "stable_diffusion_1",
+        "stable_diffusion_2",
+        "stable_diffusion_xl",
+        "stable_cascade",
+        "flux_1",
+        "other"
+      ],
+      "unknown_collapse": "other",
+      "default": "other",
+      "description": "Model family. New in v22, so the server stops applying a per-baseline multiplier for the time component. Ordered by family age rather than sorted."
+    },
+    {
+      "kind": "categorical",
+      "name": "control_type",
+      "payload_keys": [
+        "control_type"
+      ],
+      "vocabulary": [
+        "None",
+        "binary",
+        "canny",
+        "depth",
+        "depth_anything",
+        "depth_anything_v2",
+        "fakescribbles",
+        "hed",
+        "hough",
+        "lineart",
+        "lineart_anime",
+        "lineart_anime_denoise",
+        "midas_depth",
+        "mlsd",
+        "normal",
+        "normal_bae",
+        "oneformer_ade20k",
+        "oneformer_coco",
+        "openpose",
+        "pidinet",
+        "pyracanny",
+        "recolor_intensity",
+        "recolor_luminance",
+        "scribble",
+        "scribble_pidinet",
+        "scribble_xdog",
+        "seg",
+        "standard_lineart",
+        "teed",
+        "tile",
+        "tile_ttplanet_guided",
+        "tile_ttplanet_simple",
+        "zoe_depth"
+      ],
+      "unknown_collapse": "None",
+      "default": "None",
+      "description": "ControlNet preprocessor, snapshotting CONTROLNET_IMAGE_PREPROCESSOR_MAP plus the None entry."
+    },
+    {
+      "kind": "categorical",
+      "name": "source_processing",
+      "payload_keys": [
+        "source_processing"
+      ],
+      "vocabulary": [
+        "img2img",
+        "inpainting",
+        "outpainting",
+        "txt2img"
+      ],
+      "value_aliases": {
+        "remix": "img2img"
+      },
+      "unknown_collapse": "txt2img",
+      "default": "txt2img",
+      "description": "How the source image is consumed. `remix` is aliased onto img2img, matching how the server prices it today."
+    },
+    {
+      "kind": "multihot",
+      "name": "post_processing",
+      "payload_keys": [
+        "post_processing"
+      ],
+      "vocabulary": [
+        "4x_AnimeSharp",
+        "CodeFormers",
+        "GFPGAN",
+        "NMKD_Siax",
+        "RealESRGAN_x2plus",
+        "RealESRGAN_x4plus",
+        "RealESRGAN_x4plus_anime_6B",
+        "strip_background"
+      ],
+      "description": "Post-processors requested, counting repeats. An entry outside this vocabulary is dropped and counted rather than collapsed, since no other post-processor prices like it."
+    }
+  ]
+}
