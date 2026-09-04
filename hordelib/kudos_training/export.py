@@ -873,16 +873,17 @@ def _fit_distilled_network(
     """
     import torch
 
+    device = _training_device()
     torch.manual_seed(seed)
     shuffle_generator = torch.Generator().manual_seed(seed)
 
-    fit_indices = torch.from_numpy(np.flatnonzero(fit_mask))
-    validation_indices = torch.from_numpy(np.flatnonzero(~fit_mask))
+    fit_indices = torch.from_numpy(np.flatnonzero(fit_mask)).to(device)
+    validation_indices = torch.from_numpy(np.flatnonzero(~fit_mask)).to(device)
     target_scale = float(np.median(targets[fit_mask]))
-    feature_tensor = torch.from_numpy(features.astype(np.float32))
-    target_tensor = torch.from_numpy((targets / target_scale).astype(np.float32)).unsqueeze(1)
+    feature_tensor = torch.from_numpy(features.astype(np.float32)).to(device)
+    target_tensor = torch.from_numpy((targets / target_scale).astype(np.float32)).unsqueeze(1).to(device)
 
-    network = _build_network(feature_tensor.shape[1], hyperparameters.hidden_widths)
+    network = _build_network(feature_tensor.shape[1], hyperparameters.hidden_widths).to(device)
     optimizer = torch.optim.Adam(
         network.parameters(),
         lr=hyperparameters.learning_rate,
@@ -894,7 +895,7 @@ def _fit_distilled_network(
     epochs_without_improvement = 0
     for epoch in range(hyperparameters.epochs):
         network.train()
-        order = torch.randperm(len(fit_indices), generator=shuffle_generator)
+        order = torch.randperm(len(fit_indices), generator=shuffle_generator).to(device)
         for start in range(0, len(fit_indices), config.batch_size):
             batch = fit_indices[order[start : start + config.batch_size]]
             batch_targets = target_tensor[batch]
@@ -910,8 +911,8 @@ def _fit_distilled_network(
         validation_median_ape = float(
             np.median(
                 np.abs(
-                    (validation_predicted - target_tensor[validation_indices]).numpy()
-                    / target_tensor[validation_indices].numpy(),
+                    (validation_predicted - target_tensor[validation_indices]).cpu().numpy()
+                    / target_tensor[validation_indices].cpu().numpy(),
                 ),
             ),
         )
@@ -963,9 +964,16 @@ def _served_weights(network: Any, *, target_scale: float) -> dict[str, np.ndarra
     weights: dict[str, np.ndarray] = {}
     for index, layer in enumerate(linear_layers):
         scale = target_scale if index == LAYER_COUNT - 1 else 1.0
-        weights[f"w{index}"] = (layer.weight.detach().numpy() * scale).astype(np.float32)
-        weights[f"b{index}"] = (layer.bias.detach().numpy() * scale).astype(np.float32)
+        weights[f"w{index}"] = (layer.weight.detach().cpu().numpy() * scale).astype(np.float32)
+        weights[f"b{index}"] = (layer.bias.detach().cpu().numpy() * scale).astype(np.float32)
     return weights
+
+
+def _training_device() -> Any:
+    """Return the accelerator the distillation fits on, falling back to the CPU only when none exists."""
+    import torch
+
+    return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 def _check_round_trip(
@@ -1027,6 +1035,7 @@ def _library_versions(lightgbm_module: Any, pandas_module: Any) -> dict[str, str
         "python": sys.version.split()[0],
         "numpy": np.__version__,
         "torch": torch.__version__,
+        "training_device": str(_training_device()),
         "lightgbm": lightgbm_module.__version__,
         "optuna": optuna.__version__,
         "pandas": pandas_module.__version__,
