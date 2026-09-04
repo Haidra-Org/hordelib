@@ -176,3 +176,6 @@ optuna_stud*.db
 *.ensure.json
 
 ComfyUI.lock
+
+# kudos-training stage outputs (snapshots, sanitized sets, fits, exports) written beside the checkout
+/runs/
