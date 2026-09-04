@@ -4,6 +4,7 @@
   "reference_machine": "tazlin-4070tis",
   "notes": {
     "measured_time_component": "Recorded rather than applied: it names the share of a family's ported multiplier that the model's predicted seconds already carry, so the residual premium beside it is what the ledger still charges and composition must not apply both.",
+    "feature_premium": "Keyed by feature and then by baseline; an entry replaces that baseline's capability premium for a request carrying the feature rather than multiplying it, and the QR-code workflow wins over the high-resolution pass where a family prices both, which is the order the server resolves them in. A baseline absent from a feature's map keeps its own premium.",
     "amortized_model_surcharge": "Keyed by model name; an entry's value is that model's expected per-job load-and-eviction seconds, the probability a job triggers a load times the measured load duration plus the re-read cost of the models it displaces, recomputed from the training snapshot at each round and priced at the sampler-second weight.",
     "served_variety_kudos_per_assigned_swap": "Counted by the server from its own assignment history, as a change of model between consecutive jobs it handed the same worker, so nothing in a submit payload can inflate it."
   },
@@ -260,6 +261,24 @@
         "unit": "multiplier",
         "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
         "provisional": false
+      }
+    },
+    "feature_premium": {
+      "qr_code": {
+        "stable_diffusion_xl": {
+          "value": 4.0,
+          "unit": "multiplier",
+          "provenance": "Ported from the served baseline catalog's horde_policy.kudos_qr_code of 4x for this family (horde_model_reference data/baselines/catalog.json, read through HordeBaselinePolicy), which the server substitutes for the baseline multiplier rather than stacking on it; provisional until the corpus measures what the QR workflow's extra conditioning passes actually cost.",
+          "provisional": true
+        }
+      },
+      "hires_fix": {
+        "stable_cascade": {
+          "value": 7.0,
+          "unit": "multiplier",
+          "provenance": "Ported from the served baseline catalog's horde_policy.kudos_hires of 7x for this family (horde_model_reference data/baselines/catalog.json, read through HordeBaselinePolicy), substituted for the baseline multiplier as the server substitutes it; provisional because hires_fix is also a learned feature, so the share of this number that is measured runtime migrates into the v22 prediction exactly as the baseline multipliers do, and the residual beside it falls by the same factor.",
+          "provisional": true
+        }
       }
     },
     "amortized_model_surcharge": {},

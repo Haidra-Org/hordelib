@@ -1131,6 +1131,8 @@ def _golden_case(
             baseline=baseline,
             loras_count=int(payload.get("loras_count") or 0),
             tis_count=int(payload.get("tis_count") or 0),
+            hires_fix=bool(payload.get("hires_fix", False)),
+            workflow=payload.get("workflow"),
         ),
         ledger,
         basis,
@@ -1151,7 +1153,7 @@ def _resolved_baseline(manifest: KudosFeatureManifest, payload: Mapping[str, Any
     raise ExportError("the manifest declares no baseline feature, so no price can be composed")
 
 
-def _breakdown_to_case(breakdown: PriceBreakdown) -> dict[str, float]:
+def _breakdown_to_case(breakdown: PriceBreakdown) -> dict[str, float | None]:
     """Convert a composed price into the golden document's per-line-item mapping."""
     return {
         "sampler_seconds_kudos": breakdown.sampler_seconds_kudos,
@@ -1161,6 +1163,7 @@ def _breakdown_to_case(breakdown: PriceBreakdown) -> dict[str, float]:
         "ti_kudos": breakdown.ti_kudos,
         "measured_subtotal_kudos": breakdown.measured_subtotal_kudos,
         "capability_premium": breakdown.capability_premium,
+        "feature_premium": breakdown.feature_premium,
         "quality_premium": breakdown.quality_premium,
         "total_kudos": breakdown.total_kudos,
     }

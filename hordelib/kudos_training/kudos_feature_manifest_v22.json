@@ -371,13 +371,21 @@
         "post_processing"
       ],
       "vocabulary": [
+        "2xModernSpanimationV1",
+        "4xLSDIRplus",
+        "4xNomos2_hq_dat2",
+        "4xNomos2_realplksr_dysample",
+        "4xNomos8kSC",
+        "4xNomosWebPhoto_RealPLKSR",
         "4x_AnimeSharp",
         "CodeFormers",
         "GFPGAN",
+        "GFPGANv1.3",
         "NMKD_Siax",
         "RealESRGAN_x2plus",
         "RealESRGAN_x4plus",
         "RealESRGAN_x4plus_anime_6B",
+        "RestoreFormer",
         "strip_background"
       ],
       "description": "Post-processors requested, counting repeats. An entry outside this vocabulary is dropped and counted rather than collapsed, since no other post-processor prices like it."
