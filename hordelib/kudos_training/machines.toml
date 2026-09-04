@@ -10,3 +10,8 @@ vram_mb = 16376
 cpu_class = "desktop"
 os = "Windows 11 Pro for Workstations"
 notes = "Primary development machine; WDDM driver model."
+
+[machines.db0-4090]
+gpu_model = "NVIDIA GeForce RTX 4090"
+vram_mb = 24074
+os = "Linux-6.8.0-138-generic-x86_64-with-glibc2.39"
