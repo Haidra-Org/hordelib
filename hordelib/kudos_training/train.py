@@ -85,7 +85,8 @@ def train(
         The run directory and its headline metrics.
 
     Raises:
-        ValueError: If the snapshot has no usable target values.
+        ValueError: If the snapshot has no usable target values, or spans several machines without
+            having been calibrated onto the reference machine.
     """
     require("pandas", extra="kudos-training", feature="kudos-train train")
     require("lightgbm", extra="kudos-training", feature="kudos-train train")
@@ -96,33 +97,21 @@ def train(
     active_config = config if config is not None else TrainConfig()
 
     frame = pd.read_parquet(clean_path)
-    if frame["sampler_window_seconds"].isna().any() or (frame["sampler_window_seconds"] <= 0).any():
-        raise ValueError("cleaned snapshot still carries missing or non-positive targets; sanitize it first")
+    validate_calibration(frame)
     _validate_sampler_trajectory_coverage(
         frame,
         minimum_levels=active_config.minimum_trajectory_levels_per_sampler,
     )
 
     split_labels, split_mode = _assign_splits(frame)
-    features = frame_to_matrix(frame, active_manifest)
-    log_target = np.log(frame["sampler_window_seconds"].to_numpy(dtype=np.float64))
+    features, log_target = prepare_features_and_target(frame, active_manifest)
 
     train_mask = split_labels == "train"
     validation_mask = split_labels == "validation"
     test_mask = split_labels == "test"
 
     constraints = _monotone_constraints(active_manifest)
-    model = lgb.LGBMRegressor(
-        objective="huber",
-        alpha=active_config.huber_alpha,
-        n_estimators=active_config.n_estimators,
-        learning_rate=active_config.learning_rate,
-        num_leaves=active_config.num_leaves,
-        min_child_samples=active_config.min_child_samples,
-        monotone_constraints=constraints,
-        random_state=active_config.seed,
-        verbose=-1,
-    )
+    model = build_reference_estimator(active_manifest, active_config)
     model.fit(
         features[train_mask],
         log_target[train_mask],
@@ -157,6 +146,7 @@ def train(
         "monotone_constraints": dict(zip(slot_names, constraints, strict=True)),
         "config": active_config.__dict__,
         "best_iteration": int(model.best_iteration_) if model.best_iteration_ is not None else None,
+        "out_of_regime_rows": _out_of_regime_rows(frame),
     }
     (run_dir / "config.json").write_text(json.dumps(run_config, indent=2), encoding="utf-8")
     split_by_job = dict(zip(frame["job_id"], (str(label) for label in split_labels), strict=True))
@@ -170,6 +160,87 @@ def train(
         rows={name: int((split_labels == name).sum()) for name in ("train", "validation", "test")},
         metrics=metrics,
     )
+
+
+def prepare_features_and_target(
+    frame: "pd.DataFrame", manifest: KudosFeatureManifest
+) -> tuple[np.ndarray, np.ndarray]:
+    """Encode a cleaned frame into the feature matrix and the log-seconds target.
+
+    Args:
+        frame: Cleaned snapshot rows.
+        manifest: The feature manifest revision to encode against.
+
+    Returns:
+        The feature matrix and the natural log of the target column, both in frame order.
+
+    Raises:
+        ValueError: If the target column still carries missing or non-positive values.
+    """
+    target = frame["sampler_window_seconds"]
+    if target.isna().any() or (target <= 0).any():
+        raise ValueError("cleaned snapshot still carries missing or non-positive targets; sanitize it first")
+    return frame_to_matrix(frame, manifest), np.log(target.to_numpy(dtype=np.float64))
+
+
+def build_reference_estimator(manifest: KudosFeatureManifest, config: TrainConfig) -> Any:
+    """Construct the LightGBM regressor the reference model and the calibration shape model share.
+
+    Both fit the same physics on the same encoding, so they must not drift apart in objective or in
+    the monotone constraints that keep cost from falling as work rises.
+
+    Args:
+        manifest: The feature manifest whose slot order the constraint vector follows.
+        config: Hyperparameters and seed.
+
+    Returns:
+        An unfitted ``lgb.LGBMRegressor``.
+    """
+    require("lightgbm", extra="kudos-training", feature="kudos-train train")
+    import lightgbm as lgb
+
+    return lgb.LGBMRegressor(
+        objective="huber",
+        alpha=config.huber_alpha,
+        n_estimators=config.n_estimators,
+        learning_rate=config.learning_rate,
+        num_leaves=config.num_leaves,
+        min_child_samples=config.min_child_samples,
+        monotone_constraints=_monotone_constraints(manifest),
+        random_state=config.seed,
+        verbose=-1,
+    )
+
+
+def validate_calibration(frame: "pd.DataFrame") -> None:
+    """Refuse multi-machine data that has not been mapped onto the reference machine.
+
+    Seconds measured on different machines are different quantities, so fitting them together would
+    average hardware into the price rather than pricing the work.
+
+    Args:
+        frame: Cleaned snapshot rows about to enter training.
+
+    Raises:
+        ValueError: If the frame spans several machines without a calibration pass behind it.
+    """
+    machines = sorted({str(machine_id) for machine_id in frame["machine_id"]})
+    if len(machines) < 2:
+        return
+    calibrated = frame["calibrated"] if "calibrated" in frame.columns else None
+    if calibrated is not None and bool(calibrated.fillna(False).astype(bool).all()):
+        return
+    raise ValueError(
+        f"data spans {len(machines)} machines ({', '.join(machines)}) but is not calibrated; "
+        "run kudos-train calibrate to map every machine onto the reference machine first",
+    )
+
+
+def _out_of_regime_rows(frame: "pd.DataFrame") -> int:
+    """Count rows measured on cells the reference machine never ran."""
+    if "out_of_regime" not in frame.columns:
+        return 0
+    return int(frame["out_of_regime"].fillna(False).astype(bool).sum())
 
 
 def _validate_sampler_trajectory_coverage(frame: "pd.DataFrame", *, minimum_levels: int) -> None:
@@ -270,4 +341,11 @@ def _split_metrics(model: Any, features: np.ndarray, log_target: np.ndarray) -> 
     }
 
 
-__all__ = ["TrainConfig", "TrainResult", "train"]
+__all__ = [
+    "TrainConfig",
+    "TrainResult",
+    "build_reference_estimator",
+    "prepare_features_and_target",
+    "train",
+    "validate_calibration",
+]

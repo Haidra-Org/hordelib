@@ -126,6 +126,12 @@ class EvaluateResult:
     rows_without_ledger_baseline: int
     """Rows the ledger could not price because it carries no premium for their baseline."""
 
+    in_regime_spread: float | None = None
+    """Spread over cells the reference machine itself ran; None when the data is single-machine."""
+
+    out_of_regime_spread: float | None = None
+    """Spread over cells reached only by a calibrated machine, whose mapping is an extrapolation."""
+
 
 def _float_or(value: Any, default: float) -> float:
     """Return *value* as a finite float, or *default* when it is absent, NaN, or infinite."""
@@ -303,6 +309,7 @@ def evaluate(
 
     candidate_spread = _spread_ratio(per_cell["candidate_pay_per_second"])
     v21_spread = _spread_ratio(per_cell["v21_pay_per_second"]) if v21_model is not None else None
+    in_regime_spread, out_of_regime_spread = _regime_spreads(per_cell)
 
     split_metrics = {
         str(split_name): {
@@ -325,6 +332,8 @@ def evaluate(
         "basis_kudos": basis.basis_kudos,
         "rows_without_ledger_baseline": rows_without_ledger_baseline,
         "candidate_pay_per_second_spread": candidate_spread,
+        "candidate_pay_per_second_spread_in_regime": in_regime_spread,
+        "candidate_pay_per_second_spread_out_of_regime": out_of_regime_spread,
         "v21_pay_per_second_spread": v21_spread,
         "acceptance_target_spread": 1.5,
         "split_metrics": split_metrics,
@@ -345,6 +354,8 @@ def evaluate(
         test_median_ape=test_median_ape,
         ledger_version=active_ledger.ledger_version,
         rows_without_ledger_baseline=rows_without_ledger_baseline,
+        in_regime_spread=in_regime_spread,
+        out_of_regime_spread=out_of_regime_spread,
     )
 
 
@@ -413,8 +424,29 @@ def _per_cell_table(frame: "pd.DataFrame") -> "pd.DataFrame":
     }
     if "v21_pay_per_second" in frame.columns:
         aggregations["v21_pay_per_second"] = ("v21_pay_per_second", "median")
+    if "out_of_regime" in frame.columns:
+        aggregations["out_of_regime"] = ("out_of_regime", "max")
     table = cells.groupby("cell_id").agg(**aggregations).reset_index()
     return table[table["rows"] >= _MIN_CELL_ROWS].sort_values("candidate_pay_per_second")
+
+
+def _regime_spreads(per_cell: "pd.DataFrame") -> tuple[float | None, float | None]:
+    """Split the spread by regime, so an extrapolated cell cannot hide inside the headline number.
+
+    Args:
+        per_cell: The per-cell table, which carries ``out_of_regime`` only on calibrated data.
+
+    Returns:
+        The spread over in-regime cells and over out-of-regime cells, each None when the table has
+        fewer than two such cells.
+    """
+    if "out_of_regime" not in per_cell.columns:
+        return None, None
+    out_of_regime = per_cell["out_of_regime"].fillna(False).astype(bool)
+    return (
+        _spread_ratio(per_cell.loc[~out_of_regime, "candidate_pay_per_second"]),
+        _spread_ratio(per_cell.loc[out_of_regime, "candidate_pay_per_second"]),
+    )
 
 
 def _spread_ratio(pay_per_second: "pd.Series") -> float | None:

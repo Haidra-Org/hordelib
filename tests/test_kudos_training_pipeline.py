@@ -6,12 +6,17 @@ divergence); the sanitize tests exercise each rule against rows crafted to trip 
 train/evaluate test drives the remaining stages end to end on a corpus small enough to fit in CI.
 """
 
+import hashlib
 import json
+import math
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
 import pytest
 from horde_sdk.generation_parameters.image.sampler_work import SamplerExecutionContractVersion
+from loguru import logger
 
 from hordelib.kudos_training.assemble import AssemblyError, PairingError, assemble
 from hordelib.kudos_training.sanitize import SanitizeConfig, sanitize
@@ -21,6 +26,8 @@ from hordelib.kudos_training.train import TrainConfig, train
 pd = pytest.importorskip("pandas")
 
 MACHINE_ID = "test-rig"
+OTHER_MANIFEST_SHA256 = "4d1b" + "0" * 60
+"""A well-formed manifest hash that is not the shipped revision's."""
 SAMPLER_CONSTRAINTS_ARTIFACT_SHA256 = "b46f7becf7ea5583ea0a7fe8ba1253e21b528b0ebda5b15e78445ef79e2e8533"
 
 
@@ -230,6 +237,34 @@ def test_assemble_tolerates_a_missing_record(tmp_path: Path, machines_path: Path
     assert result.sessions[0].missing_positions == (2,)
 
 
+def test_assemble_reads_rotated_parts_as_one_session(tmp_path: Path, machines_path: Path) -> None:
+    stats_path, definition_path = _standard_fixture(tmp_path)
+    lines = stats_path.read_text(encoding="utf-8").splitlines()
+    split = len(lines) // 2
+    # The worker's naming scheme is what the assembler keys on: one session stamp, numbered parts.
+    first = tmp_path / "stats-v0.0.0-20000101-000000-000.jsonl"
+    second = tmp_path / "stats-v0.0.0-20000101-000000-001.jsonl"
+    first.write_text("\n".join(lines[:split]) + "\n", encoding="utf-8")
+    second.write_text("\n".join(lines[split:]) + "\n", encoding="utf-8")
+    stats_path.unlink()
+
+    result = assemble(
+        [second],
+        machine_id=MACHINE_ID,
+        out_dir=tmp_path / "out",
+        definition_paths=[definition_path],
+        machines_path=machines_path,
+        resolve_baselines=False,
+    )
+
+    assert len(result.sessions) == 1
+    assert result.sessions[0].stats_file == first.name
+    assert result.sessions[0].missing_positions == ()
+    frame = pd.read_parquet(result.snapshot_path)
+    assert set(frame["stats_file"]) == {first.name}
+    assert len(frame) == result.total_rows
+
+
 def test_assemble_raises_on_axis_divergence(tmp_path: Path, machines_path: Path) -> None:
     stats_path, definition_path = _standard_fixture(tmp_path)
     lines = stats_path.read_text(encoding="utf-8").splitlines()
@@ -293,6 +328,96 @@ def test_unknown_machine_id_is_rejected(tmp_path: Path, machines_path: Path) -> 
             machines_path=machines_path,
             resolve_baselines=False,
         )
+
+
+@contextmanager
+def _captured_warnings() -> Iterator[list[str]]:
+    """Collect warning-level log lines; the pipeline logs through loguru, which pytest does not see."""
+    messages: list[str] = []
+    sink_id = logger.add(lambda message: messages.append(str(message)), level="WARNING", format="{message}")
+    try:
+        yield messages
+    finally:
+        logger.remove(sink_id)
+
+
+def _stamp_manifest_revision(definition_path: Path, manifest_sha256: str) -> None:
+    """Stamp a definition artifact with the feature manifest revision its cells were encoded under."""
+    artifact = json.loads(definition_path.read_text(encoding="utf-8"))
+    artifact["manifest_sha256"] = manifest_sha256
+    definition_path.write_text(json.dumps(artifact), encoding="utf-8")
+
+
+def test_assemble_accepts_a_definition_stamped_with_the_shipped_manifest(
+    tmp_path: Path,
+    machines_path: Path,
+) -> None:
+    from hordelib.kudos_training import default_manifest
+
+    stats_path, definition_path = _standard_fixture(tmp_path)
+    _stamp_manifest_revision(definition_path, default_manifest().content_sha256())
+
+    result = assemble(
+        [stats_path],
+        machine_id=MACHINE_ID,
+        out_dir=tmp_path / "snapshots",
+        definition_paths=[definition_path],
+        machines_path=machines_path,
+        resolve_baselines=False,
+    )
+    assert result.total_rows == 7
+
+
+def test_assemble_refuses_a_definition_from_another_manifest_revision(
+    tmp_path: Path,
+    machines_path: Path,
+) -> None:
+    stats_path, definition_path = _standard_fixture(tmp_path)
+    _stamp_manifest_revision(definition_path, OTHER_MANIFEST_SHA256)
+
+    with pytest.raises(AssemblyError, match="another manifest revision"):
+        assemble(
+            [stats_path],
+            machine_id=MACHINE_ID,
+            out_dir=tmp_path / "snapshots",
+            definition_paths=[definition_path],
+            machines_path=machines_path,
+            resolve_baselines=False,
+        )
+
+
+def test_assemble_downgrades_a_manifest_mismatch_on_request(tmp_path: Path, machines_path: Path) -> None:
+    stats_path, definition_path = _standard_fixture(tmp_path)
+    _stamp_manifest_revision(definition_path, OTHER_MANIFEST_SHA256)
+
+    with _captured_warnings() as warnings:
+        result = assemble(
+            [stats_path],
+            machine_id=MACHINE_ID,
+            out_dir=tmp_path / "snapshots",
+            definition_paths=[definition_path],
+            machines_path=machines_path,
+            resolve_baselines=False,
+            allow_manifest_mismatch=True,
+        )
+
+    assert result.total_rows == 7
+    assert any(OTHER_MANIFEST_SHA256 in message for message in warnings)
+
+
+def test_assemble_accepts_a_definition_without_a_manifest_revision(tmp_path: Path, machines_path: Path) -> None:
+    stats_path, definition_path = _standard_fixture(tmp_path)
+    assert "manifest_sha256" not in json.loads(definition_path.read_text(encoding="utf-8"))
+
+    result = assemble(
+        [stats_path],
+        machine_id=MACHINE_ID,
+        out_dir=tmp_path / "snapshots",
+        definition_paths=[definition_path],
+        machines_path=machines_path,
+        resolve_baselines=False,
+    )
+    assert result.total_rows == 7
 
 
 def _snapshot_row(**overrides: Any) -> dict[str, Any]:
@@ -527,4 +652,377 @@ def test_train_rejects_a_sampler_observed_at_only_one_trajectory_length(tmp_path
     _write_snapshot_parquet(clean_path, rows)
 
     with pytest.raises(ValueError, match="trajectory coverage"):
+        train(clean_path, out_dir=tmp_path / "runs")
+
+
+def _session_fixture(tmp_path: Path, *, created_at: float | None = 980.0, machine: bool = True) -> Path:
+    """A definition artifact beside its own stats session, plus a decoy session from another run."""
+    stats_path, definition_path = _standard_fixture(tmp_path)
+    session_path = tmp_path / "stats-v0.0.0-20000102-000000-000.jsonl"
+    stats_path.replace(session_path)
+
+    # A session from an unrelated run, started before the artifact, so discovery has to choose
+    # rather than take the only file in the directory.
+    decoy = tmp_path / "stats-v0.0.0-20000101-000000-000.jsonl"
+    _write_stats(decoy, [_record(_cell("g1.fast"), popped=1.0)])
+    decoy_lines = decoy.read_text(encoding="utf-8").splitlines()
+    decoy_start = json.loads(decoy_lines[0])
+    decoy_start["timestamp"] = 500.0
+    decoy_lines[0] = json.dumps(decoy_start)
+    decoy.write_text("\n".join(decoy_lines) + "\n", encoding="utf-8")
+
+    artifact = json.loads(definition_path.read_text(encoding="utf-8"))
+    if created_at is not None:
+        artifact["created_at"] = created_at
+    if machine:
+        artifact["machine"] = {
+            "machine_id": MACHINE_ID,
+            "hostname": "test-host",
+            "gpu_model": "Test GPU",
+            "vram_mb": 1,
+            "os": "Test OS",
+            "worker_version": "18.4.1",
+        }
+    definition_path.write_text(json.dumps(artifact), encoding="utf-8")
+    return definition_path
+
+
+def test_resolve_session_finds_the_session_the_artifact_was_written_for(
+    tmp_path: Path,
+    machines_path: Path,
+) -> None:
+    from hordelib.kudos_training.assemble import resolve_session
+
+    definition_path = _session_fixture(tmp_path)
+    session = resolve_session(definition_path)
+
+    assert session.machine is not None
+    assert session.machine.machine_id == MACHINE_ID
+    assert [path.name for path in session.stats_paths] == ["stats-v0.0.0-20000102-000000-000.jsonl"]
+
+    result = assemble(
+        list(session.stats_paths),
+        machine_id=session.machine.machine_id,
+        out_dir=tmp_path / "snapshots",
+        definition_paths=[definition_path],
+        machines_path=machines_path,
+        resolve_baselines=False,
+    )
+    assert result.total_rows == 7
+
+
+def test_resolve_session_rejects_an_artifact_without_created_at(tmp_path: Path) -> None:
+    from hordelib.kudos_training.assemble import resolve_session
+
+    definition_path = _session_fixture(tmp_path, created_at=None)
+    with pytest.raises(AssemblyError, match="created_at"):
+        resolve_session(definition_path)
+
+
+def test_resolve_session_rejects_a_session_outside_the_search_window(tmp_path: Path) -> None:
+    from hordelib.kudos_training.assemble import resolve_session
+
+    # The fixture session starts at t=1000; an artifact written a day later belongs to no session here.
+    definition_path = _session_fixture(tmp_path, created_at=1000.0 + 86400.0)
+    with pytest.raises(AssemblyError, match="no stats session"):
+        resolve_session(definition_path)
+
+
+def test_machines_add_writes_a_parseable_entry_and_refuses_duplicates(tmp_path: Path, machines_path: Path) -> None:
+    import tomllib
+
+    from hordelib.kudos_training.assemble import CorpusDefinition, add_machine, load_machines
+
+    definition_path = _session_fixture(tmp_path)
+    definition = CorpusDefinition.model_validate_json(definition_path.read_text(encoding="utf-8"))
+    assert definition.machine is not None
+
+    other = definition.machine.model_copy(update={"machine_id": "test-rig-2"})
+    entry = add_machine(other, notes="Second rig.", machines_path=machines_path)
+    assert entry == {"gpu_model": "Test GPU", "vram_mb": 1, "os": "Test OS", "notes": "Second rig."}
+
+    with machines_path.open("rb") as handle:
+        table = tomllib.load(handle)
+    assert table["machines"]["test-rig-2"]["notes"] == "Second rig."
+    assert set(load_machines(machines_path)) == {MACHINE_ID, "test-rig-2"}
+
+    with pytest.raises(AssemblyError, match="already declares machine"):
+        add_machine(other, machines_path=machines_path)
+
+
+def test_machines_add_warns_when_a_registered_id_carries_different_facts(
+    tmp_path: Path,
+    machines_path: Path,
+) -> None:
+    import tomllib
+
+    from hordelib.kudos_training.assemble import CorpusDefinition, add_machine
+
+    definition_path = _session_fixture(tmp_path)
+    definition = CorpusDefinition.model_validate_json(definition_path.read_text(encoding="utf-8"))
+    assert definition.machine is not None
+    relabeled = definition.machine.model_copy(update={"gpu_model": "Another GPU"})
+
+    before = machines_path.read_text(encoding="utf-8")
+    with _captured_warnings() as warnings, pytest.raises(AssemblyError, match="already declares machine"):
+        add_machine(relabeled, machines_path=machines_path)
+
+    assert any("gpu_model" in message and "Another GPU" in message for message in warnings)
+    assert machines_path.read_text(encoding="utf-8") == before
+    with machines_path.open("rb") as handle:
+        assert tomllib.load(handle)["machines"][MACHINE_ID]["gpu_model"] == "Test GPU"
+
+
+def _bundle_fixture(tmp_path: Path) -> Path:
+    """A run bundle: the definition artifact, two rotated stats parts and a manifest over both."""
+    stats_path, definition_path = _standard_fixture(tmp_path)
+
+    lines = stats_path.read_text(encoding="utf-8").splitlines()
+    first_part = tmp_path / "stats-v0.0.0-20000102-000000-000.jsonl"
+    second_part = tmp_path / "stats-v0.0.0-20000102-000000-001.jsonl"
+    first_part.write_text("\n".join(lines[:4]) + "\n", encoding="utf-8")
+    second_part.write_text("\n".join(lines[4:]) + "\n", encoding="utf-8")
+    stats_path.unlink()
+
+    # The bundle names its parts, so the artifact needs no write time for discovery to work.
+    artifact = json.loads(definition_path.read_text(encoding="utf-8"))
+    artifact["machine"] = {"machine_id": MACHINE_ID, "gpu_model": "Test GPU", "vram_mb": 1, "os": "Test OS"}
+    definition_path.write_text(json.dumps(artifact), encoding="utf-8")
+
+    def described(path: Path, role: str) -> dict[str, Any]:
+        payload = path.read_bytes()
+        return {
+            "name": path.name,
+            "role": role,
+            "sha256": hashlib.sha256(payload).hexdigest(),
+            "bytes": len(payload),
+        }
+
+    bundle = {
+        "bundle_format": "1",
+        "machine": artifact["machine"],
+        "tier": "smoke",
+        "scenario_name": "pricing-corpus",
+        "scenario_revision": "1",
+        "created_at": 980.0,
+        "created_at_utc": "2000-01-01T00:16:20Z",
+        "files": [
+            described(definition_path, "definition"),
+            # Listed out of rotation order, so the reader has to sort rather than trust the manifest.
+            described(second_part, "stats"),
+            described(first_part, "stats"),
+        ],
+    }
+    (tmp_path / "bundle.json").write_text(json.dumps(bundle), encoding="utf-8")
+    return definition_path
+
+
+def test_resolve_session_reads_the_parts_a_bundle_manifest_lists(tmp_path: Path, machines_path: Path) -> None:
+    from hordelib.kudos_training.assemble import resolve_session
+
+    definition_path = _bundle_fixture(tmp_path)
+    session = resolve_session(definition_path)
+
+    assert [path.name for path in session.stats_paths] == [
+        "stats-v0.0.0-20000102-000000-000.jsonl",
+        "stats-v0.0.0-20000102-000000-001.jsonl",
+    ]
+    assert session.machine is not None
+
+    result = assemble(
+        list(session.stats_paths),
+        machine_id=session.machine.machine_id,
+        out_dir=tmp_path / "snapshots",
+        definition_paths=[definition_path],
+        machines_path=machines_path,
+        resolve_baselines=False,
+    )
+    assert result.total_rows == 7
+
+
+def test_resolve_session_refuses_a_tampered_stats_part(tmp_path: Path) -> None:
+    from hordelib.kudos_training.assemble import resolve_session
+
+    definition_path = _bundle_fixture(tmp_path)
+    tampered = tmp_path / "stats-v0.0.0-20000102-000000-001.jsonl"
+    tampered.write_text(tampered.read_text(encoding="utf-8").replace('"kudos_reward": 0.0', '"kudos_reward": 9.0'))
+
+    with pytest.raises(AssemblyError, match="hashes to"):
+        resolve_session(definition_path)
+
+
+def test_resolve_session_refuses_a_bundle_missing_a_listed_file(tmp_path: Path) -> None:
+    from hordelib.kudos_training.assemble import resolve_session
+
+    definition_path = _bundle_fixture(tmp_path)
+    (tmp_path / "stats-v0.0.0-20000102-000000-001.jsonl").unlink()
+
+    with pytest.raises(AssemblyError, match="which is missing from"):
+        resolve_session(definition_path)
+
+
+_CALIBRATION_CONFIG = TrainConfig(n_estimators=400, min_child_samples=2)
+"""Shape-model settings sized for the handful of replicates a synthetic frame carries."""
+
+
+def _two_machine_frame(
+    *,
+    intercept: float,
+    slope: float,
+    noise: float = 0.0,
+    other_id: str = "test-rig-2",
+) -> list[dict[str, Any]]:
+    """Reference rows plus a second machine whose log seconds are an affine image of them.
+
+    The second machine also runs one cell the reference never ran, so the out-of-regime label has
+    something to catch.
+    """
+    shared_cells = [
+        ("g1.a", 10, 512, 4.0),
+        ("g1.b", 20, 512, 7.0),
+        ("g1.c", 30, 512, 10.0),
+        ("g2.d", 40, 768, 18.0),
+        ("g2.e", 50, 768, 24.0),
+        ("g2.f", 60, 1024, 40.0),
+    ]
+    rows: list[dict[str, Any]] = []
+    popped = 1000.0
+    for replicate in range(4):
+        for cell_id, steps, width, window in shared_cells:
+            reference_seconds = window + 0.1 * replicate
+            rows.append(
+                _snapshot_row(
+                    job_id=f"ref-{cell_id}-{replicate}",
+                    machine_id=MACHINE_ID,
+                    cell_id=cell_id,
+                    replicate=replicate,
+                    time_popped=popped,
+                    trajectory_steps=steps,
+                    width=width,
+                    height=width,
+                    sampler_window_seconds=reference_seconds,
+                ),
+            )
+            popped += 30.0
+            wobble = noise * (1 if (replicate + steps) % 2 else -1)
+            rows.append(
+                _snapshot_row(
+                    job_id=f"other-{cell_id}-{replicate}",
+                    machine_id=other_id,
+                    cell_id=cell_id,
+                    replicate=replicate,
+                    time_popped=popped,
+                    trajectory_steps=steps,
+                    width=width,
+                    height=width,
+                    sampler_window_seconds=math.exp(intercept + slope * math.log(reference_seconds) + wobble),
+                ),
+            )
+            popped += 30.0
+
+    for replicate in range(4):
+        rows.append(
+            _snapshot_row(
+                job_id=f"other-only-{replicate}",
+                machine_id=other_id,
+                cell_id="g3.other-only",
+                replicate=replicate,
+                time_popped=popped,
+                trajectory_steps=70,
+                width=1024,
+                height=1024,
+                sampler_window_seconds=math.exp(intercept + slope * math.log(55.0 + 0.1 * replicate)),
+            ),
+        )
+        popped += 30.0
+    return rows
+
+
+def test_calibrate_recovers_the_affine_map_and_flags_out_of_regime_cells(tmp_path: Path) -> None:
+    pytest.importorskip("lightgbm")
+    from hordelib.kudos_training.calibrate import calibrate
+
+    rows = _two_machine_frame(intercept=0.4, slope=1.1, noise=0.01)
+    clean_path = tmp_path / "clean-two-machines.parquet"
+    _write_snapshot_parquet(clean_path, rows)
+
+    result = calibrate(
+        clean_path,
+        out_dir=tmp_path / "calibration",
+        reference_machine=MACHINE_ID,
+        config=_CALIBRATION_CONFIG,
+    )
+
+    assert result.passed
+    assert result.calibrated_path is not None
+    (calibration,) = result.machines
+    assert calibration.machine_id == "test-rig-2"
+    assert calibration.n_overlap_cells == 6
+    assert calibration.n_overlap_rows == 24
+    assert calibration.intercept == pytest.approx(0.4, abs=0.2)
+    assert calibration.slope == pytest.approx(1.1, abs=0.15)
+    assert calibration.residual_spread < 1.5
+
+    calibrated = pd.read_parquet(result.calibrated_path)
+    assert bool(calibrated["calibrated"].all())
+    other = calibrated[calibrated["measured_machine_id"] == "test-rig-2"]
+    assert bool(other[other["cell_id"] == "g3.other-only"]["out_of_regime"].all())
+    assert not bool(other[other["cell_id"] == "g1.a"]["out_of_regime"].any())
+    assert not bool(calibrated[calibrated["measured_machine_id"] == MACHINE_ID]["out_of_regime"].any())
+    # Mapping a shared cell back must land near what the reference machine measured on it.
+    mapped = float(other[other["cell_id"] == "g2.f"]["sampler_window_seconds"].median())
+    assert mapped == pytest.approx(40.15, rel=0.15)
+    assert float(other["measured_seconds"].iloc[0]) != pytest.approx(float(other["sampler_window_seconds"].iloc[0]))
+
+    report = json.loads(result.report_path.read_text(encoding="utf-8"))
+    assert report["reference_machine"] == MACHINE_ID
+    assert report["machines"][0]["passes"] is True
+
+
+def test_calibrate_fails_the_bar_on_a_noisy_machine(tmp_path: Path) -> None:
+    pytest.importorskip("lightgbm")
+    from hordelib.kudos_training.calibrate import calibrate
+
+    rows = _two_machine_frame(intercept=0.4, slope=1.1, noise=0.9)
+    clean_path = tmp_path / "clean-noisy.parquet"
+    _write_snapshot_parquet(clean_path, rows)
+
+    result = calibrate(
+        clean_path,
+        out_dir=tmp_path / "calibration",
+        reference_machine=MACHINE_ID,
+        config=_CALIBRATION_CONFIG,
+    )
+
+    assert not result.passed
+    assert result.calibrated_path is None
+    assert result.machines[0].residual_spread > 1.5
+    assert not list((tmp_path / "calibration").glob("*.parquet"))
+    assert result.report_path.exists()
+
+
+def test_calibrate_needs_enough_shared_cells(tmp_path: Path) -> None:
+    pytest.importorskip("lightgbm")
+    from hordelib.kudos_training.calibrate import CalibrationError, calibrate
+
+    rows = [row for row in _two_machine_frame(intercept=0.4, slope=1.1) if row["cell_id"] not in ("g2.d", "g2.e")]
+    clean_path = tmp_path / "clean-thin-overlap.parquet"
+    _write_snapshot_parquet(clean_path, rows)
+
+    with pytest.raises(CalibrationError, match="shares 4 cells"):
+        calibrate(
+            clean_path,
+            out_dir=tmp_path / "calibration",
+            reference_machine=MACHINE_ID,
+            config=_CALIBRATION_CONFIG,
+        )
+
+
+def test_train_refuses_uncalibrated_multi_machine_data(tmp_path: Path) -> None:
+    pytest.importorskip("lightgbm")
+    rows = _two_machine_frame(intercept=0.4, slope=1.1)
+    clean_path = tmp_path / "clean-uncalibrated.parquet"
+    _write_snapshot_parquet(clean_path, rows)
+
+    with pytest.raises(ValueError, match="not calibrated"):
         train(clean_path, out_dir=tmp_path / "runs")
