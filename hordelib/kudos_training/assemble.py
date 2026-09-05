@@ -99,7 +99,7 @@ class _JobRecord(BaseModel):
     faulted: bool
     time_popped: float
     stage_timestamps: dict[str, float]
-    queue_wait_seconds: float
+    queue_wait_seconds: float | None = None
     e2e_seconds: float
     safety_seconds: float | None = None
     model_name: str
@@ -923,24 +923,58 @@ def _build_row(
     )
 
 
+def _beta_aware_image_source(manager: object, pending_source_id: str, horde_source_id: str) -> object:
+    """Return the image-generation source selector with the PRIMARY's pending (beta) records layered on top.
+
+    A model measured while it was still in the pending queue (a beta baseline the worker served under the
+    beta opt-in) has no canonical record yet; only the pending queue knows its baseline, and baseline is a
+    load-bearing training feature. The pending provider is registered here on the anonymous key when nothing
+    registered it already, so the assembler reads the same records the worker served from. Falls back to the
+    canonical source alone when the provider cannot be built (no PRIMARY URL, offline).
+    """
+    try:
+        from horde_model_reference import PendingModelProvider, horde_model_reference_settings
+        from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY
+
+        if manager.get_provider(pending_source_id) is None:  # type: ignore[attr-defined]
+            primary_api_url = horde_model_reference_settings.primary_api_url
+            if not primary_api_url:
+                return horde_source_id
+            manager.register_provider(  # type: ignore[attr-defined]
+                PendingModelProvider(
+                    primary_api_url=primary_api_url,
+                    apikey="0000000000",
+                    categories={MODEL_REFERENCE_CATEGORY.image_generation},
+                ),
+                replace=True,
+            )
+        return [pending_source_id, horde_source_id]
+    except Exception as error:
+        logger.warning(f"pending (beta) model records unavailable; canonical baselines only: {error}")
+        return horde_source_id
+
+
 def _resolve_baselines(rows: list[SnapshotRow]) -> list[SnapshotRow]:
     """Override each row's baseline with the model reference's answer, where one exists.
 
     The worker's stats stream has been observed reporting ``stable_diffusion_1`` for SDXL models
     under the harness, and baseline is a load-bearing training feature, so the model reference is
-    treated as the authority. A model the reference does not know (or a reference that cannot be
-    read at all) leaves the worker-reported value in place, with ``baseline_resolved`` False so the
-    trainer can see which rows carry the unreliable spelling.
+    treated as the authority, with the PRIMARY's pending (beta) records layered over the canonical ones
+    so a model measured while still in beta resolves too. A model neither source knows (or a reference
+    that cannot be read at all) leaves the worker-reported value in place, with ``baseline_resolved``
+    False so the trainer can see which rows carry the unreliable spelling.
     """
     baselines_by_model: dict[str, str | None] = {}
     try:
-        from horde_model_reference import MODEL_REFERENCE_CATEGORY
+        from horde_model_reference import HORDE_SOURCE_ID, MODEL_REFERENCE_CATEGORY, PENDING_SOURCE_ID
         from horde_model_reference.model_reference_manager import ModelReferenceManager
 
         manager = ModelReferenceManager()
+        source = _beta_aware_image_source(manager, PENDING_SOURCE_ID, HORDE_SOURCE_ID)
+        records = manager.query(MODEL_REFERENCE_CATEGORY.image_generation, source=source).to_list()
+        baseline_by_name = {record.name: getattr(record, "baseline", None) for record in records}
         for model_name in sorted({row.model_name for row in rows}):
-            record = manager.get_model_or_none(MODEL_REFERENCE_CATEGORY.image_generation, model_name)
-            baseline = getattr(record, "baseline", None)
+            baseline = baseline_by_name.get(model_name)
             baselines_by_model[model_name] = str(baseline) if baseline is not None else None
     except Exception as error:
         logger.warning(f"model reference unavailable; keeping worker-reported baselines: {error}")

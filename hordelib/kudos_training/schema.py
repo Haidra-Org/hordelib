@@ -169,7 +169,7 @@ class SnapshotRow(BaseModel):
     sampling_seconds: float | None
     """The comfy sampling phase alone, as reported by the worker."""
 
-    queue_wait_seconds: float
+    queue_wait_seconds: float | None
     """Pop to inference start; carries lora fetch waits on miss cells."""
 
     safety_seconds: float | None
