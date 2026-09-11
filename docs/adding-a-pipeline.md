@@ -135,3 +135,12 @@ through the execution layer unchanged (collection walks every list-valued ui key
 declared output node; see `docs/comfyui-bridge.md`). New nodes are written against
 ComfyUI's typed V3 API, modeled on `hordelib/nodes/node_v3_canary.py`; see
 `docs/modality-readiness.md` for the full recipe.
+
+### Source-media compatibility metadata
+
+Inpainting checkpoints synthesize a noise source and a white mask when their graph needs
+inputs the caller omitted. These internal inputs are not parse failures for txt2img.
+Both Horde-dict and typed compatibility paths classify the original processing mode and
+ControlNet before rewriting it: source warnings apply to image-based requests and
+ControlNet, while missing-mask warnings apply to inpainting/outpainting requests.
+Warnings already recorded while decoding caller inputs remain on fallback results.

@@ -8,8 +8,15 @@ hires graph has a real second pass.
 """
 
 import PIL.Image
+import pytest
 
-from hordelib.pipeline.horde_compat import disable_hires_fix_for_masked_img2img, resize_sources_to_request
+from hordelib.pipeline.context import ModelContext
+from hordelib.pipeline.horde_compat import (
+    apply_model_compat,
+    disable_hires_fix_for_masked_img2img,
+    normalize_horde_payload,
+    resize_sources_to_request,
+)
 from hordelib.pipeline.payload import ImageGenPayload
 
 BASE = {
@@ -108,3 +115,31 @@ class TestGuardBeforeResize:
         resized = resize_sources_to_request(payload)
         assert resized.source_image is not None
         assert resized.source_image.size != (BASE["width"], BASE["height"])
+
+
+@pytest.mark.parametrize("typed", [False, True])
+@pytest.mark.parametrize(
+    "mode,control,expected",
+    [
+        (None, None, set()),
+        ("txt2img", None, set()),
+        ("txt2img", "canny", {"source_image"}),
+        ("img2img", None, {"source_image"}),
+        ("remix", None, {"source_image"}),
+        ("inpainting", None, {"source_image", "source_mask"}),
+        ("outpainting", None, {"source_image", "source_mask"}),
+    ],
+)
+def test_inpainting_fallback_reports_only_requested_media(typed, mode, control, expected):
+    context = ModelContext(horde_model_name="painting", is_inpainting_model=True)
+    raw = {"width": 64, "height": 64, "source_processing": mode, "control_type": control}
+    if typed:
+        result, faults = apply_model_compat(ImageGenPayload.from_horde_dict(raw), context)
+        image, mask = result.source_image, result.source_mask
+    else:
+        result, faults = normalize_horde_payload(raw, context)
+        image, mask = result["source_image"], result["source_mask"]
+    assert {str(fault.type_) for fault in faults} == expected
+    assert image.size == (64, 64)
+    assert mask.getextrema() == ((255, 255), (255, 255), (255, 255))
+    assert raw["source_processing"] == mode

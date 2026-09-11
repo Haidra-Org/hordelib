@@ -19,6 +19,7 @@ from hordelib.execution.sigma_schedules import SigmaScheduleRequest
 from hordelib.pipeline.constants import (
     SCHEDULERS,
     SIGMA_GENERATOR_SCHEDULES,
+    SOURCE_IMAGE_PROCESSING_OPTIONS,
     SigmaGeneratorSchedule,
     resolve_schedule,
 )
@@ -27,6 +28,14 @@ from hordelib.pipeline.families.image_gen.baselines import align_your_steps_mode
 from hordelib.pipeline.families.image_gen.features import IMG2IMG_MASK
 from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.utils.image_utils import ImageUtils
+
+
+def _requested_source_media(source_processing: str | None, control_type: str | None) -> tuple[bool, bool]:
+    """Classify caller requirements before model compatibility rewrites the processing mode."""
+    return (
+        source_processing in SOURCE_IMAGE_PROCESSING_OPTIONS or bool(control_type),
+        source_processing in ("inpainting", "outpainting"),
+    )
 
 
 def normalize_horde_payload(
@@ -45,6 +54,8 @@ def normalize_horde_payload(
     # which now lives on the context instead.
     payload["model_name"] = context.horde_model_name
 
+    needs_source, needs_mask = _requested_source_media(payload.get("source_processing"), payload.get("control_type"))
+
     if context.is_inpainting_model:
         if payload.get("source_processing") not in ["inpainting", "outpainting"]:
             logger.warning(
@@ -59,9 +70,10 @@ def normalize_horde_payload(
             logger.warning(
                 "Inpainting model detected, but source image is not a valid image. Using a noise image.",
             )
-            faults.append(
-                GenMetadataEntry(type=METADATA_TYPE.source_image, value=METADATA_VALUE.parse_failed),
-            )
+            if needs_source:
+                faults.append(
+                    GenMetadataEntry(type=METADATA_TYPE.source_image, value=METADATA_VALUE.parse_failed),
+                )
             payload["source_image"] = ImageUtils.create_noise_image(
                 payload.get("width"),
                 payload.get("height"),
@@ -76,9 +88,10 @@ def normalize_horde_payload(
             logger.warning(
                 "Inpainting model detected, but no source mask provided. Using an all white mask.",
             )
-            faults.append(
-                GenMetadataEntry(type=METADATA_TYPE.source_mask, value=METADATA_VALUE.parse_failed),
-            )
+            if needs_mask:
+                faults.append(
+                    GenMetadataEntry(type=METADATA_TYPE.source_mask, value=METADATA_VALUE.parse_failed),
+                )
             payload["source_mask"] = ImageUtils.create_white_image(
                 source_image.width if source_image else int(payload.get("width") or 512),
                 source_image.height if source_image else int(payload.get("height") or 512),
@@ -227,8 +240,9 @@ def apply_model_compat(
     The typed counterpart of the inpainting rules in :func:`normalize_horde_payload`: a
     request can resolve to an inpainting model regardless of what it asked for, in which
     case the source processing is forced to inpainting, missing inputs are synthesized
-    (noise image, all-white mask) with faults recorded, and hires fix is disabled because
-    the dimensions come from the source image.
+    (noise image, all-white mask), and hires fix is disabled because
+    the dimensions come from the source image. Faults describe missing inputs required by
+    the original request, never inputs needed only by the selected checkpoint.
     """
     faults: list[GenMetadataEntry] = []
 
@@ -237,6 +251,8 @@ def apply_model_compat(
 
     if not context.is_inpainting_model:
         return payload, faults
+
+    needs_source, needs_mask = _requested_source_media(payload.source_processing, payload.control_type)
 
     if payload.source_processing not in ("inpainting", "outpainting"):
         logger.warning(
@@ -248,9 +264,10 @@ def apply_model_compat(
         logger.warning(
             "Inpainting model detected, but source image is not a valid image. Using a noise image.",
         )
-        faults.append(
-            GenMetadataEntry(type=METADATA_TYPE.source_image, value=METADATA_VALUE.parse_failed),
-        )
+        if needs_source:
+            faults.append(
+                GenMetadataEntry(type=METADATA_TYPE.source_image, value=METADATA_VALUE.parse_failed),
+            )
         payload.source_image = ImageUtils.create_noise_image(payload.width, payload.height)
 
     source_image = payload.source_image
@@ -259,9 +276,10 @@ def apply_model_compat(
         logger.warning(
             "Inpainting model detected, but no source mask provided. Using an all white mask.",
         )
-        faults.append(
-            GenMetadataEntry(type=METADATA_TYPE.source_mask, value=METADATA_VALUE.parse_failed),
-        )
+        if needs_mask:
+            faults.append(
+                GenMetadataEntry(type=METADATA_TYPE.source_mask, value=METADATA_VALUE.parse_failed),
+            )
         payload.source_mask = ImageUtils.create_white_image(
             source_image.width if source_image else payload.width,
             source_image.height if source_image else payload.height,

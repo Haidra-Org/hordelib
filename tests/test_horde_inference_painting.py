@@ -366,19 +366,7 @@ class TestHordeInferencePainting:
 
         assert len(result) == 1
         assert result[0].image is not None
-        assert len(result[0].faults) == 2
-
-        # Assert one of the faults is the source_image
-        assert any(
-            fault.type_ == METADATA_TYPE.source_image and fault.value == METADATA_VALUE.parse_failed
-            for fault in result[0].faults
-        )
-
-        # Assert one of the faults is the source_mask
-        assert any(
-            fault.type_ == METADATA_TYPE.source_mask and fault.value == METADATA_VALUE.parse_failed
-            for fault in result[0].faults
-        )
+        assert result[0].faults == []
 
         pil_image = result[0].image
         assert pil_image is not None
@@ -423,10 +411,7 @@ class TestHordeInferencePainting:
 
         assert len(result) == 1
         assert result[0].image is not None
-        assert len(result[0].faults) == 1
-
-        assert result[0].faults[0].type_ == METADATA_TYPE.source_mask
-        assert result[0].faults[0].value == METADATA_VALUE.parse_failed
+        assert result[0].faults == []
 
         pil_image = result[0].image
         assert pil_image is not None
