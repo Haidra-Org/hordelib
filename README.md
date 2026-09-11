@@ -187,6 +187,13 @@ Models are managed through `SharedModelManager` (download, validate, list availa
 
 ---
 
+### Custom model flags
+
+Custom model entries loaded through `HORDELIB_CUSTOM_MODELS` validate `inpainting` as a
+boolean. Prefer JSON `true`/`false`; recognized boolean strings such as `"false"` retain
+their boolean meaning, and invalid values are rejected instead of marking a checkpoint
+as an inpainting model. Omitting the field defaults to false.
+
 ## Development
 
 Requirements: `git`, [`uv`](https://docs.astral.sh/uv/), `AIWORKER_CACHE_HOME` set to a model directory, and a CUDA GPU.

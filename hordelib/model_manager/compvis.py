@@ -55,7 +55,7 @@ def _custom_model_entry_to_record(model_name: str, entry: dict[str, Any]) -> Ima
         description=entry.get("description", "Custom model (HORDELIB_CUSTOM_MODELS)"),
         baseline=entry.get("baseline", "stable_diffusion_1"),
         nsfw=bool(entry.get("nsfw", False)),
-        inpainting=bool(entry.get("inpainting", False)),
+        inpainting=entry.get("inpainting", False),
         model_classification=ModelClassification(domain=MODEL_DOMAIN.image, purpose=MODEL_PURPOSE.generation),
         config=GenericModelRecordConfig(download=download_entries),
     )
