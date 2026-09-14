@@ -93,7 +93,7 @@ dependencies = [
     # torch the consumer installs resolves the right pair (torch 2.9.1 -> torchvision 0.24.1; 2.12.0 ->
     # 0.27.0). torchvision is routed per-build to the matching CUDA wheel index (see [tool.uv.sources])
     # so its compiled CUDA version can never drift from torch's.
-    "torchvision>=0.24.0,<0.28",
+    "torchvision>=0.24.0,<0.30",
     "tqdm",
     "transformers>=4.50.3",
     "typing-extensions>=4.15.0",
