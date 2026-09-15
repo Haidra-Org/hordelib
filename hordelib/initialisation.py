@@ -3,6 +3,7 @@
 import os
 import shutil
 import sys
+from pathlib import Path
 
 from loguru import logger
 
@@ -13,6 +14,36 @@ from hordelib.utils.logger import HordeLog
 from hordelib.utils.torch_memory import AcceleratorKind
 
 _is_initialised = False
+
+
+def _assert_comfyui_checkout_safe_to_sync(comfyui_path: Path, pinned_ref: str) -> None:
+    """Refuse to replace ComfyUI source after this interpreter has imported it.
+
+    ``sys.path`` changes cannot refresh entries already cached in ``sys.modules``.  Updating the
+    checkout in that state would therefore combine modules from two ComfyUI revisions, usually
+    surfacing later as a misleading missing-symbol or signature error.
+    """
+    loaded = sorted(name for name in sys.modules if name == "comfy" or name.startswith("comfy."))
+    if not loaded:
+        return
+
+    # Kept local so importing hordelib.initialisation remains free of installer implementation
+    # details until the guard is actually needed.
+    from hordelib.installation.installer import _head_commit
+
+    current_ref = _head_commit(comfyui_path)
+    if current_ref == pinned_ref:
+        return
+
+    sample = ", ".join(loaded[:5])
+    if len(loaded) > 5:
+        sample += f", ... ({len(loaded)} total)"
+    raise RuntimeError(
+        "Cannot update the ComfyUI checkout after ComfyUI has been imported in this Python process. "
+        f"Loaded modules include: {sample}. The checkout is at {current_ref or 'an unknown revision'}, "
+        f"but hordelib requires {pinned_ref}. Restart the process after synchronizing the manifest-pinned "
+        "environment (for pytest, this must happen before test collection)."
+    )
 
 
 def initialise(
@@ -111,10 +142,14 @@ def initialise(
         )
 
     # Ensure we have ComfyUI (and any manifest-pinned custom nodes)
+    manifest = load_packaged_manifest()
+    comfyui_path = get_comfyui_path()
+    _assert_comfyui_checkout_safe_to_sync(comfyui_path, manifest.comfyui_ref)
+
     logger.debug("Clearing command line args in sys.argv before ComfyUI load")
     sys_arg_bkp = sys.argv.copy()
     sys.argv = sys.argv[:1]
-    EnvironmentInstaller(load_packaged_manifest()).ensure(get_comfyui_path())
+    EnvironmentInstaller(manifest).ensure(comfyui_path)
 
     # Tell comfyui_controlnet_aux where to store its annotator checkpoints before its package
     # is imported (which happens when ComfyUI loads custom nodes).

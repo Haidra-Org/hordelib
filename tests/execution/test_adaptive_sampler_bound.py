@@ -15,7 +15,6 @@ from horde_sdk.generation_parameters.image.sampler_work import (
     maximum_sampler_work,
 )
 
-from hordelib.config_path import set_system_path
 from hordelib.execution.adaptive_sampler_bound import (
     ADAPTIVE_ITERATION_BUDGET_MULTIPLIER,
     SamplerTruncation,
@@ -24,10 +23,19 @@ from hordelib.execution.adaptive_sampler_bound import (
     iteration_bound_for,
     take_run_truncations,
 )
+from tests.comfy_import import import_comfy_module
 
-set_system_path()
+k_diffusion_sampling = None
 
-k_diffusion_sampling = pytest.importorskip("comfy.k_diffusion.sampling")
+
+@pytest.fixture(scope="module", autouse=True)
+def _load_k_diffusion_sampling() -> None:
+    """Import the synchronized ComfyUI tree at test execution time, never collection time."""
+    global k_diffusion_sampling
+    try:
+        k_diffusion_sampling = import_comfy_module("comfy.k_diffusion.sampling")
+    except ImportError as exc:
+        pytest.skip(f"needs the pinned ComfyUI checkout: {exc}")
 
 
 class _StubDenoiser:

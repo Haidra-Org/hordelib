@@ -15,8 +15,7 @@ architecture whose convolutions were constructed otherwise (the pinned tree has 
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+from typing import Any
 
 import pytest
 import torch
@@ -28,18 +27,21 @@ from hordelib.execution.component_restore import (
     restore_payload,
     restore_pristine_padding,
 )
+from tests.comfy_import import import_comfy_module
 
-# The pinned ComfyUI checkout is put on the path directly rather than through hordelib.initialise:
-# these cases need only ModelPatcher and comfy.ops, and the session init pulls in model downloads
-# and a GPU that nothing here exercises.
-_COMFY_PATH = Path(__file__).resolve().parents[2] / "ComfyUI"
-if _COMFY_PATH.is_dir() and str(_COMFY_PATH) not in sys.path:
-    sys.path.insert(0, str(_COMFY_PATH))
+model_patcher: Any = None
+comfy_ops: Any = None
 
-pytest.importorskip("comfy.model_patcher", reason="needs the pinned ComfyUI checkout")
 
-import comfy.model_patcher as model_patcher
-import comfy.ops
+@pytest.fixture(scope="module", autouse=True)
+def _load_comfy_modules() -> None:
+    """Load ComfyUI after collection, once the session hook has synchronized its checkout."""
+    global model_patcher, comfy_ops
+    try:
+        model_patcher = import_comfy_module("comfy.model_patcher")
+        comfy_ops = import_comfy_module("comfy.ops")
+    except ImportError as exc:
+        pytest.skip(f"needs the pinned ComfyUI checkout: {exc}")
 
 _DIM = 8
 _LAYERS = 4
@@ -57,7 +59,7 @@ class _ToyModel(torch.nn.Module):
     def __init__(self) -> None:
         super().__init__()
         self.layers = torch.nn.ModuleList(
-            [comfy.ops.manual_cast.Linear(_DIM, _DIM, bias=False) for _ in range(_LAYERS)],
+            [comfy_ops.manual_cast.Linear(_DIM, _DIM, bias=False) for _ in range(_LAYERS)],
         )
         with torch.no_grad():
             for layer in self.layers:

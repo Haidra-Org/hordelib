@@ -25,6 +25,19 @@ from hordelib.shared_model_manager import SharedModelManager
 from .testing_shared_classes import ResolutionTestCase
 
 
+def pytest_sessionstart(session: pytest.Session) -> None:
+    """Synchronize vendored code before collection can import any ComfyUI modules.
+
+    A session fixture is too late: pytest imports every test module during collection before it
+    executes fixtures.  Some lightweight contract tests intentionally import ComfyUI without doing
+    a full hordelib initialization, so the checkout they see must already match the manifest.
+    """
+    from hordelib.config_path import get_comfyui_path
+    from hordelib.installation import EnvironmentInstaller, load_packaged_manifest
+
+    EnvironmentInstaller(load_packaged_manifest()).ensure(get_comfyui_path())
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--snapshot-update",
