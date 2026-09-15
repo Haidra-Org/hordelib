@@ -13,27 +13,25 @@ routing runs without a GPU. The stubbing is confined to this module and only hap
 
 from __future__ import annotations
 
+import importlib
 import json
 import struct
 import sys
 import types
+from collections.abc import Generator
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 
-try:  # A real ComfyUI means the GPU integration test covers reality; skip the stubbed unit routing here.
-    import comfy  # type: ignore  # noqa: F401
-
-    _COMFY_AVAILABLE = True
-except ImportError:
-    _COMFY_AVAILABLE = False
-
-pytestmark = pytest.mark.skipif(
-    _COMFY_AVAILABLE,
-    reason="Stubbed-comfy routing runs only where ComfyUI is absent; the GPU integration test covers reality.",
-)
+ComponentCache: Any = None
+ComponentCacheEntry: Any = None
+ComponentCacheKey: Any = None
+ComponentSlotKind: Any = None
+node_model_loader: Any = None
+HordeCheckpointLoader: Any = None
 
 
 def _install_comfy_stubs() -> None:
@@ -47,16 +45,52 @@ def _install_comfy_stubs() -> None:
     sys.modules["folder_paths"] = types.ModuleType("folder_paths")
 
 
-if not _COMFY_AVAILABLE:
-    _install_comfy_stubs()
-    from hordelib.execution.component_cache import (
-        ComponentCache,
-        ComponentCacheEntry,
-        ComponentCacheKey,
-        ComponentSlotKind,
-    )
-    from hordelib.nodes import node_model_loader
-    from hordelib.nodes.node_model_loader import HordeCheckpointLoader
+@pytest.fixture(scope="module", autouse=True)
+def _load_stubbed_loader() -> Generator[None, None, None]:
+    """Install test doubles only at execution time and remove every imported module afterward."""
+    try:
+        comfy_module = importlib.import_module("comfy")
+    except ImportError:
+        comfy_module = None
+    if comfy_module is not None and hasattr(comfy_module, "__path__"):
+        pytest.skip("The real ComfyUI package is loaded; GPU integration covers this routing path.")
+
+    global ComponentCache, ComponentCacheEntry, ComponentCacheKey, ComponentSlotKind
+    global node_model_loader, HordeCheckpointLoader
+
+    missing = object()
+    stub_names = ("comfy", "comfy.model_management", "comfy.sd", "comfy.utils", "folder_paths")
+    previous_stubs = {name: sys.modules.get(name, missing) for name in stub_names}
+    previous_node_modules = {name for name in sys.modules if name.startswith("hordelib.nodes")}
+    nodes_package = sys.modules.get("hordelib.nodes")
+    previous_loader_attribute = getattr(nodes_package, "node_model_loader", missing)
+    try:
+        _install_comfy_stubs()
+        component_cache = importlib.import_module("hordelib.execution.component_cache")
+        node_model_loader = importlib.import_module("hordelib.nodes.node_model_loader")
+        ComponentCache = component_cache.ComponentCache
+        ComponentCacheEntry = component_cache.ComponentCacheEntry
+        ComponentCacheKey = component_cache.ComponentCacheKey
+        ComponentSlotKind = component_cache.ComponentSlotKind
+        HordeCheckpointLoader = node_model_loader.HordeCheckpointLoader
+        yield
+    finally:
+        for name in [name for name in sys.modules if name.startswith("hordelib.nodes")]:
+            if name not in previous_node_modules:
+                sys.modules.pop(name, None)
+        if nodes_package is not None:
+            if previous_loader_attribute is missing:
+                try:
+                    delattr(nodes_package, "node_model_loader")
+                except AttributeError:
+                    pass
+            else:
+                nodes_package.node_model_loader = previous_loader_attribute
+        for name, previous in previous_stubs.items():
+            if previous is missing:
+                sys.modules.pop(name, None)
+            else:
+                sys.modules[name] = previous
 
 
 _UNET = ("model.diffusion_model.x", "F16", (2,), bytes(range(40, 44)))

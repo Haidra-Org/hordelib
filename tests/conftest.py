@@ -38,6 +38,44 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     EnvironmentInstaller(load_packaged_manifest()).ensure(get_comfyui_path())
 
 
+def pytest_collection_finish(session: pytest.Session) -> None:
+    """Enforce that collection remains a ComfyUI-runtime-free phase.
+
+    This is the suite-wide regression tripwire. A test that imports or stubs ComfyUI at module
+    scope otherwise poisons ``sys.modules`` before the initialization fixture owns the runtime.
+    Checking module source paths also catches ComfyUI's un-namespaced modules such as ``execution``.
+    """
+    import sys
+
+    from hordelib.config_path import get_comfyui_path
+
+    comfyui_root = get_comfyui_path().resolve()
+    managed_namespaces = ("comfy", "comfy_extras", "comfy_execution", "comfy_api")
+    unnamespaced_modules = {"execution", "folder_paths", "latent_preview", "nodes", "server"}
+    loaded: list[str] = []
+    for name, module in tuple(sys.modules.items()):
+        is_managed_name = name in unnamespaced_modules or any(
+            name == namespace or name.startswith(f"{namespace}.") for namespace in managed_namespaces
+        )
+        is_from_checkout = False
+        module_file = getattr(module, "__file__", None)
+        if module_file:
+            try:
+                Path(module_file).resolve().relative_to(comfyui_root)
+                is_from_checkout = True
+            except (OSError, TypeError, ValueError):
+                pass
+        if is_managed_name or is_from_checkout:
+            loaded.append(name)
+
+    if loaded:
+        sample = ", ".join(sorted(loaded)[:10])
+        raise pytest.UsageError(
+            "pytest collection imported or stubbed the ComfyUI runtime before init_horde could initialize it. "
+            f"Move these imports into fixtures or test bodies: {sample}"
+        )
+
+
 def pytest_addoption(parser):
     parser.addoption(
         "--snapshot-update",

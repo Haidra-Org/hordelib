@@ -16,33 +16,81 @@ from hordelib.utils.torch_memory import AcceleratorKind
 _is_initialised = False
 
 
+def _format_loaded_modules(loaded: tuple[str, ...]) -> str:
+    sample = ", ".join(loaded[:5])
+    if len(loaded) > 5:
+        sample += f", ... ({len(loaded)} total)"
+    return sample
+
+
+def _validate_comfyui_import_state(
+    comfyui_path: Path,
+    pinned_ref: str,
+    *,
+    loaded: tuple[str, ...],
+    package_paths: frozenset[Path],
+    current_ref: str | None,
+) -> None:
+    """Validate a captured import/checkout state without reading or mutating process globals."""
+    if not loaded:
+        return
+
+    expected_package_path = (comfyui_path / "comfy").resolve()
+    if expected_package_path not in package_paths:
+        raise RuntimeError(
+            "Cannot initialize the managed ComfyUI package because sys.modules already contains "
+            "an incompatible module named 'comfy'. "
+            f"Loaded modules include: {_format_loaded_modules(loaded)}. "
+            f"Expected the package rooted at {expected_package_path}. "
+            "Remove the test stub or conflicting package, or restart the process before initializing hordelib."
+        )
+
+    if current_ref != pinned_ref:
+        raise RuntimeError(
+            "Cannot update the ComfyUI checkout after ComfyUI has been imported in this Python process. "
+            f"Loaded modules include: {_format_loaded_modules(loaded)}. "
+            f"The checkout is at {current_ref or 'an unknown revision'}, "
+            f"but hordelib requires {pinned_ref}. Restart the process after synchronizing the manifest-pinned "
+            "environment (for pytest, this must happen before test collection)."
+        )
+
+    raise RuntimeError(
+        "ComfyUI was imported before hordelib.initialise() could configure it. "
+        f"Loaded modules include: {_format_loaded_modules(loaded)}. Although the checkout revision is correct, "
+        "ComfyUI may already have frozen command-line, device, or module state. Restart the process and let "
+        "hordelib.initialise() perform the first ComfyUI import."
+    )
+
+
 def _assert_comfyui_checkout_safe_to_sync(comfyui_path: Path, pinned_ref: str) -> None:
     """Refuse to replace ComfyUI source after this interpreter has imported it.
 
-    ``sys.path`` changes cannot refresh entries already cached in ``sys.modules``.  Updating the
+    ``sys.path`` changes cannot refresh entries already cached in ``sys.modules``. Updating the
     checkout in that state would therefore combine modules from two ComfyUI revisions, usually
     surfacing later as a misleading missing-symbol or signature error.
     """
-    loaded = sorted(name for name in sys.modules if name == "comfy" or name.startswith("comfy."))
+    loaded = tuple(sorted(name for name in sys.modules if name == "comfy" or name.startswith("comfy.")))
     if not loaded:
         return
+
+    comfy_package = sys.modules.get("comfy")
+    resolved_package_paths: set[Path] = set()
+    for package_path in getattr(comfy_package, "__path__", ()):
+        try:
+            resolved_package_paths.add(Path(package_path).resolve())
+        except (OSError, TypeError):
+            continue
 
     # Kept local so importing hordelib.initialisation remains free of installer implementation
     # details until the guard is actually needed.
     from hordelib.installation.installer import _head_commit
 
-    current_ref = _head_commit(comfyui_path)
-    if current_ref == pinned_ref:
-        return
-
-    sample = ", ".join(loaded[:5])
-    if len(loaded) > 5:
-        sample += f", ... ({len(loaded)} total)"
-    raise RuntimeError(
-        "Cannot update the ComfyUI checkout after ComfyUI has been imported in this Python process. "
-        f"Loaded modules include: {sample}. The checkout is at {current_ref or 'an unknown revision'}, "
-        f"but hordelib requires {pinned_ref}. Restart the process after synchronizing the manifest-pinned "
-        "environment (for pytest, this must happen before test collection)."
+    _validate_comfyui_import_state(
+        comfyui_path,
+        pinned_ref,
+        loaded=loaded,
+        package_paths=frozenset(resolved_package_paths),
+        current_ref=_head_commit(comfyui_path),
     )
 
 

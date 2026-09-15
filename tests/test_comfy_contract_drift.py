@@ -38,12 +38,16 @@ about; extend the typed event layer (``hordelib.execution.comfy_events``) before
 this set.
 """
 
-_EXPECTED_SERVER_SURFACE = frozenset({"client_id", "last_node_id", "sockets_metadata", "send_sync"})
+_EXPECTED_SERVER_SURFACE = frozenset(
+    {"client_id", "last_node_id", "sockets_metadata", "send_sync", "queue_updated"}
+)
 """The complete server surface ComfyUI's executor touches when running headless.
 
 ``client_id`` is read and written (``execute_async`` assigns it from ``extra_data``),
 ``last_node_id`` is written per node, ``send_sync`` receives every event, and
 ``sockets_metadata`` is read only when preview images are enabled (defined defensively).
+``queue_updated`` completes ComfyUI's declared ``ExecutionServer`` protocol and is a no-op in
+the headless bridge because it has no externally observed prompt queue.
 """
 
 
@@ -65,9 +69,21 @@ class _StrictRecordingServer:
         self.sockets_metadata: dict[str, Any] = {}
         self.events: list[tuple[str, dict[str, Any], str | None]] = []
 
-    def send_sync(self, label: str, data: dict[str, Any], sid: str | None = None) -> None:
+    def send_sync(
+        self,
+        label: str | int,
+        event_payload: dict[str, Any] | tuple[Any, ...],
+        sid: str | None = None,
+    ) -> None:
         """Record an event delivered by the executor."""
-        self.events.append((label, data, sid))
+        if not isinstance(label, str) or not isinstance(event_payload, dict):
+            raise _UnexpectedServerAccessError(
+                f"The CPU-only contract run unexpectedly emitted binary event {label!r}",
+            )
+        self.events.append((label, event_payload, sid))
+
+    def queue_updated(self) -> None:
+        """Satisfy the formal server protocol; mini execution owns no prompt queue."""
 
     def __getattr__(self, name: str) -> Any:
         raise _UnexpectedServerAccessError(
@@ -102,6 +118,15 @@ class _FailingOutputNode:
 def comfy_bridge(init_horde: None) -> Comfy_Horde:
     """A constructed bridge, ensuring custom nodes (HordeImageOutput) are registered."""
     return Comfy_Horde()
+
+
+@pytest.mark.parametrize("flag", ["--enable-assets", "--enable-asset-hashing"])
+def test_headless_import_rejects_asset_lifecycle_flags(flag: str) -> None:
+    """Do not silently construct an enabled manager without ComfyUI's app lifecycle."""
+    from hordelib.comfy_horde import do_comfy_import
+
+    with pytest.raises(ValueError, match="asset subsystem"):
+        do_comfy_import(extra_comfyui_args=[flag])
 
 
 def _mini_graph(output_class_type: str = "HordeImageOutput") -> dict[str, Any]:
@@ -197,6 +222,13 @@ class TestMiniExecutionRoundTrip:
         assert server.client_id == "drift-test-client"
         assert server.last_node_id is None
 
+    def test_headless_executor_explicitly_disables_comfy_assets(self, comfy_bridge: Comfy_Horde) -> None:
+        """The bridge does not claim an asset lifecycle or database it never starts."""
+        executor = comfy_bridge._get_executor()
+
+        assert executor.asset_manager.enabled is False
+        assert type(executor.asset_manager).__name__ == "NoAssets"
+
     def test_error_path_contract(self, comfy_bridge: Comfy_Horde) -> None:
         import execution
 
@@ -269,16 +301,17 @@ class TestMiniExecutionRoundTrip:
         finally:
             execution.nodes.NODE_CLASS_MAPPINGS.pop(_FAILING_NODE_CLASS_TYPE, None)
 
-    def test_cached_output_delivery_requires_client_id(self, comfy_bridge: Comfy_Horde) -> None:
-        """Cached output nodes reach ui outputs only via _send_cached_ui, which needs client_id.
+    def test_cached_output_history_is_independent_of_client_id(self, comfy_bridge: Comfy_Horde) -> None:
+        """Cached UI enters history without a client; only event delivery needs one.
 
-        The bridge always passes ``client_id`` in ``extra_data``; this pin documents why that
-        must not change once output retrieval reads ``history_result``.
+        ComfyUI moved this seam from ``execution._send_cached_ui`` to asset enrichment when cached
+        outputs gained per-run asset registration. The new ordering is materially better for the
+        headless bridge: history collection no longer depends on pretending to be a web client.
         """
         import execution
+        from comfy_execution.asset_enrichment import emit_cached_output
 
-        send_cached_ui = execution._send_cached_ui
-        signature = inspect.signature(send_cached_ui)
+        signature = inspect.signature(emit_cached_output)
         assert list(signature.parameters) == [
             "server",
             "node_id",
@@ -286,12 +319,34 @@ class TestMiniExecutionRoundTrip:
             "cached",
             "prompt_id",
             "ui_outputs",
+            "asset_manager",
         ]
 
-        source = inspect.getsource(send_cached_ui)
-        assert "client_id is None" in source, (
-            "_send_cached_ui no longer early-returns on a missing client_id; "
-            "re-verify the cached-output delivery path before trusting history_result for cached nodes"
+        class _DisabledAssetManager:
+            enabled = False
+
+        cached_ui = {"meta": {"node_id": "cached"}, "output": {"images": [{"type": "PNG"}]}}
+        cached = execution.CacheEntry(ui=cached_ui, outputs=[])
+        server = _StrictRecordingServer()
+        ui_outputs: dict[str, Any] = {}
+
+        emit_cached_output(server, "cached", "cached", cached, "prompt", ui_outputs, _DisabledAssetManager())
+
+        assert ui_outputs == {"cached": cached_ui}
+        assert server.events == [], "a client-less cached replay must not emit a websocket event"
+
+        server.client_id = "drift-test-client"
+        emit_cached_output(server, "cached-2", "cached-2", cached, "prompt", ui_outputs, _DisabledAssetManager())
+        assert ui_outputs["cached-2"] == cached_ui
+        assert server.events == [
+            (
+                "executed",
+                {"node": "cached-2", "display_node": "cached-2", "output": cached_ui["output"], "prompt_id": "prompt"},
+                "drift-test-client",
+            )
+        ], (
+            "emit_cached_output no longer separates history collection from client-addressed event delivery; "
+            "re-verify cached results in the headless executor"
         )
 
 
