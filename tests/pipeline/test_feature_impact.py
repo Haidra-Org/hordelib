@@ -223,6 +223,34 @@ class TestPhaseSplit:
         # Sampling-phase cost is unchanged by a post-processing feature.
         assert with_upscale.vram_sampling_mb == base.vram_sampling_mb
 
+    def test_ram_total_equals_sum_of_phases(self) -> None:
+        estimate = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.controlnet, FEATURE_KIND.post_processing_upscale],
+        )
+        assert estimate.ram_mb == estimate.ram_sampling_mb + estimate.ram_post_processing_mb
+
+    def test_ram_phases_follow_feature_phase(self) -> None:
+        """Post-processing RAM lands in another process, so it must not inflate the sampling figure."""
+        base = estimate_job_burden(baseline="stable_diffusion_xl", width=1024, height=1024)
+        assert base.ram_post_processing_mb == 0
+        assert base.ram_sampling_mb == base.ram_mb
+        with_controlnet = estimate_job_burden(
+            baseline="stable_diffusion_xl", width=1024, height=1024, features=[FEATURE_KIND.controlnet]
+        )
+        assert with_controlnet.ram_post_processing_mb == 0
+        assert with_controlnet.ram_sampling_mb > base.ram_sampling_mb
+        with_upscale = estimate_job_burden(
+            baseline="stable_diffusion_xl",
+            width=1024,
+            height=1024,
+            features=[FEATURE_KIND.post_processing_upscale],
+        )
+        assert with_upscale.ram_post_processing_mb > 0
+        assert with_upscale.ram_sampling_mb == base.ram_sampling_mb
+
     def test_registry_phase_tags(self) -> None:
         features = get_feature_impact_registry().features
         assert features[FEATURE_KIND.post_processing_upscale].phase == FEATURE_PHASE.post_processing

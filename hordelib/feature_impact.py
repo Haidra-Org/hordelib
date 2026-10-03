@@ -198,6 +198,15 @@ class BurdenEstimate(BaseModel):
     in. A scheduler charges it against the image lane's headroom rather than the sampler's. Zero when
     unpopulated (older producer); live estimates from :func:`estimate_job_burden` always set it."""
     ram_mb: int
+    """Total system RAM (``ram_sampling_mb + ram_post_processing_mb``)."""
+    ram_sampling_mb: int = 0
+    """System RAM held by the inference process: the baseline plus every sampling-phase feature delta.
+
+    Defaults to 0 so a ``BurdenEstimate`` deserialized from an older producer is still constructible; live
+    estimates from :func:`estimate_job_burden` always populate it."""
+    ram_post_processing_mb: int = 0
+    """Marginal system RAM of the post-processing phase, which lands in the post-processing process rather than
+    the inference process. Zero when the job has no post-processing features."""
     disk_bytes_needed: int
     downloads_expected: list[DownloadTrigger]
     baseline_known: bool
@@ -550,7 +559,8 @@ def estimate_job_burden(
     :class:`FEATURE_PHASE`: ``vram_sampling_mb`` (baseline plus sampling-phase features) and
     ``vram_post_processing_mb`` (the marginal upscaler/face-fixer peak that lands after sampling). A
     scheduler reserves the post-processing figure against concurrent dispatch because it is claimed once
-    the inference slot has already been released for the next job.
+    the inference slot has already been released for the next job. System RAM is split the same way into
+    ``ram_sampling_mb`` (inference process) and ``ram_post_processing_mb`` (post-processing process).
 
     ``aux_model_weights_mb`` lets a caller that has resolved a specific auxiliary model (e.g. a particular
     ESRGAN upscaler or controlnet) supply its real resident weight (MB), replacing that feature's flat
@@ -581,7 +591,8 @@ def estimate_job_burden(
 
     vram_sampling_mb = burden.vram_base_mb + round(burden.vram_per_megapixel_mb * megapixels * batch)
     vram_post_processing_mb = 0
-    ram_mb = burden.ram_base_mb
+    ram_sampling_mb = burden.ram_base_mb
+    ram_post_processing_mb = 0
     downloads_expected: list[DownloadTrigger] = []
 
     for kind in features or []:
@@ -604,9 +615,10 @@ def estimate_job_burden(
         vram_delta = weight_mb + activation_mb
         if impact.phase == FEATURE_PHASE.post_processing:
             vram_post_processing_mb += vram_delta
+            ram_post_processing_mb += impact.ram_delta_mb
         else:
             vram_sampling_mb += vram_delta
-        ram_mb += impact.ram_delta_mb
+            ram_sampling_mb += impact.ram_delta_mb
         if impact.download.triggered:
             downloads_expected.append(impact.download)
 
@@ -636,7 +648,9 @@ def estimate_job_burden(
         vram_post_processing_mb=vram_post_processing_mb,
         vram_sampler_only_mb=vram_sampler_only_mb,
         vram_decode_spike_mb=vram_decode_spike_mb,
-        ram_mb=ram_mb,
+        ram_mb=ram_sampling_mb + ram_post_processing_mb,
+        ram_sampling_mb=ram_sampling_mb,
+        ram_post_processing_mb=ram_post_processing_mb,
         disk_bytes_needed=disk_bytes,
         downloads_expected=downloads_expected,
         baseline_known=baseline_known,
