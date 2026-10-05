@@ -10,6 +10,7 @@ itself is importable at any time.
 """
 
 import contextlib
+import dataclasses
 import hashlib
 import importlib
 import json
@@ -393,6 +394,22 @@ def _free_memory_capped(cap_bytes: int):
         model_management.free_memory = original_free_memory
 
 
+@dataclasses.dataclass
+class _FreeViewClamp:
+    """The figures one active free-VRAM clamp computes its ceiling from."""
+
+    device: typing.Any
+    """The torch device the clamp was entered for."""
+    truth_bytes: int
+    """The host's device-level free figure, in bytes."""
+    reserved_baseline: int
+    """The allocator's reservation when the figure was taken; growth past it comes off the figure."""
+
+
+_active_free_view_clamp: _FreeViewClamp | None = None
+"""The clamp :func:`free_memory_view_clamped` has in force, for :func:`rebase_free_memory_view_clamp`."""
+
+
 @contextlib.contextmanager
 def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Iterator[None]:
     """Clamp ComfyUI's view of free VRAM to a host-measured device figure for the duration of a run.
@@ -417,7 +434,8 @@ def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Itera
     reported it; ComfyUI compares it against the total to decide whether to release cached blocks,
     and a lower total only makes that release more likely.
 
-    With no figure supplied, or on a non-CUDA device, nothing is interposed.
+    With no figure supplied, or on a non-CUDA device, nothing is interposed. Within the scope,
+    :func:`rebase_free_memory_view_clamp` replaces the figure and restarts the growth count.
 
     Args:
         device_free_truth_mb: Host-measured device-level free VRAM in MB, or None to leave
@@ -426,6 +444,8 @@ def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Itera
     Yields:
         None: For the duration of the clamped scope.
     """
+    global _active_free_view_clamp
+
     if device_free_truth_mb is None:
         yield
         return
@@ -443,7 +463,11 @@ def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Itera
         yield
         return
 
-    truth_bytes = int(device_free_truth_mb * 1024 * 1024)
+    clamp = _FreeViewClamp(
+        device=device,
+        truth_bytes=int(device_free_truth_mb * 1024 * 1024),
+        reserved_baseline=reserved_baseline,
+    )
     original_get_free_memory = model_management.get_free_memory
 
     def clamped_get_free_memory(dev: typing.Any = None, torch_free_too: bool = False) -> typing.Any:
@@ -454,11 +478,11 @@ def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Itera
         if getattr(resolved, "type", None) != "cuda":
             return (mem_free_total, mem_free_torch) if torch_free_too else mem_free_total
         try:
-            own_growth = max(0, torch.cuda.memory_reserved(resolved) - reserved_baseline)
+            own_growth = max(0, torch.cuda.memory_reserved(resolved) - clamp.reserved_baseline)
         except Exception:
             # Fail open: an unreadable allocator figure must not make the clamp itself the fault.
             return (mem_free_total, mem_free_torch) if torch_free_too else mem_free_total
-        ceiling = max(0, truth_bytes - own_growth) + mem_free_torch
+        ceiling = max(0, clamp.truth_bytes - own_growth) + mem_free_torch
         clamped_total = min(mem_free_total, ceiling)
         return (clamped_total, mem_free_torch) if torch_free_too else clamped_total
 
@@ -466,11 +490,45 @@ def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Itera
         "Clamping comfy's free-VRAM view to the host's device measurement: truth_mb={:.0f}",
         device_free_truth_mb,
     )
+    enclosing_clamp = _active_free_view_clamp
+    _active_free_view_clamp = clamp
     model_management.get_free_memory = clamped_get_free_memory
     try:
         yield
     finally:
         model_management.get_free_memory = original_get_free_memory
+        _active_free_view_clamp = enclosing_clamp
+
+
+def rebase_free_memory_view_clamp(device_free_truth_mb: float) -> bool:
+    """Rebase the active free-VRAM clamp on a new host figure, counting growth from now.
+
+    A host that grants a run's sampling window after the run began has a fresher device measurement
+    than the one the clamp was entered with: memory a sibling released in between is free on the card
+    but absent from the old figure. Rebasing replaces the figure and takes the allocator's current
+    reservation as the new growth baseline, so what this process already holds is in neither term.
+
+    Args:
+        device_free_truth_mb: Host-measured device-level free VRAM in MB at the grant.
+
+    Returns:
+        Whether a clamp was active and rebased. With no active clamp nothing changes.
+    """
+    clamp = _active_free_view_clamp
+    if clamp is None:
+        return False
+    try:
+        reserved_baseline = torch.cuda.memory_reserved(clamp.device)
+    except Exception as exc:
+        logger.debug("Could not read the allocator to rebase the free-VRAM clamp; keeping it: error={}", exc)
+        return False
+    clamp.truth_bytes = int(device_free_truth_mb * 1024 * 1024)
+    clamp.reserved_baseline = reserved_baseline
+    logger.debug(
+        "Rebased comfy's free-VRAM clamp on the host's grant-time measurement: truth_mb={:.0f}",
+        device_free_truth_mb,
+    )
+    return True
 
 
 _partial_load_patchers: set[int] = set()

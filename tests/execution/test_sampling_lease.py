@@ -10,7 +10,7 @@ import types
 
 import pytest
 
-from hordelib.execution import sampling_lease
+from hordelib.execution import comfy_patches, sampling_lease
 
 
 class _FakeLease:
@@ -34,6 +34,33 @@ class _FakeLease:
     def release(self) -> None:
         self.release_count += 1
         self.held -= 1
+
+
+class _FigureLease(_FakeLease):
+    """A lease whose grant carries the host's device-free figure, as a clearance-granting host's does."""
+
+    def __init__(self, *, figure: float | None, acquire_returns: bool = True) -> None:
+        super().__init__(acquire_returns=acquire_returns)
+        self._figure = figure
+        self.take_calls = 0
+
+    def take_cleared_device_free_mb(self) -> float | None:
+        self.take_calls += 1
+        return self._figure
+
+
+@pytest.fixture
+def rebases(monkeypatch: pytest.MonkeyPatch, fake_comfy_sample: list[str]) -> list[float]:
+    """Record each clamp rebase in the shared call log, so its order against the sample is visible."""
+    recorded: list[float] = []
+
+    def _record(device_free_truth_mb: float) -> bool:
+        recorded.append(device_free_truth_mb)
+        fake_comfy_sample.append("rebase")
+        return True
+
+    monkeypatch.setattr(comfy_patches, "rebase_free_memory_view_clamp", _record)
+    return recorded
 
 
 @pytest.fixture(autouse=True)
@@ -147,6 +174,63 @@ def test_clearing_lease_returns_to_passthrough(fake_comfy_sample: list[str]) -> 
     _patched_sample()()
     # No further acquires after clearing.
     assert len(lease.acquire_calls) == 1
+
+
+def test_grant_figure_rebases_the_clamp_before_sampling(fake_comfy_sample: list[str], rebases: list[float]) -> None:
+    lease = _FigureLease(figure=12288.0)
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+
+    assert _patched_sample()() == "result"
+
+    assert rebases == [12288.0]
+    assert fake_comfy_sample == ["rebase", "sample"], "the load inside sample must see the grant's figure"
+
+
+def test_grant_without_a_figure_does_not_rebase(fake_comfy_sample: list[str], rebases: list[float]) -> None:
+    lease = _FigureLease(figure=None)
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+
+    assert _patched_sample()() == "result"
+
+    assert lease.take_calls == 1
+    assert rebases == []
+
+
+def test_timed_out_acquire_does_not_rebase(fake_comfy_sample: list[str], rebases: list[float]) -> None:
+    lease = _FigureLease(figure=12288.0, acquire_returns=False)
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+
+    assert _patched_sample()() == "result"
+
+    assert lease.take_calls == 0, "a timed-out acquire has no grant to read a figure from"
+    assert rebases == []
+
+
+def test_lease_without_the_figure_method_does_not_rebase(fake_comfy_sample: list[str], rebases: list[float]) -> None:
+    lease = _FakeLease()
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+
+    assert _patched_sample()() == "result"
+
+    assert rebases == []
+    assert fake_comfy_sample == ["sample"]
+
+
+def test_failed_rebase_still_samples(monkeypatch: pytest.MonkeyPatch, fake_comfy_sample: list[str]) -> None:
+    def _boom(device_free_truth_mb: float) -> bool:
+        raise RuntimeError("rebase boom")
+
+    monkeypatch.setattr(comfy_patches, "rebase_free_memory_view_clamp", _boom)
+    lease = _FigureLease(figure=12288.0)
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+
+    assert _patched_sample()() == "result"
+    assert lease.release_count == 1
 
 
 def test_install_returns_false_when_comfy_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:

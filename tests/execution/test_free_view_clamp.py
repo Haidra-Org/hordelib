@@ -168,6 +168,53 @@ def test_reading_is_restored_after_an_exception(seam: _DeviceSeam) -> None:
     assert _current_reader() is seam.original, "a failed run must not leave comfy reading a clamped view"
 
 
+def test_rebase_moves_the_ceiling_to_the_new_figure(seam: _DeviceSeam) -> None:
+    """A grant-time figure replaces the entry figure, and growth before the rebase stops counting.
+
+    The process's allocations before the rebase are already absent from the host's newer measurement, so
+    charging them again would understate the card by exactly what this process holds.
+    """
+    seam.free_total = 16384 * MB
+
+    with comfy_patches.free_memory_view_clamped(2048):
+        seam.reserved += 512 * MB
+        assert _free_memory(seam.device) == 1536 * MB
+
+        assert comfy_patches.rebase_free_memory_view_clamp(6144) is True
+        assert _free_memory(seam.device) == 6144 * MB, "the ceiling must follow the new figure"
+
+        seam.reserved += 1024 * MB
+        assert _free_memory(seam.device) == 5120 * MB, "growth must be measured from the rebase"
+
+
+def test_rebase_without_an_active_clamp_is_a_no_op(seam: _DeviceSeam) -> None:
+    assert comfy_patches.rebase_free_memory_view_clamp(6144) is False
+    assert _current_reader() is seam.original
+
+    with comfy_patches.free_memory_view_clamped(None):
+        assert comfy_patches.rebase_free_memory_view_clamp(6144) is False, "no figure means no clamp to rebase"
+        assert _free_memory(seam.device) == seam.free_total
+
+    with comfy_patches.free_memory_view_clamped(2048):
+        pass
+    assert comfy_patches.rebase_free_memory_view_clamp(6144) is False, "a closed scope leaves nothing to rebase"
+
+
+def test_rebase_keeps_the_clamp_when_the_allocator_is_unreadable(
+    seam: _DeviceSeam,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with comfy_patches.free_memory_view_clamped(2048):
+        monkeypatch.setattr(torch.cuda, "memory_reserved", _raise_runtime_error)
+        assert comfy_patches.rebase_free_memory_view_clamp(6144) is False
+        monkeypatch.setattr(torch.cuda, "memory_reserved", lambda dev=None: seam.reserved)
+        assert _free_memory(seam.device) == 2048 * MB
+
+
+def _raise_runtime_error(dev: Any = None) -> int:
+    raise RuntimeError("allocator unreadable")
+
+
 def _mini_graph() -> dict[str, Any]:
     """Create a CPU-only API-format graph: EmptyImage feeding the horde output node."""
     return {

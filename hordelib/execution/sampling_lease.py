@@ -40,6 +40,20 @@ class SamplingLease(Protocol):
         ...
 
 
+@runtime_checkable
+class ClearanceTruthLease(Protocol):
+    """An optional extension a lease implements when its grant carries the host's device-free figure.
+
+    A host that grants the lease after measuring the card has a fresher reading than the one the run's
+    free-VRAM clamp was entered with. After a successful acquire the hook asks for it and rebases the
+    clamp. A lease without this method, or one that returns None, leaves the clamp as it was.
+    """
+
+    def take_cleared_device_free_mb(self) -> float | None:
+        """Return the device free VRAM (MB) the grant just acquired was admitted against, once, or None."""
+        ...
+
+
 _sampling_lease: SamplingLease | None = None
 _acquire_timeout_seconds: float = 120.0
 _installed: bool = False
@@ -75,6 +89,21 @@ def _prefetch_sampling_model_weights(args: tuple[object, ...], kwargs: dict[str,
         logger.debug(f"Sampling weight prefetch skipped: {exc}")
 
 
+def _rebase_clamp_on_grant(lease: SamplingLease) -> None:
+    """Rebase the run's free-VRAM clamp on the figure an acquired grant carries; never raises."""
+    if not isinstance(lease, ClearanceTruthLease):
+        return
+    try:
+        device_free_mb = lease.take_cleared_device_free_mb()
+        if device_free_mb is None:
+            return
+        from hordelib.execution.comfy_patches import rebase_free_memory_view_clamp
+
+        rebase_free_memory_view_clamp(device_free_mb)
+    except Exception as exc:
+        logger.warning(f"Could not rebase the free-VRAM clamp on the lease grant ({exc}); keeping the run's figure")
+
+
 def install_sampling_lease_hook() -> bool:
     """Monkey-patch ``comfy.sample.sample`` to hold the lease around the denoising loop.
 
@@ -106,7 +135,9 @@ def install_sampling_lease_hook() -> bool:
             except Exception as e:
                 logger.warning(f"GPU sampling lease acquire failed ({e}); sampling without it")
                 acquired = False
-            if not acquired:
+            if acquired:
+                _rebase_clamp_on_grant(lease)
+            else:
                 logger.warning("GPU sampling lease acquire timed out; sampling without it")
         try:
             return original_sample(*args, **kwargs)
