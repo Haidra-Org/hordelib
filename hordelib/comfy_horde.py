@@ -273,6 +273,7 @@ logging.basicConfig(handlers=[intercept_handler], level=0, force=True)
 # thousands per job). Raise their level so the records are never created, keeping them out
 # of every sink at near-zero cost. Add further per-op loggers here if they surface.
 _NOISY_COMFY_LOGGERS = ("comfy_kitchen.dispatch",)
+_UNSUPPORTED_COMFY_ASSET_ARGUMENTS: frozenset[str] = frozenset({"--enable-assets", "--enable-asset-hashing"})
 for _noisy_logger_name in _NOISY_COMFY_LOGGERS:
     logging.getLogger(_noisy_logger_name).setLevel(logging.INFO)
 
@@ -282,6 +283,22 @@ def do_comfy_import(
     extra_comfyui_args: list[str] | None = None,
     disable_smart_memory: bool = False,
 ) -> None:
+    """Configure and import the managed ComfyUI runtime.
+
+    Args:
+        force_normal_vram_mode: Request ComfyUI's normal VRAM behavior. Normal VRAM is now
+            ComfyUI's default, so this only records the request.
+        extra_comfyui_args: Additional arguments for ComfyUI's command-line parser.
+        disable_smart_memory: Disable ComfyUI's smart-memory behavior.
+
+    Raises:
+        ValueError: Asset-management arguments are present. Hordelib does not run ComfyUI's
+            database-backed asset lifecycle.
+
+    Side Effects:
+        Mutates ``sys.argv``, imports ComfyUI, and stores references to its runtime interfaces
+        in this module.
+    """
     global _comfy_current_loaded_models
     global _comfy_execution
     global _comfy_nodes, _comfy_PromptExecutor, _comfy_validate_prompt
@@ -292,6 +309,16 @@ def do_comfy_import(
     global _comfy_free_memory, _comfy_cleanup_models, _comfy_soft_empty_cache
 
     global _comfy_interrupt_current_processing
+
+    requested_comfyui_args = (*sys.argv[1:], *(extra_comfyui_args or ()))
+    unsupported_asset_args = _UNSUPPORTED_COMFY_ASSET_ARGUMENTS.intersection(requested_comfyui_args)
+    if unsupported_asset_args:
+        raise ValueError(
+            "ComfyUI's asset subsystem is not supported by hordelib's headless executor: "
+            f"{sorted(unsupported_asset_args)}. It requires the database and asset lifecycle "
+            "that ComfyUI main starts; "
+            "hordelib returns output artifacts directly instead."
+        )
 
     if disable_smart_memory:
         logger.info("Disabling smart memory")
@@ -349,7 +376,20 @@ def do_comfy_import(
         # from execution import recursive_output_delete_if_changed
         from execution import IsChangedCache
 
+        asset_enrichment = importlib.import_module("comfy_execution.asset_enrichment")
         comfy_patches.register_execution_module(execution)
+        comfy_patches.capture_and_patch(
+            "register_executed_outputs",
+            execution,
+            "register_executed_outputs",
+            comfy_patches._register_executed_outputs_without_disabled_asset_copy,
+        )
+        comfy_patches.capture_and_patch(
+            "register_cached_outputs",
+            asset_enrichment,
+            "register_cached_outputs",
+            comfy_patches._register_cached_outputs_without_disabled_asset_copy,
+        )
         comfy_patches.capture_and_patch(
             "is_changed_cache_get",
             IsChangedCache,
@@ -930,7 +970,15 @@ class Comfy_Horde:
         The executor runs against the HeadlessComfyServer shim in place of ComfyUI's
         PromptServer; its events arrive in send_sync below.
         """
+        from app.assets.manager import NoAssets
         from comfy.cli_args import args
+        from comfy_execution.cache_provider import _has_cache_providers
+
+        if _has_cache_providers():
+            raise RuntimeError(
+                "ComfyUI external cache providers are not supported by hordelib because they can "
+                "reuse node outputs across generation boundaries. Unregister every provider before execution."
+            )
 
         cache_lru: int = getattr(args, "cache_lru", 0)
         # `--cache-ram` is a list of 0-2 thresholds in GB (active, inactive) in current ComfyUI
@@ -962,7 +1010,23 @@ class Comfy_Horde:
 
         cache_args = {"lru": cache_lru, "ram": cache_ram, "ram_inactive": cache_ram_inactive}
 
-        return _comfy_PromptExecutor(self._server_shim, cache_type=cache_type, cache_args=cache_args)
+        # Upstream main owns AssetManager.startup()/shutdown() and its database lifecycle. The
+        # embedded bridge does not run that application lifecycle and returns artifacts directly,
+        # so pass the protocol-complete no-assets implementation instead of letting PromptExecutor
+        # infer an AssetsEnabled manager from CLI state.
+        asset_manager = NoAssets(args)
+        executor = _comfy_PromptExecutor(
+            self._server_shim,
+            cache_type=cache_type,
+            cache_args=cache_args,
+            asset_manager=asset_manager,
+        )
+        if cache_type != _comfy_execution.CacheType.NONE:
+            # Preserve executor-local memoization within this graph while severing the
+            # process-global provider bridge. This is also defense in depth if a provider is
+            # registered between the check above and executor construction.
+            executor.caches.outputs.enable_providers = False
+        return executor
 
     _comfyui_callback: typing.Callable[[str, dict, str], None] | None = None
 
@@ -1136,8 +1200,9 @@ class Comfy_Horde:
         if use_native_progress:
             set_run_progress_callback(comfyui_progress_callback)
 
-        # The client_id parameter used to only be for debugging, but is now required for all requests.
-        # We pretend we are a web client and want async callbacks.
+        # Keep a client id so ComfyUI addresses execution/progress events to this run and the bridge
+        # can forward them to its callback. Cached UI is now recorded in history independently of
+        # client presence, but event delivery still uses the id.
         stdio = OutputCollector(
             comfyui_progress_callback=None if use_native_progress else comfyui_progress_callback,
         )
@@ -1192,9 +1257,8 @@ class Comfy_Horde:
             _t_pre_execute = time.perf_counter()
             try:
                 with logger.catch(reraise=True):
-                    # client_id in extra_data is required: ComfyUI only delivers cached output
-                    # nodes into history_result when the server has a client_id (pinned by
-                    # tests/test_comfy_contract_drift.py).
+                    # client_id in extra_data addresses ComfyUI's emitted events to this run. Cached
+                    # output history no longer depends on it, as pinned by test_comfy_contract_drift.
                     inference.execute(
                         pipeline,
                         self.client_id,

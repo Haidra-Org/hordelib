@@ -11,6 +11,7 @@ itself is importable at any time.
 
 import contextlib
 import hashlib
+import importlib
 import json
 import numbers
 import typing
@@ -227,6 +228,37 @@ def register_execution_module(execution_module: typing.Any) -> None:
     """Record ComfyUI's execution module so the registry can address IsChangedCache."""
     global _comfy_execution_module
     _comfy_execution_module = execution_module
+
+
+class _AssetManagerState(typing.Protocol):
+    """Describes the asset-manager state needed by the disabled-assets bypass."""
+
+    @property
+    def enabled(self) -> bool:
+        """Return whether ComfyUI asset registration is active."""
+        ...
+
+
+def _register_executed_outputs_without_disabled_asset_copy(
+    output_ui: dict[str, typing.Any],
+    job_id: str,
+    asset_manager: _AssetManagerState,
+) -> dict[str, typing.Any]:
+    """Return fileless output unchanged when hordelib has explicitly disabled assets."""
+    if not asset_manager.enabled:
+        return output_ui
+    return _originals["register_executed_outputs"](output_ui, job_id, asset_manager)
+
+
+def _register_cached_outputs_without_disabled_asset_copy(
+    ui_wrapper: dict[str, typing.Any] | None,
+    job_id: str,
+    asset_manager: _AssetManagerState,
+) -> dict[str, typing.Any] | None:
+    """Return cached output unchanged when hordelib has explicitly disabled assets."""
+    if not asset_manager.enabled:
+        return ui_wrapper
+    return _originals["register_cached_outputs"](ui_wrapper, job_id, asset_manager)
 
 
 def _resolve_skip_classes_and_fragments() -> tuple[tuple[type, ...], list[str]]:
@@ -737,6 +769,22 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
             _originals.get("anima_encode_token_weights"),
         ),
     }
+
+    if _comfy_execution_module is not None:
+        asset_enrichment = importlib.import_module("comfy_execution.asset_enrichment")
+
+        bindings["register_executed_outputs"] = _MonkeyPatchBinding(
+            _comfy_execution_module,
+            "register_executed_outputs",
+            _register_executed_outputs_without_disabled_asset_copy,
+            _originals.get("register_executed_outputs"),
+        )
+        bindings["register_cached_outputs"] = _MonkeyPatchBinding(
+            asset_enrichment,
+            "register_cached_outputs",
+            _register_cached_outputs_without_disabled_asset_copy,
+            _originals.get("register_cached_outputs"),
+        )
 
     if _comfy_execution_module is not None and _originals.get("is_changed_cache_get") is not None:
         bindings["is_changed_cache_get"] = _MonkeyPatchBinding(

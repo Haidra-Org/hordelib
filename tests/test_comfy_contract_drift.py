@@ -69,17 +69,8 @@ class _StrictRecordingServer:
         self.sockets_metadata: dict[str, Any] = {}
         self.events: list[tuple[str, dict[str, Any], str | None]] = []
 
-    def send_sync(
-        self,
-        label: str | int,
-        event_payload: dict[str, Any] | tuple[Any, ...],
-        sid: str | None = None,
-    ) -> None:
+    def send_sync(self, label: str, event_payload: dict[str, Any], sid: str | None = None) -> None:
         """Record an event delivered by the executor."""
-        if not isinstance(label, str) or not isinstance(event_payload, dict):
-            raise _UnexpectedServerAccessError(
-                f"The CPU-only contract run unexpectedly emitted binary event {label!r}",
-            )
         self.events.append((label, event_payload, sid))
 
     def queue_updated(self) -> None:
@@ -94,6 +85,7 @@ class _StrictRecordingServer:
 
 
 _FAILING_NODE_CLASS_TYPE = "HordeDriftTestFailingNode"
+_COUNTING_NODE_CLASS_TYPE = "HordeDriftTestCountingNode"
 
 
 class _FailingOutputNode:
@@ -112,6 +104,28 @@ class _FailingOutputNode:
     def run(self, images: Any) -> dict[str, Any]:
         """Raise unconditionally so the executor takes its error path."""
         raise RuntimeError("drift-test deliberate failure")
+
+
+class _CountingOutputNode:
+    """Emit a run counter so a cross-generation cache hit is directly observable."""
+
+    execution_count: int = 0
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, Any]:  # ComfyUI node contract requires this exact name
+        """Return the ComfyUI input schema: a single required IMAGE input."""
+        return {"required": {"images": ("IMAGE",)}}
+
+    RETURN_TYPES: tuple = ()
+    FUNCTION = "run"
+    OUTPUT_NODE = True
+    CATEGORY = "image"
+
+    def run(self, images: Any) -> dict[str, Any]:
+        """Return bytes identifying how many times this node has actually executed."""
+        type(self).execution_count += 1
+        run_bytes = f"run-{type(self).execution_count}".encode()
+        return {"ui": {"images": [{"imagedata": io.BytesIO(run_bytes), "type": "PNG"}]}}
 
 
 @pytest.fixture(scope="module")
@@ -193,7 +207,7 @@ class TestMiniExecutionRoundTrip:
         first_entry = image_entries[0]
         assert isinstance(first_entry["imagedata"], io.BytesIO), (
             "HordeImageOutput ui entries no longer carry an in-memory BytesIO; the file-less "
-            "output contract has drifted (check enrich_output_with_assets behavior too)"
+            "output contract has drifted (check register_executed_outputs behavior too)"
         )
         assert first_entry["type"] == "PNG"
         assert first_entry["imagedata"].getvalue().startswith(b"\x89PNG")
@@ -228,6 +242,62 @@ class TestMiniExecutionRoundTrip:
 
         assert executor.asset_manager.enabled is False
         assert type(executor.asset_manager).__name__ == "NoAssets"
+        assert executor.caches.outputs.enable_providers is False
+
+    def test_disabled_assets_do_not_duplicate_output_containers(self, comfy_bridge: Comfy_Horde) -> None:
+        """The disabled asset seam must preserve identity instead of deep-copying artifacts."""
+        import execution
+        from comfy_execution.asset_enrichment import register_cached_outputs
+
+        executor = comfy_bridge._get_executor()
+        output_ui = {"images": [{"imagedata": io.BytesIO(b"output"), "type": "PNG"}]}
+        cached_ui = {"meta": {"node_id": "output"}, "output": output_ui}
+
+        assert execution.register_executed_outputs(output_ui, "prompt", executor.asset_manager) is output_ui
+        assert register_cached_outputs(cached_ui, "prompt", executor.asset_manager) is cached_ui
+
+    def test_generations_return_distinct_artifact_buffers(self, comfy_bridge: Comfy_Horde) -> None:
+        """A later run must never return an artifact object retained by an earlier run."""
+        first_buffer = comfy_bridge.run_pipeline(_mini_graph(), {})[0]["imagedata"]
+        second_buffer = comfy_bridge.run_pipeline(_mini_graph(), {})[0]["imagedata"]
+
+        assert isinstance(first_buffer, io.BytesIO)
+        assert isinstance(second_buffer, io.BytesIO)
+        assert first_buffer is not second_buffer
+        assert first_buffer.getvalue() == second_buffer.getvalue()
+
+        first_buffer.seek(0)
+        first_buffer.write(b"changed")
+        assert second_buffer.getvalue().startswith(b"\x89PNG")
+
+    def test_identical_generations_execute_again_instead_of_reusing_output(self, comfy_bridge: Comfy_Horde) -> None:
+        """Prove an identical graph executes its output node once in each generation."""
+        import execution
+
+        _CountingOutputNode.execution_count = 0
+        execution.nodes.NODE_CLASS_MAPPINGS[_COUNTING_NODE_CLASS_TYPE] = _CountingOutputNode
+        try:
+            graph = _mini_graph(output_class_type=_COUNTING_NODE_CLASS_TYPE)
+            first_buffer = comfy_bridge.run_pipeline(graph, {})[0]["imagedata"]
+            second_buffer = comfy_bridge.run_pipeline(graph, {})[0]["imagedata"]
+
+            assert _CountingOutputNode.execution_count == 2
+            assert first_buffer.getvalue() == b"run-1"
+            assert second_buffer.getvalue() == b"run-2"
+        finally:
+            execution.nodes.NODE_CLASS_MAPPINGS.pop(_COUNTING_NODE_CLASS_TYPE, None)
+
+    def test_external_cache_providers_are_rejected(self, comfy_bridge: Comfy_Horde) -> None:
+        """Reject the only ComfyUI cache mechanism whose lifetime exceeds one executor."""
+        from comfy_execution.cache_provider import register_cache_provider, unregister_cache_provider
+
+        provider = object()
+        register_cache_provider(provider)
+        try:
+            with pytest.raises(RuntimeError, match="across generation boundaries"):
+                comfy_bridge._get_executor()
+        finally:
+            unregister_cache_provider(provider)
 
     def test_error_path_contract(self, comfy_bridge: Comfy_Horde) -> None:
         import execution

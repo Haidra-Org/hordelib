@@ -1,7 +1,7 @@
 {
     "schema_version": 1,
     "comfyui_repo": "https://github.com/comfyanonymous/ComfyUI.git",
-    "comfyui_ref": "95d755cd8107a72258d452b5d3657273d571f07d",
+    "comfyui_ref": "9a600f8118784eaa2e811ca5e4d2e59d2905b72f",
     "custom_nodes": [
         {
             "name": "comfyui_controlnet_aux",
