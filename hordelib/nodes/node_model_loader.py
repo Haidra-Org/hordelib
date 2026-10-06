@@ -32,6 +32,7 @@ from hordelib.execution.standalone_vae import (
     plan_standalone_vae_load,
     standalone_vae_path_disabled,
 )
+from hordelib.execution.weight_prefetch import prefetch_module_weights_async
 from hordelib.metrics import ModelLoadEvent, get_metrics_collector
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.memory_trim import trim_host_after_component_release
@@ -238,6 +239,16 @@ class HordeCheckpointLoader:
                 collector.record_component_cache_hit()
                 collector.record_component_cache_held_mb(cache.held_mb())
                 logger.info("Model cache hit: model={}", horde_model_name)
+                # A retained component's weights are views over the checkpoint mapping whose pages the OS
+                # may have dropped since they were last read; start reading them now so the move into VRAM
+                # does not fault them in from disk after the sampling lease is already held.
+                _prefetch_served_components(
+                    payload,
+                    horde_model_name,
+                    output_model=output_model,
+                    output_clip=output_clip,
+                    output_vae=output_vae,
+                )
                 _apply_model_tiling(cached_model, seamless_tiling_enabled)
                 _apply_vae_tiling(cached_vae, seamless_tiling_enabled)
                 log_free_ram()
@@ -289,9 +300,15 @@ class HordeCheckpointLoader:
         for component in result[:3]:
             capture_pristine_state(component)
 
-        # The diffusion weights are still lazy views over the checkpoint mapping; page them in now, off the
-        # critical path, so the load into VRAM that follows runs at memory speed rather than disk speed.
-        _prefetch_diffusion_weights(result[0], horde_model_name)
+        # The weights are still lazy views over the checkpoint mapping; page them in now, off the critical
+        # path, so the load into VRAM that follows runs at memory speed rather than disk speed.
+        _prefetch_served_components(
+            result,
+            horde_model_name,
+            output_model=output_model,
+            output_clip=output_clip,
+            output_vae=output_vae,
+        )
 
         # A disaggregated stage may have loaded only a subset, so a slot can be None; each helper is a no-op
         # when its component is absent.
@@ -339,6 +356,15 @@ class HordeCheckpointLoader:
             collector.record_component_cache_hit()
             collector.record_component_cache_held_mb(cache.held_mb())
             logger.info("Model cache hit: model={}, file_type={}", horde_model_name, file_type)
+            # The retained component may have cold pages behind it; read them before the lease wait.
+            _prefetch_served_components(
+                entry.payload,
+                horde_model_name,
+                output_model=True,
+                output_clip=False,
+                output_vae=False,
+                model_component_name=file_type,
+            )
             log_free_ram()
             return entry.payload
 
@@ -397,6 +423,14 @@ class HordeCheckpointLoader:
             logger.debug(result)
 
         capture_pristine_state(result[0])
+        _prefetch_served_components(
+            result,
+            horde_model_name,
+            output_model=True,
+            output_clip=False,
+            output_vae=False,
+            model_component_name=file_type,
+        )
         _apply_component_tiling(result[0], file_type, seamless_tiling_enabled)
 
         evicted = cache.put(
@@ -451,6 +485,14 @@ class HordeCheckpointLoader:
                 horde_model_name,
                 plan.cache_key,
             )
+            # The retained VAE may have cold pages behind it; read them before the decode needs them.
+            _prefetch_served_components(
+                entry.payload,
+                horde_model_name,
+                output_model=False,
+                output_clip=False,
+                output_vae=True,
+            )
             _apply_vae_tiling(entry.payload[2], seamless_tiling_enabled)
             log_free_ram()
             return entry.payload
@@ -496,6 +538,13 @@ class HordeCheckpointLoader:
             ),
         )
         self._record_evictions(evicted, cache, collector)
+        _prefetch_served_components(
+            result,
+            horde_model_name,
+            output_model=False,
+            output_clip=False,
+            output_vae=True,
+        )
         _apply_vae_tiling(loaded_vae, seamless_tiling_enabled)
         log_free_ram()
         return result
@@ -591,19 +640,46 @@ class HordeCheckpointLoader:
         return full_path
 
 
-def _prefetch_diffusion_weights(model_patcher: Any, horde_model_name: str) -> None:
-    """Start a background page-in of a freshly loaded diffusion model's weights; never raises."""
-    if model_patcher is None:
-        return
-    try:
-        module = getattr(model_patcher, "model", None)
-        if module is None:
-            return
-        from hordelib.execution.weight_prefetch import prefetch_module_weights_async
+def _prefetch_served_components(
+    payload: tuple[Any, ...],
+    horde_model_name: str,
+    *,
+    output_model: bool,
+    output_clip: bool,
+    output_vae: bool,
+    model_component_name: str = "unet",
+) -> None:
+    """Start a background page-in of each requested component of a served payload; never raises.
 
-        prefetch_module_weights_async(module, label=horde_model_name)
-    except Exception as exc:
-        logger.debug("Diffusion weight prefetch skipped for {}: {}", horde_model_name, exc)
+    Only the slots the request asks for are read, in the order the graph needs them: text encoder (slot 1),
+    model (slot 0), VAE (slot 2). Each is one ``prefetch_module_weights_async`` call labelled
+    ``<horde_model_name>:<component>``; its per-module in-flight dedup makes a repeat for the same module, such
+    as the sampler-entry prefetch, harmless. A bare-component load carries its ModelPatcher in slot 0 whatever
+    its file type, so *model_component_name* names that slot's component in the label.
+
+    The module is read through the attribute each comfy type assigns unconditionally in its constructor:
+    ``ModelPatcher.model``, ``comfy.sd.CLIP.cond_stage_model`` and ``comfy.sd.VAE.first_stage_model``. A CLIP's
+    or VAE's ``patcher.model`` is the same module, but a VAE built from a state dict with no recognised weights
+    sets ``first_stage_model`` to None and returns before it creates a patcher, so that route is absent there.
+    A slot that is None or yields no ``torch.nn.Module`` is skipped.
+    """
+    requested_slots = (
+        (output_clip, 1, "text_encoder", "cond_stage_model"),
+        (output_model, 0, model_component_name, "model"),
+        (output_vae, 2, "vae", "first_stage_model"),
+    )
+    for requested, slot_index, component_name, module_attribute in requested_slots:
+        if not requested or slot_index >= len(payload):
+            continue
+        label = f"{horde_model_name}:{component_name}"
+        try:
+            module = getattr(payload[slot_index], module_attribute, None)
+            if not isinstance(module, torch.nn.Module):
+                logger.debug("Weight prefetch skipped for {}: the served component carries no module", label)
+                continue
+            prefetch_module_weights_async(module, label=label)
+        except Exception as exc:
+            logger.debug("Weight prefetch skipped for {}: {}", label, exc)
 
 
 def _release_single_slot_before_cold_load(cache: ComponentCache) -> None:
