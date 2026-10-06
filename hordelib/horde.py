@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import io
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from enum import Enum, auto
+from typing import Any
 
 import logfire
 from horde_sdk.ai_horde_api.apimodels.base import (
     GenMetadataEntry,
 )
-from horde_sdk.generation_parameters.alchemy.consts import KNOWN_FACEFIXERS
 from horde_sdk.generation_parameters.image import ImageGenerationParameters
 from loguru import logger
 from PIL import Image
@@ -24,6 +24,7 @@ from hordelib.execution.adaptive_sampler_bound import (
 )
 from hordelib.execution.in_process import InProcessComfyBackend
 from hordelib.execution.interface import RETAINED_WEIGHTS_EVICTED_METADATA_KEY, OutputSpec
+from hordelib.execution.results import encode_image_png
 from hordelib.execution.sigma_schedules import SigmaScheduleRequest
 from hordelib.execution.stage_graph import (
     cut_decode_stage,
@@ -34,19 +35,21 @@ from hordelib.execution.stage_graph import (
 from hordelib.feature_impact import FEATURE_KIND
 from hordelib.feature_requirements import ensure_feature_available
 from hordelib.pipeline import constants as pipeline_constants
-from hordelib.pipeline.context import ModelContext
+from hordelib.pipeline.context import ModelContext, PostProcessingContext
 from hordelib.pipeline.definition import PipelineDefinition
-from hordelib.pipeline.families.post_processing import POST_PROCESSING_REGISTRY
+from hordelib.pipeline.families.post_processing import POST_PROCESSING_REGISTRY, compose_post_processing_chain
 from hordelib.pipeline.graph import ComfyGraph
 from hordelib.pipeline.identifiers import AUTO_PIPELINE, AutoPipeline, ImagePipeline
 from hordelib.pipeline.payload import ImageGenPayload
 from hordelib.pipeline.payload_pp import (
     FacefixPayload,
+    PostProcessingGraphPayload,
     PostProcessingPayload,
     PostProcessorKind,
     StripBackgroundPayload,
     UpscalePayload,
     classify_post_processor,
+    order_post_processing,
     post_processing_payload_from_horde_dict,
 )
 from hordelib.pipeline.resolution import resolve_post_processing_model
@@ -736,10 +739,6 @@ class HordeLib:
                 post_processed = []
                 for img_idx, ret in enumerate(return_list):
                     with logfire.span("horde.post_process_image", image_index=img_idx):
-                        single_image_faults = faults[:]
-                        final_image = ret.image
-                        final_rawpng = ret.rawpng
-
                         if progress_callback is not None:
                             try:
                                 progress_callback(
@@ -751,111 +750,17 @@ class HordeLib:
                             except Exception:
                                 logger.exception("Progress callback failed")
 
-                        # Facefixers sort last (legacy ordering; images_expected/ encodes it)
-                        post_processing_requested = sorted(
+                        # facefixer_strength blends the restored image back over the pre-fix one;
+                        # absent, it is 1.0 (full restoration).
+                        processed = self._post_process_inference_result(
+                            ret,
                             post_processing_requested,
-                            key=lambda x: 1 if x in KNOWN_FACEFIXERS.__members__ else 0,
+                            facefixer_strength=payload.get("facefixer_strength", 1.0),
+                            faults=faults,
+                            image_index=img_idx,
                         )
-
-                        for post_processing in post_processing_requested:
-                            if final_image is None:
-                                logger.error(
-                                    "No image available to post-process; aborting remaining operations",
-                                )
-                                break
-
-                            pp_start = time.perf_counter()
-                            pp_kind = classify_post_processor(post_processing)
-
-                            if pp_kind is PostProcessorKind.upscaler:
-                                with logfire.span(
-                                    "pp.upscale",
-                                    model=post_processing,
-                                    image_index=img_idx,
-                                ):
-                                    image_ret = self.post_process(
-                                        UpscalePayload(
-                                            model=post_processing,
-                                            source_image=final_image,
-                                        ),
-                                    )
-                                    single_image_faults += image_ret.faults
-                                    final_rawpng = image_ret.rawpng
-                                    final_image = image_ret.image
-                                    pp_duration = (time.perf_counter() - pp_start) * 1000
-                                    post_process_duration_histogram.record(pp_duration)
-                                    logger.info(
-                                        "pp.upscale_complete",
-                                        model=post_processing,
-                                        duration_ms=pp_duration,
-                                        fault_count=len(image_ret.faults),
-                                    )
-
-                            elif pp_kind is PostProcessorKind.facefixer:
-                                with logfire.span(
-                                    "pp.facefix",
-                                    model=post_processing,
-                                    strength=payload.get("facefixer_strength", 1.0),
-                                    image_index=img_idx,
-                                ):
-                                    # facefixer_strength blends the restored image back over the
-                                    # pre-fix one; absent, it is 1.0 (full restoration), which is
-                                    # what the graph produced before the knob was honored.
-                                    image_ret = self.post_process(
-                                        FacefixPayload(
-                                            model=post_processing,
-                                            source_image=final_image,
-                                            strength=payload.get("facefixer_strength", 1.0),
-                                        ),
-                                    )
-                                    single_image_faults += image_ret.faults
-                                    final_rawpng = image_ret.rawpng
-                                    final_image = image_ret.image
-                                    pp_duration = (time.perf_counter() - pp_start) * 1000
-                                    post_process_duration_histogram.record(pp_duration)
-                                    logger.info(
-                                        "pp.facefix_complete",
-                                        model=post_processing,
-                                        duration_ms=pp_duration,
-                                        fault_count=len(image_ret.faults),
-                                    )
-
-                            elif pp_kind is PostProcessorKind.strip_background:
-                                with logfire.span("pp.strip_background", image_index=img_idx):
-                                    if final_image is not None:
-                                        # Fail fast if rembg's extra is absent, before starting this step.
-                                        ensure_feature_available(FEATURE_KIND.strip_background)
-                                        # The pre-strip rawpng is intentionally kept (legacy parity)
-                                        final_image = self.post_process(
-                                            StripBackgroundPayload(source_image=final_image),
-                                        ).image
-                                    pp_duration = (time.perf_counter() - pp_start) * 1000
-                                    post_process_duration_histogram.record(pp_duration)
-                                    logger.info(
-                                        "pp.strip_background_complete",
-                                        duration_ms=pp_duration,
-                                    )
-
-                            else:
-                                logger.warning(
-                                    "Unknown post-processor requested; skipping: name={}",
-                                    post_processing,
-                                )
-
-                        if final_image is None:
-                            # TODO: Allow to return a partially PP image?
-                            logger.error("Post processing failed and there is no output image!")
-                            logger.error("pp.failed_no_output", image_index=img_idx)
-                        else:
-                            post_processed.append(
-                                ResultingImageReturn(
-                                    image=final_image,
-                                    rawpng=final_rawpng,
-                                    faults=single_image_faults,
-                                    sampler_truncation=ret.sampler_truncation,
-                                    retained_weights_evicted=ret.retained_weights_evicted,
-                                ),
-                            )
+                        if processed is not None:
+                            post_processed.append(processed)
 
         if progress_callback is not None:
             try:
@@ -1061,12 +966,59 @@ class HordeLib:
         )
 
     @logfire.instrument("horde.post_process", extract_args=False)
+    def _post_process_inference_result(
+        self,
+        ret: ResultingImageReturn,
+        operations: Sequence[str],
+        *,
+        facefixer_strength: float | None,
+        faults: list[GenMetadataEntry],
+        image_index: int,
+    ) -> ResultingImageReturn | None:
+        """Run one generated image's ``post_processing`` list as a single chain and encode the result once.
+
+        The returned ``rawpng`` is the PNG of the returned image and carries no pipeline metadata, since the
+        composed chain graph describes none of the generation. When the chain returns the source image
+        unchanged (every name unknown), the generation's ``rawpng`` is kept. A chain failure raises.
+
+        Returns:
+            ResultingImageReturn | None: The result with ``faults`` ahead of the chain's, or None with an
+            error logged when there is no image.
+        """
+        chained: ResultingImageReturn | None = None
+        if ret.image is not None:
+            pp_start = time.perf_counter()
+            with logfire.span("pp.chain", operations=list(operations), image_index=image_index):
+                chained = self.post_process_chain(ret.image, operations, facefixer_strength=facefixer_strength)
+            pp_duration = (time.perf_counter() - pp_start) * 1000
+            post_process_duration_histogram.record(pp_duration)
+            logger.info(
+                "pp.chain_complete",
+                operations=list(operations),
+                duration_ms=pp_duration,
+                fault_count=len(chained.faults),
+            )
+
+        if chained is None or chained.image is None:
+            logger.error("Post processing failed and there is no output image!")
+            logger.error("pp.failed_no_output", image_index=image_index)
+            return None
+
+        rawpng = ret.rawpng if chained.image is ret.image else encode_image_png(chained.image)
+        return ResultingImageReturn(
+            image=chained.image,
+            rawpng=rawpng,
+            faults=faults + chained.faults,
+            sampler_truncation=ret.sampler_truncation,
+            retained_weights_evicted=ret.retained_weights_evicted,
+        )
+
     def post_process(self, payload: PostProcessingPayload | dict) -> ResultingImageReturn:
         """Run a single post-processing operation (upscale, facefix, or strip-background).
 
         This is the standalone post-processing entry point (the alchemy surface); the embedded
-        ``post_processing`` list inside :meth:`basic_inference` flows through here too. Legacy
-        dict payloads are accepted (see ``post_processing_payload_from_horde_dict``).
+        ``post_processing`` list inside :meth:`basic_inference` runs through :meth:`post_process_chain`.
+        Legacy dict payloads are accepted (see ``post_processing_payload_from_horde_dict``).
         """
         from hordelib.comfy_horde import log_free_ram
 
@@ -1109,6 +1061,66 @@ class HordeLib:
 
         log_free_ram()
         return ResultingImageReturn(image=image, rawpng=rawpng, faults=[])
+
+    def post_process_chain(
+        self,
+        source_image: Image.Image,
+        operations: Sequence[str],
+        *,
+        facefixer_strength: float | None = None,
+    ) -> ResultingImageReturn:
+        """Run an ordered post-processing chain with one graph execution, then strip background if asked.
+
+        Graph operations are composed into a single graph whose output node returns the image unencoded,
+        so the image is neither PNG-encoded nor decoded between stages. Unknown names are skipped with a
+        warning. A failure raises, as :meth:`post_process` does; no partial result is returned.
+
+        Args:
+            source_image: The image to post-process.
+            operations: Post-processor names, in any order; :func:`order_post_processing` decides it.
+            facefixer_strength: The face-fix blend strength; absent, face-fix payloads use their default.
+
+        Returns:
+            ResultingImageReturn: The final image, with ``rawpng`` None (the caller encodes once if needed).
+        """
+        from hordelib.comfy_horde import log_free_ram
+
+        stages: list[tuple[PostProcessingGraphPayload, PostProcessingContext]] = []
+        strip_background = False
+        for operation in order_post_processing(operations):
+            kind = classify_post_processor(operation)
+            if kind is None:
+                logger.warning("Unknown post-processor requested; skipping: name={}", operation)
+                continue
+            if kind is PostProcessorKind.strip_background:
+                strip_background = True
+                continue
+            horde_dict: dict[str, Any] = {"model": operation, "source_image": source_image}
+            if facefixer_strength is not None:
+                horde_dict["facefixer_strength"] = facefixer_strength
+            payload = post_processing_payload_from_horde_dict(horde_dict)
+            if not isinstance(payload, UpscalePayload | FacefixPayload):
+                raise RuntimeError(f"Post-processor {operation!r} did not build a graph payload")
+            stages.append((payload, resolve_post_processing_model(payload.model)))
+
+        image = source_image
+        if stages:
+            log_free_ram()
+            chain = compose_post_processing_chain(stages)
+            for output in chain.outputs:
+                chain.graph.set_input(f"{output.node}.encode_png", False)
+            artifacts = self.backend.run_pipeline_unencoded(chain.graph.to_api_dict(), outputs=chain.outputs)
+            if len(artifacts) != 1:
+                raise RuntimeError(f"Expected a single image from the post-processing chain, got {len(artifacts)}")
+            image = artifacts[0].image
+
+        if strip_background:
+            # Same check as post_process, before the lazy import inside strip_background.
+            ensure_feature_available(FEATURE_KIND.strip_background)
+            image = ImageUtils.strip_background(image)
+
+        log_free_ram()
+        return ResultingImageReturn(image=image, rawpng=None, faults=[])
 
     def image_upscale(self, payload: dict) -> ResultingImageReturn:
         """Upscale an image (legacy dict surface; prefer :meth:`post_process`)."""

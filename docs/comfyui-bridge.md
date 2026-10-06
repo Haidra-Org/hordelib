@@ -44,7 +44,12 @@ Artifacts are not scraped from events. After `execute()` returns, the executor e
 `PipelineRunResult` (`hordelib/execution/results.py`). Collection walks every list-valued
 ui key of each output node's ui dict, keeping entries that carry an in-memory `BytesIO`
 (the contract hordelib output nodes implement, e.g. `node_image_output.py`), and tags each
-with its source node title. Graphs are title-keyed (`ComfyGraph`), so the `history_result`
+with its source node title. `HordeImageOutput` takes an optional `encode_png` input (default
+true); when false it skips the PNG encode and its entries carry a PIL image under `pil_image`
+with type `PIL` (`UI_ENTRY_IMAGE_KEY`, `UNENCODED_IMAGE_TYPE`), which collection keeps as well. The backend
+turns such an entry into an `UnencodedImageArtifact` (`hordelib/execution/interface.py`), returned
+only by `run_pipeline_unencoded`; `run_pipeline` returns `OutputArtifact`s and raises on an unencoded
+entry, and `run_pipeline_unencoded` raises on an encoded one. Graphs are title-keyed (`ComfyGraph`), so the `history_result`
 key is the node title declared in the pipeline's `OutputSpec`s; `run_pipeline` fails
 loudly, naming the node and the typed error summary, when a declared output produced
 nothing.

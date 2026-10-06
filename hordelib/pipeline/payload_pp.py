@@ -9,6 +9,7 @@ membership checks the legacy embedded loop used (``KNOWN_UPSCALERS`` member *nam
 *values* both occur in the wild — e.g. ``four_4x_AnimeSharp`` has the value ``4x_AnimeSharp``).
 """
 
+from collections.abc import Sequence
 from enum import Enum, auto
 from typing import Any
 
@@ -36,6 +37,24 @@ def classify_post_processor(name: str) -> PostProcessorKind | None:
     if name in KNOWN_FACEFIXERS.__members__ or name in KNOWN_FACEFIXERS._value2member_map_:
         return PostProcessorKind.facefixer
     return None
+
+
+_POST_PROCESSING_ORDER: tuple[PostProcessorKind | None, ...] = (
+    PostProcessorKind.facefixer,
+    PostProcessorKind.upscaler,
+    PostProcessorKind.strip_background,
+    None,
+)
+
+
+def order_post_processing(names: Sequence[str]) -> list[str]:
+    """Order post-processor names for execution: face fixers, upscalers, then strip background.
+
+    Each group keeps the caller's relative order. A face fixer restores the image as generated and
+    the upscaler enlarges the restored result. Unrecognized names are kept, last, so the executor
+    still sees and reports them.
+    """
+    return sorted(names, key=lambda name: _POST_PROCESSING_ORDER.index(classify_post_processor(name)))
 
 
 class _PostProcessingPayloadBase(BaseModel):

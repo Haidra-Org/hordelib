@@ -14,6 +14,7 @@ from hordelib.execution.interface import (
     OutputArtifact,
     OutputSpec,
     ProgressCallback,
+    UnencodedImageArtifact,
     VRAMStats,
 )
 
@@ -41,6 +42,17 @@ class _FakeAudioBackend:
                 metadata={"duration_s": 4.2},
             ),
         ]
+
+    def run_pipeline_unencoded(
+        self,
+        graph: dict[str, Any],
+        *,
+        outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
+        progress_callback: ProgressCallback | None = None,
+        defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
+    ) -> list[UnencodedImageArtifact]:
+        return []
 
     def interrupt(self) -> None:
         pass

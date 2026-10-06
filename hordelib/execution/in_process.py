@@ -23,9 +23,11 @@ from hordelib.execution.interface import (
     OutputKind,
     OutputSpec,
     ProgressCallback,
+    UnencodedImageArtifact,
     VRAMStats,
     VramUnloadResult,
 )
+from hordelib.execution.results import UI_ENTRY_IMAGE_KEY, is_unencoded_image_entry
 from hordelib.execution.sampler_options import clear_run_options, set_run_options
 from hordelib.execution.sigma_schedules import (
     SigmaScheduleRequest,
@@ -114,6 +116,62 @@ class InProcessComfyBackend:
         sampler_options: dict[str, Any] | None = None,
         sigma_schedule: SigmaScheduleRequest | None = None,
     ) -> list[OutputArtifact]:
+        artifacts = self._run(
+            graph,
+            outputs=outputs,
+            progress_callback=progress_callback,
+            defer_vram_unload=defer_vram_unload,
+            device_free_truth_mb=device_free_truth_mb,
+            sampler_options=sampler_options,
+            sigma_schedule=sigma_schedule,
+        )
+        encoded: list[OutputArtifact] = []
+        for artifact in artifacts:
+            if not isinstance(artifact, OutputArtifact):
+                raise RuntimeError(
+                    f"Output node {artifact.source_node!r} returned an unencoded image; "
+                    "run its graph with run_pipeline_unencoded",
+                )
+            encoded.append(artifact)
+        return encoded
+
+    def run_pipeline_unencoded(
+        self,
+        graph: dict[str, Any],
+        *,
+        outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
+        progress_callback: ProgressCallback | None = None,
+        defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
+    ) -> list[UnencodedImageArtifact]:
+        artifacts = self._run(
+            graph,
+            outputs=outputs,
+            progress_callback=progress_callback,
+            defer_vram_unload=defer_vram_unload,
+            device_free_truth_mb=device_free_truth_mb,
+        )
+        unencoded: list[UnencodedImageArtifact] = []
+        for artifact in artifacts:
+            if not isinstance(artifact, UnencodedImageArtifact):
+                raise RuntimeError(
+                    f"Output node {artifact.source_node!r} returned encoded bytes; "
+                    "set its encode_png input to False or use run_pipeline",
+                )
+            unencoded.append(artifact)
+        return unencoded
+
+    def _run(
+        self,
+        graph: dict[str, Any],
+        *,
+        outputs: tuple[OutputSpec, ...],
+        progress_callback: ProgressCallback | None,
+        defer_vram_unload: bool,
+        device_free_truth_mb: float | None,
+        sampler_options: dict[str, Any] | None = None,
+        sigma_schedule: SigmaScheduleRequest | None = None,
+    ) -> list[OutputArtifact | UnencodedImageArtifact]:
         self._ensure_started()
         assert self._comfy is not None
 
@@ -155,7 +213,7 @@ class InProcessComfyBackend:
         *,
         truncations: list[SamplerTruncation] | None = None,
         retained_weights_evicted: bool = False,
-    ) -> list[OutputArtifact]:
+    ) -> list[OutputArtifact | UnencodedImageArtifact]:
         kind_by_node = {output.node: output.kind for output in outputs}
         # A truncation applies to the sample every artifact of the run descends from, so each
         # artifact carries the record rather than the collection carrying it once.
@@ -164,16 +222,26 @@ class InProcessComfyBackend:
         # deferral kept nothing descends from weights the device no longer holds.
         if retained_weights_evicted:
             artifact_metadata[RETAINED_WEIGHTS_EVICTED_METADATA_KEY] = True
-        artifacts: list[OutputArtifact] = []
+        artifacts: list[OutputArtifact | UnencodedImageArtifact] = []
         for result in results:
+            source_node_raw = result.get("source_node")
+            source_node = source_node_raw if isinstance(source_node_raw, str) else None
+            artifact_kind = kind_by_node.get(source_node, OutputKind.IMAGE) if source_node else OutputKind.IMAGE
+            if is_unencoded_image_entry(result):
+                artifacts.append(
+                    UnencodedImageArtifact(
+                        image=result[UI_ENTRY_IMAGE_KEY],
+                        kind=artifact_kind,
+                        source_node=source_node,
+                        metadata=dict(artifact_metadata),
+                    ),
+                )
+                continue
             data = result.get("imagedata")
             if data is None:
                 logger.warning("Pipeline result entry without imagedata; skipping: keys={}", list(result))
                 continue
             mime_type = "image/png" if result.get("type", "PNG").upper() == "PNG" else "application/octet-stream"
-            source_node_raw = result.get("source_node")
-            source_node = source_node_raw if isinstance(source_node_raw, str) else None
-            artifact_kind = kind_by_node.get(source_node, OutputKind.IMAGE) if source_node else OutputKind.IMAGE
             artifacts.append(
                 OutputArtifact(
                     data=data,

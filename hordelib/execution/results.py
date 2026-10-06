@@ -8,7 +8,8 @@ the bridge's wire-shaped artifact entries.
 Collection is keyed by the output node, not by artifact type: every list-valued key of a
 node's ui dict is walked (``"images"`` today, ``"audio"`` or others later), so a new output
 modality needs a new output node but no change to this collection path. Entries must carry
-an in-memory ``BytesIO`` under :data:`UI_ENTRY_DATA_KEY`, the contract hordelib output nodes
+an in-memory ``BytesIO`` under :data:`UI_ENTRY_DATA_KEY`, or an unencoded PIL image under
+:data:`UI_ENTRY_IMAGE_KEY` typed :data:`UNENCODED_IMAGE_TYPE`, the contract hordelib output nodes
 implement (see ``hordelib/nodes/node_image_output.py``).
 
 This module must remain importable before ``hordelib.initialise()``: it never imports ComfyUI.
@@ -18,6 +19,8 @@ import io
 import typing
 
 from loguru import logger
+from PIL import Image
+from PIL.PngImagePlugin import PngInfo
 from pydantic import BaseModel, ConfigDict
 
 from hordelib.execution.comfy_events import ExecutionErrorEvent
@@ -35,7 +38,34 @@ UI_ENTRY_TYPE_KEY: typing.Final[str] = "type"
 UI_ENTRY_SOURCE_NODE_KEY: typing.Final[str] = "source_node"
 """The key collection adds to each entry, carrying the producing node's graph title."""
 
+UI_ENTRY_IMAGE_KEY: typing.Final[str] = "pil_image"
+"""The ui-entry key carrying an unencoded ``PIL.Image.Image`` in place of encoded bytes."""
+
+UNENCODED_IMAGE_TYPE: typing.Final[str] = "PIL"
+"""The :data:`UI_ENTRY_TYPE_KEY` value of an unencoded image entry."""
+
 _EXPECTED_UI_ENTRY_KEYS: typing.Final[frozenset[str]] = frozenset({UI_ENTRY_DATA_KEY, UI_ENTRY_TYPE_KEY})
+_EXPECTED_UNENCODED_ENTRY_KEYS: typing.Final[frozenset[str]] = frozenset({UI_ENTRY_IMAGE_KEY, UI_ENTRY_TYPE_KEY})
+
+
+PNG_COMPRESS_LEVEL: typing.Final[int] = 4
+"""The zlib level of every PNG hordelib encodes; level 4 trades a little size for much faster encodes."""
+
+
+def encode_image_png(image: Image.Image, pnginfo: PngInfo | None = None) -> io.BytesIO:
+    """Encode an image as PNG, rewound to the start, with the settings every hordelib PNG uses."""
+    byte_stream = io.BytesIO()
+    image.save(byte_stream, format="PNG", pnginfo=pnginfo, compress_level=PNG_COMPRESS_LEVEL)
+    byte_stream.seek(0)
+    return byte_stream
+
+
+def is_unencoded_image_entry(entry: dict[str, typing.Any]) -> bool:
+    """Whether a ui entry carries an unencoded PIL image rather than encoded bytes."""
+    return entry.get(UI_ENTRY_TYPE_KEY) == UNENCODED_IMAGE_TYPE and isinstance(
+        entry.get(UI_ENTRY_IMAGE_KEY),
+        Image.Image,
+    )
 
 
 class PipelineRunResult(BaseModel):
@@ -99,7 +129,8 @@ def collect_output_entries(history_outputs: dict[str, typing.Any]) -> list[dict[
                         entry_type=type(raw_entry).__name__,
                     )
                     continue
-                if not isinstance(raw_entry.get(UI_ENTRY_DATA_KEY), io.BytesIO):
+                unencoded = is_unencoded_image_entry(raw_entry)
+                if not unencoded and not isinstance(raw_entry.get(UI_ENTRY_DATA_KEY), io.BytesIO):
                     logger.error(
                         "Received output entry without in-memory artifact bytes from comfyui",
                         source_node=node_title,
@@ -107,7 +138,8 @@ def collect_output_entries(history_outputs: dict[str, typing.Any]) -> list[dict[
                         keys=list(raw_entry),
                     )
                     continue
-                unexpected_keys = set(raw_entry) - _EXPECTED_UI_ENTRY_KEYS
+                expected_keys = _EXPECTED_UNENCODED_ENTRY_KEYS if unencoded else _EXPECTED_UI_ENTRY_KEYS
+                unexpected_keys = set(raw_entry) - expected_keys
                 if unexpected_keys:
                     logger.error(
                         "Received unexpected output entry keys from comfyui",

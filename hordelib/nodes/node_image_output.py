@@ -1,13 +1,14 @@
 # node_image_output.py
 # Simple proof of concept to return an image byte stream to the horde worker.
 import json
-from io import BytesIO
 
 import logfire
 import numpy as np
 from loguru import logger
 from PIL import Image
 from PIL.PngImagePlugin import PngInfo
+
+from hordelib.execution.results import UI_ENTRY_IMAGE_KEY, UI_ENTRY_TYPE_KEY, UNENCODED_IMAGE_TYPE, encode_image_png
 
 
 class HordeImageOutput:
@@ -16,6 +17,11 @@ class HordeImageOutput:
         return {
             "required": {
                 "images": ("IMAGE",),
+            },
+            "optional": {
+                # False returns each image as a PIL image so a caller that re-encodes or keeps
+                # working on the pixels skips the PNG encode and decode.
+                "encode_png": ("BOOLEAN", {"default": True}),
             },
             "hidden": {"prompt": "PROMPT", "extra_pnginfo": "EXTRA_PNGINFO"},
         }
@@ -33,14 +39,16 @@ class HordeImageOutput:
         return f"Object of type {type(obj).__name__}"
 
     @logfire.instrument("image.output_node")
-    def get_image(self, images, prompt=None, extra_pnginfo=None):
+    def get_image(self, images, encode_png=True, prompt=None, extra_pnginfo=None):
         logger.info("image.generating_output: image_count={}", len(images))
         results = []
         for idx, image in enumerate(images):
+            i = 255.0 * image.cpu().numpy()
+            img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
+            if not encode_png:
+                results.append({UI_ENTRY_IMAGE_KEY: img, UI_ENTRY_TYPE_KEY: UNENCODED_IMAGE_TYPE})
+                continue
             with logfire.span("image.encode_png", image_index=idx):
-                # Create a PNG
-                i = 255.0 * image.cpu().numpy()
-                img = Image.fromarray(np.clip(i, 0, 255).astype(np.uint8))
                 metadata = PngInfo()
                 # Save the full pipeline and variables into the PNG metadata
                 if prompt is not None:
@@ -49,11 +57,7 @@ class HordeImageOutput:
                     for x in extra_pnginfo:
                         metadata.add_text(x, json.dumps(extra_pnginfo[x], default=self._json_hack))
 
-                byte_stream = BytesIO()
-                img.save(byte_stream, format="PNG", pnginfo=metadata, compress_level=4)
-                byte_stream.seek(0)
-
-                results.append({"imagedata": byte_stream, "type": "PNG"})
+                results.append({"imagedata": encode_image_png(img, metadata), "type": "PNG"})
 
         logger.info("image.output_complete: result_count={}", len(results))
         return {"ui": {"images": results}}

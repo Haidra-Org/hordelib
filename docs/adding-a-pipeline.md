@@ -136,6 +136,16 @@ declared output node; see `docs/comfyui-bridge.md`). New nodes are written again
 ComfyUI's typed V3 API, modeled on `hordelib/nodes/node_v3_canary.py`; see
 `docs/modality-readiness.md` for the full recipe.
 
+The post-processing family's execution order is defined once, by `order_post_processing` in
+`hordelib/pipeline/payload_pp.py`: face fixers, then upscalers, then strip background, each
+group in the caller's order, with unrecognized names last. A new post-processor kind takes
+its place in that order there.
+
+`HordeLib.post_process_chain` runs a whole list in that order with one graph execution: the graph
+operations are joined by `compose_post_processing_chain`, the output node is set to
+`encode_png=False`, the graph runs through `run_pipeline_unencoded`, and strip background is applied
+afterwards. It returns a PIL image with `rawpng` None and raises on failure, as `post_process` does.
+
 ### Source-media compatibility metadata
 
 Inpainting checkpoints synthesize a noise source and a white mask when their graph needs

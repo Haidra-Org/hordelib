@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from enum import StrEnum, auto
 from typing import Any, Protocol, runtime_checkable
 
+from PIL import Image
 from pydantic import BaseModel, ConfigDict
 
 from hordelib.utils.ioredirect import ComfyUIProgress
@@ -80,6 +81,22 @@ class OutputArtifact(BaseModel):
 
     data: io.BytesIO
     mime_type: str = "image/png"
+    kind: OutputKind = OutputKind.IMAGE
+    source_node: str | None = None
+    """The graph node title this artifact was collected from, when the backend knows it."""
+    metadata: dict[str, Any] = {}
+
+
+class UnencodedImageArtifact(BaseModel):
+    """An image output returned as a PIL image, from an output node told not to encode.
+
+    A caller that runs further work on the image (or encodes it once itself) skips a PNG round trip per
+    graph. Kept apart from :class:`OutputArtifact` so a PIL image is never carried as PNG bytes.
+    """
+
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+
+    image: Image.Image
     kind: OutputKind = OutputKind.IMAGE
     source_node: str | None = None
     """The graph node title this artifact was collected from, when the backend knows it."""
@@ -185,7 +202,28 @@ class ExecutionBackend(Protocol):
 
         Raises:
             RuntimeError: If a declared output produced no artifacts (e.g. an execution error
-                inside the ComfyUI runtime).
+                inside the ComfyUI runtime), or an output node returned an unencoded image (use
+                :meth:`run_pipeline_unencoded` for those).
+        """
+        ...
+
+    def run_pipeline_unencoded(
+        self,
+        graph: dict[str, Any],
+        *,
+        outputs: tuple[OutputSpec, ...] = DEFAULT_IMAGE_OUTPUTS,
+        progress_callback: ProgressCallback | None = None,
+        defer_vram_unload: bool = False,
+        device_free_truth_mb: float | None = None,
+    ) -> list[UnencodedImageArtifact]:
+        """Execute a graph whose output nodes return unencoded images; see :meth:`run_pipeline`.
+
+        Returns:
+            list[UnencodedImageArtifact]: The images produced by the run, tagged with their source node.
+
+        Raises:
+            RuntimeError: If a declared output produced no artifacts, or an output node returned encoded
+                bytes (its ``encode_png`` input was left on).
         """
         ...
 

@@ -267,6 +267,36 @@ class TestHordeUpscaling:
             post_process_function=self.hordelib_instance.image_facefix,
         )
 
+    def test_post_process_chain_matches_sequential_operations(self):
+        """A chain run as one graph gives the image the same operations give one call at a time.
+
+        The requested order has the upscaler first; the chain runs the face fixer first, so the reference is
+        built in that order. The single-call path quantises to 8 bits between operations and the chain does
+        not, so the images agree to within a small mean difference, not bit for bit.
+        """
+        import numpy as np
+
+        source = Image.open("images/test_facefix.png").convert("RGB")
+
+        chained = self.hordelib_instance.post_process_chain(source, ["RealESRGAN_x4plus", "CodeFormers"])
+
+        restored = self.hordelib_instance.image_facefix({"model": "CodeFormers", "source_image": source})
+        assert restored.image is not None
+        upscaled = self.hordelib_instance.image_upscale(
+            {"model": "RealESRGAN_x4plus", "source_image": restored.image},
+        )
+        assert upscaled.image is not None
+
+        assert chained.image is not None
+        assert chained.rawpng is None
+        assert chained.image.size == (source.width * 4, source.height * 4)
+        assert chained.image.size == upscaled.image.size
+        difference = np.abs(
+            np.asarray(chained.image.convert("RGB"), dtype=np.int16)
+            - np.asarray(upscaled.image.convert("RGB"), dtype=np.int16),
+        )
+        assert float(difference.mean()) < 1.0
+
     def test_image_facefix_gfpgan(self):
         self.post_processor_check(
             model_name="GFPGAN",

@@ -92,6 +92,7 @@ from hordelib.pipeline.payload_pp import (
     StripBackgroundPayload,
     UpscalePayload,
     classify_post_processor,
+    order_post_processing,
 )
 from hordelib.preload import controlnet_annotators_present
 from hordelib.utils.ioredirect import ComfyUIProgress, ComfyUIProgressUnit
@@ -220,6 +221,7 @@ __all__ = [
     "is_initialised",
     "log_free_ram",
     "offthread_vram_sampling_ready",
+    "order_post_processing",
     "restore_components",
     "set_gpu_sampling_lease",
     "trim_host_memory",

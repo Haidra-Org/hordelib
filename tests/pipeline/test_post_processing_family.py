@@ -8,6 +8,7 @@ from hordelib.pipeline.families.post_processing import (
     IMAGE_FACEFIX_DEFINITION,
     IMAGE_UPSCALE_DEFINITION,
     POST_PROCESSING_REGISTRY,
+    compose_post_processing_chain,
 )
 from hordelib.pipeline.payload_pp import (
     FacefixPayload,
@@ -15,6 +16,7 @@ from hordelib.pipeline.payload_pp import (
     StripBackgroundPayload,
     UpscalePayload,
     classify_post_processor,
+    order_post_processing,
     post_processing_payload_from_horde_dict,
 )
 
@@ -41,6 +43,25 @@ class TestClassification:
 
     def test_unknown(self) -> None:
         assert classify_post_processor("not_a_post_processor") is None
+
+
+class TestOrder:
+    def test_facefixers_before_upscalers_before_strip_background(self) -> None:
+        names = ["strip_background", "RealESRGAN_x4plus", "GFPGAN"]
+        assert order_post_processing(names) == ["GFPGAN", "RealESRGAN_x4plus", "strip_background"]
+
+    def test_groups_keep_caller_order(self) -> None:
+        names = ["NMKD_Siax", "CodeFormers", "RealESRGAN_x2plus", "GFPGAN"]
+        assert order_post_processing(names) == ["CodeFormers", "GFPGAN", "NMKD_Siax", "RealESRGAN_x2plus"]
+
+    def test_unrecognized_names_are_kept_last(self) -> None:
+        names = ["not_a_post_processor", "strip_background", "GFPGAN"]
+        assert order_post_processing(names) == ["GFPGAN", "strip_background", "not_a_post_processor"]
+
+    def test_input_is_not_mutated(self) -> None:
+        names = ["RealESRGAN_x4plus", "GFPGAN"]
+        order_post_processing(names)
+        assert names == ["RealESRGAN_x4plus", "GFPGAN"]
 
 
 class TestPayloadFromDict:
@@ -174,3 +195,115 @@ class TestMaterialization:
         graph = IMAGE_FACEFIX_DEFINITION.materialize(payload, context).to_api_dict()
         restore = next(n for n in graph.values() if n["_meta"]["title"] == "face_restore_with_model")
         assert restore["inputs"]["codeformer_fidelity"] == 0.5
+
+
+def _upscale(source_image: Image.Image, model_file: str) -> tuple[UpscalePayload, PostProcessingContext]:
+    return (
+        UpscalePayload(model="NMKD_Siax", source_image=source_image),
+        PostProcessingContext(model_name="NMKD_Siax", model_file=model_file),
+    )
+
+
+def _facefix(source_image: Image.Image) -> tuple[FacefixPayload, PostProcessingContext]:
+    return (
+        FacefixPayload(model="CodeFormers", source_image=source_image, fidelity=0.7, strength=0.25),
+        PostProcessingContext(model_name="CodeFormers", model_file="codeformer.pth"),
+    )
+
+
+def _of_class(graph: dict, class_type: str) -> list[str]:
+    return [title for title, node in graph.items() if node["class_type"] == class_type]
+
+
+def _links(graph: dict) -> dict[str, str]:
+    """Every connected input as ``title.input`` -> source title."""
+    return {
+        f"{title}.{name}": value[0]
+        for title, node in graph.items()
+        for name, value in node["inputs"].items()
+        if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str)
+    }
+
+
+def _cross_stage_links(graph: dict, index: int) -> dict[str, str]:
+    prefix = f"stage{index}_"
+    return {
+        target: source
+        for target, source in _links(graph).items()
+        if target.startswith(prefix) and not source.startswith(prefix)
+    }
+
+
+def _assert_chain_shape(graph: dict, stage_count: int) -> None:
+    assert len(_of_class(graph, "HordeImageLoader")) == 1
+    assert len(_of_class(graph, "HordeImageOutput")) == 1
+    assert all(source in graph for source in _links(graph).values())
+    assert all(node["_meta"]["title"] == title for title, node in graph.items())
+    assert _of_class(graph, "HordeImageLoader") == ["stage0_image_loader"]
+    assert _of_class(graph, "HordeImageOutput") == [f"stage{stage_count - 1}_output_image"]
+    assert not _cross_stage_links(graph, 0)
+    for index in range(1, stage_count):
+        # A later stage reads only the previous stage's result, never a model loader or an older stage.
+        sources = set(_cross_stage_links(graph, index).values())
+        assert len(sources) == 1
+        (source,) = sources
+        assert source.startswith(f"stage{index - 1}_")
+        assert source != f"stage{index - 1}_model_loader"
+
+
+class TestComposedChain:
+    def test_empty_chain_rejected(self) -> None:
+        with pytest.raises(ValueError):
+            compose_post_processing_chain([])
+
+    def test_single_upscale_is_the_materialized_definition(self, source_image: Image.Image) -> None:
+        payload, context = _upscale(source_image, "NMKD_Siax.pth")
+        chain = compose_post_processing_chain([(payload, context)])
+        expected = IMAGE_UPSCALE_DEFINITION.materialize(payload, context).to_api_dict()
+        # PIL images compare by mode, size and pixels, so the bound image takes part in the equality.
+        assert chain.graph.to_api_dict() == expected
+        assert [output.node for output in chain.outputs] == ["output_image"]
+
+    def test_facefix_then_upscale(self, source_image: Image.Image) -> None:
+        chain = compose_post_processing_chain([_facefix(source_image), _upscale(source_image, "4x_Siax.pth")])
+        graph = chain.graph.to_api_dict()
+        _assert_chain_shape(graph, 2)
+        assert [output.node for output in chain.outputs] == ["stage1_output_image"]
+        assert graph["stage0_model_loader"]["inputs"]["model_name"] == "codeformer.pth"
+        assert graph["stage1_model_loader"]["inputs"]["model_name"] == "4x_Siax.pth"
+        assert graph["stage0_face_restore_with_model"]["inputs"]["codeformer_fidelity"] == 0.7
+        assert graph["stage0_facefix_blend"]["inputs"]["blend_factor"] == 0.25
+        assert graph["stage0_face_restore_with_model"]["inputs"]["image"][0] == "stage0_image_loader"
+        assert graph["stage0_facefix_blend"]["inputs"]["image1"][0] == "stage0_image_loader"
+        assert set(_cross_stage_links(graph, 1).values()) == {"stage0_facefix_blend"}
+
+    def test_two_upscalers(self, source_image: Image.Image) -> None:
+        chain = compose_post_processing_chain(
+            [_upscale(source_image, "first.pth"), _upscale(source_image, "second.pth")],
+        )
+        graph = chain.graph.to_api_dict()
+        _assert_chain_shape(graph, 2)
+        assert graph["stage0_model_loader"]["inputs"]["model_name"] == "first.pth"
+        assert graph["stage1_model_loader"]["inputs"]["model_name"] == "second.pth"
+
+    def test_upscale_then_facefix_rewires_both_loader_consumers(self, source_image: Image.Image) -> None:
+        chain = compose_post_processing_chain([_upscale(source_image, "4x.pth"), _facefix(source_image)])
+        graph = chain.graph.to_api_dict()
+        _assert_chain_shape(graph, 2)
+        assert set(_cross_stage_links(graph, 1)) == {
+            "stage1_face_restore_with_model.image",
+            "stage1_facefix_blend.image1",
+        }
+
+    def test_facefix_upscale_upscale(self, source_image: Image.Image) -> None:
+        chain = compose_post_processing_chain(
+            [_facefix(source_image), _upscale(source_image, "a.pth"), _upscale(source_image, "b.pth")],
+        )
+        graph = chain.graph.to_api_dict()
+        _assert_chain_shape(graph, 3)
+        assert [graph[f"stage{i}_model_loader"]["inputs"]["model_name"] for i in range(3)] == [
+            "codeformer.pth",
+            "a.pth",
+            "b.pth",
+        ]
+        assert graph["stage0_facefix_blend"]["inputs"]["blend_factor"] == 0.25
