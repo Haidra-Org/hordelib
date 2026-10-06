@@ -5,7 +5,11 @@ from __future__ import annotations
 import pytest
 import torch
 
-from hordelib.execution.cpu_weight_retention import restore_cpu_origins, stash_cpu_origins
+from hordelib.execution.cpu_weight_retention import (
+    release_copied_back_weights,
+    restore_cpu_origins,
+    stash_cpu_origins,
+)
 from hordelib.execution.weight_prefetch import collect_cpu_weight_ranges, prefetch_ranges, touch_cpu_weights
 
 
@@ -68,6 +72,35 @@ def test_restore_returns_the_recorded_cpu_tensors_after_a_device_round_trip() ->
         assert torch.equal(param.data, origins[name])
     module.to("cpu")
     assert restore_cpu_origins(module) == (0, 0)
+
+
+def test_release_returns_copied_back_weights_to_their_origins_and_unpins_them() -> None:
+    """A CPU copy of a recorded origin (what a partial unload leaves) is unpinned, then replaced by the origin."""
+    module = _module()
+    origins = {name: p.data for name, p in module.named_parameters()}
+    stash_cpu_origins(module)
+    for name, param in module.named_parameters():
+        if name != "0.bias":
+            param.data = param.data.clone()
+    unpinned: list[str] = []
+    released, released_bytes = release_copied_back_weights(module, skip_keys={"1.bias"}, unpin=unpinned.append)
+    expected = [name for name, _ in module.named_parameters() if name not in ("0.bias", "1.bias")]
+    assert released == len(expected)
+    assert released_bytes == sum(origins[name].numel() * origins[name].element_size() for name in expected)
+    assert unpinned == expected
+    for name, param in module.named_parameters():
+        if name == "1.bias":
+            assert param.data.data_ptr() != origins[name].data_ptr()
+            continue
+        assert param.data.data_ptr() == origins[name].data_ptr()
+    assert release_copied_back_weights(module, skip_keys={"1.bias"}) == (0, 0)
+
+
+def test_release_leaves_a_weight_whose_shape_changed() -> None:
+    module = _module()
+    stash_cpu_origins(module)
+    module[0].weight.data = torch.zeros(2, 2, dtype=torch.float16)
+    assert release_copied_back_weights(module) == (0, 0)
 
 
 def test_kill_switches_disable_both_mechanisms(monkeypatch: pytest.MonkeyPatch) -> None:

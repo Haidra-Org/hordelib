@@ -653,6 +653,42 @@ def _model_patcher_unpatch_model_hijack(model_patcher, device_to=None, unpatch_w
     return _originals["model_patcher_unpatch_model"](model_patcher, device_to, unpatch_weights)
 
 
+def _model_patcher_partially_unload_hijack(model_patcher, device_to, *args, **kwargs):
+    """Intercepts comfy ModelPatcher.partially_unload to release the private copies its moves leave behind.
+
+    The original moves whole modules back to the host with ``Module.to`` and pins the copies. Each unpatched
+    weight is then pointed back at its retained CPU origin (see ``cpu_weight_retention``), which frees the copy
+    and keeps the next load reading from the checkpoint mapping. Keys the patcher backed up are left to it.
+    """
+    freed = _originals["model_patcher_partially_unload"](model_patcher, device_to, *args, **kwargs)
+    if getattr(device_to, "type", None) == "cpu":
+        from hordelib.execution.cpu_weight_retention import release_copied_back_weights
+
+        try:
+            release_copied_back_weights(
+                model_patcher.model,
+                skip_keys=set(model_patcher.backup.keys()),
+                unpin=model_patcher.unpin_weight,
+            )
+        except Exception as exc:
+            logger.warning("Copied-back weight release skipped; the private copies stay: {}", exc)
+    return freed
+
+
+def _pin_memory_hijack(tensor, *args, **kwargs):
+    """Intercepts comfy pin_memory so a weight still backed by its checkpoint mapping is never pinned.
+
+    Registering a copy-on-write file mapping as pinned host memory makes the kernel copy every page into
+    private memory, which costs the size of the weight per process and defeats ``zero_copy_load``. Such
+    weights stay pageable; everything already private is pinned as ComfyUI intends.
+    """
+    from hordelib.execution.zero_copy_load import is_file_backed
+
+    if is_file_backed(tensor):
+        return False
+    return _originals["pin_memory"](tensor, *args, **kwargs)
+
+
 def _calculate_weight_hijack(*args, **kwargs):
     patches = args[0]
 
@@ -801,6 +837,18 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
             "unpatch_model",
             _model_patcher_unpatch_model_hijack,
             _originals.get("model_patcher_unpatch_model"),
+        ),
+        "model_patcher_partially_unload": _MonkeyPatchBinding(
+            ModelPatcher,
+            "partially_unload",
+            _model_patcher_partially_unload_hijack,
+            _originals.get("model_patcher_partially_unload"),
+        ),
+        "pin_memory": _MonkeyPatchBinding(
+            model_management,
+            "pin_memory",
+            _pin_memory_hijack,
+            _originals.get("pin_memory"),
         ),
         "lora_calculate_weight": _MonkeyPatchBinding(
             comfy.lora,

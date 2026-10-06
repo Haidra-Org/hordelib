@@ -211,9 +211,22 @@ eviction, and a private copy of the weights per process) becomes a no-op; the re
 to what the copy would have produced. LoRA-patched keys (the patcher's own `backup`) are left to ComfyUI.
 Kill switch: `HORDELIB_DISABLE_CPU_WEIGHT_RETENTION=1`.
 
+Two further ComfyUI paths would undo the sharing and are covered by the same modules. ComfyUI registers every
+weight it leaves off the device as pinned host memory (`pin_memory`, on by default), and registering a
+copy-on-write file mapping makes the kernel copy each page into private memory: measured on Linux, a
+partially loaded SDXL UNet went from 0 to 4.9 GB anonymous memory in the one process, the size of the weight,
+and stayed that way after the unload. The zero-copy loader tags each weight it adopts from a mapping with its
+data pointer (`is_file_backed`), and the `pin_memory` hijack declines those weights; weights that are already
+private (a dtype-cast copy, a patched weight) are pinned as before. `ModelPatcher.partially_unload` moves
+modules back to the host with `Module.to`, a fresh private copy per weight, which it then pins; its hijack
+runs `release_copied_back_weights` afterwards, which unpins each unpatched copy and points the parameter
+back at its retained origin, so the copy is freed and the next load again restores to the mapping. The cost
+is that an offloaded (low-VRAM) weight that still lives in the mapping is streamed from pageable memory;
+on an 8 GB card running SDXL with the UNet fully offloaded that measured about 20% slower sampling.
+
 ## The monkeypatches
 
-Seven ComfyUI internals are patched at import time (`hordelib/execution/comfy_patches.py`),
+Nine ComfyUI internals are patched at import time (`hordelib/execution/comfy_patches.py`),
 all policy injections with no native hook:
 
 - `load_models_gpu` and `ModelPatcher.load`: force full GPU loads (with VRAM-overflow and
@@ -230,6 +243,8 @@ all policy injections with no native hook:
   host even the support weights themselves.
 - `ModelPatcher.unpatch_model`: restore the recorded CPU tensors instead of copying weights back from the
   device (see the section above).
+- `ModelPatcher.partially_unload` and `comfy.model_management.pin_memory`: release the private copies a
+  partial unload makes, and never pin a weight still backed by its checkpoint mapping (see the section above).
 - `text_encoder_initial_device`: load text encoders on CPU first.
 - `comfy.lora.calculate_weight`: repair malformed "diff" patch tuples.
 - `IsChangedCache.get`: prompt-change logging.

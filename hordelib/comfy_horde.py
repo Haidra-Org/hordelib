@@ -457,6 +457,18 @@ def do_comfy_import(
             "unpatch_model",
             comfy_patches._model_patcher_unpatch_model_hijack,
         )
+        comfy_patches.capture_and_patch(
+            "model_patcher_partially_unload",
+            ModelPatcher,
+            "partially_unload",
+            comfy_patches._model_patcher_partially_unload_hijack,
+        )
+        comfy_patches.capture_and_patch(
+            "pin_memory",
+            comfy.model_management,
+            "pin_memory",
+            comfy_patches._pin_memory_hijack,
+        )
 
         import comfy.lora
 

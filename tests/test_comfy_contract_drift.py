@@ -38,9 +38,7 @@ about; extend the typed event layer (``hordelib.execution.comfy_events``) before
 this set.
 """
 
-_EXPECTED_SERVER_SURFACE = frozenset(
-    {"client_id", "last_node_id", "sockets_metadata", "send_sync", "queue_updated"}
-)
+_EXPECTED_SERVER_SURFACE = frozenset({"client_id", "last_node_id", "sockets_metadata", "send_sync", "queue_updated"})
 """The complete server surface ComfyUI's executor touches when running headless.
 
 ``client_id`` is read and written (``execute_async`` assigns it from ``extra_data``),
@@ -514,6 +512,22 @@ class TestMonkeypatchSignaturePins:
         # The hijack passes (patcher, device_to, unpatch_weights) positionally and restores CPU weights only
         # for an unload to the offload device with weights unpatched, so both names must survive.
         assert parameters[:3] == ["self", "device_to", "unpatch_weights"]
+
+    def test_model_patcher_partially_unload_signature(self, init_horde: None) -> None:
+        from hordelib.execution.comfy_patches import _originals
+
+        original_partial_unload = _originals.get("model_patcher_partially_unload")
+        assert original_partial_unload is not None, "ModelPatcher.partially_unload monkeypatch was never installed"
+        parameters = list(inspect.signature(original_partial_unload).parameters)
+        # The hijack reads device_to to decide whether an unload went to the host; the rest is passed through.
+        assert parameters[:2] == ["self", "device_to"]
+
+    def test_pin_memory_takes_the_tensor_first(self, init_horde: None) -> None:
+        from hordelib.execution.comfy_patches import _originals
+
+        original_pin_memory = _originals.get("pin_memory")
+        assert original_pin_memory is not None, "pin_memory monkeypatch was never installed"
+        assert list(inspect.signature(original_pin_memory).parameters)[0] == "tensor"
 
     def test_lora_calculate_weight_exists(self, init_horde: None) -> None:
         from hordelib.execution.comfy_patches import _originals

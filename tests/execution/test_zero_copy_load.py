@@ -17,7 +17,11 @@ from pathlib import Path
 import pytest
 import torch
 
-from hordelib.execution.zero_copy_load import checked_file_mappings, zero_copy_state_dict_assignment
+from hordelib.execution.zero_copy_load import (
+    checked_file_mappings,
+    is_file_backed,
+    zero_copy_state_dict_assignment,
+)
 
 _INVALID_STORAGE_MESSAGE = "Attempted to access the data pointer on an invalid python storage."
 
@@ -183,6 +187,48 @@ def test_safetensors_load_goes_through_the_guard(tmp_path: Path, monkeypatch: py
     assert mapped_files == [str(file_path)]
     assert torch.equal(loaded, torch.arange(8, dtype=torch.float16))
     del loaded
+
+
+def test_a_weight_adopted_from_a_mapping_is_tagged_file_backed(tmp_path: Path) -> None:
+    """A parameter adopted from a safetensors mapping is file-backed; a private tensor or copy is not."""
+    from safetensors.torch import load_file, save_file
+
+    file_path = tmp_path / "tiny.safetensors"
+    save_file({"weight": torch.ones(4, 4, dtype=torch.float16)}, str(file_path))
+    module = _module()
+    private = _module()
+
+    with zero_copy_state_dict_assignment():
+        mapped = load_file(str(file_path), device="cpu")
+        module.load_state_dict(mapped)
+        private.load_state_dict({"weight": torch.ones(4, 4, dtype=torch.float16)})
+
+    assert module.weight.data_ptr() == mapped["weight"].data_ptr()
+    assert is_file_backed(module.weight)
+    assert not is_file_backed(private.weight)
+    origin = module.weight.data
+    module.weight.data = origin.clone()
+    assert not is_file_backed(module.weight)
+    module.weight.data = origin
+    assert is_file_backed(module.weight)
+    del mapped, origin
+
+
+def test_a_tag_survives_a_later_adopting_load_of_the_same_tensor(tmp_path: Path) -> None:
+    """A tagged weight adopted again by another module, after the mapping scope closed, stays tagged."""
+    from safetensors.torch import load_file, save_file
+
+    file_path = tmp_path / "tiny.safetensors"
+    save_file({"weight": torch.ones(4, 4, dtype=torch.float16)}, str(file_path))
+    with zero_copy_state_dict_assignment():
+        mapped = load_file(str(file_path), device="cpu")
+        first = _module()
+        first.load_state_dict(mapped)
+    second = _module()
+    with zero_copy_state_dict_assignment():
+        second.load_state_dict({"weight": first.weight})
+    assert is_file_backed(second.weight)
+    del mapped
 
 
 def test_mapping_guard_is_restored_after_scope_and_error() -> None:

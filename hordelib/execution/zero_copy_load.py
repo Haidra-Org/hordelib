@@ -16,7 +16,13 @@ backend's cast semantics exactly. The hook is scoped by context manager to the c
 so no other ``load_state_dict`` caller in the process is affected.
 
 ``checked_file_mappings`` guards the same loads against a file mapping the host could not commit,
-turning what would be an access violation into a ``RuntimeError`` the loader can report.
+turning what would be an access violation into a ``RuntimeError`` the loader can report. The assignment
+scope enters it itself, so every adopting load is guarded and the guard sees every mapping the load makes.
+
+A weight adopted from a mapping is tagged with its data pointer (``is_file_backed``). Registering such a
+weight with the CUDA driver as pinned host memory (ComfyUI pins every weight it leaves off the device)
+forces the kernel to make its pages private, which undoes the sharing above at the size of the weight; the
+tag is what lets the pinning hook decline those weights and pin only memory that is already private.
 """
 
 from __future__ import annotations
@@ -42,6 +48,60 @@ _MISSING_ATTRIBUTE = object()
 _shadowed_from_file: object = _MISSING_ATTRIBUTE
 """The ``from_file`` entry in ``torch.UntypedStorage``'s own namespace before the guard shadowed it."""
 _unguarded_from_file: Callable[..., Any] | None = None
+_mapping_ranges: list[tuple[int, int]] = []
+"""``(base pointer, byte length)`` of every file mapping made while the guard is active; cleared at its exit."""
+
+_FILE_BACKED_ATTR = "_hordelib_file_backed_ptr"
+"""Attribute holding the data pointer a weight had when it was adopted from a file mapping."""
+
+
+def _data_pointer(tensor: torch.Tensor) -> int | None:
+    try:
+        return tensor.data_ptr()
+    except Exception:
+        return None
+
+
+def _in_mapping_range(pointer: int | None) -> bool:
+    if pointer is None or pointer == 0:
+        return False
+    return any(base <= pointer < base + length for base, length in _mapping_ranges)
+
+
+def mark_file_backed(tensor: torch.Tensor) -> None:
+    """Tag ``tensor`` as a view over a checkpoint file mapping at its current data pointer."""
+    pointer = _data_pointer(tensor)
+    if pointer is None:
+        return
+    try:
+        setattr(tensor, _FILE_BACKED_ATTR, pointer)
+    except AttributeError:
+        pass
+
+
+def is_file_backed(tensor: torch.Tensor) -> bool:
+    """Whether ``tensor``'s data is still the checkpoint file mapping it was adopted from.
+
+    The tag records the data pointer at adoption, so a weight whose data was later replaced by a private
+    copy (a device round trip that copied back) no longer counts, and one restored to its origin counts again.
+    """
+    tag = getattr(tensor, _FILE_BACKED_ATTR, None)
+    return tag is not None and tag == _data_pointer(tensor)
+
+
+def _tag_file_backed_destinations(module: torch.nn.Module, state_dict: Mapping[str, Any]) -> None:
+    """After an adopting load, tag each destination weight whose data is a state-dict tensor from a mapping."""
+    destinations: dict[str, torch.Tensor] = dict(module.named_parameters())
+    destinations.update(dict(module.named_buffers()))
+    for key, incoming in state_dict.items():
+        destination = destinations.get(key)
+        if destination is None or not isinstance(incoming, torch.Tensor):
+            continue
+        pointer = _data_pointer(incoming)
+        if not (is_file_backed(incoming) or _in_mapping_range(pointer)):
+            continue
+        if _data_pointer(destination) == pointer:
+            mark_file_backed(destination)
 
 
 def _all_dtypes_match(module: torch.nn.Module, state_dict: Mapping[str, Any]) -> bool:
@@ -70,8 +130,11 @@ def _assigning_load_state_dict(
 ) -> Any:
     """``load_state_dict`` that adopts mmap-backed tensors when doing so is byte-identical to copying."""
     if not assign and getattr(_hook_state, "active", False) and _all_dtypes_match(self, state_dict):
-        return _original_load_state_dict(self, state_dict, strict=strict, assign=True)
-    return _original_load_state_dict(self, state_dict, strict=strict, assign=assign)
+        assign = True
+    result = _original_load_state_dict(self, state_dict, strict=strict, assign=assign)
+    if assign:
+        _tag_file_backed_destinations(self, state_dict)
+    return result
 
 
 @contextlib.contextmanager
@@ -79,7 +142,8 @@ def zero_copy_state_dict_assignment() -> Generator[None, None, None]:
     """Scope within which module loads adopt (rather than copy) dtype-matching state-dict tensors.
 
     Re-entrant and thread-local: only the calling thread's loads are affected, and nesting is safe.
-    Any failure to install degrades to the ordinary copying behavior rather than raising.
+    Any failure to install degrades to the ordinary copying behavior rather than raising. The scope also
+    holds ``checked_file_mappings`` so the mappings a load makes are known when its weights are tagged.
     """
     already_active = getattr(_hook_state, "active", False)
     _hook_state.active = True
@@ -92,7 +156,8 @@ def zero_copy_state_dict_assignment() -> Generator[None, None, None]:
         except Exception as hook_error:
             logger.debug(f"Zero-copy load hook not installed ({hook_error})")
     try:
-        yield
+        with checked_file_mappings():
+            yield
     finally:
         _hook_state.active = already_active
         if installed:
@@ -120,6 +185,8 @@ def _checked_from_file(filename: Any, shared: bool = False, nbytes: int = 0) -> 
         raise
     if nbytes > 0 and data_pointer == 0:
         raise commit_failure
+    if nbytes > 0:
+        _mapping_ranges.append((data_pointer, nbytes))
     return storage
 
 
@@ -148,6 +215,7 @@ def checked_file_mappings() -> Generator[None, None, None]:
         with _mapping_guard_lock:
             _mapping_guard_depth -= 1
             if _mapping_guard_depth == 0:
+                _mapping_ranges.clear()
                 if _shadowed_from_file is _MISSING_ATTRIBUTE:
                     del torch.UntypedStorage.from_file
                 else:
