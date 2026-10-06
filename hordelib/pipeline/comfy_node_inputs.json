@@ -351,7 +351,9 @@
       "model",
       "shift"
     ],
-    "optional": []
+    "optional": [
+      "sampling"
+    ]
   },
   "ModelSamplingFlux": {
     "required": [
