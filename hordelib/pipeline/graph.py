@@ -151,6 +151,70 @@ class ComfyGraph:
         }
         return NodeRef(title)
 
+    def links_into(self, title: str) -> dict[str, NodeRef]:
+        """Return the connected inputs of a node, keyed by input name.
+
+        Raises:
+            KeyError: If no node with that title exists.
+        """
+        return {
+            name: NodeRef(value[0], value[1])
+            for name, value in self._graph[title].get("inputs", {}).items()
+            if _is_link(value)
+        }
+
+    def inputs_referencing(self, title: str) -> list[str]:
+        """Return every dotted ``title.input`` path connected to an output of ``title``."""
+        return [
+            f"{node_title}.{name}"
+            for node_title in self._graph
+            for name, source in self.links_into(node_title).items()
+            if source.title == title
+        ]
+
+    def remove_node(self, title: str) -> None:
+        """Remove a node that no input is connected to.
+
+        Raises:
+            KeyError: If no node with that title exists.
+            ValueError: If any input is still connected to the node.
+        """
+        if title not in self._graph:
+            raise KeyError(f"Node {title!r} not present in this graph")
+        consumers = self.inputs_referencing(title)
+        if consumers:
+            raise ValueError(f"Node {title!r} is still connected to {consumers}")
+        del self._graph[title]
+
+    def graft(self, other: "ComfyGraph", *, prefix: str) -> dict[str, str]:
+        """Copy every node of ``other`` into this graph under ``prefix`` + its title.
+
+        Connections inside ``other`` follow the renamed titles. ``other`` is not modified.
+
+        Returns:
+            The mapping from each title in ``other`` to its title in this graph.
+
+        Raises:
+            ValueError: If a renamed title already exists in this graph.
+        """
+        mapping = {title: f"{prefix}{title}" for title in other._graph}
+        collisions = sorted(new for new in mapping.values() if new in self._graph)
+        if collisions:
+            raise ValueError(f"Grafted titles already exist in this graph: {collisions}")
+        for title, node in copy.deepcopy(other._graph).items():
+            new_title = mapping[title]
+            for name, value in node.get("inputs", {}).items():
+                if _is_link(value) and value[0] in mapping:
+                    node["inputs"][name] = [mapping[value[0]], value[1]]
+            node.setdefault("_meta", {})["title"] = new_title
+            self._graph[new_title] = node
+        return mapping
+
     def to_api_dict(self) -> GraphDict:
         """Return the graph as a plain dict for the execution backend (deep copy)."""
         return copy.deepcopy(self._graph)
+
+
+def _is_link(value: Any) -> bool:
+    """Whether an input value is a ComfyUI API-format connection ``[source_title, output_index]``."""
+    return isinstance(value, list) and len(value) == 2 and isinstance(value[0], str) and isinstance(value[1], int)

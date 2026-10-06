@@ -78,6 +78,58 @@ class TestComfyGraph:
         assert "HordeCheckpointLoader" in graph.class_types()
 
 
+def _small_graph() -> ComfyGraph:
+    graph = ComfyGraph({})
+    source = graph.add_node("source", "HordeImageLoader", {"image": None})
+    work = graph.add_node("work", "ImageBlend", {"image1": source, "image2": source, "blend_factor": 0.5})
+    graph.add_node("sink", "HordeImageOutput", {"images": work})
+    return graph
+
+
+class TestComfyGraphComposition:
+    def test_links_into(self):
+        graph = _small_graph()
+        assert graph.links_into("work") == {"image1": NodeRef("source"), "image2": NodeRef("source")}
+        assert graph.links_into("source") == {}
+
+    def test_inputs_referencing(self):
+        assert sorted(_small_graph().inputs_referencing("source")) == ["work.image1", "work.image2"]
+
+    def test_remove_connected_node_raises(self):
+        with pytest.raises(ValueError):
+            _small_graph().remove_node("source")
+
+    def test_remove_node(self):
+        graph = _small_graph()
+        graph.remove_node("sink")
+        assert not graph.has_node("sink")
+        with pytest.raises(KeyError):
+            graph.remove_node("sink")
+
+    def test_graft_renames_titles_and_links(self):
+        target = ComfyGraph({})
+        other = _small_graph()
+        mapping = target.graft(other, prefix="s0_")
+        assert mapping == {"source": "s0_source", "work": "s0_work", "sink": "s0_sink"}
+        assert target.node("s0_work")["inputs"]["image1"] == ["s0_source", 0]
+        assert target.node("s0_sink")["_meta"]["title"] == "s0_sink"
+        # the grafted graph is untouched
+        assert other.node("work")["inputs"]["image1"] == ["source", 0]
+
+    def test_graft_twice_keeps_graphs_apart(self):
+        target = ComfyGraph({})
+        target.graft(_small_graph(), prefix="s0_")
+        target.graft(_small_graph(), prefix="s1_")
+        assert target.links_into("s1_work")["image1"] == NodeRef("s1_source")
+        assert len(target.node_titles()) == 6
+
+    def test_graft_collision_raises(self):
+        target = ComfyGraph({})
+        target.graft(_small_graph(), prefix="s0_")
+        with pytest.raises(ValueError):
+            target.graft(_small_graph(), prefix="s0_")
+
+
 def _definition(
     name: str,
     *,
