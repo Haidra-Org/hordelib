@@ -14,13 +14,16 @@ per call and only when every incoming tensor's dtype matches its destination par
 (e.g. a component the caller intends to cast) falls back to the ordinary copying load, preserving the
 backend's cast semantics exactly. The hook is scoped by context manager to the checkpoint build alone,
 so no other ``load_state_dict`` caller in the process is affected.
+
+``checked_file_mappings`` guards the same loads against a file mapping the host could not commit,
+turning what would be an access violation into a ``RuntimeError`` the loader can report.
 """
 
 from __future__ import annotations
 
 import contextlib
 import threading
-from collections.abc import Generator, Mapping
+from collections.abc import Callable, Generator, Mapping
 from typing import Any
 
 import torch
@@ -29,6 +32,16 @@ from loguru import logger
 _hook_state = threading.local()
 
 _original_load_state_dict = torch.nn.Module.load_state_dict
+
+_INVALID_STORAGE_MESSAGE_FRAGMENT = "invalid python storage"
+"""Fragment of torch's ``data_ptr()`` error for a storage object with no backing allocation."""
+
+_mapping_guard_lock = threading.Lock()
+_mapping_guard_depth = 0
+_MISSING_ATTRIBUTE = object()
+_shadowed_from_file: object = _MISSING_ATTRIBUTE
+"""The ``from_file`` entry in ``torch.UntypedStorage``'s own namespace before the guard shadowed it."""
+_unguarded_from_file: Callable[..., Any] | None = None
 
 
 def _all_dtypes_match(module: torch.nn.Module, state_dict: Mapping[str, Any]) -> bool:
@@ -84,3 +97,60 @@ def zero_copy_state_dict_assignment() -> Generator[None, None, None]:
         _hook_state.active = already_active
         if installed:
             torch.nn.Module.load_state_dict = _original_load_state_dict  # type: ignore[method-assign]
+
+
+def _checked_from_file(filename: Any, shared: bool = False, nbytes: int = 0) -> Any:
+    """``torch.UntypedStorage.from_file`` that refuses a storage with no backing mapping.
+
+    Raises:
+        RuntimeError: The mapping came back without a data pointer, so the host could not commit it.
+    """
+    if _unguarded_from_file is None:
+        raise RuntimeError("checked_file_mappings is not active; the unguarded from_file is unknown")
+    storage = _unguarded_from_file(filename, shared, nbytes)
+    commit_failure = RuntimeError(
+        f"The host could not commit a {nbytes}-byte mapping of {filename}: "
+        "torch.UntypedStorage.from_file returned a storage with no data pointer",
+    )
+    try:
+        data_pointer = storage.data_ptr()
+    except RuntimeError as data_pointer_error:
+        if _INVALID_STORAGE_MESSAGE_FRAGMENT in str(data_pointer_error):
+            raise commit_failure from data_pointer_error
+        raise
+    if nbytes > 0 and data_pointer == 0:
+        raise commit_failure
+    return storage
+
+
+@contextlib.contextmanager
+def checked_file_mappings() -> Generator[None, None, None]:
+    """Context manager that makes a failed ``torch.UntypedStorage.from_file`` mapping raise.
+
+    On Windows torch maps a non-shared file copy-on-write, which charges the whole file to system commit,
+    and at the commit ceiling ``from_file`` returns an invalid storage without raising, which safetensors
+    then slices into a read at a NULL base. Inside this scope each mapping's data pointer is checked and a
+    missing one raises ``RuntimeError`` naming the file and size, so the load fails and the process lives.
+
+    The patch is process-wide (it only adds a check) and reference-counted: nested or concurrent scopes
+    keep it installed until the last one exits, which restores the previous ``from_file``.
+    """
+    global _mapping_guard_depth, _shadowed_from_file, _unguarded_from_file
+    with _mapping_guard_lock:
+        if _mapping_guard_depth == 0:
+            _shadowed_from_file = vars(torch.UntypedStorage).get("from_file", _MISSING_ATTRIBUTE)
+            _unguarded_from_file = torch.UntypedStorage.from_file
+            torch.UntypedStorage.from_file = staticmethod(_checked_from_file)  # type: ignore[method-assign,assignment]
+        _mapping_guard_depth += 1
+    try:
+        yield
+    finally:
+        with _mapping_guard_lock:
+            _mapping_guard_depth -= 1
+            if _mapping_guard_depth == 0:
+                if _shadowed_from_file is _MISSING_ATTRIBUTE:
+                    del torch.UntypedStorage.from_file
+                else:
+                    torch.UntypedStorage.from_file = _shadowed_from_file  # type: ignore[method-assign,assignment]
+                _shadowed_from_file = _MISSING_ATTRIBUTE
+                _unguarded_from_file = None

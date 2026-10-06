@@ -266,9 +266,9 @@ class HordeCheckpointLoader:
         resolved_ckpt_name = self._resolve_monolithic_ckpt_name(horde_model_name, ckpt_name)
         ckpt_path = self._resolve_ckpt_path(resolved_ckpt_name)
 
-        from hordelib.execution.zero_copy_load import zero_copy_state_dict_assignment
+        from hordelib.execution.zero_copy_load import checked_file_mappings, zero_copy_state_dict_assignment
 
-        with torch.no_grad(), zero_copy_state_dict_assignment():
+        with torch.no_grad(), zero_copy_state_dict_assignment(), checked_file_mappings():
             load_start_time = time.time()
             with logfire.span("model.load_checkpoint_guess_config"):
                 result = comfy.sd.load_checkpoint_guess_config(
@@ -380,9 +380,9 @@ class HordeCheckpointLoader:
         # (dtype-matching) instead of copying them into private memory: sibling processes pinning the
         # same model then share one set of physical pages via the OS page cache. See
         # hordelib.execution.zero_copy_load for the exact adoption rules and fallbacks.
-        from hordelib.execution.zero_copy_load import zero_copy_state_dict_assignment
+        from hordelib.execution.zero_copy_load import checked_file_mappings, zero_copy_state_dict_assignment
 
-        with torch.no_grad(), zero_copy_state_dict_assignment():
+        with torch.no_grad(), zero_copy_state_dict_assignment(), checked_file_mappings():
             load_start_time = time.time()
             with logfire.span("model.load_diffusion_model", file_type=file_type):
                 model_options: dict[str, Any] = {}
@@ -507,9 +507,9 @@ class HordeCheckpointLoader:
         )
         _release_single_slot_before_cold_load(cache)
 
-        from hordelib.execution.zero_copy_load import zero_copy_state_dict_assignment
+        from hordelib.execution.zero_copy_load import checked_file_mappings, zero_copy_state_dict_assignment
 
-        with torch.no_grad(), zero_copy_state_dict_assignment():
+        with torch.no_grad(), zero_copy_state_dict_assignment(), checked_file_mappings():
             load_start_time = time.time()
             state_dict = comfy.utils.load_torch_file(str(plan.vae_file_path))
             loaded_vae = comfy.sd.VAE(sd=state_dict)
