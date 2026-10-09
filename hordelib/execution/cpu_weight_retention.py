@@ -73,6 +73,25 @@ def stash_cpu_origins(module: torch.nn.Module) -> int:
     return recorded
 
 
+def carry_cpu_origin(previous: torch.Tensor, replacement: torch.Tensor) -> bool:
+    """Copy ``previous``'s recorded CPU origin onto ``replacement``; returns whether a record was carried.
+
+    ``Module._apply`` keeps each Parameter object and swaps its data, so the record survives a move. ComfyUI's
+    quantized ops register a new Parameter per move instead, and without the carry the record is lost and the
+    next unload copies the weight back into private memory. Only a plain ``Parameter`` takes the record: the
+    restore assigns ``.data``, which on a tensor subclass wrapper such as ``QuantizedTensor`` replaces the outer
+    tensor's metadata and leaves the wrapped payload where it was.
+    """
+    origin: Any = getattr(previous, _ORIGIN_ATTR, None)
+    if origin is None or type(replacement) is not torch.nn.Parameter:
+        return False
+    try:
+        setattr(replacement, _ORIGIN_ATTR, origin)
+    except AttributeError:
+        return False
+    return True
+
+
 def restore_cpu_origins(
     module: torch.nn.Module,
     *,

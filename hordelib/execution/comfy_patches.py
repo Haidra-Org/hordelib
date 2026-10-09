@@ -685,6 +685,39 @@ def _model_patcher_partially_unload_hijack(model_patcher, device_to, *args, **kw
     return freed
 
 
+def _quantized_apply_hijack(module, fn, recurse=True):
+    """Replaces comfy.ops._quantized_apply so a no-op move keeps the Parameter and a rewrap keeps its CPU origin.
+
+    The original wraps every ``fn(param)`` result in a new ``Parameter``, even when ``fn`` returned ``param``
+    itself (a ``.to`` onto the device it is already on). Under ``torch.inference_mode`` that wrap detaches a
+    non-inference tensor subclass such as a comfy_kitchen ``QuantizedTensor`` and raises, so an unload during
+    the sampler fails in place of the error that caused it. A parameter ``fn`` returns unchanged is left as
+    registered. Any other result is wrapped as the original does, and a plain new Parameter takes over the old
+    one's recorded CPU origin (see ``cpu_weight_retention.carry_cpu_origin``) so the next unload can restore
+    it. Buffers and recursion are unchanged.
+    """
+    from hordelib.execution.cpu_weight_retention import carry_cpu_origin
+
+    if recurse:
+        for child in module.children():
+            child._apply(fn)
+    for key, param in module._parameters.items():
+        if param is None:
+            continue
+        moved = fn(param)
+        if moved is param:
+            continue
+        if (not torch.is_inference_mode_enabled()) and moved.is_inference():
+            moved = moved.clone()
+        rewrapped = torch.nn.Parameter(moved, requires_grad=False)
+        carry_cpu_origin(param, rewrapped)
+        module.register_parameter(key, rewrapped)
+    for key, buf in module._buffers.items():
+        if buf is not None:
+            module._buffers[key] = fn(buf)
+    return module
+
+
 def _pin_memory_hijack(tensor, *args, **kwargs):
     """Intercepts comfy pin_memory so a weight still backed by its checkpoint mapping is never pinned.
 

@@ -468,6 +468,15 @@ def do_comfy_import(
             "partially_unload",
             comfy_patches._model_patcher_partially_unload_hijack,
         )
+
+        import comfy.ops
+
+        comfy_patches.capture_and_patch(
+            "quantized_apply",
+            comfy.ops,
+            "_quantized_apply",
+            comfy_patches._quantized_apply_hijack,
+        )
         comfy_patches.capture_and_patch(
             "pin_memory",
             comfy.model_management,
