@@ -9,6 +9,10 @@ The run with the two loader hijacks disabled is printed and carries no assertion
 the model's components together, ComfyUI frees the older copies itself to make room, so the duplication only
 shows where everything fits. Anima fits a 16 GB card and Z-Image Turbo does not.
 
+Both runs collect garbage after every job, as ComfyUI's prompt worker does between prompts. Each discarded
+executor's output cache is a reference cycle that holds the stock loaders' copies, so without the collect each
+uncached Z-Image job leaves its text encoder in host memory and a few jobs exhaust the commit limit.
+
 Marked ``slow`` plus each model's marker. Run manually and serially, for example::
 
     uv run --no-sync pytest tests/test_split_loader_retention_gpu.py -m slow
@@ -16,6 +20,7 @@ Marked ``slow`` plus each model's marker. Run manually and serially, for example
 
 from __future__ import annotations
 
+import gc
 from collections import Counter
 
 import pytest
@@ -55,10 +60,15 @@ def _loaded_model_classes() -> Counter[str]:
 
 
 def _run_retained_jobs(hordelib_instance: HordeLib, model_name: str, job_count: int) -> Counter[str]:
+    import comfy.model_management
+
     for seed in range(job_count):
         results = hordelib_instance.basic_inference(_split_model_job(model_name, seed), defer_vram_unload=True)
         assert results
         assert not results[0].faults
+        del results
+        gc.collect()
+        comfy.model_management.soft_empty_cache()
     return _loaded_model_classes()
 
 
