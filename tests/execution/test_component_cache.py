@@ -66,6 +66,94 @@ def test_budget_zero_is_single_slot() -> None:
     assert cache.get(_key("b")) is not None
 
 
+def _kind_entry(identity: str, kind: ComponentSlotKind) -> ComponentCacheEntry:
+    return ComponentCacheEntry(
+        key=_key(identity, kind),
+        payload=(identity,),
+        approx_ram_mb=100,
+        source_ckpt_path=f"/models/{identity}",
+    )
+
+
+def test_budget_zero_keeps_one_entry_per_bare_kind() -> None:
+    """A split-files model's three components stay resident together under the single slot."""
+    cache = ComponentCache(budget_mb=0)
+
+    assert cache.put(_kind_entry("model:unet", ComponentSlotKind.UNET)) == []
+    assert cache.put(_kind_entry("text_encoders/te.safetensors", ComponentSlotKind.CLIP)) == []
+    assert cache.put(_kind_entry("vae/vae.safetensors", ComponentSlotKind.VAE)) == []
+
+    assert len(cache) == 3
+
+
+def test_budget_zero_insert_displaces_its_own_kind() -> None:
+    """A second text encoder replaces the first and leaves the diffusion model and VAE resident."""
+    cache = ComponentCache(budget_mb=0)
+    cache.put(_kind_entry("model:unet", ComponentSlotKind.UNET))
+    cache.put(_kind_entry("te_a", ComponentSlotKind.CLIP))
+    cache.put(_kind_entry("vae_a", ComponentSlotKind.VAE))
+
+    evicted = cache.put(_kind_entry("te_b", ComponentSlotKind.CLIP))
+
+    assert [entry.key.identity for entry in evicted] == ["te_a"]
+    assert {entry.identity for entry in cache.held_report()} == {"model:unet", "te_b", "vae_a"}
+
+
+def test_budget_zero_checkpoint_displaces_every_kind_and_is_displaced_by_any() -> None:
+    """A whole checkpoint carries its own text encoder and VAE, so it shares the slot with nothing."""
+    cache = ComponentCache(budget_mb=0)
+    cache.put(_kind_entry("model:unet", ComponentSlotKind.UNET))
+    cache.put(_kind_entry("te_a", ComponentSlotKind.CLIP))
+
+    evicted_by_checkpoint = cache.put(_kind_entry("sd15", ComponentSlotKind.CHECKPOINT))
+    assert sorted(entry.key.identity for entry in evicted_by_checkpoint) == ["model:unet", "te_a"]
+
+    evicted_by_vae = cache.put(_kind_entry("vae_a", ComponentSlotKind.VAE))
+    assert [entry.key.identity for entry in evicted_by_vae] == ["sd15"]
+    assert len(cache) == 1
+
+
+def test_release_single_slot_evicts_only_competitors() -> None:
+    """The release before a cold load drops what that load displaces and nothing else."""
+    cache = ComponentCache(budget_mb=0)
+    cache.put(_kind_entry("model:unet", ComponentSlotKind.UNET))
+    cache.put(_kind_entry("te_a", ComponentSlotKind.CLIP))
+
+    released = cache.release_single_slot(ComponentSlotKind.VAE)
+    assert released == []
+
+    released = cache.release_single_slot(ComponentSlotKind.CLIP)
+    assert [entry.key.identity for entry in released] == ["te_a"]
+    assert cache.get(_key("model:unet", ComponentSlotKind.UNET)) is not None
+
+    released = cache.release_single_slot(ComponentSlotKind.CHECKPOINT)
+    assert [entry.key.identity for entry in released] == ["model:unet"]
+    assert len(cache) == 0
+
+
+def test_release_unretained_drops_only_entries_held_while_retained() -> None:
+    """A checkpoint and a bare UNet keep the plain cache lifetime. Marked split components are released."""
+    cache = ComponentCache(budget_mb=0)
+    cache.put(_kind_entry("model:unet", ComponentSlotKind.UNET))
+    split_text_encoder = _kind_entry("text_encoders/te", ComponentSlotKind.CLIP)
+    split_text_encoder.held_only_while_retained = True
+    cache.put(split_text_encoder)
+
+    released = cache.release_unretained()
+
+    assert [entry.key.identity for entry in released] == ["text_encoders/te"]
+    assert [snapshot.identity for snapshot in cache.held_report()] == ["model:unet"]
+    assert cache.release_unretained() == []
+
+
+def test_release_single_slot_is_a_no_op_under_a_budget() -> None:
+    cache = ComponentCache(budget_mb=1000)
+    cache.put(_kind_entry("te_a", ComponentSlotKind.CLIP))
+
+    assert cache.release_single_slot(ComponentSlotKind.CLIP) == []
+    assert len(cache) == 1
+
+
 def test_positive_budget_holds_multiple_until_full() -> None:
     """A positive budget keeps as many entries as fit; the insert that overflows evicts the coldest."""
     cache = ComponentCache(budget_mb=250)

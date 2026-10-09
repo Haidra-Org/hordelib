@@ -790,6 +790,30 @@ async def IsChangedCache_get_hijack(self, *args, **kwargs):
     return result
 
 
+def _clip_loader_load_clip_hijack(
+    loader: typing.Any,
+    clip_name: str,
+    type: str = "stable_diffusion",
+    device: str = "default",
+) -> tuple[typing.Any, ...]:
+    """Serve ComfyUI's ``CLIPLoader`` through the component cache so a repeated load reuses the resident copy."""
+    from hordelib.nodes.node_model_loader import serve_split_text_encoder
+
+    return serve_split_text_encoder(
+        lambda: _originals["clip_loader_load_clip"](loader, clip_name, type=type, device=device),
+        clip_name=clip_name,
+        clip_type_name=type,
+        device=device,
+    )
+
+
+def _vae_loader_load_vae_hijack(loader: typing.Any, vae_name: str) -> tuple[typing.Any, ...]:
+    """Serve ComfyUI's ``VAELoader`` through the component cache so a repeated load reuses the resident copy."""
+    from hordelib.nodes.node_model_loader import serve_split_vae
+
+    return serve_split_vae(lambda: _originals["vae_loader_load_vae"](loader, vae_name), vae_name=vae_name)
+
+
 def text_encoder_initial_device_hijack(*args, **kwargs):
     # This ensures clip models are loaded on the CPU first
     return torch.device("cpu")
@@ -918,6 +942,20 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
             _originals.get("anima_encode_token_weights"),
         ),
     }
+
+    comfy_nodes = importlib.import_module("nodes")
+    bindings["clip_loader_load_clip"] = _MonkeyPatchBinding(
+        comfy_nodes.CLIPLoader,
+        "load_clip",
+        _clip_loader_load_clip_hijack,
+        _originals.get("clip_loader_load_clip"),
+    )
+    bindings["vae_loader_load_vae"] = _MonkeyPatchBinding(
+        comfy_nodes.VAELoader,
+        "load_vae",
+        _vae_loader_load_vae_hijack,
+        _originals.get("vae_loader_load_vae"),
+    )
 
     if _comfy_execution_module is not None:
         asset_enrichment = importlib.import_module("comfy_execution.asset_enrichment")

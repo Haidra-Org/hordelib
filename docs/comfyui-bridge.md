@@ -147,6 +147,16 @@ by a `ComponentCacheKey(kind, identity)`:
 - **Bare component** (`file_type` in {unet, vae, text_encoder}, loaded via `comfy.sd.load_diffusion_model`):
   `kind` is the component's slot (UNET/CLIP/VAE), `identity=<model name>:<file_type>`.
 - **Standalone VAE** (see below): `kind=VAE`, `identity=vae@<content-hash>`.
+- **Split-files loaders** (ComfyUI's `CLIPLoader` and `VAELoader`, used by the split-files graphs such as
+  Qwen and Z-Image): `kind=CLIP`, `identity=text_encoders/<file>:<clip type>:<device>`, and `kind=VAE`,
+  `identity=vae/<file>`. The stock loaders build a new object, and so a new ModelPatcher, on every call, and
+  ComfyUI tracks loaded models by patcher identity. On a process whose diffusion model is retained across
+  jobs, so no unload runs between them, each job's fresh text encoder and VAE were uploaded beside the
+  previous jobs' copies. Serving the resident copy keeps one patcher per file. A name that resolves to no
+  file in its folder (`pixel_space`, the tiny autoencoders) goes straight to the stock loader. These entries
+  are held only while the model is retained. A run that ends without `defer_vram_unload` releases them
+  (`ComponentCache.release_unretained`), because their only use is the retained model's next job, and on a
+  process that is not retained they would hold host RAM for nothing.
 
 **Budget and eviction.** The budget is `HORDE_COMPONENT_CACHE_MB` megabytes, read once per process. A load
 inserts its entry and the cache evicts the least-recently-used entries until the summed approximate RAM cost
@@ -157,9 +167,12 @@ conservative per-kind constant when no sidecar is available; the estimate bounds
 resident-set delta. Evictions, hits, misses, and resident megabytes are recorded per job on the metrics
 collector (`component_cache_*` fields on `JobPhaseMetrics`).
 
-**Default (`0`) is the rollback lever.** With the budget unset or `0`, the cache holds exactly one component:
-each insert evicts every other entry, reproducing the historical single-slot behaviour, so residency changes
-only when a deployment opts in with a positive budget.
+**Default (`0`) is the rollback lever.** With the budget unset or `0`, the cache holds one model's worth of
+components, which is one entry per kind, where a whole checkpoint occupies every kind. An insert, and the
+release before a cold load, evicts each entry of its own kind and any checkpoint entry. A checkpoint insert
+evicts everything. A split-files model's diffusion model, text encoder and VAE are three entries of different kinds,
+so they stay resident together the way a checkpoint's do inside its one entry. Larger residency still needs a
+positive budget.
 
 **LoRA serving.** Every entry is shared with later jobs, including LoRA-bearing ones. The graph's LoRA
 loader (`comfy.sd.load_lora_for_models`) clones the base ModelPatcher/CLIP before patching, but a clone
@@ -249,6 +262,8 @@ all policy injections with no native hook:
 - `ModelPatcher.partially_unload` and `comfy.model_management.pin_memory`: release the private copies a
   partial unload makes, and never pin a weight still backed by its checkpoint mapping (see the section above).
 - `text_encoder_initial_device`: load text encoders on CPU first.
+- `CLIPLoader.load_clip` and `VAELoader.load_vae`: serve the split-files loaders through the component
+  cache (see Checkpoint RAM cache above).
 - `comfy.lora.calculate_weight`: repair malformed "diff" patch tuples.
 - `IsChangedCache.get`: prompt-change logging.
 - `comfy.samplers.ksampler`: bound the adaptive sampler and apply per-run solver options (below).

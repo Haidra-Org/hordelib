@@ -14,8 +14,10 @@ that resolve to the same component share one entry.
 Budgeting is deliberately approximate: :attr:`ComponentCacheEntry.approx_ram_mb` is an estimate (from a
 component-identity sidecar's tensor byte counts, a file size, or a per-kind constant), not a measured
 resident-set delta, so the budget bounds intent rather than guaranteeing an exact RSS ceiling. A budget of
-``0`` reproduces the historical single-slot behaviour exactly (each insert evicts every other entry), which
-is the rollback lever.
+``0`` is the single-slot rollback lever. It keeps one model's worth of components, which is one entry per
+component kind, and a whole checkpoint occupies every kind (see :meth:`ComponentCache.release_single_slot`).
+A split-files model loads its diffusion model, text encoder and VAE as three entries, so evicting every
+other entry on each insert would make each of them displace the others within a single job.
 
 Entries are handed out by reference and are not normalised on the way out: a job that patches one is
 patching the object the next job will be given. That is safe for the load path because ComfyUI restores
@@ -58,13 +60,14 @@ __all__ = [
     "evict_components",
     "held_components",
     "process_component_cache",
+    "release_unretained_components",
     "restore_components",
 ]
 
 _BUDGET_ENV_VAR = "HORDE_COMPONENT_CACHE_MB"
-"""Approximate host-RAM budget for the component cache, in megabytes. Unset or ``0`` keeps the historical
-single-slot behaviour (one component resident at a time); a positive value opts into multi-component
-residency up to that many megabytes."""
+"""Approximate host-RAM budget for the component cache, in megabytes. Unset or ``0`` keeps the single-slot
+behaviour (one model's components resident at a time). A positive value opts into multi-component residency
+up to that many megabytes."""
 
 _BYTES_PER_MB = 1024 * 1024
 
@@ -74,7 +77,9 @@ class ComponentSlotKind(StrEnum):
 
     ``CHECKPOINT`` is a full (or subset) monolithic-checkpoint load tuple; ``UNET``/``CLIP``/``VAE`` are bare
     single-component loads. The kind is part of the cache key, so a bare UNet and a bare text encoder loaded
-    from the same checkpoint never alias even when their identities coincide.
+    from the same checkpoint never alias even when their identities coincide. The kind is also the
+    single-slot unit. Under a zero budget one entry of each bare kind stays resident, and a ``CHECKPOINT``
+    entry displaces, and is displaced by, every kind.
     """
 
     UNET = "unet"
@@ -142,6 +147,13 @@ class ComponentCacheEntry:
     approx_ram_mb: float
     source_ckpt_path: str
     last_used: float = field(default_factory=time.monotonic)
+    held_only_while_retained: bool = False
+    """Whether the entry is released at the end of a job the host did not retain the model past.
+
+    Set for a split-files graph's text encoder and VAE. They are worth keeping only while the diffusion
+    model stays resident for the next job, where reuse stops each job uploading a second copy. On a process
+    that is not retained they would only hold host RAM. A checkpoint's components live in one entry and keep
+    the plain cache lifetime."""
 
 
 DEFAULT_APPROX_RAM_MB: dict[ComponentSlotKind, float] = {
@@ -186,6 +198,12 @@ def component_cache_budget_mb() -> float:
     return value if value > 0.0 else 0.0
 
 
+def _competes_for_single_slot(resident_kind: ComponentSlotKind, incoming_kind: ComponentSlotKind) -> bool:
+    """Return whether a resident entry of *resident_kind* is displaced by an incoming *incoming_kind* entry."""
+    whole_checkpoint_involved = ComponentSlotKind.CHECKPOINT in (resident_kind, incoming_kind)
+    return whole_checkpoint_involved or resident_kind == incoming_kind
+
+
 def _never_carries_residue(payload: Any) -> bool:
     return False
 
@@ -212,10 +230,10 @@ class ComponentCache:
     """An MB-budgeted LRU of loaded model components, keyed by content identity.
 
     A positive budget keeps as many components resident as fit within it, evicting the least-recently-used
-    first. A budget of ``0`` keeps exactly one component resident (each insert evicts every other entry),
-    reproducing the historical single-slot cache. All mutations are guarded by a lock; the just-inserted
-    entry is never evicted to satisfy its own insertion, so a single component larger than the budget still
-    loads (and stays until the next insert displaces it).
+    first. A budget of ``0`` keeps one model's worth resident. An insert evicts every entry it competes with
+    for the single slot (see :meth:`release_single_slot`). All mutations are guarded by a lock. The
+    just-inserted entry is never evicted to satisfy its own insertion, so a single component larger than the
+    budget still loads (and stays until the next insert displaces it).
     """
 
     def __init__(self, budget_mb: float) -> None:
@@ -312,6 +330,30 @@ class ComponentCache:
             self._entries[entry.key] = entry
             return self._evict_to_fit_locked(protected_key=entry.key)
 
+    def release_single_slot(self, kind: ComponentSlotKind) -> list[ComponentCacheEntry]:
+        """Evict and return every entry an incoming component of *kind* displaces under a zero budget.
+
+        Two entries compete for the single slot when they share a kind or either is a whole checkpoint. A
+        checkpoint carries its own text encoder and VAE, so it displaces everything. A split-files model's
+        diffusion model, text encoder and VAE are separate entries of different kinds and stay resident
+        together. A positive budget leaves eviction to :meth:`put`'s fitting, so this evicts nothing there.
+        """
+        if self._budget_mb > 0.0:
+            return []
+        with self._lock:
+            doomed = [key for key in self._entries if _competes_for_single_slot(key.kind, kind)]
+            return [self._entries.pop(key) for key in doomed]
+
+    def release_unretained(self) -> list[ComponentCacheEntry]:
+        """Evict and return every entry held only while the model is retained.
+
+        Called at the end of a job the host did not retain the model past (see
+        :attr:`ComponentCacheEntry.held_only_while_retained`).
+        """
+        with self._lock:
+            doomed = [key for key, entry in self._entries.items() if entry.held_only_while_retained]
+            return [self._entries.pop(key) for key in doomed]
+
     def evict_identities(self, identities: Collection[str]) -> int:
         """Evict every entry whose key identity is in *identities*; return the number evicted.
 
@@ -375,8 +417,11 @@ class ComponentCache:
     def _evict_to_fit_locked(self, *, protected_key: ComponentCacheKey) -> list[ComponentCacheEntry]:
         evicted: list[ComponentCacheEntry] = []
         if self._budget_mb <= 0.0:
-            # Single-slot rollback: only the just-inserted entry survives an insert.
-            for key in [candidate for candidate in self._entries if candidate != protected_key]:
+            for key in [
+                candidate
+                for candidate in self._entries
+                if candidate != protected_key and _competes_for_single_slot(candidate.kind, protected_key.kind)
+            ]:
                 evicted.append(self._entries.pop(key))
             return evicted
 
@@ -440,6 +485,12 @@ def evict_components(identities: Collection[str]) -> int:
     """Drop the named components from RAM; return how many resident entries were evicted."""
     cache = process_component_cache()
     return 0 if cache is None else cache.evict_identities(identities)
+
+
+def release_unretained_components() -> int:
+    """Drop the entries held only while the model is retained and return how many were evicted."""
+    cache = process_component_cache()
+    return 0 if cache is None else len(cache.release_unretained())
 
 
 def component_restore_stats() -> ComponentRestoreStats:

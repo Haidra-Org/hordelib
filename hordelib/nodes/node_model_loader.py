@@ -3,6 +3,7 @@
 
 import os
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +24,7 @@ from hordelib.execution.component_cache import (
     ComponentCacheKey,
     ComponentSlotKind,
     approx_ram_mb_from_bytes,
+    process_component_cache,
 )
 from hordelib.execution.component_restore import (
     capture_pristine_state,
@@ -261,7 +263,7 @@ class HordeCheckpointLoader:
         cache_misses_counter.add(1)
         collector.record_component_cache_miss()
         logger.info("Model cache miss - loading from disk: model={}", horde_model_name)
-        _release_single_slot_before_cold_load(cache)
+        _release_single_slot_before_cold_load(cache, cache_key.kind)
 
         resolved_ckpt_name = self._resolve_monolithic_ckpt_name(horde_model_name, ckpt_name)
         ckpt_path = self._resolve_ckpt_path(resolved_ckpt_name)
@@ -371,7 +373,7 @@ class HordeCheckpointLoader:
         cache_misses_counter.add(1)
         collector.record_component_cache_miss()
         logger.info("Model cache miss - loading from disk: model={}, file_type={}", horde_model_name, file_type)
-        _release_single_slot_before_cold_load(cache)
+        _release_single_slot_before_cold_load(cache, cache_key.kind)
 
         resolved_ckpt_name = self._resolve_component_file(horde_model_name, ckpt_name, file_type)
         ckpt_path = self._resolve_ckpt_path(resolved_ckpt_name)
@@ -505,7 +507,7 @@ class HordeCheckpointLoader:
             plan.vae_file_path.name,
             plan.cache_key,
         )
-        _release_single_slot_before_cold_load(cache)
+        _release_single_slot_before_cold_load(cache, cache_key.kind)
 
         from hordelib.execution.zero_copy_load import checked_file_mappings, zero_copy_state_dict_assignment
 
@@ -682,16 +684,17 @@ def _prefetch_served_components(
             logger.debug("Weight prefetch skipped for {}: {}", label, exc)
 
 
-def _release_single_slot_before_cold_load(cache: ComponentCache) -> None:
-    """Release every resident entry before a cold load when the cache runs in single-slot mode.
+def _release_single_slot_before_cold_load(cache: ComponentCache, kind: ComponentSlotKind) -> None:
+    """Release the entries a cold load of *kind* displaces when the cache runs in single-slot mode.
 
-    In single-slot mode (budget 0) the resident entry is about to be displaced anyway; releasing it before
-    the multi-gigabyte disk read, rather than at insert time, keeps the swap's transient RAM profile at one
-    component instead of two, which is the historical single-slot behaviour the zero budget promises. A
-    budgeted cache keeps its entries: eviction to fit is the insert's job.
+    In single-slot mode (budget 0) those entries are about to be displaced anyway. Releasing them before the
+    multi-gigabyte disk read keeps the swap's transient RAM profile at one copy of the component. Entries of
+    other kinds stay, so a split-files model's diffusion model, text encoder and VAE are resident together, as
+    a checkpoint's are within its one entry (see :meth:`ComponentCache.release_single_slot`). A budgeted cache
+    keeps its entries, and eviction to fit is the insert's job.
     """
     if cache.budget_mb == 0:
-        cache.evict_all()
+        cache.release_single_slot(kind)
         # The single-slot replacement just dropped the resident component; reclaim its cold pages before
         # the cold load faults the replacement in (throttled and best-effort, no-op for pages the comfy
         # layer still holds).
@@ -712,6 +715,96 @@ def _release_device_cache_after_eviction() -> None:
         comfy.model_management.soft_empty_cache()
     except Exception as exc:
         logger.debug("Device cache release after eviction failed: {}", exc)
+
+
+def serve_split_text_encoder(
+    load_from_disk: Callable[[], tuple[Any, ...]],
+    *,
+    clip_name: str,
+    clip_type_name: str,
+    device: str,
+) -> tuple[Any, ...]:
+    """Serve a split-files graph's ``CLIPLoader`` output through the component cache.
+
+    The stock loader builds a new CLIP, and so a new ModelPatcher, on every call. ComfyUI tracks loaded
+    models by patcher identity, so on a process whose diffusion model is retained across jobs (no unload
+    between them) each job's fresh copy is uploaded beside the previous ones, which stay loaded.
+    Serving the resident copy keeps one patcher per file, which ComfyUI finds already loaded.
+
+    Args:
+        load_from_disk: Runs the stock loader for this request. Called only on a cache miss.
+        clip_name: The ``text_encoders`` file name the node was given.
+        clip_type_name: The node's ``type`` input. The same file wraps differently per CLIP type.
+        device: The node's ``device`` input. A CPU-pinned load is a different object.
+
+    Returns:
+        The node's output tuple, ``(clip,)``.
+    """
+    full_path = folder_paths.get_full_path("text_encoders", clip_name)
+    if full_path is None:
+        # The stock loader owns the not-found error for a name it cannot resolve.
+        return load_from_disk()
+    cache_key = ComponentCacheKey(ComponentSlotKind.CLIP, f"text_encoders/{clip_name}:{clip_type_name}:{device}")
+    return _serve_split_component(cache_key, full_path, load_from_disk)
+
+
+def serve_split_vae(load_from_disk: Callable[[], tuple[Any, ...]], *, vae_name: str) -> tuple[Any, ...]:
+    """Serve a split-files graph's ``VAELoader`` output through the component cache.
+
+    The VAE counterpart of :func:`serve_split_text_encoder`, for the same reason. Names that do not resolve
+    to a file in the ``vae`` folder (``pixel_space``, the tiny autoencoders) are cheap to build and go
+    straight to the stock loader.
+
+    Args:
+        load_from_disk: Runs the stock loader for this request. Called only on a cache miss.
+        vae_name: The ``vae`` file name the node was given.
+
+    Returns:
+        The node's output tuple, ``(vae,)``.
+    """
+    full_path = folder_paths.get_full_path("vae", vae_name)
+    if full_path is None:
+        return load_from_disk()
+    cache_key = ComponentCacheKey(ComponentSlotKind.VAE, f"vae/{vae_name}")
+    return _serve_split_component(cache_key, full_path, load_from_disk)
+
+
+def _serve_split_component(
+    cache_key: ComponentCacheKey,
+    full_path: str,
+    load_from_disk: Callable[[], tuple[Any, ...]],
+) -> tuple[Any, ...]:
+    """Return the resident payload for *cache_key*, or load it with *load_from_disk* and cache it."""
+    cache = process_component_cache()
+    if cache is None:
+        return load_from_disk()
+    collector = get_metrics_collector()
+
+    entry = cache.get(cache_key)
+    if entry is not None:
+        cache_hits_counter.add(1)
+        collector.record_component_cache_hit()
+        collector.record_component_cache_held_mb(cache.held_mb())
+        logger.info("Split component cache hit: identity={}", cache_key.identity)
+        return entry.payload
+
+    cache_misses_counter.add(1)
+    collector.record_component_cache_miss()
+    logger.info("Split component cache miss - loading from disk: identity={}", cache_key.identity)
+    _release_single_slot_before_cold_load(cache, cache_key.kind)
+
+    result = load_from_disk()
+    evicted = cache.put(
+        ComponentCacheEntry(
+            key=cache_key,
+            payload=result,
+            approx_ram_mb=approx_ram_mb_from_bytes(cache_key.kind, _safe_file_size(full_path)),
+            source_ckpt_path=full_path,
+            held_only_while_retained=True,
+        ),
+    )
+    HordeCheckpointLoader._record_evictions(evicted, cache, collector)
+    return result
 
 
 def _locate_vae_file(file_name: str) -> Path | None:

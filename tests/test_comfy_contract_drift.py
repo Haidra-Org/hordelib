@@ -558,6 +558,18 @@ class TestMonkeypatchSignaturePins:
         assert original_anima_encode is not None, "Anima token-stream guard was never installed"
         assert list(inspect.signature(original_anima_encode).parameters) == ["self", "token_weight_pairs"]
 
+    def test_split_loader_signatures(self, init_horde: None) -> None:
+        from hordelib.execution.comfy_patches import _originals
+
+        # The hijacks forward ComfyUI's node inputs by these names and key the cached component on them.
+        original_load_clip = _originals.get("clip_loader_load_clip")
+        assert original_load_clip is not None, "CLIPLoader.load_clip monkeypatch was never installed"
+        assert list(inspect.signature(original_load_clip).parameters) == ["self", "clip_name", "type", "device"]
+
+        original_load_vae = _originals.get("vae_loader_load_vae")
+        assert original_load_vae is not None, "VAELoader.load_vae monkeypatch was never installed"
+        assert list(inspect.signature(original_load_vae).parameters) == ["self", "vae_name"]
+
     def test_ksampler_factory_signature(self, init_horde: None) -> None:
         from hordelib.execution.comfy_patches import _originals
 

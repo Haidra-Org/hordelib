@@ -43,6 +43,7 @@ from hordelib.execution.comfy_events import (
     ValidationResult,
     parse_event,
 )
+from hordelib.execution.component_cache import release_unretained_components
 from hordelib.execution.graph_utils import GraphDict, apply_dotted_params
 from hordelib.execution.interface import (
     DEFAULT_IMAGE_OUTPUTS,
@@ -400,6 +401,18 @@ def do_comfy_import(
             IsChangedCache,
             "get",
             comfy_patches.IsChangedCache_get_hijack,
+        )
+        comfy_patches.capture_and_patch(
+            "clip_loader_load_clip",
+            _comfy_nodes.CLIPLoader,
+            "load_clip",
+            comfy_patches._clip_loader_load_clip_hijack,
+        )
+        comfy_patches.capture_and_patch(
+            "vae_loader_load_vae",
+            _comfy_nodes.VAELoader,
+            "load_vae",
+            comfy_patches._vae_loader_load_vae_hijack,
         )
 
         from comfy.sd import load_checkpoint_guess_config as _comfy_load_checkpoint_guess_config
@@ -1321,6 +1334,10 @@ class Comfy_Horde:
                         "The retention deferral kept nothing: the device holds no model at the end of "
                         "this run, so ComfyUI freed the weights during it.",
                     )
+                if not defer_vram_unload:
+                    # A split-files graph's text encoder and VAE are cached only so a retained model's next
+                    # job reuses them. Without the grant they would only hold host RAM.
+                    release_unretained_components()
                 if self.aggressive_unloading and not defer_vram_unload:
                     with logfire.span("comfy.cleanup"):
                         unload_all_models_vram()
