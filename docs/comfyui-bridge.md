@@ -24,6 +24,24 @@ executor construction is cheap. A consequence worth knowing: cross-run node cach
 happens, so the `cache_type`/`cache_args` plumbing in `_get_executor` only configures
 within-run caching.
 
+### Releasing a run's outputs
+
+A discarded executor does not free what its run produced. The outputs cache holds the run's
+`IsChangedCache`, whose `outputs_cache` points back at the outputs cache, so the model patchers
+a stock loader built, the conditioning, the latents and the decoded images are reachable only
+by the cyclic collector. ComfyUI also tracks loaded models by weak reference, so such a patcher
+stays in `current_loaded_models` until that collect. Without the release below, each stock-loader
+job would leave its text encoder in host memory until such a collect.
+
+The run path's `finally` block therefore ends every run, failed ones included, with two steps.
+`Comfy_Horde._release_executor_caches` clears the entries and subcaches of the outputs and objects
+caches and sets `IsChangedCache.outputs_cache` to `None`, which frees the run's outputs by reference
+counting. It runs after the end-of-job unload, so a stock loader's patcher is still alive when the
+unload walks the loaded set. `_collect_garbage_after_run` then calls `clear_gc_and_torch_cache`
+at most once per `POST_RUN_COLLECT_MIN_INTERVAL_SECONDS` (10 s, the spacing of ComfyUI's prompt
+worker), as a net for cycles the release does not know about. Every `clear_gc_and_torch_cache`
+call restarts that spacing, so a run whose unload already collected does not collect twice.
+
 ## Event flow
 
 During a run, ComfyUI pushes events (`execution_start`, `executing`, `executed`,
@@ -443,7 +461,9 @@ end-to-end modality recipe.
 models) against the pinned ComfyUI and pins: the `validate_prompt` 4-tuple, the executor
 result attributes, the event label set (and that every emitted event parses typed), the
 error payload shape, the headless server surface, the progress-hook and registry
-lifecycles, the monkeypatched signatures, the folder_paths surface, and the V3 canary.
+lifecycles, the monkeypatched signatures, the folder_paths surface, the V3 canary, and the
+executor cache attributes the end-of-run release clears (with a run whose intermediate output must
+be freed with the cyclic collector disabled).
 `tests/test_node_schema_freshness.py` separately pins the node input schemas pipelines bind
 against. A ComfyUI version bump that breaks any bridge assumption fails there first, by
 name, instead of deep inside a GPU run.

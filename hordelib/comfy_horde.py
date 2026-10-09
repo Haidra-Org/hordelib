@@ -546,6 +546,16 @@ def do_comfy_import(
 # isort: on
 
 
+POST_RUN_COLLECT_MIN_INTERVAL_SECONDS: float = 10.0
+"""Least spacing between two full collects the run path asks for.
+
+ComfyUI's prompt worker spaces its post-prompt collect the same way, because a full collect walks every tracked
+object of a process that holds large module graphs.
+"""
+
+_last_full_collect_monotonic: float | None = None
+
+
 def clear_gc_and_torch_cache(trim_host: bool = False) -> None:
     """Clear the garbage collector and the active backend's device cache.
 
@@ -554,11 +564,32 @@ def clear_gc_and_torch_cache(trim_host: bool = False) -> None:
     device-cache clear, so the process's measured host residency reflects live data. The trim defaults off
     so existing callers keep their exact behavior; enable it only at unload or idle boundaries, since
     reclaimed cold pages refault on demand.
+
+    Every call restarts the spacing the run path's collect keeps, so the collect inside an end-of-run unload
+    also counts as that run's.
     """
+    global _last_full_collect_monotonic
     gc.collect()
+    _last_full_collect_monotonic = time.monotonic()
     clear_accelerator_cache()
     if trim_host:
         trim_host_memory()
+
+
+def _collect_garbage_after_run() -> bool:
+    """Run :func:`clear_gc_and_torch_cache` unless a full collect ran within the spacing interval.
+
+    The run path frees its executor's outputs explicitly. This collect is the net for reference cycles that
+    release does not know about, such as a failed node's traceback holding its inputs.
+
+    Returns:
+        True when the collect ran, False when the spacing suppressed it.
+    """
+    last_collect = _last_full_collect_monotonic
+    if last_collect is not None and time.monotonic() - last_collect < POST_RUN_COLLECT_MIN_INTERVAL_SECONDS:
+        return False
+    clear_gc_and_torch_cache()
+    return True
 
 
 def pin_models_in_vram() -> bool:
@@ -1004,7 +1035,8 @@ class Comfy_Horde:
 
         A new executor (and so a new cache set) is built per run on purpose: cross-run node
         caching would pin tensors in RAM/VRAM against the worker's aggressive unload policy,
-        and executor construction is cheap.
+        and executor construction is cheap. The run path empties its caches when the run ends
+        (see ``_release_executor_caches``).
 
         The executor runs against the HeadlessComfyServer shim in place of ComfyUI's
         PromptServer; its events arrive in send_sync below.
@@ -1066,6 +1098,26 @@ class Comfy_Horde:
             # registered between the check above and executor construction.
             executor.caches.outputs.enable_providers = False
         return executor
+
+    @staticmethod
+    def _release_executor_caches(executor: typing.Any) -> None:
+        """Drop the node outputs and node objects a finished run's executor holds, and cut its cache cycle.
+
+        ComfyUI's outputs cache points at the run's ``IsChangedCache``, whose ``outputs_cache`` points back at
+        it. A discarded executor's outputs, the stock loaders' model patchers among them, would otherwise live
+        until a generation-2 collect. Clearing the entries and cutting
+        that edge frees them by reference counting when the run ends. The attributes touched here are pinned by
+        ``tests/test_comfy_contract_drift.py``.
+        """
+        from comfy_execution.caching import BasicCache
+
+        for cache in executor.caches.all:
+            if isinstance(cache, BasicCache):
+                cache.cache.clear()
+                cache.subcaches.clear()
+        outputs_cache = executor.caches.outputs
+        if isinstance(outputs_cache, BasicCache) and outputs_cache.initialized:
+            outputs_cache.is_changed_cache.outputs_cache = None
 
     _comfyui_callback: typing.Callable[[str, dict, str], None] | None = None
 
@@ -1341,6 +1393,16 @@ class Comfy_Horde:
                 if self.aggressive_unloading and not defer_vram_unload:
                     with logfire.span("comfy.cleanup"):
                         unload_all_models_vram()
+                # After the unload, so a stock loader's patcher is still alive, and is unpatched, when the
+                # unload walks ComfyUI's loaded set.
+                try:
+                    self._release_executor_caches(inference)
+                except Exception:
+                    logger.exception(
+                        "Could not empty the executor's caches. This run's outputs stay in memory until a full "
+                        "collect.",
+                    )
+                _collect_garbage_after_run()
 
         stdio.replay()
 

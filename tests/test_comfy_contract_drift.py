@@ -13,8 +13,10 @@ Everything here runs on CPU; the mini-execution round trip uses ``EmptyImage`` f
 """
 
 import asyncio
+import gc
 import inspect
 import io
+import weakref
 from typing import Any
 
 import pytest
@@ -84,6 +86,7 @@ class _StrictRecordingServer:
 
 _FAILING_NODE_CLASS_TYPE = "HordeDriftTestFailingNode"
 _COUNTING_NODE_CLASS_TYPE = "HordeDriftTestCountingNode"
+_RECORDING_NODE_CLASS_TYPE = "HordeDriftTestRecordingImage"
 
 
 class _FailingOutputNode:
@@ -124,6 +127,43 @@ class _CountingOutputNode:
         type(self).execution_count += 1
         run_bytes = f"run-{type(self).execution_count}".encode()
         return {"ui": {"images": [{"imagedata": io.BytesIO(run_bytes), "type": "PNG"}]}}
+
+
+class _RecordingImageNode:
+    """Emit a fresh image tensor and keep only a weak reference to it, so a test can see when it is freed."""
+
+    produced: list[weakref.ref] = []
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, Any]:  # ComfyUI node contract requires this exact name
+        """Return the ComfyUI input schema: one seed, so each run's graph is a distinct prompt."""
+        return {"required": {"seed": ("INT", {"default": 0, "min": 0, "max": 1 << 30})}}
+
+    RETURN_TYPES: tuple = ("IMAGE",)
+    FUNCTION = "run"
+    CATEGORY = "image"
+
+    def run(self, seed: int) -> tuple:
+        """Return a small image tensor and record a weak reference to it."""
+        import torch
+
+        image = torch.full((1, 8, 8, 3), float(seed % 2))
+        type(self).produced.append(weakref.ref(image))
+        return (image,)
+
+
+def _recording_graph(seed: int) -> dict[str, Any]:
+    """Create a CPU-only graph whose intermediate image is produced by the recording node."""
+    return {
+        "recorded_image": {
+            "class_type": _RECORDING_NODE_CLASS_TYPE,
+            "inputs": {"seed": seed},
+        },
+        "output_image": {
+            "class_type": "HordeImageOutput",
+            "inputs": {"images": ["recorded_image", 0]},
+        },
+    }
 
 
 @pytest.fixture(scope="module")
@@ -1012,3 +1052,121 @@ class TestMemoryModeGatePins:
             )
         finally:
             mm.current_loaded_models[:] = [entry for entry in mm.current_loaded_models if entry is not stub]
+
+
+class TestExecutorCacheReleasePins:
+    """Pins the ComfyUI cache internals ``Comfy_Horde._release_executor_caches`` clears, and the cycle it cuts.
+
+    A finished executor's outputs cache and its ``IsChangedCache`` reference each other, so without the release
+    everything a run produced waits for a generation-2 collect after the executor is dropped.
+    """
+
+    def test_cache_classes_keep_the_entry_dicts_the_release_clears(self, comfy_bridge: Comfy_Horde) -> None:
+        """Every entry-holding cache is a ``BasicCache`` with ``cache`` and ``subcaches`` dicts."""
+        from comfy_execution import caching
+
+        for cache_class in (caching.HierarchicalCache, caching.LRUCache, caching.RAMPressureCache):
+            assert issubclass(cache_class, caching.BasicCache), (
+                f"{cache_class.__name__} no longer derives from BasicCache. The executor cache release skips it and "
+                "its entries wait for a full collect again"
+            )
+        assert not issubclass(caching.NullCache, caching.BasicCache), (
+            "NullCache now derives from BasicCache. Check that it still holds nothing the release should clear"
+        )
+
+        executor = comfy_bridge._get_executor()
+        caches = executor.caches
+        assert len(caches.all) == 2, (
+            f"CacheSet.all now holds {len(caches.all)} caches. Re-check what the release clears"
+        )
+        assert caches.all[0] is caches.outputs, "CacheSet.all no longer starts with CacheSet.outputs"
+        assert caches.all[1] is caches.objects, "CacheSet.all no longer holds CacheSet.objects second"
+        for cache in caches.all:
+            assert isinstance(cache, caching.BasicCache)
+            assert isinstance(cache.cache, dict), (
+                "BasicCache.cache is no longer the dict of entries the release clears"
+            )
+            assert isinstance(cache.subcaches, dict), (
+                "BasicCache.subcaches is no longer the dict of subcaches the release clears"
+            )
+            assert cache.initialized is False, "BasicCache.initialized no longer starts False before set_prompt"
+
+    def test_a_finished_run_leaves_its_outputs_cache_in_a_cycle(self, comfy_bridge: Comfy_Horde) -> None:
+        """The edge the release cuts: ``outputs.is_changed_cache.outputs_cache is outputs``."""
+        import execution
+        from comfy_execution.caching import CacheKeySetInputSignature
+
+        graph = _mini_graph()
+        executor = comfy_bridge._get_executor()
+        executor.execute(graph, "drift-test-cycle", {"client_id": "drift-test-client"}, _validate(graph)[2])
+
+        outputs = executor.caches.outputs
+        assert outputs.initialized is True, "BasicCache.initialized is no longer set by set_prompt"
+        assert outputs.cache, "the outputs cache holds no entries after a run. Re-check what a run leaves behind"
+
+        is_changed_cache = outputs.is_changed_cache
+        assert isinstance(is_changed_cache, execution.IsChangedCache), (
+            "BasicCache.is_changed_cache is no longer the run's execution.IsChangedCache"
+        )
+        assert is_changed_cache.outputs_cache is outputs, (
+            "IsChangedCache.outputs_cache no longer points back at the outputs cache. The cycle the release cuts "
+            "has moved, so find what now keeps a dropped executor's outputs alive"
+        )
+        assert isinstance(outputs.cache_key_set, CacheKeySetInputSignature)
+        assert outputs.cache_key_set.is_changed_cache is is_changed_cache, (
+            "CacheKeySetInputSignature.is_changed_cache no longer holds the run's IsChangedCache"
+        )
+        assert executor.caches.objects.is_changed_cache is is_changed_cache
+
+        Comfy_Horde._release_executor_caches(executor)
+
+        for cache in executor.caches.all:
+            assert cache.cache == {}
+            assert cache.subcaches == {}
+        assert is_changed_cache.outputs_cache is None
+
+    def test_a_run_frees_its_outputs_without_a_full_collect(
+        self,
+        comfy_bridge: Comfy_Horde,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """An intermediate output of a finished run is freed by reference counting alone.
+
+        The spaced post-run collect is patched out and the cyclic collector is disabled, so only the release
+        can free the output. A control run without the release proves the output is otherwise kept alive by
+        the cache cycle, which is what makes the main check meaningful.
+        """
+        import execution
+
+        from hordelib import comfy_horde
+
+        monkeypatch.setattr(comfy_horde, "_collect_garbage_after_run", lambda: False)
+        monkeypatch.setitem(execution.nodes.NODE_CLASS_MAPPINGS, _RECORDING_NODE_CLASS_TYPE, _RecordingImageNode)
+        _RecordingImageNode.produced.clear()
+
+        collector_was_enabled = gc.isenabled()
+        gc.collect()
+        gc.disable()
+        try:
+            with monkeypatch.context() as release_disabled:
+                release_disabled.setattr(Comfy_Horde, "_release_executor_caches", staticmethod(lambda executor: None))
+                assert comfy_bridge.run_pipeline(_recording_graph(seed=0), {})
+            control_output = _RecordingImageNode.produced[-1]
+            assert control_output() is not None, (
+                "a dropped executor no longer keeps its outputs alive until a full collect. The cache cycle is gone "
+                "upstream and Comfy_Horde._release_executor_caches may be redundant"
+            )
+            gc.collect()
+            assert control_output() is None, "the control run's output is held by something besides the cache cycle"
+
+            for seed in (1, 2):
+                assert comfy_bridge.run_pipeline(_recording_graph(seed=seed), {})
+                run_output = _RecordingImageNode.produced[-1]
+                assert run_output() is None, (
+                    f"run {seed}'s intermediate output outlived the run. The executor cache release no longer frees "
+                    "it by reference counting"
+                )
+        finally:
+            if collector_was_enabled:
+                gc.enable()
+            _RecordingImageNode.produced.clear()

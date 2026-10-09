@@ -100,6 +100,33 @@ def test_clear_gc_and_torch_cache_trims_only_when_asked(monkeypatch) -> None:
     spy.assert_called_once_with()
 
 
+def test_post_run_collect_is_spaced_by_any_full_collect(monkeypatch) -> None:
+    """The run path's collect runs once per interval, and an unload's collect restarts the interval."""
+    from hordelib import comfy_horde
+
+    clock = {"now": 1000.0}
+    gc_spy = mock.MagicMock()
+    monkeypatch.setattr(comfy_horde, "clear_accelerator_cache", mock.MagicMock())
+    monkeypatch.setattr(comfy_horde.gc, "collect", gc_spy)
+    monkeypatch.setattr(comfy_horde.time, "monotonic", lambda: clock["now"])
+    monkeypatch.setattr(comfy_horde, "_last_full_collect_monotonic", None)
+
+    assert comfy_horde._collect_garbage_after_run() is True
+    clock["now"] += comfy_horde.POST_RUN_COLLECT_MIN_INTERVAL_SECONDS - 1
+    assert comfy_horde._collect_garbage_after_run() is False
+    assert gc_spy.call_count == 1
+
+    clock["now"] += 1
+    assert comfy_horde._collect_garbage_after_run() is True
+    assert gc_spy.call_count == 2
+
+    clock["now"] += comfy_horde.POST_RUN_COLLECT_MIN_INTERVAL_SECONDS
+    comfy_horde.clear_gc_and_torch_cache()
+    clock["now"] += 1
+    assert comfy_horde._collect_garbage_after_run() is False
+    assert gc_spy.call_count == 3
+
+
 def test_component_release_trim_fires_on_first_call(monkeypatch, reset_component_release_throttle) -> None:
     """The first component-release trim collects garbage and issues the host trim, reporting its result."""
     trim_spy = mock.MagicMock(return_value=True)
