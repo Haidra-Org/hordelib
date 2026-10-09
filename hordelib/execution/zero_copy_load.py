@@ -42,6 +42,16 @@ _original_load_state_dict = torch.nn.Module.load_state_dict
 _INVALID_STORAGE_MESSAGE_FRAGMENT = "invalid python storage"
 """Fragment of torch's ``data_ptr()`` error for a storage object with no backing allocation."""
 
+
+class HostCommitError(RuntimeError):
+    """The host refused to commit a checkpoint file mapping.
+
+    Raised by the mapping guard before any weight is adopted, so the process that catches it holds nothing
+    half-loaded. The failure is a host memory condition at map time, and a caller may report it and stay
+    available.
+    """
+
+
 _mapping_guard_lock = threading.Lock()
 _mapping_guard_depth = 0
 _MISSING_ATTRIBUTE = object()
@@ -173,7 +183,7 @@ def _checked_from_file(filename: Any, shared: bool = False, nbytes: int = 0) -> 
     if _unguarded_from_file is None:
         raise RuntimeError("checked_file_mappings is not active; the unguarded from_file is unknown")
     storage = _unguarded_from_file(filename, shared, nbytes)
-    commit_failure = RuntimeError(
+    commit_failure = HostCommitError(
         f"The host could not commit a {nbytes}-byte mapping of {filename}: "
         "torch.UntypedStorage.from_file returned a storage with no data pointer",
     )
