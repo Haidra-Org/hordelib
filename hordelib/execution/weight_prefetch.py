@@ -21,6 +21,11 @@ soft-faults every page in, which on Windows runs at a fraction of memory speed (
 seconds from the standby list against under a second once mapped). So after the prefetch each tensor is
 touched, one read per page, on the same background thread: the pages join the working set there, off the
 critical path, and stay mapped across the load/unload cycle while the tensor lives.
+
+The background prefetch holds its module only through a weakref and touches one tensor at a time, checking
+a stop flag and the module's liveness between tensors. A component the cache evicts mid-read is then
+collectable at once, and its file mapping goes with it. A strong reference would keep the evicted copy
+committed beside its replacement until the whole read finished.
 """
 
 from __future__ import annotations
@@ -30,6 +35,7 @@ import os
 import sys
 import threading
 import time
+import weakref
 from collections.abc import Iterable
 
 import torch
@@ -44,7 +50,9 @@ _COALESCE_GAP_BYTES = 4 * 1024 * 1024
 _PAGE = 4096
 
 _lock = threading.Lock()
-_in_flight: set[int] = set()
+_in_flight: dict[int, weakref.ReferenceType[torch.nn.Module]] = {}
+"""The module each running background prefetch reads, keyed by ``id``. The weakref tells a live module from
+a new one that reused a collected module's ``id``."""
 
 
 def weight_prefetch_disabled() -> bool:
@@ -187,7 +195,7 @@ def prefetch_module_weights(module: torch.nn.Module, *, label: str = "") -> None
     prefetched_at = time.perf_counter()
     touched = touch_cpu_weights(_cpu_weight_tensors(module))
     logger.debug(
-        "Weight prefetch {}: {} MB in {} range(s), accepted={}, {:.2f}s; touched {} MB in {:.2f}s",
+        "Weight prefetch {}: {} MB in {} range(s), accepted={}, {:.2f}s, touched {} MB in {:.2f}s",
         label or module.__class__.__name__,
         total // (1024 * 1024),
         len(ranges),
@@ -198,28 +206,97 @@ def prefetch_module_weights(module: torch.nn.Module, *, label: str = "") -> None
     )
 
 
-def prefetch_module_weights_async(module: torch.nn.Module, *, label: str = "") -> threading.Thread | None:
+def _prefetch_weakly_held_module(
+    module_ref: weakref.ReferenceType[torch.nn.Module],
+    stop: threading.Event,
+    *,
+    label: str,
+) -> None:
+    """Prefetch and touch a module's CPU-resident weights while holding the module only through *module_ref*.
+
+    The module is held strongly only while its ranges and weight list are read. The hint is issued after that
+    reference is dropped. Both OS calls validate the address range, so a range unmapped in between fails the
+    hint and harms nothing. The touch takes one tensor at a time through a weakref and returns once *stop* is
+    set or the module is collected, so an evicted component's mapping is held for at most one tensor's touch.
+    """
+    started = time.perf_counter()
+    module = module_ref()
+    if module is None or stop.is_set():
+        return
+    display_label = label or module.__class__.__name__
+    ranges = collect_cpu_weight_ranges(module)
+    weight_refs = [weakref.ref(tensor) for tensor in (*module.parameters(recurse=True), *module.buffers(recurse=True))]
+    del module
+
+    total = sum(length for _, length in ranges)
+    accepted = False if stop.is_set() or module_ref() is None else prefetch_ranges(ranges)
+    prefetched_at = time.perf_counter()
+    touched = 0
+    for weight_ref in weight_refs:
+        if stop.is_set() or module_ref() is None:
+            logger.debug(
+                "Weight prefetch {} stopped after touching {} MB because its component was released",
+                display_label,
+                touched // (1024 * 1024),
+            )
+            return
+        weight = weight_ref()
+        if weight is None or weight.device.type != "cpu" or weight.is_meta or weight.numel() == 0:
+            continue
+        # A parameter is read through ``.data`` as the synchronous path does. A buffer is touched as it is,
+        # since ``.data`` on a wrapper-subclass buffer would dispatch through the wrapper.
+        touched += touch_cpu_weights([weight.data if isinstance(weight, torch.nn.Parameter) else weight])
+        del weight
+    logger.debug(
+        "Weight prefetch {}: {} MB in {} range(s), accepted={}, {:.2f}s, touched {} MB in {:.2f}s",
+        display_label,
+        total // (1024 * 1024),
+        len(ranges),
+        accepted,
+        prefetched_at - started,
+        touched // (1024 * 1024),
+        time.perf_counter() - prefetched_at,
+    )
+
+
+def prefetch_module_weights_async(
+    module: torch.nn.Module,
+    *,
+    label: str = "",
+    stop: threading.Event | None = None,
+) -> threading.Thread | None:
     """Prefetch the module's CPU-resident weights on a daemon thread; returns the thread, or None if skipped.
 
     At most one prefetch runs per module at a time; a request that finds one in flight is dropped, since the
-    running one already covers the same pages.
+    running one already covers the same pages. The thread holds *module* only through a weakref, so it never
+    keeps a released component alive, and it returns early once *stop* is set.
+
+    Args:
+        module: The module whose weights to page in.
+        label: Names the prefetch in its log line and thread name.
+        stop: Set by the owner when the module's pages are no longer wanted, such as the cache evicting the
+            entry that holds it. None runs the read to completion or until the module is collected.
     """
     if weight_prefetch_disabled():
         return None
     key = id(module)
+    module_ref = weakref.ref(module)
     with _lock:
-        if key in _in_flight:
+        running = _in_flight.get(key)
+        if running is not None and running() is module:
             return None
-        _in_flight.add(key)
+        _in_flight[key] = module_ref
+    stop_event = stop if stop is not None else threading.Event()
 
     def _run() -> None:
         try:
-            prefetch_module_weights(module, label=label)
+            _prefetch_weakly_held_module(module_ref, stop_event, label=label)
         except Exception as exc:
             logger.debug("Weight prefetch {} raised: {}", label, exc)
         finally:
             with _lock:
-                _in_flight.discard(key)
+                if _in_flight.get(key) is module_ref:
+                    del _in_flight[key]
 
     thread = threading.Thread(target=_run, name=f"hordelib-weight-prefetch-{label or key}", daemon=True)
     thread.start()

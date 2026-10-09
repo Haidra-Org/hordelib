@@ -2,6 +2,7 @@
 # Simple proof of concept custom node to load models.
 
 import os
+import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -108,6 +109,45 @@ class HordeCheckpointLoader:
     FUNCTION = "load_checkpoint"
 
     CATEGORY = "loaders"
+
+    def preload(
+        self,
+        horde_model_name: str,
+        *,
+        will_load_loras: bool,
+        seamless_tiling_enabled: bool,
+        diffusion_model_only: bool,
+    ) -> tuple[Any, ...]:
+        """Load *horde_model_name* into the component cache under the key its run's graph asks for.
+
+        The ``file_type`` comes from
+        :func:`hordelib.pipeline.families.image_gen.baselines.main_loader_file_type`, which the run's graph
+        reads too, so a split-files model is cached as its bare diffusion model and the run's load is a
+        hit. Under any other key the run maps the file a second time beside the preload's mapping.
+
+        Args:
+            horde_model_name: The model to load.
+            will_load_loras: Whether the job this preload serves will patch the model.
+            seamless_tiling_enabled: Whether to apply seamless tiling to the loaded components.
+            diffusion_model_only: Omit a checkpoint's text encoders and VAE. A split-files load carries
+                only the diffusion model either way.
+
+        Returns:
+            The loader's ``(model, clip, vae, ...)`` tuple.
+        """
+        from hordelib.pipeline.families.image_gen.baselines import main_loader_file_type
+        from hordelib.pipeline.resolution import resolve_image_model
+
+        file_type = main_loader_file_type(resolve_image_model(horde_model_name).baseline)
+        return self.load_checkpoint(
+            will_load_loras=will_load_loras,
+            seamless_tiling_enabled=seamless_tiling_enabled,
+            horde_model_name=horde_model_name,
+            file_type=file_type,
+            output_vae=not diffusion_model_only,
+            output_clip=not diffusion_model_only,
+            preloading=True,
+        )
 
     @logfire.instrument("model.load_checkpoint", extract_args=False)
     def load_checkpoint(
@@ -250,6 +290,7 @@ class HordeCheckpointLoader:
                     output_model=output_model,
                     output_clip=output_clip,
                     output_vae=output_vae,
+                    stop=entry.prefetch_stop,
                 )
                 _apply_model_tiling(cached_model, seamless_tiling_enabled)
                 _apply_vae_tiling(cached_vae, seamless_tiling_enabled)
@@ -304,12 +345,14 @@ class HordeCheckpointLoader:
 
         # The weights are still lazy views over the checkpoint mapping; page them in now, off the critical
         # path, so the load into VRAM that follows runs at memory speed rather than disk speed.
+        prefetch_stop = threading.Event()
         _prefetch_served_components(
             result,
             horde_model_name,
             output_model=output_model,
             output_clip=output_clip,
             output_vae=output_vae,
+            stop=prefetch_stop,
         )
 
         # A disaggregated stage may have loaded only a subset, so a slot can be None; each helper is a no-op
@@ -323,6 +366,7 @@ class HordeCheckpointLoader:
                 payload=result,
                 approx_ram_mb=_estimate_checkpoint_ram_mb(ckpt_path, result),
                 source_ckpt_path=str(ckpt_path),
+                prefetch_stop=prefetch_stop,
             ),
         )
         self._record_evictions(evicted, cache, collector)
@@ -366,6 +410,7 @@ class HordeCheckpointLoader:
                 output_clip=False,
                 output_vae=False,
                 model_component_name=file_type,
+                stop=entry.prefetch_stop,
             )
             log_free_ram()
             return entry.payload
@@ -425,6 +470,7 @@ class HordeCheckpointLoader:
             logger.debug(result)
 
         capture_pristine_state(result[0])
+        prefetch_stop = threading.Event()
         _prefetch_served_components(
             result,
             horde_model_name,
@@ -432,6 +478,7 @@ class HordeCheckpointLoader:
             output_clip=False,
             output_vae=False,
             model_component_name=file_type,
+            stop=prefetch_stop,
         )
         _apply_component_tiling(result[0], file_type, seamless_tiling_enabled)
 
@@ -441,6 +488,7 @@ class HordeCheckpointLoader:
                 payload=result,
                 approx_ram_mb=approx_ram_mb_from_bytes(cache_key.kind, _safe_file_size(ckpt_path)),
                 source_ckpt_path=str(ckpt_path),
+                prefetch_stop=prefetch_stop,
             ),
         )
         self._record_evictions(evicted, cache, collector)
@@ -494,6 +542,7 @@ class HordeCheckpointLoader:
                 output_model=False,
                 output_clip=False,
                 output_vae=True,
+                stop=entry.prefetch_stop,
             )
             _apply_vae_tiling(entry.payload[2], seamless_tiling_enabled)
             log_free_ram()
@@ -531,14 +580,13 @@ class HordeCheckpointLoader:
         # without leaving residue and counting it as a mutator would misreport the statistics.
         result: tuple[Any, Any, Any, Any] = (None, None, loaded_vae, None)
         capture_pristine_state(loaded_vae)
-        evicted = cache.put(
-            ComponentCacheEntry(
-                key=cache_key,
-                payload=result,
-                approx_ram_mb=approx_ram_mb_from_bytes(ComponentSlotKind.VAE, plan.vae_tensor_bytes),
-                source_ckpt_path=str(plan.vae_file_path),
-            ),
+        vae_entry = ComponentCacheEntry(
+            key=cache_key,
+            payload=result,
+            approx_ram_mb=approx_ram_mb_from_bytes(ComponentSlotKind.VAE, plan.vae_tensor_bytes),
+            source_ckpt_path=str(plan.vae_file_path),
         )
+        evicted = cache.put(vae_entry)
         self._record_evictions(evicted, cache, collector)
         _prefetch_served_components(
             result,
@@ -546,6 +594,7 @@ class HordeCheckpointLoader:
             output_model=False,
             output_clip=False,
             output_vae=True,
+            stop=vae_entry.prefetch_stop,
         )
         _apply_vae_tiling(loaded_vae, seamless_tiling_enabled)
         log_free_ram()
@@ -650,6 +699,7 @@ def _prefetch_served_components(
     output_clip: bool,
     output_vae: bool,
     model_component_name: str = "unet",
+    stop: threading.Event | None = None,
 ) -> None:
     """Start a background page-in of each requested component of a served payload; never raises.
 
@@ -664,6 +714,9 @@ def _prefetch_served_components(
     or VAE's ``patcher.model`` is the same module, but a VAE built from a state dict with no recognised weights
     sets ``first_stage_model`` to None and returns before it creates a patcher, so that route is absent there.
     A slot that is None or yields no ``torch.nn.Module`` is skipped.
+
+    *stop* is the serving cache entry's :attr:`ComponentCacheEntry.prefetch_stop`, which the cache sets when
+    the entry leaves it, so a read still running for an evicted component ends at its next tensor.
     """
     requested_slots = (
         (output_clip, 1, "text_encoder", "cond_stage_model"),
@@ -679,7 +732,7 @@ def _prefetch_served_components(
             if not isinstance(module, torch.nn.Module):
                 logger.debug("Weight prefetch skipped for {}: the served component carries no module", label)
                 continue
-            prefetch_module_weights_async(module, label=label)
+            prefetch_module_weights_async(module, label=label, stop=stop)
         except Exception as exc:
             logger.debug("Weight prefetch skipped for {}: {}", label, exc)
 

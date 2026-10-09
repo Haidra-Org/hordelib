@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib
 import sys
+import threading
 import types
 from collections.abc import Generator
 from types import SimpleNamespace
@@ -111,13 +112,21 @@ class _FakeVae:
 
 
 class _PrefetchRecorder:
-    """Records each ``prefetch_module_weights_async`` call as ``(module, label)``."""
+    """Records each ``prefetch_module_weights_async`` call as ``(module, label)`` and its stop flag apart."""
 
     def __init__(self) -> None:
         self.calls: list[tuple[torch.nn.Module, str]] = []
+        self.stops: list[threading.Event | None] = []
 
-    def __call__(self, module: torch.nn.Module, *, label: str = "") -> None:
+    def __call__(
+        self,
+        module: torch.nn.Module,
+        *,
+        label: str = "",
+        stop: threading.Event | None = None,
+    ) -> None:
         self.calls.append((module, label))
+        self.stops.append(stop)
 
 
 @pytest.fixture
@@ -220,6 +229,30 @@ def test_bare_component_hit_prefetches_its_component(serve_env: SimpleNamespace)
     assert serve_env.recorder.calls == [(serve_env.unet_module, "model_a:unet")]
 
 
+def test_hit_prefetch_carries_the_entry_stop_flag(serve_env: SimpleNamespace) -> None:
+    """A prefetch started for a cache hit is the one the entry's eviction stops."""
+    payload = (_FakePatcher(serve_env.unet_module), None, None)
+    entry = ComponentCacheEntry(
+        key=ComponentCacheKey(ComponentSlotKind.UNET, "model_a:unet"),
+        payload=payload,
+        approx_ram_mb=1.0,
+        source_ckpt_path="model_unet.safetensors",
+    )
+    serve_env.cache.put(entry)
+
+    HordeCheckpointLoader()._load_bare_component(
+        serve_env.cache,
+        "model_a",
+        None,
+        "unet",
+        None,
+        seamless_tiling_enabled=False,
+        will_mutate=False,
+    )
+
+    assert serve_env.recorder.stops == [entry.prefetch_stop]
+
+
 def test_component_without_a_module_is_skipped_and_the_payload_served(serve_env: SimpleNamespace) -> None:
     """A VAE built without recognised weights has no ``first_stage_model``; the other components still read."""
     payload = (
@@ -255,7 +288,12 @@ def test_prefetch_failure_does_not_fail_the_serve(
     serve_env: SimpleNamespace,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def failing_prefetch(module: torch.nn.Module, *, label: str = "") -> None:
+    def failing_prefetch(
+        module: torch.nn.Module,
+        *,
+        label: str = "",
+        stop: threading.Event | None = None,
+    ) -> None:
         raise RuntimeError("prefetch unavailable")
 
     monkeypatch.setattr(node_model_loader, "prefetch_module_weights_async", failing_prefetch)

@@ -19,6 +19,9 @@ component kind, and a whole checkpoint occupies every kind (see :meth:`Component
 A split-files model loads its diffusion model, text encoder and VAE as three entries, so evicting every
 other entry on each insert would make each of them displace the others within a single job.
 
+Every entry that leaves the cache has its :attr:`ComponentCacheEntry.prefetch_stop` set, which ends a weight
+prefetch still reading its components (see :mod:`hordelib.execution.weight_prefetch`).
+
 Entries are handed out by reference and are not normalised on the way out: a job that patches one is
 patching the object the next job will be given. That is safe for the load path because ComfyUI restores
 patch residue lazily, at the component's next load: a patcher whose patch set differs from the one the
@@ -154,6 +157,12 @@ class ComponentCacheEntry:
     model stays resident for the next job, where reuse stops each job uploading a second copy. On a process
     that is not retained they would only hold host RAM. A checkpoint's components live in one entry and keep
     the plain cache lifetime."""
+    prefetch_stop: threading.Event = field(default_factory=threading.Event)
+    """Set when the entry leaves the cache.
+
+    The loader hands it to every weight prefetch it starts for the entry's components, and the prefetch
+    checks it between tensors. An evicted component's file mapping is then released as soon as its last
+    holder drops it, without a prefetch paging the rest of it in first."""
 
 
 DEFAULT_APPROX_RAM_MB: dict[ComponentSlotKind, float] = {
@@ -196,6 +205,13 @@ def component_cache_budget_mb() -> float:
         logger.warning(f"Ignoring non-numeric {_BUDGET_ENV_VAR}={raw!r}; using single-slot component cache.")
         return 0.0
     return value if value > 0.0 else 0.0
+
+
+def _stop_prefetches(entries: list[ComponentCacheEntry]) -> list[ComponentCacheEntry]:
+    """Signal each of *entries*' weight prefetches to stop and return *entries*."""
+    for entry in entries:
+        entry.prefetch_stop.set()
+    return entries
 
 
 def _competes_for_single_slot(resident_kind: ComponentSlotKind, incoming_kind: ComponentSlotKind) -> bool:
@@ -327,6 +343,9 @@ class ComponentCache:
         """
         with self._lock:
             entry.last_used = self._next_recency_locked()
+            replaced = self._entries.get(entry.key)
+            if replaced is not None and replaced is not entry:
+                _stop_prefetches([replaced])
             self._entries[entry.key] = entry
             return self._evict_to_fit_locked(protected_key=entry.key)
 
@@ -342,7 +361,7 @@ class ComponentCache:
             return []
         with self._lock:
             doomed = [key for key in self._entries if _competes_for_single_slot(key.kind, kind)]
-            return [self._entries.pop(key) for key in doomed]
+            return _stop_prefetches([self._entries.pop(key) for key in doomed])
 
     def release_unretained(self) -> list[ComponentCacheEntry]:
         """Evict and return every entry held only while the model is retained.
@@ -352,7 +371,7 @@ class ComponentCache:
         """
         with self._lock:
             doomed = [key for key, entry in self._entries.items() if entry.held_only_while_retained]
-            return [self._entries.pop(key) for key in doomed]
+            return _stop_prefetches([self._entries.pop(key) for key in doomed])
 
     def evict_identities(self, identities: Collection[str]) -> int:
         """Evict every entry whose key identity is in *identities*; return the number evicted.
@@ -363,13 +382,12 @@ class ComponentCache:
         wanted = set(identities)
         with self._lock:
             doomed = [key for key in self._entries if key.identity in wanted]
-            for key in doomed:
-                del self._entries[key]
-            return len(doomed)
+            return len(_stop_prefetches([self._entries.pop(key) for key in doomed]))
 
     def evict_all(self) -> None:
         """Drop every resident entry (the full-cache clear used at RAM-unload boundaries)."""
         with self._lock:
+            _stop_prefetches(list(self._entries.values()))
             self._entries.clear()
 
     def restore_identities(self, identities: Collection[str]) -> int:
@@ -423,14 +441,14 @@ class ComponentCache:
                 if candidate != protected_key and _competes_for_single_slot(candidate.kind, protected_key.kind)
             ]:
                 evicted.append(self._entries.pop(key))
-            return evicted
+            return _stop_prefetches(evicted)
 
         while self._held_mb_locked() > self._budget_mb:
             victim_key = self._coldest_evictable_key_locked(protected_key)
             if victim_key is None:
                 break  # only the protected entry remains; keep it even if it alone exceeds the budget
             evicted.append(self._entries.pop(victim_key))
-        return evicted
+        return _stop_prefetches(evicted)
 
     def _coldest_evictable_key_locked(self, protected_key: ComponentCacheKey) -> ComponentCacheKey | None:
         coldest_key: ComponentCacheKey | None = None

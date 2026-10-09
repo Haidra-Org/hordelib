@@ -4,7 +4,9 @@ The stock loaders build a new object, and so a new ModelPatcher, on every call. 
 patcher identity, so on a process whose diffusion model is retained across jobs each job's fresh text encoder
 and VAE were uploaded beside the previous copies. These check that a repeated load of the same file returns the
 resident object (one copy, read from disk once), that the hijacks pass ComfyUI's node inputs through, and that
-under the single-slot budget the split components stay resident beside the diffusion model.
+under the single-slot budget the split components stay resident beside the diffusion model. The preload rows
+check that a preloaded model is cached under the key its run's main loader asks for, so the run reads the file
+once.
 
 ComfyUI cannot be imported without a GPU-adjacent initialise, so ``comfy``/``folder_paths`` are stubbed for the
 duration of this module, only when ComfyUI is absent.
@@ -16,10 +18,12 @@ import importlib
 import sys
 import types
 from collections.abc import Callable, Generator
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import torch
 
 ComponentCache: Any = None
 ComponentCacheEntry: Any = None
@@ -274,3 +278,190 @@ def test_comfy_hijacks_pass_node_inputs_through_and_reuse_the_copy(
     assert vae_stock.calls == [{"args": ("qwen_image_vae.safetensors",), "kwargs": {}}]
     assert second_clip is first_clip
     assert second_vae is first_vae
+
+
+class _FakeDiffusionPatcher:
+    """Stands in for a comfy ``ModelPatcher`` around a freshly loaded diffusion model."""
+
+    def __init__(self) -> None:
+        self.model = torch.nn.Linear(2, 2)
+
+
+class _FakeCompvis:
+    """The record lookups the loader makes on a cold load: one model whose files are declared by type."""
+
+    def __init__(self, file_entries: list[dict[str, Any]]) -> None:
+        self._file_entries = file_entries
+
+    def is_model_available(self, horde_model_name: str) -> bool:
+        return True
+
+    def get_model_filenames(self, horde_model_name: str) -> list[dict[str, Any]]:
+        return self._file_entries
+
+
+class _RecordingGraph:
+    """Collects the inputs a patch step sets, keyed ``<node>.<input>`` as the graph receives them."""
+
+    def __init__(self) -> None:
+        self.inputs: dict[str, Any] = {}
+
+    def set_inputs(self, updates: dict[str, Any]) -> None:
+        self.inputs.update(updates)
+
+
+_KREA2_MODEL = "Krea2-Turbo_fp8"
+_KREA2_UNET_FILE = "krea2_turbo_fp8_scaled.safetensors"
+_SDXL_MODEL = "AlbedoBase XL (SDXL)"
+_SDXL_FILE = "albedobase_xl.safetensors"
+
+
+def _model_context(horde_model_name: str, baseline: Any, main_file: str) -> Any:
+    context_module = importlib.import_module("hordelib.pipeline.context")
+    return context_module.ModelContext(horde_model_name=horde_model_name, baseline=baseline, main_file=main_file)
+
+
+def _preload_env(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    horde_model_name: str,
+    baseline: Any,
+    main_file: str,
+    file_type: str | None,
+) -> SimpleNamespace:
+    """A single-slot cache behind a stubbed record and disk, counting each comfy load call."""
+    env = _cache_env(monkeypatch, budget_mb=0)
+    context = _model_context(horde_model_name, baseline, main_file)
+    compvis = _FakeCompvis([{"file_path": Path(main_file), "file_type": file_type}])
+    monkeypatch.setattr(
+        node_model_loader,
+        "SharedModelManager",
+        SimpleNamespace(manager=SimpleNamespace(compvis=compvis, _models_in_ram=env.cache)),
+    )
+    resolution = importlib.import_module("hordelib.pipeline.resolution")
+    monkeypatch.setattr(resolution, "resolve_image_model", lambda name: context)
+    monkeypatch.setattr(
+        node_model_loader.folder_paths,
+        "get_full_path",
+        lambda folder, name: f"/models/{folder}/{name}",
+        raising=False,
+    )
+    monkeypatch.setattr(node_model_loader.folder_paths, "get_folder_paths", lambda folder: [], raising=False)
+    monkeypatch.setattr(node_model_loader, "prefetch_module_weights_async", lambda *args, **kwargs: None)
+    monkeypatch.setattr(node_model_loader, "log_free_ram", lambda: None)
+    monkeypatch.setattr(node_model_loader, "_estimate_checkpoint_ram_mb", lambda path, payload: 1.0)
+    disk_loads: list[str] = []
+
+    def load_diffusion_model(ckpt_path: str, model_options: dict[str, Any]) -> _FakeDiffusionPatcher:
+        disk_loads.append(ckpt_path)
+        return _FakeDiffusionPatcher()
+
+    def load_checkpoint_guess_config(ckpt_path: str, **kwargs: Any) -> tuple[Any, ...]:
+        disk_loads.append(ckpt_path)
+        text_encoder = SimpleNamespace() if kwargs["output_clip"] else None
+        vae = SimpleNamespace() if kwargs["output_vae"] else None
+        return (_FakeDiffusionPatcher(), text_encoder, vae, None)
+
+    monkeypatch.setattr(node_model_loader.comfy.sd, "load_diffusion_model", load_diffusion_model, raising=False)
+    monkeypatch.setattr(
+        node_model_loader.comfy.sd,
+        "load_checkpoint_guess_config",
+        load_checkpoint_guess_config,
+        raising=False,
+    )
+    env.context = context
+    env.disk_loads = disk_loads
+    return env
+
+
+def _run_main_model_load(context: Any) -> tuple[Any, ...]:
+    """Load the main model the way a run's graph does, from the inputs ``apply_main_model`` sets."""
+    steps = importlib.import_module("hordelib.pipeline.families.image_gen.steps")
+    graph = _RecordingGraph()
+    unused_payload: Any = None
+    steps.apply_main_model(graph, unused_payload, context)
+    return node_model_loader.HordeCheckpointLoader().load_checkpoint(
+        will_load_loras=graph.inputs["model_loader.will_load_loras"],
+        seamless_tiling_enabled=False,
+        horde_model_name=graph.inputs["model_loader.horde_model_name"],
+        ckpt_name=graph.inputs["model_loader.ckpt_name"],
+        file_type=graph.inputs["model_loader.file_type"],
+    )
+
+
+def _preload(horde_model_name: str, *, diffusion_model_only: bool) -> tuple[Any, ...]:
+    return node_model_loader.HordeCheckpointLoader().preload(
+        horde_model_name,
+        will_load_loras=False,
+        seamless_tiling_enabled=False,
+        diffusion_model_only=diffusion_model_only,
+    )
+
+
+def _held_keys(cache: Any) -> list[tuple[Any, str]]:
+    return [(snapshot.kind, snapshot.identity) for snapshot in cache.held_report()]
+
+
+def test_split_files_preload_then_run_maps_the_file_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A run after a split-files preload is served the preloaded diffusion model, with no second disk load.
+
+    Under the checkpoint key the run missed and mapped the file again beside the preload's copy, which a host
+    near its commit limit cannot hold.
+    """
+    meta_consts = importlib.import_module("horde_model_reference.meta_consts")
+    env = _preload_env(
+        monkeypatch,
+        horde_model_name=_KREA2_MODEL,
+        baseline=meta_consts.KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo,
+        main_file=_KREA2_UNET_FILE,
+        file_type="unet",
+    )
+
+    preloaded = _preload(_KREA2_MODEL, diffusion_model_only=True)
+    preloaded_keys = _held_keys(env.cache)
+    served = _run_main_model_load(env.context)
+
+    assert preloaded_keys == [(ComponentSlotKind.UNET, f"{_KREA2_MODEL}:unet")]
+    assert _held_keys(env.cache) == preloaded_keys
+    assert env.disk_loads == [f"/models/checkpoints/{_KREA2_UNET_FILE}"]
+    assert served is preloaded
+
+
+def test_checkpoint_preload_then_run_maps_the_file_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A whole checkpoint keeps the checkpoint key, so its run is served the preloaded tuple."""
+    meta_consts = importlib.import_module("horde_model_reference.meta_consts")
+    env = _preload_env(
+        monkeypatch,
+        horde_model_name=_SDXL_MODEL,
+        baseline=meta_consts.KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl,
+        main_file=_SDXL_FILE,
+        file_type=None,
+    )
+
+    preloaded = _preload(_SDXL_MODEL, diffusion_model_only=False)
+    preloaded_keys = _held_keys(env.cache)
+    served = _run_main_model_load(env.context)
+
+    assert preloaded_keys == [(ComponentSlotKind.CHECKPOINT, _SDXL_MODEL)]
+    assert _held_keys(env.cache) == preloaded_keys
+    assert env.disk_loads == [f"/models/checkpoints/{_SDXL_FILE}"]
+    assert served is preloaded
+
+
+@pytest.mark.parametrize(
+    ("baseline_name", "expected_file_type"),
+    [("krea2_turbo", "unet"), ("qwen_image", "unet"), ("stable_diffusion_xl", None), ("flux_1", None)],
+)
+def test_preload_and_run_read_one_file_type(baseline_name: str, expected_file_type: str | None) -> None:
+    """The run's graph gives the main loader the file type the preload derives, for every baseline shape."""
+    meta_consts = importlib.import_module("horde_model_reference.meta_consts")
+    baselines = importlib.import_module("hordelib.pipeline.families.image_gen.baselines")
+    steps = importlib.import_module("hordelib.pipeline.families.image_gen.steps")
+    baseline = meta_consts.KNOWN_IMAGE_GENERATION_BASELINE(baseline_name)
+    graph = _RecordingGraph()
+    unused_payload: Any = None
+
+    steps.apply_main_model(graph, unused_payload, _model_context("model_a", baseline, "model_a.safetensors"))
+
+    assert baselines.main_loader_file_type(baseline) == expected_file_type
+    assert graph.inputs["model_loader.file_type"] == expected_file_type

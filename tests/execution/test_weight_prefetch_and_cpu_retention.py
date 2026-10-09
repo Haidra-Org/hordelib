@@ -1,10 +1,24 @@
-"""Weight page-in helpers and CPU-side weight retention across a device round trip."""
+"""Weight page-in helpers, the background prefetch's lifetime, and CPU-side weight retention."""
 
 from __future__ import annotations
+
+import gc
+import threading
+import time
+import weakref
+from collections.abc import Callable, Generator
+from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import torch
 
+from hordelib.execution.component_cache import (
+    ComponentCache,
+    ComponentCacheEntry,
+    ComponentCacheKey,
+    ComponentSlotKind,
+)
 from hordelib.execution.cpu_weight_retention import (
     release_copied_back_weights,
     restore_cpu_origins,
@@ -171,3 +185,110 @@ def test_touch_never_dequantizes_a_real_comfy_kitchen_fp8_weight(caplog: pytest.
 
     assert touched > 0
     assert not any("dequantizing" in record.message for record in caplog.records)
+
+
+class _GatedTouch:
+    """Blocks the background touch on its first tensor until released, counting the bytes it touches."""
+
+    def __init__(self) -> None:
+        self.entered = threading.Event()
+        self.release = threading.Event()
+        self.calls = 0
+        self.touched = 0
+
+    def __call__(self, tensors: Any) -> int:
+        self.calls += 1
+        self.entered.set()
+        assert self.release.wait(timeout=30)
+        touched = touch_cpu_weights(tensors)
+        self.touched += touched
+        return touched
+
+
+@pytest.fixture
+def gated_touch(monkeypatch: pytest.MonkeyPatch) -> Generator[_GatedTouch, None, None]:
+    from hordelib.execution import weight_prefetch
+
+    monkeypatch.delenv("HORDELIB_DISABLE_WEIGHT_PREFETCH", raising=False)
+    gate = _GatedTouch()
+    monkeypatch.setattr(weight_prefetch, "touch_cpu_weights", gate)
+    yield gate
+    gate.release.set()
+
+
+def _wait_until(condition: Callable[[], bool], *, timeout: float = 5.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        gc.collect()
+        if condition():
+            return True
+        time.sleep(0.01)
+    return condition()
+
+
+def test_an_evicted_entry_is_collectable_while_its_prefetch_runs(gated_touch: _GatedTouch) -> None:
+    """Eviction signals the entry's prefetch, and the module dies with the thread still mid-read.
+
+    The thread holds the module weakly, so nothing waits on it. A strong hold kept an evicted model and its
+    file mapping committed beside the replacement load for as long as the read took.
+    """
+    from hordelib.execution.weight_prefetch import prefetch_module_weights_async
+
+    cache = ComponentCache(budget_mb=1000)
+    module = _module()
+    entry = ComponentCacheEntry(
+        key=ComponentCacheKey(ComponentSlotKind.UNET, "model_a:unet"),
+        payload=(SimpleNamespace(model=module), None, None),
+        approx_ram_mb=1.0,
+        source_ckpt_path="model_a.safetensors",
+    )
+    cache.put(entry)
+    module_ref = weakref.ref(module)
+    stop = entry.prefetch_stop
+    thread = prefetch_module_weights_async(module, label="model_a:unet", stop=stop)
+    assert thread is not None
+    try:
+        assert gated_touch.entered.wait(timeout=10)
+        cache.evict_all()
+        del module, entry
+
+        assert stop.is_set()
+        assert _wait_until(lambda: module_ref() is None)
+        assert thread.is_alive()
+    finally:
+        gated_touch.release.set()
+        thread.join(timeout=10)
+    assert not thread.is_alive()
+    assert gated_touch.calls == 1
+
+
+def test_a_stopped_prefetch_ends_at_the_next_tensor(gated_touch: _GatedTouch) -> None:
+    """A set stop flag ends the read even while the module is still alive."""
+    from hordelib.execution.weight_prefetch import prefetch_module_weights_async
+
+    module = _module()
+    stop = threading.Event()
+    thread = prefetch_module_weights_async(module, label="stopped", stop=stop)
+    assert thread is not None
+    assert gated_touch.entered.wait(timeout=10)
+    stop.set()
+    gated_touch.release.set()
+    thread.join(timeout=10)
+
+    assert not thread.is_alive()
+    assert gated_touch.calls == 1
+    assert len(list(module.parameters())) > 1
+
+
+def test_an_unstopped_prefetch_touches_every_weight(gated_touch: _GatedTouch) -> None:
+    """A live module with no stop request is read to the end, so the weakref costs no prefetch coverage."""
+    from hordelib.execution.weight_prefetch import prefetch_module_weights_async
+
+    module = _module()
+    gated_touch.release.set()
+    thread = prefetch_module_weights_async(module, label="complete")
+    assert thread is not None
+    thread.join(timeout=10)
+
+    assert not thread.is_alive()
+    assert gated_touch.touched == sum(p.numel() * p.element_size() for p in module.parameters())

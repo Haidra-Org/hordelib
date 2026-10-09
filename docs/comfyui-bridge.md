@@ -164,6 +164,13 @@ by a `ComponentCacheKey(kind, identity)`:
   whichever of the UNet and VAE are present.
 - **Bare component** (`file_type` in {unet, vae, text_encoder}, loaded via `comfy.sd.load_diffusion_model`):
   `kind` is the component's slot (UNET/CLIP/VAE), `identity=<model name>:<file_type>`.
+- **Which key a model loads under.** The main model loader's `file_type` comes from
+  `main_loader_file_type(baseline)` (`pipeline/families/image_gen/baselines.py`): `unet` for a split-files
+  baseline (Qwen-Image, Krea2, Anima, Z-Image), None for a checkpoint. The run's graph
+  (`apply_main_model`) and the preload (`HordeLib.preload_model`, through `HordeCheckpointLoader.preload`)
+  both read it, so a preloaded split-files model is the `UNET` entry `<model name>:unet` the run then hits.
+  A preload under the checkpoint key would leave the run a miss that maps the multi-gigabyte file a second
+  time.
 - **Standalone VAE** (see below): `kind=VAE`, `identity=vae@<content-hash>`.
 - **Split-files loaders** (ComfyUI's `CLIPLoader` and `VAELoader`, used by the split-files graphs such as
   Qwen and Z-Image): `kind=CLIP`, `identity=text_encoders/<file>:<clip type>:<device>`, and `kind=VAE`,
@@ -234,6 +241,12 @@ asks the OS to prefetch the module's CPU-resident weight ranges (`PrefetchVirtua
 `madvise(MADV_WILLNEED)` elsewhere) and then touches one byte per page so the pages join the process's
 working set (a prefetch alone leaves them on the standby list, and the copy still soft-faults them in at a
 fraction of memory speed). Kill switch: `HORDELIB_DISABLE_WEIGHT_PREFETCH=1`.
+
+The prefetch thread holds its module through a weakref and touches one tensor at a time. Between tensors it
+stops when the module has been collected or its stop flag is set. The loader passes the serving cache
+entry's `ComponentCacheEntry.prefetch_stop`, and every cache eviction path sets it. An evicted component, and
+the file mapping behind its weights, is therefore released as soon as its last holder drops it. A strong
+reference would keep it, and its host commit, alive beside a replacement load until the read finished.
 
 The matching unload path (`hordelib/execution/cpu_weight_retention.py`, hooked into `ModelPatcher.load` and
 `ModelPatcher.unpatch_model`) records each CPU tensor before the load replaces it and points the parameter

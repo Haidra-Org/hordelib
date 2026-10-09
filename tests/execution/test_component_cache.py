@@ -1,7 +1,8 @@
 """GPU-free unit tests for the MB-budgeted component cache (``hordelib.execution.component_cache``).
 
 These pin the cache's contract independently of the loader: LRU recency and eviction order, budget fitting,
-the single-slot (``budget_mb=0``) rollback behaviour, identity/all eviction, the held-residency report, the
+the single-slot (``budget_mb=0``) rollback behaviour, identity/all eviction, the stop flag every eviction
+path sets on the entry's weight prefetch, the held-residency report, the
 explicit restore lever and its statistics, and the per-kind RAM estimation fallback. The loader-level
 behaviours (subset satisfaction, standalone-VAE dedup) are covered by the stubbed-comfy routing tests.
 """
@@ -377,3 +378,70 @@ def test_budget_env_default_and_override(monkeypatch) -> None:
 
     monkeypatch.setenv("HORDE_COMPONENT_CACHE_MB", "-100")
     assert component_cache_budget_mb() == 0.0
+
+
+def test_budget_eviction_stops_the_evicted_entry_prefetch() -> None:
+    cache = ComponentCache(budget_mb=150)
+    coldest = _entry("a", 100)
+    newest = _entry("b", 100)
+    cache.put(coldest)
+
+    assert cache.put(newest) == [coldest]
+
+    assert coldest.prefetch_stop.is_set()
+    assert not newest.prefetch_stop.is_set()
+
+
+def test_single_slot_insert_and_release_stop_the_displaced_prefetch() -> None:
+    cache = ComponentCache(budget_mb=0)
+    displaced_by_insert = _entry("a", 100)
+    resident = _entry("b", 100)
+    cache.put(displaced_by_insert)
+    cache.put(resident)
+
+    released = cache.release_single_slot(ComponentSlotKind.CHECKPOINT)
+
+    assert released == [resident]
+    assert displaced_by_insert.prefetch_stop.is_set()
+    assert resident.prefetch_stop.is_set()
+
+
+def test_release_unretained_stops_only_the_released_prefetches() -> None:
+    cache = ComponentCache(budget_mb=1000)
+    retained = _kind_entry("model_a:unet", ComponentSlotKind.UNET)
+    unretained = _kind_entry("vae/model_a_vae.safetensors", ComponentSlotKind.VAE)
+    unretained.held_only_while_retained = True
+    cache.put(retained)
+    cache.put(unretained)
+
+    assert cache.release_unretained() == [unretained]
+
+    assert unretained.prefetch_stop.is_set()
+    assert not retained.prefetch_stop.is_set()
+
+
+def test_identity_and_full_eviction_stop_the_evicted_prefetches() -> None:
+    cache = ComponentCache(budget_mb=1000)
+    named = _entry("a", 100)
+    remaining = _entry("b", 100)
+    cache.put(named)
+    cache.put(remaining)
+
+    cache.evict_identities({"a"})
+    assert named.prefetch_stop.is_set()
+    assert not remaining.prefetch_stop.is_set()
+
+    cache.evict_all()
+    assert remaining.prefetch_stop.is_set()
+
+
+def test_same_key_replacement_stops_the_replaced_prefetch_only() -> None:
+    cache = ComponentCache(budget_mb=1000)
+    narrower = _entry("a", 100)
+    broader = _entry("a", 100)
+    cache.put(narrower)
+    cache.put(broader)
+    cache.put(broader)
+
+    assert narrower.prefetch_stop.is_set()
+    assert not broader.prefetch_stop.is_set()

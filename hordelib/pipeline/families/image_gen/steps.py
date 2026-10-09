@@ -16,8 +16,7 @@ from hordelib.pipeline.context import ModelContext
 from hordelib.pipeline.definition import PatchStep
 from hordelib.pipeline.families.image_gen.baselines import (
     FLUX_BASELINES,
-    IMAGE_BASELINE_PROFILES,
-    LoaderKind,
+    main_loader_file_type,
     resolve_clip_type,
     resolve_flow_shift,
 )
@@ -107,17 +106,14 @@ def apply_component_loaders(graph: ComfyGraph, payload: ImageGenPayload, context
 
 def apply_main_model(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
     """Point the main model loader at the resolved checkpoint/diffusion-model file."""
-    profile = IMAGE_BASELINE_PROFILES.get(context.baseline) if context.baseline is not None else None
-    loads_split_files = profile is not None and profile.loader is LoaderKind.UNET
     graph.set_inputs(
         {
             "model_loader.ckpt_name": context.main_file,
             "model_loader.model_name": context.main_file,
             "model_loader.horde_model_name": context.horde_model_name,
             "model_loader.will_load_loras": context.will_load_loras,
-            # The HordeCheckpointLoader needs to know what file to load; "unet" routes the split-files
-            # baselines (qwen, z-image) through the diffusion-model loader, None keeps normal SD checkpoints working.
-            "model_loader.file_type": "unet" if loads_split_files else None,
+            # The preload reads the same helper, so a preloaded model is the cache entry this load hits.
+            "model_loader.file_type": main_loader_file_type(context.baseline),
         },
     )
 

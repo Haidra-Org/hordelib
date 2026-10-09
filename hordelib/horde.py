@@ -953,16 +953,17 @@ class HordeLib:
         and loading them here casts a private copy of the encoders per cached model and reads their bytes
         from disk for nothing. A later request that needs the omitted components is a cache miss that
         reloads the full checkpoint.
+
+        The model is cached under the key its run's graph asks for (see
+        :meth:`hordelib.nodes.node_model_loader.HordeCheckpointLoader.preload`).
         """
         from hordelib.nodes.node_model_loader import HordeCheckpointLoader
 
-        HordeCheckpointLoader().load_checkpoint(
+        HordeCheckpointLoader().preload(
+            horde_model_name,
             will_load_loras=will_load_loras,
             seamless_tiling_enabled=seamless_tiling_enabled,
-            horde_model_name=horde_model_name,
-            output_vae=not diffusion_model_only,
-            output_clip=not diffusion_model_only,
-            preloading=True,
+            diffusion_model_only=diffusion_model_only,
         )
 
     @logfire.instrument("horde.post_process", extract_args=False)

@@ -32,9 +32,11 @@ __all__ = [
     "LoaderKind",
     "ModelOverride",
     "QWEN_GRAPH_BASELINES",
+    "UNET_FILE_TYPE",
     "UNET_LOADER_BASELINES",
     "Z_IMAGE_BASELINES",
     "align_your_steps_model_type",
+    "main_loader_file_type",
     "resolve_clip_type",
     "resolve_flow_shift",
 ]
@@ -232,6 +234,21 @@ UNET_LOADER_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
     profile.baseline for profile in IMAGE_BASELINE_PROFILES.values() if profile.loader is LoaderKind.UNET
 )
 """Split-files baselines, derived from :data:`IMAGE_BASELINE_PROFILES`."""
+
+UNET_FILE_TYPE = "unet"
+"""The ``file_type`` a split-files model declares its diffusion model under and is loaded with."""
+
+
+def main_loader_file_type(baseline: KNOWN_IMAGE_GENERATION_BASELINE | str | None) -> str | None:
+    """Return the ``file_type`` the main model loader is given for a model of *baseline*.
+
+    A split-files baseline loads its bare diffusion model (:data:`UNET_FILE_TYPE`), and None loads a whole
+    checkpoint. The loader keys its component cache on this value, so the run's graph and the preload both
+    read it here, and the entry a preload leaves is the one the run is served from.
+    """
+    profile = _profile_for(baseline)
+    loads_split_files = profile is not None and profile.loader is LoaderKind.UNET
+    return UNET_FILE_TYPE if loads_split_files else None
 
 
 class AlignYourStepsModelType(StrEnum):
