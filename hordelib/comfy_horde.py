@@ -44,7 +44,12 @@ from hordelib.execution.comfy_events import (
     parse_event,
 )
 from hordelib.execution.graph_utils import GraphDict, apply_dotted_params
-from hordelib.execution.interface import DEFAULT_IMAGE_OUTPUTS, OutputSpec, VramUnloadResult
+from hordelib.execution.interface import (
+    DEFAULT_IMAGE_OUTPUTS,
+    OutputSpec,
+    PipelineExecutionError,
+    VramUnloadResult,
+)
 from hordelib.execution.model_dirs import ModelCategory, invalidate_filename_cache, register_horde_model_paths
 from hordelib.execution.results import PipelineRunResult, collect_output_entries
 from hordelib.execution.server_shim import HeadlessComfyServer
@@ -1409,9 +1414,10 @@ class Comfy_Horde:
             model_name=model_name,
             error_summary=run_result.error.summary() if run_result.error else None,
         )
-        raise RuntimeError(
+        raise PipelineExecutionError(
             f"Pipeline failed to run - declared output node(s) {missing_nodes} produced no results. "
             f"Model: {model_name}.{error_summary}",
+            exception_type=(run_result.error.exception_type or None) if run_result.error else None,
         )
 
 

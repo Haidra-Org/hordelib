@@ -30,6 +30,24 @@ class StageGraphUnsupportedError(RuntimeError):
     """
 
 
+class PipelineExecutionError(RuntimeError):
+    """A pipeline run ended without its declared outputs.
+
+    Carries the failing node's exception type as ComfyUI reported it (``"torch.AcceleratorError"``, say), because
+    ComfyUI catches the node's exception inside its executor and only its description reaches the caller. A caller
+    can then tell a failure that leaves the process's CUDA context in doubt from one that does not, without
+    matching the message text.
+    """
+
+    exception_type: str | None
+    """The failing node's exception type, fully qualified, or None when the run reported no node error."""
+
+    def __init__(self, message: str, *, exception_type: str | None = None) -> None:
+        """Record the message and the failing node's exception type, when ComfyUI reported one."""
+        super().__init__(message)
+        self.exception_type = exception_type
+
+
 class OutputKind(StrEnum):
     """The modality of a pipeline output."""
 
