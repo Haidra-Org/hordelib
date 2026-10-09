@@ -224,6 +224,16 @@ eviction, and a private copy of the weights per process) becomes a no-op; the re
 to what the copy would have produced. LoRA-patched keys (the patcher's own `backup`) are left to ComfyUI.
 Kill switch: `HORDELIB_DISABLE_CPU_WEIGHT_RETENTION=1`.
 
+Tensor-subclass weights (comfy_kitchen `QuantizedTensor`, as in fp8 scaled checkpoints) are kept another way.
+ComfyUI's quantized ops (`comfy.ops._quantized_apply`) register a new `Parameter` on every move, and a `.data`
+assignment on a wrapper moves only its outer metadata. The load records each CPU `Parameter` object in a table
+on its owning module, keyed by parameter name, and the patched `_quantized_apply` notes the device `Parameter`
+it makes from that origin. Inside `unpatch_model` and `partially_unload` to the CPU, a move of that device
+`Parameter` back registers the origin `Parameter` on the module and the device-to-host copy is never made. A
+weight a patch replaced on the device is not the noted one and is copied back as before. ComfyUI's partial
+unload then pins the origin itself (a file-backed origin is refused by the `pin_memory` patch), and its unpin
+before the next load or at the full unload releases that registration.
+
 Two further ComfyUI paths would undo the sharing and are covered by the same modules. ComfyUI registers every
 weight it leaves off the device as pinned host memory (`pin_memory`, on by default), and registering a
 copy-on-write file mapping makes the kernel copy each page into private memory: measured on Linux, a

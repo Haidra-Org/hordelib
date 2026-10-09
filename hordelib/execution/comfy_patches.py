@@ -641,7 +641,9 @@ def _model_patcher_unpatch_model_hijack(model_patcher, device_to=None, unpatch_w
     """Intercepts comfy ModelPatcher.unpatch_model to restore retained CPU weights instead of copying back.
 
     Only an unload to the CPU offload device with weights being unpatched can restore; every other call is
-    passed through untouched. Keys the patcher backed up itself (LoRA-patched weights) are left for it.
+    passed through untouched. Keys the patcher backed up itself (LoRA-patched weights) are left for it. Quantized
+    weights are restored inside the original's ``Module.to`` (see ``_quantized_apply_hijack``), which runs after
+    the original has put every backed-up key back.
 
     An unpatch can run inside the sampler's ``torch.inference_mode``, when a failed mid-sample load detaches
     the patcher. ComfyUI's ``set_attr_param`` then wraps each backed-up weight in a ``Parameter`` without
@@ -653,14 +655,16 @@ def _model_patcher_unpatch_model_hijack(model_patcher, device_to=None, unpatch_w
         for key, entry in list(model_patcher.backup.items()):
             if not entry.inplace_update and not entry.weight.is_inference():
                 model_patcher.backup[key] = entry._replace(weight=entry.weight.clone())
-    if unpatch_weights and device_to is not None and getattr(device_to, "type", None) == "cpu":
-        from hordelib.execution.cpu_weight_retention import restore_cpu_origins
+    if not (unpatch_weights and device_to is not None and getattr(device_to, "type", None) == "cpu"):
+        return _originals["model_patcher_unpatch_model"](model_patcher, device_to, unpatch_weights)
+    from hordelib.execution.cpu_weight_retention import restore_cpu_origins, restoring_quantized_origins
 
-        try:
-            restore_cpu_origins(model_patcher.model, skip_keys=set(model_patcher.backup.keys()))
-        except Exception as exc:
-            logger.warning("CPU weight restore skipped; falling back to the device copy-back: {}", exc)
-    return _originals["model_patcher_unpatch_model"](model_patcher, device_to, unpatch_weights)
+    try:
+        restore_cpu_origins(model_patcher.model, skip_keys=set(model_patcher.backup.keys()))
+    except Exception as exc:
+        logger.warning("CPU weight restore skipped, so the weights are copied back from the device: {}", exc)
+    with restoring_quantized_origins():
+        return _originals["model_patcher_unpatch_model"](model_patcher, device_to, unpatch_weights)
 
 
 def _model_patcher_partially_unload_hijack(model_patcher, device_to, *args, **kwargs):
@@ -669,19 +673,27 @@ def _model_patcher_partially_unload_hijack(model_patcher, device_to, *args, **kw
     The original moves whole modules back to the host with ``Module.to`` and pins the copies. Each unpatched
     weight is then pointed back at its retained CPU origin (see ``cpu_weight_retention``), which frees the copy
     and keeps the next load reading from the checkpoint mapping. Keys the patcher backed up are left to it.
-    """
-    freed = _originals["model_patcher_partially_unload"](model_patcher, device_to, *args, **kwargs)
-    if getattr(device_to, "type", None) == "cpu":
-        from hordelib.execution.cpu_weight_retention import release_copied_back_weights
 
-        try:
-            release_copied_back_weights(
-                model_patcher.model,
-                skip_keys=set(model_patcher.backup.keys()),
-                unpin=model_patcher.unpin_weight,
-            )
-        except Exception as exc:
-            logger.warning("Copied-back weight release skipped; the private copies stay: {}", exc)
+    Quantized weights are never copied. Inside the original's ``Module.to`` each one is registered as its CPU
+    origin (see ``_quantized_apply_hijack``), and the original then pins the origin in place of a copy (a
+    file-backed origin is refused by ``_pin_memory_hijack``). ComfyUI records the pin by key, and the origin
+    stays the registered weight until the unpin before the next load or at the full unload, so that unpin
+    releases the registration it made.
+    """
+    if getattr(device_to, "type", None) != "cpu":
+        return _originals["model_patcher_partially_unload"](model_patcher, device_to, *args, **kwargs)
+    from hordelib.execution.cpu_weight_retention import release_copied_back_weights, restoring_quantized_origins
+
+    with restoring_quantized_origins():
+        freed = _originals["model_patcher_partially_unload"](model_patcher, device_to, *args, **kwargs)
+    try:
+        release_copied_back_weights(
+            model_patcher.model,
+            skip_keys=set(model_patcher.backup.keys()),
+            unpin=model_patcher.unpin_weight,
+        )
+    except Exception as exc:
+        logger.warning("Copied-back weight release skipped, so the private copies stay: {}", exc)
     return freed
 
 
@@ -695,14 +707,25 @@ def _quantized_apply_hijack(module, fn, recurse=True):
     registered. Any other result is wrapped as the original does, and a plain new Parameter takes over the old
     one's recorded CPU origin (see ``cpu_weight_retention.carry_cpu_origin``) so the next unload can restore
     it. Buffers and recursion are unchanged.
+
+    A quantized weight moved off the CPU from its recorded origin is noted as that origin's device copy. Inside
+    ``cpu_weight_retention.restoring_quantized_origins`` a move of that copy back to the CPU registers the origin
+    ``Parameter`` itself and ``fn`` never runs on the weight, so no device-to-host copy is made. The copy would
+    allocate the weight's size in new private memory, which fails natively when host commit is exhausted.
     """
-    from hordelib.execution.cpu_weight_retention import carry_cpu_origin
+    from hordelib.execution.cpu_weight_retention import (
+        carry_cpu_origin,
+        note_quantized_device_twin,
+        restore_quantized_origin,
+    )
 
     if recurse:
         for child in module.children():
             child._apply(fn)
     for key, param in module._parameters.items():
         if param is None:
+            continue
+        if restore_quantized_origin(module, key=key, param=param, fn=fn):
             continue
         moved = fn(param)
         if moved is param:
@@ -711,6 +734,7 @@ def _quantized_apply_hijack(module, fn, recurse=True):
             moved = moved.clone()
         rewrapped = torch.nn.Parameter(moved, requires_grad=False)
         carry_cpu_origin(param, rewrapped)
+        note_quantized_device_twin(module, key=key, previous=param, replacement=rewrapped)
         module.register_parameter(key, rewrapped)
     for key, buf in module._buffers.items():
         if buf is not None:
