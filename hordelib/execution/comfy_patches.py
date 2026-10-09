@@ -642,7 +642,17 @@ def _model_patcher_unpatch_model_hijack(model_patcher, device_to=None, unpatch_w
 
     Only an unload to the CPU offload device with weights being unpatched can restore; every other call is
     passed through untouched. Keys the patcher backed up itself (LoRA-patched weights) are left for it.
+
+    An unpatch can run inside the sampler's ``torch.inference_mode``, when a failed mid-sample load detaches
+    the patcher. ComfyUI's ``set_attr_param`` then wraps each backed-up weight in a ``Parameter`` without
+    cloning it, and for a normal (non-inference) tensor subclass such as a comfy_kitchen ``QuantizedTensor``
+    that wrap raises, replacing the error that caused the unpatch. Those backups are cloned under the active
+    inference mode first, which the wrap accepts. Entries restored in place (``copy_to_param``) never wrap.
     """
+    if unpatch_weights and torch.is_inference_mode_enabled():
+        for key, entry in list(model_patcher.backup.items()):
+            if not entry.inplace_update and not entry.weight.is_inference():
+                model_patcher.backup[key] = entry._replace(weight=entry.weight.clone())
     if unpatch_weights and device_to is not None and getattr(device_to, "type", None) == "cpu":
         from hordelib.execution.cpu_weight_retention import restore_cpu_origins
 
