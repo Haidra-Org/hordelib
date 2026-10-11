@@ -7,21 +7,29 @@ inference processes tend to fall into lockstep: they all sample together, then a
 setup/decode together, leaving the GPU idle during the shared setup window.
 
 This module lets the host (e.g. the AI-Horde worker) inject a cross-process semaphore that
-hordelib acquires around ``comfy.sample.sample``. In current ComfyUI that call brackets the
-diffusion model's load-to-VRAM (``load_models_gpu``) *and* the denoise loop — but not the
-upstream checkpoint disk load or prompt encoding, nor the downstream VAE decode. With more
-inference processes than lease slots, one process samples while the others stage their next
-pipeline (checkpoint load, prompt encode) up to the sampling call; when the sampler finishes,
-an already-staged process takes the lease and samples immediately — keeping the GPU busy
-back-to-back. Because the VRAM load sits inside the lease, this only helps when models are kept
-resident (the host's high-memory / no-unload mode); otherwise it serializes the RAM->VRAM
-transfer behind sampling.
+hordelib acquires around ``comfy.samplers.CFGGuider.sample``. Every ComfyUI sampling path reaches that
+method: ``KSampler``-family nodes through ``comfy.sample.sample``, ``SamplerCustom`` through
+``comfy.sample.sample_custom``, and ``SamplerCustomAdvanced`` by calling ``guider.sample`` on a
+``CFGGuider`` subclass directly. Hooking either ``comfy.sample`` entry point would leave the last path
+sampling outside the lease. ``CFGGuider.sample`` brackets the diffusion model's load-to-VRAM
+(``prepare_sampling`` in ``outer_sample``) *and* the denoise loop, but not the upstream checkpoint
+disk load or prompt encoding, nor the downstream VAE decode. With more inference processes than lease
+slots, one process samples while the others stage their next pipeline (checkpoint load, prompt encode)
+up to the sampling call; when the sampler finishes, an already-staged process takes the lease and
+samples immediately, keeping the GPU busy back-to-back. Because the VRAM load sits inside the lease,
+this only helps when models are kept resident (the host's high-memory / no-unload mode); otherwise it
+serializes the RAM->VRAM transfer behind sampling.
+
+A guider subclass that overrides ``sample`` without calling ``super().sample`` bypasses the lease. A
+nested hooked call on the same thread passes through without a second acquire.
 
 When no lease is set (standalone hordelib, or the feature disabled) the wrapper is a no-op.
 """
 
 from __future__ import annotations
 
+import threading
+from collections.abc import Callable
 from typing import Protocol, runtime_checkable
 
 from loguru import logger
@@ -57,6 +65,8 @@ class ClearanceTruthLease(Protocol):
 _sampling_lease: SamplingLease | None = None
 _acquire_timeout_seconds: float = 120.0
 _installed: bool = False
+_lease_scope: threading.local = threading.local()
+"""Per-thread marker that a hooked guider sample is already running, so a nested one does not acquire again."""
 
 
 def set_gpu_sampling_lease(lease: SamplingLease | None, *, acquire_timeout_seconds: float = 120.0) -> None:
@@ -75,11 +85,11 @@ def set_gpu_sampling_lease(lease: SamplingLease | None, *, acquire_timeout_secon
         logger.info(f"GPU sampling lease registered (acquire timeout {acquire_timeout_seconds:.0f}s)")
 
 
-def _prefetch_sampling_model_weights(args: tuple[object, ...], kwargs: dict[str, object]) -> None:
-    """Kick a background page-in of the sampling model's CPU-resident weights; never raises."""
+def _prefetch_sampling_model_weights(guider: object) -> None:
+    """Kick a background page-in of the guider's CPU-resident diffusion weights; never raises."""
     try:
-        model = kwargs.get("model", args[0] if args else None)
-        module = getattr(model, "model", None)
+        model_patcher = getattr(guider, "model_patcher", None)
+        module = getattr(model_patcher, "model", None)
         if module is None:
             return
         from hordelib.execution.weight_prefetch import prefetch_module_weights_async
@@ -105,50 +115,72 @@ def _rebase_clamp_on_grant(lease: SamplingLease) -> None:
 
 
 def install_sampling_lease_hook() -> bool:
-    """Monkey-patch ``comfy.sample.sample`` to hold the lease around the denoising loop.
+    """Monkey-patch ``comfy.samplers.CFGGuider.sample`` to hold the lease around the model load and denoise loop.
 
-    Idempotent and independent of logfire instrumentation. Returns True if the hook is in
-    place (now or already), False if ComfyUI's sample module could not be patched.
+    The patch replaces the base class attribute, so every guider subclass that inherits ``sample`` (or reaches it
+    through ``super().sample``) is covered. Idempotent and independent of logfire instrumentation.
+
+    Returns:
+        True if the hook is in place (now or already), False if ComfyUI's samplers module could not be patched.
     """
     global _installed
     if _installed:
         return True
 
     try:
-        from comfy import sample as sample_module
+        from comfy import samplers as samplers_module
     except Exception as e:
         logger.warning(f"Could not install GPU sampling lease hook: {e}")
         return False
 
-    original_sample = sample_module.sample
+    guider_class = samplers_module.CFGGuider
+    original_guider_sample = guider_class.sample
 
-    def _leased_sample(*args: object, **kwargs: object) -> object:
-        # The model's RAM->VRAM move runs inside the lease and pages its weights in from the checkpoint mapping
-        # on first touch; asking the OS to prefetch them now lets that disk read overlap the wait for
-        # clearance instead of sitting in the sampling window.
-        _prefetch_sampling_model_weights(args, kwargs)
-        lease = _sampling_lease
-        acquired = False
-        if lease is not None:
-            try:
-                acquired = bool(lease.acquire(True, _acquire_timeout_seconds))
-            except Exception as e:
-                logger.warning(f"GPU sampling lease acquire failed ({e}); sampling without it")
-                acquired = False
-            if acquired:
-                _rebase_clamp_on_grant(lease)
-            else:
-                logger.warning("GPU sampling lease acquire timed out; sampling without it")
+    def _leased_guider_sample(self: object, *args: object, **kwargs: object) -> object:
+        # A guider whose sampling nests another hooked call already holds the lease (or already gave up waiting
+        # for it); a second acquire would wait on its own grant.
+        if getattr(_lease_scope, "active", False):
+            return original_guider_sample(self, *args, **kwargs)
+        _lease_scope.active = True
         try:
-            return original_sample(*args, **kwargs)
+            return _sample_under_lease(self, original_guider_sample, args, kwargs)
         finally:
-            if acquired and lease is not None:
-                try:
-                    lease.release()
-                except Exception as e:
-                    logger.error(f"Failed to release GPU sampling lease: {e}")
+            _lease_scope.active = False
 
-    sample_module.sample = _leased_sample
+    guider_class.sample = _leased_guider_sample
     _installed = True
-    logger.debug("Installed GPU sampling lease hook on comfy.sample.sample")
+    logger.debug("Installed GPU sampling lease hook on comfy.samplers.CFGGuider.sample")
     return True
+
+
+def _sample_under_lease(
+    guider: object,
+    original_guider_sample: Callable[..., object],
+    args: tuple[object, ...],
+    kwargs: dict[str, object],
+) -> object:
+    """Run the original guider sample inside the lease, if one is set; never blocks past the acquire timeout."""
+    # The model's RAM->VRAM move runs inside the lease and pages its weights in from the checkpoint mapping on
+    # first touch; asking the OS to prefetch them now lets that disk read overlap the wait for clearance instead
+    # of sitting in the sampling window.
+    _prefetch_sampling_model_weights(guider)
+    lease = _sampling_lease
+    acquired = False
+    if lease is not None:
+        try:
+            acquired = bool(lease.acquire(True, _acquire_timeout_seconds))
+        except Exception as e:
+            logger.warning(f"GPU sampling lease acquire failed ({e}); sampling without it")
+            acquired = False
+        if acquired:
+            _rebase_clamp_on_grant(lease)
+        else:
+            logger.warning("GPU sampling lease acquire timed out; sampling without it")
+    try:
+        return original_guider_sample(guider, *args, **kwargs)
+    finally:
+        if acquired and lease is not None:
+            try:
+                lease.release()
+            except Exception as e:
+                logger.error(f"Failed to release GPU sampling lease: {e}")
