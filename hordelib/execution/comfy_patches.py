@@ -17,6 +17,7 @@ import json
 import numbers
 import typing
 from collections.abc import Callable
+from enum import StrEnum
 
 import logfire
 import PIL.Image
@@ -303,13 +304,26 @@ def _do_not_force_load_model_in_patcher(model_patcher) -> bool:
     return False
 
 
+def _bytes_still_to_load(model_patcher) -> int:
+    """Return the weight bytes a load of *model_patcher* would still move onto the device.
+
+    ComfyUI charges a resident model only its offloaded part (``LoadedModel.model_memory_required``).
+    Charging the full size instead makes a fully loaded text encoder look too large for the room
+    beside itself on its next encode.
+    """
+    model_size = model_patcher.model_size()
+    if not hasattr(model_patcher, "loaded_size"):
+        return model_size
+    return max(0, model_size - model_patcher.loaded_size())
+
+
 def _force_full_load_would_overflow_vram(models) -> bool:
     """Return True when force-fully loading *models* would not fit in currently-free VRAM.
 
     ComfyUI's ``force_full_load`` path crashes (segfault) when asked to load weights larger than
-    the free VRAM instead of erroring or offloading, so we preempt that here. Fails open
-    (returns False) when the device isn't CUDA or sizes can't be determined, preserving the
-    force-load default.
+    the free VRAM instead of erroring or offloading, so we preempt that here. Only the bytes not
+    already on the device are charged. Fails open (returns False) when the device isn't CUDA or
+    sizes can't be determined, preserving the force-load default.
     """
     try:
         import comfy.model_management as model_management
@@ -318,7 +332,7 @@ def _force_full_load_would_overflow_vram(models) -> bool:
         if getattr(device, "type", None) != "cuda":
             return False
         free_memory = model_management.get_free_memory(device)
-        required = sum(model_patcher.model_size() for model_patcher in models)
+        required = sum(_bytes_still_to_load(model_patcher) for model_patcher in models)
     except Exception as exc:
         logger.debug("Could not estimate force-load VRAM fit; proceeding to force load: error={}", exc)
         return False
@@ -403,7 +417,9 @@ class _FreeViewClamp:
     truth_bytes: int
     """The host's device-level free figure, in bytes."""
     reserved_baseline: int
-    """The allocator's reservation when the figure was taken; growth past it comes off the figure."""
+    """The allocator's reservation when the figure was taken.
+
+    Growth past it comes off the figure, and a release below it is added to the figure."""
 
 
 _active_free_view_clamp: _FreeViewClamp | None = None
@@ -419,10 +435,10 @@ def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Itera
     shortfall comes out too small and a load overcommits the card. A host that measures free VRAM at
     the device level can pass that figure in; within this scope the reported free total is the lower
     of ComfyUI's own answer and a ceiling of what this process can obtain without evicting anything:
-    the supplied figure less the process's allocator growth since the scope was entered, plus the
-    memory free inside torch's own reserved pool. Both process-local terms are honest even under
-    WDDM, and sibling growth is bounded by whatever admission control the host applied when it
-    dispatched the run.
+    the supplied figure less the process's allocator growth since the scope was entered (a release
+    counts as negative growth), plus the memory free inside torch's own reserved pool. Both
+    process-local terms are honest even under WDDM, and sibling growth is bounded by whatever
+    admission control the host applied when it dispatched the run.
 
     The reclaimable term has to be added back because ComfyUI's own total is defined the same way
     (device free plus ``reserved - active``): the allocator can hand out its cached blocks without
@@ -478,7 +494,9 @@ def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Itera
         if getattr(resolved, "type", None) != "cuda":
             return (mem_free_total, mem_free_torch) if torch_free_too else mem_free_total
         try:
-            own_growth = max(0, torch.cuda.memory_reserved(resolved) - clamp.reserved_baseline)
+            # Signed: memory released to the driver since the baseline is free on the card but absent
+            # from the host's figure, so it raises the ceiling. ComfyUI's own total still caps it below.
+            own_growth = torch.cuda.memory_reserved(resolved) - clamp.reserved_baseline
         except Exception:
             # Fail open: an unreadable allocator figure must not make the clamp itself the fault.
             return (mem_free_total, mem_free_torch) if torch_free_too else mem_free_total
@@ -506,7 +524,9 @@ def rebase_free_memory_view_clamp(device_free_truth_mb: float) -> bool:
     A host that grants a run's sampling window after the run began has a fresher device measurement
     than the one the clamp was entered with: memory a sibling released in between is free on the card
     but absent from the old figure. Rebasing replaces the figure and takes the allocator's current
-    reservation as the new growth baseline, so what this process already holds is in neither term.
+    reservation as the new growth baseline. What this process holds at the rebase is in neither term.
+    Growth after the rebase comes off the figure, and a release below the baseline (a model this process
+    held at the rebase, unloaded afterwards) is added back.
 
     Args:
         device_free_truth_mb: Host-measured device-level free VRAM in MB at the grant.
@@ -550,6 +570,68 @@ def _partial_load_allowed(models) -> typing.Iterator[None]:
         _partial_load_patchers.difference_update(ids)
 
 
+SAMPLING_BESIDE_RESIDENT_MODELS_TEXT: str = "Sampling beside resident models"
+"""Stable prefix of the line logged when a load that skipped the force-full load proceeds beside resident models."""
+
+
+class ForceLoadSkipReason(StrEnum):
+    """Why a load skipped the force-full load; the value is the ``reason=`` token of the resident-models line."""
+
+    CLASS_LIST = "class_list"
+    """A model in the load is on the :data:`models_not_to_force_load` list."""
+    OVERFLOW = "overflow"
+    """The bytes still to load would not fit in free VRAM."""
+
+
+def _log_sampling_beside_resident_models(models, reason: ForceLoadSkipReason) -> None:
+    """Log once when a skipped force-full load proceeds while other models hold weights on the device.
+
+    Reads ComfyUI's ``current_loaded_models`` before the load, so the line records the residents at the
+    decision point; any eviction ComfyUI then makes for a shortfall logs its own line. Models being loaded
+    (and their clones, which ComfyUI detaches during the load) are not counted as residents.
+    """
+    try:
+        import comfy.model_management as model_management
+
+        device = model_management.get_torch_device()
+        resident_names: list[str] = []
+        resident_bytes = 0
+        for loaded_model in model_management.current_loaded_models:
+            if loaded_model.device != device:
+                continue
+            resident_patcher = loaded_model.model
+            if any(
+                resident_patcher is model_patcher or resident_patcher.is_clone(model_patcher)
+                for model_patcher in models
+            ):
+                continue
+            loaded_bytes = loaded_model.model_loaded_memory()
+            if loaded_bytes <= 0:
+                continue
+            resident_names.append(type(resident_patcher.model).__name__)
+            resident_bytes += loaded_bytes
+        if not resident_names:
+            return
+        loading_names = [type(model_patcher.model).__name__ for model_patcher in models]
+        loading_bytes = sum(_bytes_still_to_load(model_patcher) for model_patcher in models)
+        free_bytes = model_management.get_free_memory(device)
+    except Exception as exc:
+        logger.debug("Could not read the resident models beside a skipped force-full load: error={}", exc)
+        return
+
+    logger.info(
+        SAMPLING_BESIDE_RESIDENT_MODELS_TEXT
+        + ": reason={} {} loading {:.0f} MB with {:.0f} MB of other models resident ({}), free {:.0f} MB;"
+        " no forced eviction",
+        reason,
+        ", ".join(loading_names),
+        loading_bytes / 2**20,
+        resident_bytes / 2**20,
+        ", ".join(resident_names),
+        free_bytes / 2**20,
+    )
+
+
 @logfire.instrument("comfy.load_models_gpu_hijack")
 def _load_models_gpu_hijack(*args, **kwargs):
     """Intercepts the comfy load_models_gpu function to force full load.
@@ -564,17 +646,28 @@ def _load_models_gpu_hijack(*args, **kwargs):
     standard inference reserve: freeing the full estimate evicts co-resident diffusion weights to
     host a model a fraction of their size, and the operation the estimate covers (VAE decode/encode)
     falls back to tiling on a genuine OOM rather than failing.
+
+    When the force-full load is skipped (a skip-listed diffusion model, or weights that would not fit),
+    ComfyUI sizes the load from the caller's own arguments; only ``force_full_load`` is dropped. No
+    eviction of other models is forced. The host arbiter prices the sampling peak and measures it, and a
+    child-side eviction the host cannot see competes with that pricing. A forced ``memory_required``
+    also became ComfyUI's minimum on callers that pass none (the encode path), which sized the partial
+    load below zero and unloaded the very model being loaded. A skipped load beside other resident
+    models logs :data:`SAMPLING_BESIDE_RESIDENT_MODELS_TEXT` with the skip's
+    :class:`ForceLoadSkipReason`, so an OOM after that line is attributable to the residents left in place.
     """
 
     models = args[0]
-    skip_force_load = any(_do_not_force_load_model_in_patcher(model_patcher) for model_patcher in models)
-    if not skip_force_load and _force_full_load_would_overflow_vram(models):
-        skip_force_load = True
+    skip_reason: ForceLoadSkipReason | None = None
+    if any(_do_not_force_load_model_in_patcher(model_patcher) for model_patcher in models):
+        skip_reason = ForceLoadSkipReason.CLASS_LIST
+    elif _force_full_load_would_overflow_vram(models):
+        skip_reason = ForceLoadSkipReason.OVERFLOW
 
-    if skip_force_load:
+    if skip_reason is not None:
         logger.debug("Not overriding model load")
         logger.info("comfy.model_load_skipped", model_count=len(models))
-        kwargs["memory_required"] = 1e30
+        _log_sampling_beside_resident_models(models, skip_reason)
         kwargs.pop("force_full_load", None)
         # ComfyUI will size a partial load for these patchers. The ModelPatcher.load hijack below must let
         # that stand: forcing full_load there loads the whole weight set into free VRAM the check above

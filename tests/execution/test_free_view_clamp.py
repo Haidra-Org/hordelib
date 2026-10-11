@@ -88,7 +88,7 @@ def test_reading_is_clamped_to_truth_less_own_growth(seam: _DeviceSeam) -> None:
         assert _free_memory(seam.device) == 1536 * MB, "this process's own allocator growth must come off the top"
 
         seam.reserved -= 768 * MB
-        assert _free_memory(seam.device) == 2048 * MB, "shrinking below the baseline must not credit free memory"
+        assert _free_memory(seam.device) == 2304 * MB, "a release below the baseline must raise the ceiling"
 
 
 def test_comfy_reading_wins_when_it_is_lower(seam: _DeviceSeam) -> None:
@@ -185,6 +185,26 @@ def test_rebase_moves_the_ceiling_to_the_new_figure(seam: _DeviceSeam) -> None:
 
         seam.reserved += 1024 * MB
         assert _free_memory(seam.device) == 5120 * MB, "growth must be measured from the rebase"
+
+
+def test_release_below_the_rebase_baseline_raises_the_ceiling(seam: _DeviceSeam) -> None:
+    """A model held at the rebase and unloaded afterwards is free on the card, so the ceiling gains it.
+
+    The host's grant-time figure counted that model as used. Without the credit the clamp keeps reporting
+    only the room beside it, and the next load seats partially on a card with room for all of it.
+    """
+    seam.free_total = 16384 * MB
+
+    with comfy_patches.free_memory_view_clamped(2048):
+        seam.reserved += 7680 * MB
+        assert comfy_patches.rebase_free_memory_view_clamp(4608) is True
+        assert _free_memory(seam.device) == 4608 * MB
+
+        seam.reserved -= 7680 * MB
+        assert _free_memory(seam.device) == 12288 * MB, "the released bytes must be added to the grant figure"
+
+        seam.free_total = 10240 * MB
+        assert _free_memory(seam.device) == 10240 * MB, "comfy's own total must still cap the credited ceiling"
 
 
 def test_rebase_without_an_active_clamp_is_a_no_op(seam: _DeviceSeam) -> None:
