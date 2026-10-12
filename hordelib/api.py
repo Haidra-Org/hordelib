@@ -35,6 +35,7 @@ from hordelib.execution.sampling_lease import (
     SamplingLease,
     install_sampling_lease_hook,
     set_gpu_sampling_lease,
+    set_gpu_stage_lease,
 )
 from hordelib.feature_impact import (
     FEATURE_KIND,
@@ -224,6 +225,7 @@ __all__ = [
     "order_post_processing",
     "restore_components",
     "set_gpu_sampling_lease",
+    "set_gpu_stage_lease",
     "trim_host_memory",
 ]
 
