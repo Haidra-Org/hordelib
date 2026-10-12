@@ -682,6 +682,12 @@ def pytest_collection_modifyitems(items):
         "tests.test_horde_inference_controlnet",
         "tests.test_horde_inference_painting",
         "tests.test_horde_inference_cascade",
+        # These import single ComfyUI modules through ``tests.comfy_import`` without ``init_horde``, and
+        # ``hordelib.initialise()`` refuses once any ComfyUI module is in ``sys.modules`` (it freezes CLI,
+        # device and module state at the first import). They therefore run after every ``init_horde`` user;
+        # the helper is harmless once initialise has run.
+        "tests.execution.test_adaptive_sampler_bound",
+        "tests.execution.test_component_restore",
     ]
     module_mapping = {item: item.module.__name__ for item in items}
 
