@@ -97,6 +97,13 @@ def _quantized_origins(module: torch.nn.Module) -> dict[str, QuantizedOrigin] | 
     return table
 
 
+def quantized_origin_parameter(module: torch.nn.Module, key: str) -> torch.nn.Parameter | None:
+    """Return the CPU ``Parameter`` recorded as the origin of ``module``'s parameter ``key``, or ``None``."""
+    table = _quantized_origins(module)
+    entry = table.get(key) if table is not None else None
+    return entry.parameter if entry is not None else None
+
+
 def _stash_quantized_origins(module: torch.nn.Module) -> int:
     """Record each CPU tensor-subclass parameter in its owning module's table and return how many were recorded."""
     recorded = 0

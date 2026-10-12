@@ -261,7 +261,10 @@ assignment on a wrapper moves only its outer metadata. The load records each CPU
 on its owning module, keyed by parameter name, and the patched `_quantized_apply` notes the device `Parameter`
 it makes from that origin. Inside `unpatch_model` and `partially_unload` to the CPU, a move of that device
 `Parameter` back registers the origin `Parameter` on the module and the device-to-host copy is never made. A
-weight a patch replaced on the device is not the noted one and is copied back as before. ComfyUI's partial
+weight a patch replaced on the device is not the noted one; ComfyUI restores it from the backup it took before
+patching, which for a CPU-resident quantized weight is the origin `Parameter` itself, and the `set_attr_param`
+patch registers that object as it is (ComfyUI's own `Parameter` wrap of a quantized tensor allocates a private
+copy, the size of every LoRA-patched weight, kept for the life of the cached model). ComfyUI's partial
 unload then pins the origin itself (a file-backed origin is refused by the `pin_memory` patch), and its unpin
 before the next load or at the full unload releases that registration.
 
@@ -302,6 +305,8 @@ all policy injections with no native hook:
   there, and that failure would replace the error that caused the unpatch.
 - `ModelPatcher.partially_unload` and `comfy.model_management.pin_memory`: release the private copies a
   partial unload makes, and never pin a weight still backed by its checkpoint mapping (see the section above).
+- `comfy.utils.set_attr_param`: register a quantized backup that is the recorded CPU origin as that `Parameter`
+  object, since ComfyUI's wrap of a quantized tensor copies it (see the section above).
 - `text_encoder_initial_device`: load text encoders on CPU first.
 - `CLIPLoader.load_clip` and `VAELoader.load_vae`: serve the split-files loaders through the component
   cache (see Checkpoint RAM cache above).

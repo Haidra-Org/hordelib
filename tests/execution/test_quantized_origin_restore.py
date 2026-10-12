@@ -159,3 +159,34 @@ def test_a_repeat_stash_keeps_the_record(quantized_apply_hijacked: None) -> None
     model = _quantized_op()
     assert stash_cpu_origins(model) == 1
     assert stash_cpu_origins(model) == 0
+
+
+def test_set_attr_param_registers_a_quantized_origin_backup_without_a_copy(
+    isolated_comfy_horde_instance: object,
+) -> None:
+    """ComfyUI's Parameter wrap copies a quantized tensor; a backup that is the recorded origin is registered as it is.
+
+    Unpatching a LoRA restores each patched key through ``set_attr_param`` with the backup ComfyUI took before
+    patching, which for a CPU-resident quantized weight is the origin ``Parameter`` itself.
+    """
+    module = _quantized_op()
+    origin = module.weight
+    stash_cpu_origins(module)
+    # A LoRA patch replaced the weight with a new Parameter, as ComfyUI's quantized set_weight does.
+    module.weight = torch.nn.Parameter(_quantized_weight(), requires_grad=False)
+
+    previous = comfy_patches._set_attr_param_hijack(module, "weight", origin)
+
+    assert module.weight is origin
+    assert previous is not origin
+
+
+def test_set_attr_param_leaves_a_value_that_is_not_the_origin_to_comfy(isolated_comfy_horde_instance: object) -> None:
+    module = _quantized_op()
+    stash_cpu_origins(module)
+    other = _quantized_weight()
+
+    comfy_patches._set_attr_param_hijack(module, "weight", other)
+
+    assert module.weight is not other
+    assert torch.equal(module.weight.dequantize(), other.dequantize())

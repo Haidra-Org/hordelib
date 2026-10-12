@@ -497,6 +497,15 @@ def do_comfy_import(
             comfy_patches._pin_memory_hijack,
         )
 
+        import comfy.utils
+
+        comfy_patches.capture_and_patch(
+            "set_attr_param",
+            comfy.utils,
+            "set_attr_param",
+            comfy_patches._set_attr_param_hijack,
+        )
+
         import comfy.lora
 
         comfy_patches.capture_and_patch(

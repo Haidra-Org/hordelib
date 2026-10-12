@@ -849,6 +849,30 @@ def _pin_memory_hijack(tensor, *args, **kwargs):
     return _originals["pin_memory"](tensor, *args, **kwargs)
 
 
+def _set_attr_param_hijack(obj, attr, value):
+    """Intercepts comfy set_attr_param so a quantized backup that is a recorded CPU origin is registered as it is.
+
+    ComfyUI restores a patched key by wrapping its backup in a new ``Parameter``. For a plain tensor that wrap
+    shares storage; for a comfy_kitchen ``QuantizedTensor`` it allocates a private copy of the weight, so
+    unpatching a LoRA from an fp8 checkpoint copied every patched weight out of the checkpoint mapping into
+    process memory and kept the copies for the life of the cached model (the weight of the model per process,
+    beyond the mapping). A backup that is the origin ``Parameter`` recorded by
+    ``cpu_weight_retention.stash_cpu_origins`` is registered on its module directly, as the unload path already
+    does for an unpatched quantized weight. Every other value takes ComfyUI's path unchanged.
+    """
+    if type(value) not in (torch.Tensor, torch.nn.Parameter):
+        import comfy.utils
+
+        from hordelib.execution.cpu_weight_retention import quantized_origin_parameter
+
+        owner, name = comfy.utils.resolve_attr(obj, attr)
+        if quantized_origin_parameter(owner, name) is value:
+            previous = getattr(owner, name, None)
+            owner.register_parameter(name, value)
+            return previous
+    return _originals["set_attr_param"](obj, attr, value)
+
+
 def _calculate_weight_hijack(*args, **kwargs):
     patches = args[0]
 
@@ -988,6 +1012,7 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
     import comfy.model_management as model_management
     import comfy.samplers
     import comfy.sd1_clip
+    import comfy.utils
     from comfy.model_patcher import ModelPatcher
     from comfy.text_encoders.anima import AnimaTEModel
 
@@ -1033,6 +1058,12 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
             "pin_memory",
             _pin_memory_hijack,
             _originals.get("pin_memory"),
+        ),
+        "set_attr_param": _MonkeyPatchBinding(
+            comfy.utils,
+            "set_attr_param",
+            _set_attr_param_hijack,
+            _originals.get("set_attr_param"),
         ),
         "lora_calculate_weight": _MonkeyPatchBinding(
             comfy.lora,
