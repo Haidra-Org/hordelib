@@ -674,6 +674,8 @@ def _install_fake_comfy(
     sampler_helpers.estimate_memory = _estimate_memory  # type: ignore[attr-defined]
     model_management = types.ModuleType("comfy.model_management")
     model_management.load_models_gpu = load_models_gpu  # type: ignore[attr-defined]
+    # Read by the text encoder release ahead of the acquires; nothing is loaded in the fake.
+    model_management.current_loaded_models = []  # type: ignore[attr-defined]
     comfy_package = types.ModuleType("comfy")
     comfy_package.sampler_helpers = sampler_helpers  # type: ignore[attr-defined]
     comfy_package.model_management = model_management  # type: ignore[attr-defined]

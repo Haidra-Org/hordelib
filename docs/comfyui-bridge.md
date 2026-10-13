@@ -281,6 +281,16 @@ back at its retained origin, so the copy is freed and the next load again restor
 is that an offloaded (low-VRAM) weight that still lives in the mapping is streamed from pageable memory;
 on an 8 GB card running SDXL with the UNet fully offloaded that measured about 20% slower sampling.
 
+A job's text encoder leaves the device whole once its conditioning is computed. With a sampling lease set, the hook
+on `CFGGuider.sample` (`sampling_lease`) unloads every text encoder on the sampling device before it waits for a stage
+or sampling grant, unless a node of the running prompt that has not finished takes a `CLIP` input. That is read from
+the prompt's graph and ComfyUI's per-node progress, so a pipeline that encodes again after sampling keeps its encoder.
+The unload is ComfyUI's full unload (`free_memory` with every other model kept), which restores each weight to its CPU
+origin and copies nothing. An encoder left on the device holds room through the grant wait, the room a stage grant
+needs, and the diffusion load's `free_memory` then unloads it partially, copying each module back to the host and
+releasing the copies afterwards. The component cache keeps the encoder in host RAM, so the next job's encode uploads it
+from there instead of finding it on the device.
+
 ## The monkeypatches
 
 Nine ComfyUI internals are patched at import time (`hordelib/execution/comfy_patches.py`),

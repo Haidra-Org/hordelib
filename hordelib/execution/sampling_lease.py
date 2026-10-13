@@ -36,6 +36,18 @@ load ComfyUI frees other resident models toward it, leaving the room the host pr
 also charges the held figure (:func:`held_sampling_reserve_mb`), so the offloaded remainder of a bounded staged load
 is not force-loaded into that room at sampling.
 
+With a sampling lease set, the hook first returns every text encoder on the sampling device to the host, whole,
+unless a node of the running prompt that has not finished takes a ``CLIP`` input. By then the encode is done and the
+guider holds only the conditioning tensors it produced. An encoder left on the device holds its room through the grant
+wait, which is the room a stage grant needs. The diffusion load's ``free_memory`` then unloads it partially, copying
+each module back to the host, pinning the copy and releasing it in ``release_copied_back_weights``. The release is
+ComfyUI's own full unload (``free_memory`` with every other loaded model kept), whose ``unpatch_model`` to the CPU
+points each weight back at its retained origin (``cpu_weight_retention.restore_cpu_origins``) and copies nothing. The
+component cache keeps the encoder in host RAM, so the next job's encode uploads it from there. Whether a later node
+takes the encoder is read from the running prompt's graph and per-node progress (``comfy_execution.progress``), so a
+pipeline that encodes again after sampling keeps it. Outside a prompt run the remaining graph is unknown, and nothing
+is released.
+
 A guider subclass that overrides ``sample`` without calling ``super().sample`` bypasses the lease. A
 nested hooked call on the same thread passes through without a second acquire.
 
@@ -44,10 +56,11 @@ When no lease is set (standalone hordelib, or the feature disabled) the wrapper 
 
 from __future__ import annotations
 
+import importlib
 import threading
 from collections.abc import Callable
 from time import monotonic
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 from loguru import logger
 
@@ -150,6 +163,110 @@ def _prefetch_sampling_model_weights(guider: object) -> None:
         prefetch_module_weights_async(module, label="sample")
     except Exception as exc:
         logger.debug(f"Sampling weight prefetch skipped: {exc}")
+
+
+_FULL_UNLOAD_BYTES = 1e30
+"""The requirement ComfyUI's ``unload_all_models`` passes to ``free_memory``. It exceeds any device's free memory."""
+
+_TEXT_ENCODER_OUTPUT_TYPES = frozenset({"CLIP", "*"})
+"""Graph output types that can carry a text encoder: ComfyUI's ``CLIP`` and the wildcard a passthrough declares."""
+
+
+def _is_loaded_text_encoder(loaded_model: Any, device: object) -> bool:
+    """Return whether a ComfyUI ``LoadedModel`` is a text encoder holding weights on ``device``."""
+    model_patcher = loaded_model.model
+    if model_patcher is None or loaded_model.device != device:
+        return False
+    return getattr(model_patcher, "is_clip", False) is True and loaded_model.model_loaded_memory() > 0
+
+
+def _output_type(dynprompt: Any, source_node_id: str, output_index: int) -> str | None:
+    """Return the declared type of one node output in the running prompt, or None where it cannot be read."""
+    comfy_nodes = importlib.import_module("nodes")
+    if not dynprompt.has_node(source_node_id):
+        return None
+    node_class = comfy_nodes.NODE_CLASS_MAPPINGS.get(dynprompt.get_node(source_node_id).get("class_type"))
+    return_types = getattr(node_class, "RETURN_TYPES", None)
+    if not isinstance(return_types, (tuple, list)) or not 0 <= output_index < len(return_types):
+        return None
+    return str(return_types[output_index])
+
+
+def _node_takes_text_encoder(dynprompt: Any, node_id: str) -> bool:
+    """Return whether a node of the running prompt has an input linked to an output that can carry a text encoder.
+
+    A link whose source type cannot be read counts as one, so an unreadable graph keeps the encoder.
+    """
+    graph_utils = importlib.import_module("comfy_execution.graph_utils")
+    for input_value in dynprompt.get_node(node_id).get("inputs", {}).values():
+        if not graph_utils.is_link(input_value):
+            continue
+        source_type = _output_type(dynprompt, input_value[0], input_value[1])
+        if source_type is None or source_type in _TEXT_ENCODER_OUTPUT_TYPES:
+            return True
+    return False
+
+
+def _text_encoder_still_needed() -> bool:
+    """Return whether a node of the running prompt that has not finished takes a text encoder.
+
+    Every node ComfyUI ran or served from its cache is marked finished in the prompt's progress registry. The node
+    running now is not, so a sampler node that also takes a text encoder keeps it. Outside a prompt run the remaining
+    graph is unknown, and the answer is True.
+    """
+    progress = importlib.import_module("comfy_execution.progress")
+    executing = importlib.import_module("comfy_execution.utils").get_executing_context()
+    registry = progress.get_progress_state()
+    if executing is None or registry.prompt_id != executing.prompt_id:
+        return True
+    dynprompt = registry.dynprompt
+    for node_id in dynprompt.all_node_ids():
+        node_progress = registry.nodes.get(node_id)
+        if node_progress is not None and node_progress["state"] is progress.NodeState.Finished:
+            continue
+        if _node_takes_text_encoder(dynprompt, node_id):
+            return True
+    return False
+
+
+def _release_text_encoders_before_wait(guider: object) -> None:
+    """Unload each text encoder on the sampling device whole, unless a later node of the prompt takes it; never raises.
+
+    The unload is ``free_memory`` with every other loaded model kept, ComfyUI's full unload. Its ``unpatch_model`` to
+    the CPU restores each unpatched weight to its recorded CPU origin, so no weight is copied back from the device.
+    """
+    try:
+        device = getattr(getattr(guider, "model_patcher", None), "load_device", None)
+        if device is None:
+            return
+        import comfy.model_management as model_management
+
+        loaded_encoders = [
+            loaded_model
+            for loaded_model in model_management.current_loaded_models
+            if _is_loaded_text_encoder(loaded_model, device)
+        ]
+        if not loaded_encoders:
+            return
+        if _text_encoder_still_needed():
+            logger.debug("Text encoder kept on the device: a node of this prompt still to run takes it")
+            return
+        encoder_bytes = {id(loaded_model): loaded_model.model_loaded_memory() for loaded_model in loaded_encoders}
+        encoder_names = [type(loaded_model.model.model).__name__ for loaded_model in loaded_encoders]
+        kept_models = [
+            loaded_model
+            for loaded_model in model_management.current_loaded_models
+            if id(loaded_model) not in encoder_bytes
+        ]
+        unloaded_models = model_management.free_memory(_FULL_UNLOAD_BYTES, device, keep_loaded=kept_models)
+        released_bytes = sum(encoder_bytes.get(id(loaded_model), 0) for loaded_model in unloaded_models)
+        logger.debug(
+            "Released text encoder(s) {} ({} MB) to their CPU origins before the sampling lease wait",
+            ", ".join(encoder_names),
+            released_bytes // 2**20,
+        )
+    except Exception as e:
+        logger.warning(f"Text encoder release skipped ({type(e).__name__}: {e}); the diffusion load frees its room")
 
 
 def _rebase_clamp_on_grant(lease: SamplingLease) -> None:
@@ -279,6 +396,7 @@ def _sample_under_lease(
     stage_lease = _stage_lease
     acquired = False
     if lease is not None:
+        _release_text_encoders_before_wait(guider)
         try:
             if stage_lease is None:
                 acquired = bool(lease.acquire(True, _acquire_timeout_seconds))
