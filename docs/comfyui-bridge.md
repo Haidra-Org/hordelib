@@ -319,6 +319,31 @@ internal call sites would never pass horde's policy. Each patch stores its origi
 supports temporary-state swaps, and is guarded by `assert_force_load_class_names_exist`
 plus the signature pins in `tests/test_comfy_contract_drift.py`.
 
+### spandrel DAT attention masks
+
+One patch targets spandrel, the library ComfyUI's upscale nodes run their models through
+(`hordelib/execution/dat_mask_patch.py`, applied in `do_comfy_import()` once spandrel is imported). A DAT
+shifted-window block holds registered attention masks for the one size the model was built for. For any
+other input size stock spandrel builds two `(windows, tokens, tokens)` masks from CPU tensors on every
+forward pass and copies them to the device, so a tiled upscale pays that construction in every shifted
+block of every tile: 18 masks of 256 MB each for one 512x512 tile of a 4x DAT2 model, about two thirds of
+the upscale's wall time. The patch replaces `Adaptive_Spatial_Attention.calculate_mask` with a method that
+builds the same masks on the block's own device.
+
+- The output is bit-identical. A call for the model's native size (the constructor filling the registered
+  buffers) is passed to spandrel's method, and no other architecture is touched.
+- Nothing is kept between forward passes, so the patch holds no memory after an upscale and has nothing to
+  release when the model is unloaded. Both masks of a block are on the device at once, where stock spandrel
+  copies them over one at a time, which adds one mask (256 MB for a 512x512 tile) to the upscale's peak VRAM.
+- The patch is installed only when the installed spandrel has the expected class, method and signature, and
+  a small real block built at install time registers its native masks through the method, calls it once for
+  a forward pass at another size, and returns masks the replacement reproduces exactly. Otherwise spandrel
+  is left untouched and one warning is logged. The upscale is then slow but correct.
+
+It keeps its own original and is not in the `comfy_patches` registry, so the temporary-state helpers do not
+toggle it. `remove_dat_mask_patch()` restores spandrel's method. `tests/test_dat_mask_patch.py` covers the
+bit-identity, the call counts and each decline path on a randomly initialised model on the CPU.
+
 ### Per-run free-VRAM clamp
 
 ComfyUI sizes every free by the shortfall it computes from `get_free_memory`, which reads the CUDA

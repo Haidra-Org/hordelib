@@ -461,6 +461,11 @@ def do_comfy_import(
         from comfy.utils import load_torch_file as _comfy_load_torch_file
         from comfy_extras.chainner_models import model_loading as _comfy_model_loading
 
+        # The import above loads spandrel, which the upscale nodes run their models through.
+        from hordelib.execution.dat_mask_patch import apply_dat_mask_patch
+
+        apply_dat_mask_patch()
+
         from comfy.model_patcher import ModelPatcher
 
         comfy_patches.capture_and_patch(
