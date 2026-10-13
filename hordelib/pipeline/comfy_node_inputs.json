@@ -179,6 +179,13 @@
       "encode_png"
     ]
   },
+  "HordeImageUpscaleWithModel": {
+    "required": [
+      "upscale_model",
+      "image"
+    ],
+    "optional": []
+  },
   "HordeLatentInput": {
     "required": [
       "latent_bytes"
@@ -244,13 +251,6 @@
     "required": [
       "image",
       "channel"
-    ],
-    "optional": []
-  },
-  "ImageUpscaleWithModel": {
-    "required": [
-      "upscale_model",
-      "image"
     ],
     "optional": []
   },

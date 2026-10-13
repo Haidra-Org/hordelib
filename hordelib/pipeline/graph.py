@@ -26,6 +26,7 @@ HORDE_NODE_REPLACEMENTS = {
     "SaveImage": "HordeImageOutput",
     "LoadImage": "HordeImageLoader",
     "LoraLoader": "HordeLoraLoader",
+    "ImageUpscaleWithModel": "HordeImageUpscaleWithModel",
 }
 """ComfyUI standard node types replaced by Horde-specific implementations at load time."""
 

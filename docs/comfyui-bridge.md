@@ -344,6 +344,38 @@ It keeps its own original and is not in the `comfy_patches` registry, so the tem
 toggle it. `remove_dat_mask_patch()` restores spandrel's method. `tests/test_dat_mask_patch.py` covers the
 bit-identity, the call counts and each decline path on a randomly initialised model on the CPU.
 
+### bfloat16 DAT upscales
+
+ComfyUI's `ImageUpscaleWithModel` calls every upscale model in float32 and never reads the precision support
+the model's spandrel descriptor declares. The replacement table (`HORDE_NODE_REPLACEMENTS`) substitutes
+`HordeImageUpscaleWithModel` (`hordelib/nodes/node_image_upscale_with_model.py`), which runs a DAT model and
+its input tiles in bfloat16 and is otherwise the stock node step for step: the model load, tile 512 and
+overlap 32, blending on the intermediate device, the out-of-memory retry that halves the tile down to 128,
+progress reporting, and the clamp and layout of the float32 image it returns.
+
+- The rule is `select_upscale_dtype` in `hordelib/execution/upscale_dtype.py`: bfloat16 if and only if the
+  descriptor's architecture id is in `BFLOAT16_APPROVED_ARCHITECTURE_IDS` and the descriptor declares
+  `supports_bfloat16`. The architecture is read from the descriptor, never from the file name. Every other
+  architecture gets the stock float32 call and its output is bit-identical to the stock node's.
+- DAT is approved because spandrel declares it stable in bfloat16 (and not in float16), and a visual
+  comparison of float32 and bfloat16 outputs across content types (faces, flat-shaded line art, fine
+  texture, dark low-contrast scenes, hard edges and lettering, a non-square frame) found no perceptible
+  difference. The 8-bit outputs differ at 48 to 52 dB PSNR, below the error of a lossy upload encode.
+  spandrel's flag says the arithmetic is stable and says nothing about the picture, so another architecture
+  joins the set only after the same comparison.
+- It halves the upscale: about 0.5 of the float32 tiling time and 0.5 of its peak allocated VRAM. The node's
+  `memory_required` estimate follows, through the element-size term of ComfyUI's formula.
+- Each tile is cast to bfloat16 on its way into the model and to float32 on its way out, so the tiler blends
+  float32 tiles and the node's output dtype is unchanged.
+- The model is cast in place after it is loaded, and only when its dtype differs from the one the run needs,
+  so a model that arrives in either dtype runs in the right one. The cast back is lossy: a model that ran in
+  bfloat16 and is then run in float32 keeps weights rounded to bfloat16 precision until it is reloaded from
+  disk.
+
+Kill switch: `HORDELIB_DISABLE_UPSCALE_BFLOAT16=1` runs every upscale in float32. It is read at each upscale.
+`tests/test_upscale_dtype.py` covers the rule, the switch, both cast directions and the float32 identity on
+randomly initialised DAT and ESRGAN models on the CPU.
+
 ### Per-run free-VRAM clamp
 
 ComfyUI sizes every free by the shortfall it computes from `get_free_memory`, which reads the CUDA
