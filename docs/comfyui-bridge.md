@@ -300,9 +300,12 @@ all policy injections with no native hook:
   host even the support weights themselves.
 - `ModelPatcher.unpatch_model`: restore the recorded CPU tensors instead of copying weights back from the
   device (see the section above). An unpatch inside `torch.inference_mode` (a failed mid-sample load
-  detaching the patcher) first clones each backed-up normal tensor under that mode, because ComfyUI's
-  `set_attr_param` cannot wrap a normal tensor subclass such as an fp8 `QuantizedTensor` in a `Parameter`
-  there, and that failure would replace the error that caused the unpatch.
+  detaching the patcher) first clones, under that mode, each backed-up normal tensor subclass that is not a
+  recorded CPU origin, because ComfyUI's `set_attr_param` cannot wrap a normal tensor subclass such as an
+  fp8 `QuantizedTensor` in a `Parameter` there, and that failure would replace the error that caused the
+  unpatch. A plain tensor wraps there sharing its storage and a recorded origin is registered without a
+  wrap, so neither is cloned: a clone is the weight's size in private memory, and cloning every patched key
+  of a quantized checkpoint would cost the checkpoint again on the host that just refused the load.
 - `ModelPatcher.partially_unload` and `comfy.model_management.pin_memory`: release the private copies a
   partial unload makes, and never pin a weight still backed by its checkpoint mapping (see the section above).
 - `comfy.utils.set_attr_param`: register a quantized backup that is the recorded CPU origin as that `Parameter`

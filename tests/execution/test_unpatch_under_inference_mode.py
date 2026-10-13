@@ -79,6 +79,41 @@ def test_an_unpatch_outside_inference_mode_restores_the_backup_itself(init_horde
     assert torch.equal(patcher.model.weight.dequantize(), expected)
 
 
+def test_an_unpatch_inside_inference_mode_registers_a_recorded_origin_without_a_copy(init_horde: None) -> None:
+    """A backup that is the recorded CPU origin is restored as the same object, since set_attr_param never wraps it.
+
+    Cloning it would cost the weight's size in private memory for every LoRA-patched key, on a failed load.
+    """
+    patcher, expected = _patcher_with_fp8_backup()
+    origin = patcher.backup["weight"].weight
+    assert stash_cpu_origins(patcher.model) == 1
+
+    with torch.inference_mode():
+        comfy_patches._model_patcher_unpatch_model_hijack(patcher, None, True)
+
+    assert not patcher.backup
+    assert patcher.model.weight is origin
+    assert torch.equal(patcher.model.weight.dequantize(), expected)
+
+
+def test_an_unpatch_inside_inference_mode_leaves_a_plain_backup_uncloned(init_horde: None) -> None:
+    """A plain tensor wraps under inference mode sharing its storage, so it is restored without a clone."""
+    from comfy.model_patcher import ModelPatcher
+
+    module = torch.nn.Module()
+    module.weight = torch.nn.Parameter(torch.randn(16, 16), requires_grad=False)
+    backed_up = module.weight
+    cpu = torch.device("cpu")
+    patcher = ModelPatcher(module, load_device=cpu, offload_device=cpu)
+    patcher.backup["weight"] = _BackupEntry(backed_up, False)
+
+    with torch.inference_mode():
+        comfy_patches._model_patcher_unpatch_model_hijack(patcher, None, True)
+
+    assert not patcher.backup
+    assert patcher.model.weight.data_ptr() == backed_up.data_ptr()
+
+
 def test_a_no_op_quantized_move_inside_inference_mode_keeps_the_parameter(init_horde: None) -> None:
     module = _quantized_op()
     registered = module.weight

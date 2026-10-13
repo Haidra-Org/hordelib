@@ -741,12 +741,16 @@ def _model_patcher_unpatch_model_hijack(model_patcher, device_to=None, unpatch_w
     An unpatch can run inside the sampler's ``torch.inference_mode``, when a failed mid-sample load detaches
     the patcher. ComfyUI's ``set_attr_param`` then wraps each backed-up weight in a ``Parameter`` without
     cloning it, and for a normal (non-inference) tensor subclass such as a comfy_kitchen ``QuantizedTensor``
-    that wrap raises, replacing the error that caused the unpatch. Those backups are cloned under the active
-    inference mode first, which the wrap accepts. Entries restored in place (``copy_to_param``) never wrap.
+    that wrap raises, replacing the error that caused the unpatch. Only the backups that wrap would refuse
+    are cloned under the active inference mode first, which the wrap accepts: a plain tensor wraps there
+    sharing its storage, a backup that is the recorded CPU origin is registered without a wrap by
+    ``_set_attr_param_hijack``, and entries restored in place (``copy_to_param``) never wrap. A clone is the
+    weight's size in private memory, so cloning every patched key of a quantized checkpoint on a failed load
+    costs the checkpoint again on a host that just refused the load.
     """
     if unpatch_weights and torch.is_inference_mode_enabled():
         for key, entry in list(model_patcher.backup.items()):
-            if not entry.inplace_update and not entry.weight.is_inference():
+            if _backup_wrap_would_refuse(model_patcher.model, key, entry):
                 model_patcher.backup[key] = entry._replace(weight=entry.weight.clone())
     if not (unpatch_weights and device_to is not None and getattr(device_to, "type", None) == "cpu"):
         return _originals["model_patcher_unpatch_model"](model_patcher, device_to, unpatch_weights)
@@ -849,6 +853,31 @@ def _pin_memory_hijack(tensor, *args, **kwargs):
     return _originals["pin_memory"](tensor, *args, **kwargs)
 
 
+def _is_recorded_quantized_origin(model, key, value) -> bool:
+    """Whether ``value`` is a tensor subclass that is the CPU origin ``Parameter`` recorded for ``model``'s ``key``."""
+    if type(value) in (torch.Tensor, torch.nn.Parameter):
+        return False
+    import comfy.utils
+
+    from hordelib.execution.cpu_weight_retention import quantized_origin_parameter
+
+    owner, name = comfy.utils.resolve_attr(model, key)
+    return quantized_origin_parameter(owner, name) is value
+
+
+def _backup_wrap_would_refuse(model, key, entry) -> bool:
+    """Whether restoring this backup under inference mode would reach a ``Parameter`` wrap that raises.
+
+    The wrap raises for a normal (non-inference) tensor subclass only; a plain tensor wraps sharing its storage,
+    an entry restored in place never wraps, and a recorded origin is registered by ``_set_attr_param_hijack``
+    without a wrap.
+    """
+    weight = entry.weight
+    if entry.inplace_update or weight.is_inference() or type(weight) in (torch.Tensor, torch.nn.Parameter):
+        return False
+    return not _is_recorded_quantized_origin(model, key, weight)
+
+
 def _set_attr_param_hijack(obj, attr, value):
     """Intercepts comfy set_attr_param so a quantized backup that is a recorded CPU origin is registered as it is.
 
@@ -860,16 +889,13 @@ def _set_attr_param_hijack(obj, attr, value):
     ``cpu_weight_retention.stash_cpu_origins`` is registered on its module directly, as the unload path already
     does for an unpatched quantized weight. Every other value takes ComfyUI's path unchanged.
     """
-    if type(value) not in (torch.Tensor, torch.nn.Parameter):
+    if _is_recorded_quantized_origin(obj, attr, value):
         import comfy.utils
 
-        from hordelib.execution.cpu_weight_retention import quantized_origin_parameter
-
         owner, name = comfy.utils.resolve_attr(obj, attr)
-        if quantized_origin_parameter(owner, name) is value:
-            previous = getattr(owner, name, None)
-            owner.register_parameter(name, value)
-            return previous
+        previous = getattr(owner, name, None)
+        owner.register_parameter(name, value)
+        return previous
     return _originals["set_attr_param"](obj, attr, value)
 
 
