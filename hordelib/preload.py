@@ -352,17 +352,22 @@ def apply_huggingface_cache_isolation() -> None:
     Callers apply this before anything imports ``huggingface_hub``: that package freezes its cache
     location into module constants at import, so a later call cannot move it. A no-op without
     ``AIWORKER_CACHE_HOME``, in which case the hub stack keeps its own defaults.
+
+    Repeat calls, and calls in a child that inherited an isolated environment, leave the recorded
+    :data:`LEGACY_HUB_CACHES_ENV_VAR` alone: by then the ambient values it was derived from are gone.
     """
     cache_home = os.environ.get("AIWORKER_CACHE_HOME")
     if not cache_home:
         return
     huggingface_home = huggingface_home_for(cache_home)
+    target_hub_dir = os.path.join(huggingface_home, "hub")
     overridden = [name for name in HUGGINGFACE_CACHE_ENV_VARS if os.environ.get(name) not in (None, huggingface_home)]
-    legacy_hub_dirs = _legacy_hub_cache_dirs(target_hub_dir=os.path.join(huggingface_home, "hub"))
+    if overridden or LEGACY_HUB_CACHES_ENV_VAR not in os.environ:
+        legacy_hub_dirs = _legacy_hub_cache_dirs(target_hub_dir=target_hub_dir)
+        os.environ[LEGACY_HUB_CACHES_ENV_VAR] = os.pathsep.join(legacy_hub_dirs)
     for name in HUGGINGFACE_CACHE_ENV_VARS:
         os.environ.pop(name, None)
     os.environ["HF_HOME"] = huggingface_home
-    os.environ[LEGACY_HUB_CACHES_ENV_VAR] = os.pathsep.join(legacy_hub_dirs)
     if overridden:
         logger.warning(
             "Overriding ambient {}: AIWORKER_CACHE_HOME isolation owns the HuggingFace cache location ({}).",
@@ -370,11 +375,19 @@ def apply_huggingface_cache_isolation() -> None:
             huggingface_home,
         )
     if "huggingface_hub.constants" in sys.modules:
-        logger.warning(
-            "huggingface_hub was imported before the cache was isolated; it keeps the location it resolved "
-            "at import and will not move to {} in this process.",
-            huggingface_home,
-        )
+        resolved_hub_dir = hub_cache_dir()
+        if resolved_hub_dir is None or not _same_path(resolved_hub_dir, target_hub_dir):
+            logger.warning(
+                "huggingface_hub was imported before the cache was isolated; it keeps the location it resolved "
+                "at import ({}) and will not move to {} in this process.",
+                resolved_hub_dir,
+                target_hub_dir,
+            )
+
+
+def _same_path(first: str, second: str) -> bool:
+    """Whether two path spellings name the same location, ignoring separator and (on Windows) case."""
+    return os.path.normcase(os.path.normpath(first)) == os.path.normcase(os.path.normpath(second))
 
 
 def hub_cache_dir() -> str | None:

@@ -331,6 +331,19 @@ def test_marker_reports_the_hub_cache_it_was_written_against(monkeypatch, tmp_pa
     assert preload.annotator_verify_marker_hub_cache_dir() == str(tmp_path / "hub-a")
 
 
+def _capture_isolation_warnings() -> list[str]:
+    """Apply the cache isolation and return the warnings it logged."""
+    from loguru import logger
+
+    warnings: list[str] = []
+    sink_id = logger.add(lambda message: warnings.append(str(message)), level="WARNING", format="{message}")
+    try:
+        preload.apply_huggingface_cache_isolation()
+    finally:
+        logger.remove(sink_id)
+    return warnings
+
+
 class TestHuggingFaceCacheIsolation:
     """The hub cache must resolve under ``AIWORKER_CACHE_HOME`` so every consumer of that root shares it."""
 
@@ -380,6 +393,35 @@ class TestHuggingFaceCacheIsolation:
         recorded = [entry for entry in os.environ[preload.LEGACY_HUB_CACHES_ENV_VAR].split(os.pathsep) if entry]
         assert os.environ["HF_HOME"] == str(tmp_path / preload.HUGGINGFACE_HOME_DIRNAME)
         assert target_hub not in recorded
+
+    def test_repeat_application_keeps_the_first_record(self, monkeypatch, tmp_path):
+        """The first call removes the ambient variables, so a second one cannot re-derive the record."""
+        monkeypatch.setenv("AIWORKER_CACHE_HOME", str(tmp_path))
+        monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "ambient" / "hub"))
+        monkeypatch.delenv("HF_HOME", raising=False)
+        monkeypatch.delenv("HUGGINGFACE_HUB_CACHE", raising=False)
+        preload.apply_huggingface_cache_isolation()
+        preload.apply_huggingface_cache_isolation()
+        recorded = os.environ[preload.LEGACY_HUB_CACHES_ENV_VAR].split(os.pathsep)
+        assert str(tmp_path / "ambient" / "hub") in recorded
+
+    def test_no_warning_when_the_hub_already_resolved_to_the_target(self, monkeypatch, tmp_path):
+        """A hub imported under an inherited isolated environment already sits at the target."""
+        monkeypatch.setenv("AIWORKER_CACHE_HOME", str(tmp_path))
+        target_hub = os.path.join(preload.huggingface_home_for(str(tmp_path)), "hub")
+        monkeypatch.setattr(preload, "hub_cache_dir", lambda: target_hub)
+        warnings = _capture_isolation_warnings()
+        assert not [message for message in warnings if "imported before the cache was isolated" in message]
+
+    def test_warns_when_the_hub_resolved_elsewhere(self, monkeypatch, tmp_path):
+        """A hub that froze another location at import cannot be moved, and the operator is told where it stayed."""
+        monkeypatch.setenv("AIWORKER_CACHE_HOME", str(tmp_path))
+        elsewhere = str(tmp_path / "elsewhere" / "hub")
+        monkeypatch.setattr(preload, "hub_cache_dir", lambda: elsewhere)
+        warnings = _capture_isolation_warnings()
+        relevant = [message for message in warnings if "imported before the cache was isolated" in message]
+        assert relevant
+        assert elsewhere in relevant[0]
 
     def test_the_marker_key_follows_the_isolated_location(self, monkeypatch, tmp_path):
         """The verify marker is what two processes disagree over when their hub caches differ."""
