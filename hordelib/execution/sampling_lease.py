@@ -27,6 +27,15 @@ lease covers only the denoise loop and its onset. The stage permit covers that u
 stage permit without a sampling permit following, and both acquires share one deadline of the acquire timeout, so
 the longest wait is unchanged. With no stage lease set the path is the single acquire above.
 
+A host whose grant also carries the activation room it priced for the window (:class:`ClearanceReserveLease`) bounds
+ComfyUI's memory estimate for the sampling model's load. ComfyUI sizes a partial load to leave only its own activation
+estimate, which can be smaller than the room the host priced. The hook wraps ``comfy.sampler_helpers.estimate_memory``,
+so both the staged upload and ``prepare_sampling`` pass the larger of the two figures. The bound applies only on the
+thread of a hooked sample after a grant that carried the figure. It applies to every sampling load, so on a forced full
+load ComfyUI frees other resident models toward it, leaving the room the host priced. The force-full overflow check
+also charges the held figure (:func:`held_sampling_reserve_mb`), so the offloaded remainder of a bounded staged load
+is not force-loaded into that room at sampling.
+
 A guider subclass that overrides ``sample`` without calling ``super().sample`` bypasses the lease. A
 nested hooked call on the same thread passes through without a second acquire.
 
@@ -70,12 +79,31 @@ class ClearanceTruthLease(Protocol):
         ...
 
 
+@runtime_checkable
+class ClearanceReserveLease(Protocol):
+    """An optional extension a lease implements when its grant carries the host's activation reserve for the window.
+
+    The host prices a sampling window as the weights plus a non-weight term, the job's activation. After a successful
+    acquire the hook takes that term and bounds ComfyUI's memory estimate for the sampling model's load with it, so a
+    partial load leaves the room the host priced. A lease without this method, or one that returns None, leaves
+    ComfyUI's estimate as it is.
+    """
+
+    def take_cleared_sampling_reserve_mb(self) -> float | None:
+        """Return the activation reserve (MB) the grant just acquired was priced with, once, or None."""
+        ...
+
+
 _sampling_lease: SamplingLease | None = None
 _stage_lease: SamplingLease | None = None
 _acquire_timeout_seconds: float = 120.0
 _installed: bool = False
 _lease_scope: threading.local = threading.local()
-"""Per-thread marker that a hooked guider sample is already running, so a nested one does not acquire again."""
+"""Per-thread state of a hooked guider sample.
+
+``active`` marks one already running, so a nested one does not acquire again. ``sampling_reserve_mb`` is the
+latest activation reserve a grant of this sample carried, and ``sampling_reserve_logged`` records that its bound was
+logged."""
 
 
 def set_gpu_sampling_lease(lease: SamplingLease | None, *, acquire_timeout_seconds: float = 120.0) -> None:
@@ -139,11 +167,66 @@ def _rebase_clamp_on_grant(lease: SamplingLease) -> None:
         logger.warning(f"Could not rebase the free-VRAM clamp on the lease grant ({exc}); keeping the run's figure")
 
 
+def _take_sampling_reserve_on_grant(lease: SamplingLease) -> None:
+    """Hold the activation reserve an acquired grant carries for the rest of the hooked sample; never raises."""
+    if not isinstance(lease, ClearanceReserveLease):
+        return
+    try:
+        sampling_reserve_mb = lease.take_cleared_sampling_reserve_mb()
+    except Exception as exc:
+        logger.warning(
+            f"Could not read the activation reserve from the lease grant ({exc}); keeping ComfyUI's estimate"
+        )
+        return
+    if sampling_reserve_mb is None:
+        return
+    _lease_scope.sampling_reserve_mb = sampling_reserve_mb
+    _lease_scope.sampling_reserve_logged = False
+
+
+def held_sampling_reserve_mb() -> float | None:
+    """Return the activation reserve (MB) a grant of this thread's hooked sample carried, or None."""
+    sampling_reserve_mb: float | None = getattr(_lease_scope, "sampling_reserve_mb", None)
+    return sampling_reserve_mb
+
+
+def _bound_by_sampling_reserve(memory_required: float, minimum_memory_required: float) -> tuple[float, float]:
+    """Return ComfyUI's two memory estimates (bytes), each raised to the held activation reserve when one is held."""
+    sampling_reserve_mb = held_sampling_reserve_mb()
+    if sampling_reserve_mb is None:
+        return memory_required, minimum_memory_required
+    sampling_reserve_bytes = int(sampling_reserve_mb * 1024 * 1024)
+    if not getattr(_lease_scope, "sampling_reserve_logged", False):
+        _lease_scope.sampling_reserve_logged = True
+        logger.debug(
+            "Sampling model load bounded by the grant's activation reserve: comfy_estimate_mb={:.0f}"
+            " comfy_minimum_mb={:.0f} reserve_mb={:.0f}",
+            memory_required / 2**20,
+            minimum_memory_required / 2**20,
+            sampling_reserve_mb,
+        )
+    return max(memory_required, sampling_reserve_bytes), max(minimum_memory_required, sampling_reserve_bytes)
+
+
+def _bounded_estimate(
+    original_estimate_memory: Callable[[object, object, object], tuple[float, float]],
+) -> Callable[[object, object, object], tuple[float, float]]:
+    """Return ComfyUI's ``estimate_memory`` wrapped so ``prepare_sampling`` sees the held reserve's bound."""
+
+    def _bounded_estimate_memory(model: object, noise_shape: object, conds: object) -> tuple[float, float]:
+        memory_required, minimum_memory_required = original_estimate_memory(model, noise_shape, conds)
+        return _bound_by_sampling_reserve(memory_required, minimum_memory_required)
+
+    return _bounded_estimate_memory
+
+
 def install_sampling_lease_hook() -> bool:
     """Monkey-patch ``comfy.samplers.CFGGuider.sample`` to hold the lease around the model load and denoise loop.
 
     The patch replaces the base class attribute, so every guider subclass that inherits ``sample`` (or reaches it
-    through ``super().sample``) is covered. Idempotent and independent of logfire instrumentation.
+    through ``super().sample``) is covered. ``comfy.sampler_helpers.estimate_memory`` is wrapped too, so a grant's
+    activation reserve bounds the estimate ``prepare_sampling`` forms. Idempotent and independent of logfire
+    instrumentation.
 
     Returns:
         True if the hook is in place (now or already), False if ComfyUI's samplers module could not be patched.
@@ -153,6 +236,7 @@ def install_sampling_lease_hook() -> bool:
         return True
 
     try:
+        from comfy import sampler_helpers as sampler_helpers_module
         from comfy import samplers as samplers_module
     except Exception as e:
         logger.warning(f"Could not install GPU sampling lease hook: {e}")
@@ -171,8 +255,10 @@ def install_sampling_lease_hook() -> bool:
             return _sample_under_lease(self, original_guider_sample, args, kwargs)
         finally:
             _lease_scope.active = False
+            _lease_scope.sampling_reserve_mb = None
 
     guider_class.sample = _leased_guider_sample
+    sampler_helpers_module.estimate_memory = _bounded_estimate(sampler_helpers_module.estimate_memory)
     _installed = True
     logger.debug("Installed GPU sampling lease hook on comfy.samplers.CFGGuider.sample")
     return True
@@ -203,6 +289,7 @@ def _sample_under_lease(
             acquired = False
         if acquired:
             _rebase_clamp_on_grant(lease)
+            _take_sampling_reserve_on_grant(lease)
         else:
             logger.warning("GPU sampling lease acquire timed out; sampling without it")
     try:
@@ -253,6 +340,7 @@ def _stage_under_lease(
         return
     try:
         _rebase_clamp_on_grant(stage_lease)
+        _take_sampling_reserve_on_grant(stage_lease)
         # ``CFGGuider.sample(noise, latent_image, ...)`` keeps its conditioning in ``original_conds``; ``conds`` is a
         # per-call copy that exists only while ``sample`` runs.
         noise = args[0] if args else kwargs.get("noise")
@@ -274,8 +362,10 @@ def _stage_sampling_model(guider: object, noise: object, conds: object, model_op
 
     The model list, memory estimate and keyword arguments match ``comfy.sampler_helpers._prepare_sampling``, so the
     sampling-time ``prepare_sampling`` finds the same models loaded and moves nothing, and the ``load_models_gpu``
-    hijacks apply as they do there. A failure leaves the load to sampling. Nested noise is packed by ``sample``
-    before ``prepare_sampling`` reads its shape, so its estimate would differ here; it is not staged.
+    hijacks apply as they do there. The estimate is raised to a held activation reserve as the wrapped
+    ``estimate_memory`` raises it there. The bound is a maximum, so applying it twice changes nothing. A failure
+    leaves the load to sampling. Nested noise is packed by ``sample`` before ``prepare_sampling`` reads its shape, so
+    its estimate would differ here and it is not staged.
     """
     try:
         model_patcher = getattr(guider, "model_patcher", None)
@@ -297,7 +387,9 @@ def _stage_sampling_model(guider: object, noise: object, conds: object, model_op
         additional_models, inference_memory = get_additional_models(conds, model_patcher.model_dtype())
         additional_models += get_additional_models_from_model_options(model_options)
         additional_models += model_patcher.get_nested_additional_models()
-        memory_required, minimum_memory_required = estimate_memory(model_patcher, noise_shape, conds)
+        memory_required, minimum_memory_required = _bound_by_sampling_reserve(
+            *estimate_memory(model_patcher, noise_shape, conds)
+        )
         comfy.model_management.load_models_gpu(
             [model_patcher] + additional_models,
             memory_required=memory_required + inference_memory,

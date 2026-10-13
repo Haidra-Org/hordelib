@@ -96,10 +96,13 @@ def guider_seam(init_horde: None, monkeypatch: pytest.MonkeyPatch) -> _GuiderSea
     The returned call log records each ``outer_sample`` so tests can assert the lease is acquired *before* and
     released *after* the model load and denoise loop.
     """
+    import comfy.sampler_helpers as sampler_helpers
     import comfy.samplers as samplers
 
     seam = _GuiderSeam(monkeypatch, samplers.CFGGuider)
     monkeypatch.setattr(samplers.CFGGuider, "sample", samplers.CFGGuider.sample)
+    # The hook wraps estimate_memory on install, so re-binding it here removes the wrapper at teardown.
+    monkeypatch.setattr(sampler_helpers, "estimate_memory", sampler_helpers.estimate_memory)
 
     def _outer_sample(
         self: object, noise: torch.Tensor, latent_image: torch.Tensor, *args: object, **kwargs: object
@@ -642,6 +645,7 @@ def _install_fake_comfy(
     load_models_gpu: Callable[..., None],
     additional_models: list[object],
     hook_models: list[object],
+    estimate: tuple[int, int] = (1000, 400),
 ) -> list[tuple[str, tuple[object, ...]]]:
     """Put a fake ``comfy`` with ``sampler_helpers`` and ``model_management`` in ``sys.modules``.
 
@@ -660,7 +664,7 @@ def _install_fake_comfy(
 
     def _estimate_memory(model: object, noise_shape: object, conds: object) -> tuple[int, int]:
         helper_calls.append(("estimate_memory", (model, noise_shape, conds)))
-        return 1000, 400
+        return estimate
 
     sampler_helpers = types.ModuleType("comfy.sampler_helpers")
     sampler_helpers.get_additional_models = _get_additional_models  # type: ignore[attr-defined]
@@ -798,3 +802,187 @@ def test_sampling_acquire_gets_what_the_stage_left_of_the_deadline(
     assert lease.acquire_calls == [expected_sampling_acquire]
     assert len(stage_uploads.calls) == 1
     assert guider_seam.call_log[-1] == "sample"
+
+
+_GIB = 2**30
+_RESERVE_MB = 3117.0
+_RESERVE_BYTES = int(_RESERVE_MB * 2**20)
+
+
+class _ReserveLease(_FakeLease):
+    """A lease whose grants carry the host's activation reserve, one queued figure per take, as a worker's does."""
+
+    def __init__(self, reserves: list[float | None], *, acquire_returns: bool = True) -> None:
+        super().__init__(acquire_returns=acquire_returns)
+        self._reserves = list(reserves)
+        self.take_calls = 0
+
+    def take_cleared_sampling_reserve_mb(self) -> float | None:
+        self.take_calls += 1
+        return self._reserves.pop(0) if self._reserves else None
+
+
+@pytest.fixture
+def reserve_bounds() -> Iterator[list[str]]:
+    """Collect the DEBUG lines the lease module logs when it bounds a load by the grant's activation reserve."""
+    messages: list[str] = []
+    handler_id = logger.add(
+        lambda message: messages.append(message.record["message"]),
+        level="DEBUG",
+        filter=lambda record: record["name"] == sampling_lease.__name__ and "activation reserve" in record["message"],
+    )
+    yield messages
+    logger.remove(handler_id)
+
+
+@pytest.fixture
+def comfy_estimates(monkeypatch: pytest.MonkeyPatch, guider_seam: _GuiderSeam) -> list[tuple[float, float]]:
+    """Fix ComfyUI's estimate at 2 GiB (1 GiB minimum) and record what ``prepare_sampling`` would read inside sample.
+
+    The stand-in ``outer_sample`` calls ``comfy.sampler_helpers.estimate_memory`` twice, as ``_prepare_sampling``
+    resolves it (a module attribute looked up at call time), so the recorded figures are the ones its load would get.
+    """
+    import comfy.sampler_helpers as sampler_helpers
+
+    monkeypatch.setattr(sampler_helpers, "estimate_memory", lambda model, noise_shape, conds: (2 * _GIB, 1 * _GIB))
+    estimates: list[tuple[float, float]] = []
+
+    def _outer_sample(
+        self: object, noise: torch.Tensor, latent_image: torch.Tensor, *args: object, **kwargs: object
+    ) -> torch.Tensor:
+        for _ in range(2):
+            estimates.append(sampler_helpers.estimate_memory(None, noise.shape, {}))
+        guider_seam.call_log.append("sample")
+        return latent_image
+
+    guider_seam.replace_outer_sample(_outer_sample)
+    return estimates
+
+
+def test_grant_reserve_bounds_the_estimate_prepare_sampling_forms(
+    guider_seam: _GuiderSeam,
+    comfy_estimates: list[tuple[float, float]],
+    reserve_bounds: list[str],
+) -> None:
+    import comfy.sampler_helpers as sampler_helpers
+
+    lease = _ReserveLease(reserves=[_RESERVE_MB])
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+
+    _guider_sample()
+
+    assert comfy_estimates == [(_RESERVE_BYTES, _RESERVE_BYTES)] * 2
+    assert lease.take_calls == 1
+    assert len(reserve_bounds) == 1, "the bound is logged once per grant"
+    assert "comfy_estimate_mb=2048" in reserve_bounds[0]
+    assert "reserve_mb=3117" in reserve_bounds[0]
+    assert sampler_helpers.estimate_memory(None, (1,), {}) == (2 * _GIB, 1 * _GIB), "the bound ends with the sample"
+
+
+def test_grant_reserve_below_comfys_estimate_leaves_it(
+    guider_seam: _GuiderSeam,
+    comfy_estimates: list[tuple[float, float]],
+) -> None:
+    lease = _ReserveLease(reserves=[512.0])
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+
+    _guider_sample()
+
+    assert comfy_estimates == [(2 * _GIB, 1 * _GIB)] * 2
+
+
+def test_lease_without_the_reserve_method_leaves_comfys_estimate(
+    guider_seam: _GuiderSeam,
+    rebases: list[float],
+    comfy_estimates: list[tuple[float, float]],
+) -> None:
+    lease = _FigureLease(figure=12288.0)
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+
+    _guider_sample()
+
+    assert comfy_estimates == [(2 * _GIB, 1 * _GIB)] * 2
+    assert rebases == [12288.0]
+
+
+def test_grant_reserve_is_taken_once_per_grant(
+    guider_seam: _GuiderSeam,
+    comfy_estimates: list[tuple[float, float]],
+) -> None:
+    # The proxy serves the figure once per grant, and the second grant here carries none.
+    lease = _ReserveLease(reserves=[_RESERVE_MB, None])
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+
+    _guider_sample()
+    _guider_sample()
+
+    assert lease.take_calls == 2
+    assert comfy_estimates == [(_RESERVE_BYTES, _RESERVE_BYTES)] * 2 + [(2 * _GIB, 1 * _GIB)] * 2
+
+
+def test_timed_out_acquire_takes_no_reserve(
+    guider_seam: _GuiderSeam,
+    comfy_estimates: list[tuple[float, float]],
+) -> None:
+    lease = _ReserveLease(reserves=[_RESERVE_MB], acquire_returns=False)
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+
+    _guider_sample()
+
+    assert lease.take_calls == 0
+    assert comfy_estimates == [(2 * _GIB, 1 * _GIB)] * 2
+
+
+@pytest.mark.parametrize(
+    ("comfy_estimate", "expected_memory_required", "expected_minimum_memory_required"),
+    [
+        pytest.param((2 * _GIB, 1 * _GIB), _RESERVE_BYTES + 100, _RESERVE_BYTES + 100, id="reserve-larger"),
+        pytest.param((4 * _GIB, 7 * _GIB // 2), 4 * _GIB + 100, 7 * _GIB // 2 + 100, id="comfy-larger"),
+    ],
+)
+def test_stage_grant_reserve_bounds_the_staged_load(
+    monkeypatch: pytest.MonkeyPatch,
+    guider_seam: _GuiderSeam,
+    comfy_estimate: tuple[int, int],
+    expected_memory_required: int,
+    expected_minimum_memory_required: int,
+) -> None:
+    load_calls: list[dict[str, object]] = []
+
+    def _load_models_gpu(*args: object, **kwargs: object) -> None:
+        load_calls.append(kwargs)
+
+    stage = _ReserveLease(reserves=[_RESERVE_MB])
+    lease = _FakeLease()
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+    sampling_lease.set_gpu_stage_lease(stage)
+    guider = _guider_with_conds()
+
+    # The fake comfy goes in after the guider is built: the hooked sample and outer_sample are already bound.
+    _install_fake_comfy(
+        monkeypatch,
+        load_models_gpu=_load_models_gpu,
+        additional_models=[],
+        hook_models=[],
+        estimate=comfy_estimate,
+    )
+    monkeypatch.setattr(guider.model_patcher, "model_dtype", lambda: "model-dtype", raising=False)
+    monkeypatch.setattr(guider.model_patcher, "get_nested_additional_models", list, raising=False)
+
+    guider.sample(torch.zeros(1, 4, 8, 8), _latent(), None, _sigmas())
+
+    assert stage.take_calls == 1
+    assert load_calls == [
+        {
+            "memory_required": expected_memory_required,
+            "minimum_memory_required": expected_minimum_memory_required,
+            "force_full_load": False,
+        }
+    ]
+    assert guider_seam.call_log == ["sample"]

@@ -113,6 +113,41 @@ def test_a_model_that_does_not_fit_keeps_comfys_partial_load(monkeypatch: pytest
     assert not comfy_patches._partial_load_patchers
 
 
+@pytest.mark.parametrize(
+    ("sampling_reserve_mb", "expect_partial"),
+    [
+        pytest.param(None, False, id="no-reserve-force-loads"),
+        pytest.param(3117.0, True, id="reserve-takes-the-partial-branch"),
+    ],
+)
+def test_a_held_sampling_reserve_is_charged_beside_the_remainder(
+    monkeypatch: pytest.MonkeyPatch,
+    free_vram: _FreeVram,
+    seam,
+    sampling_reserve_mb: float | None,
+    expect_partial: bool,
+) -> None:
+    """A staged load's offloaded remainder that fits free VRAM alone is not force-loaded into the priced room.
+
+    The staged partial load left the grant's activation reserve free. Charged against free VRAM alone, the
+    remainder passes the 95% check and a forced full load fills the reserve the sample needs.
+    """
+    from hordelib.execution import sampling_lease
+
+    monkeypatch.setattr(sampling_lease._lease_scope, "sampling_reserve_mb", sampling_reserve_mb, raising=False)
+    free_vram.free_bytes = 3200 * MB
+    remainder = _SizedPatcher(size_bytes=19600 * MB, loaded_bytes=17200 * MB)
+
+    comfy_patches._load_models_gpu_hijack([remainder], memory_required=0)
+
+    if expect_partial:
+        assert "force_full_load" not in seam["gpu_kwargs"]
+        assert seam["load_kwargs"] == [{"full_load": False}]
+    else:
+        assert seam["gpu_kwargs"]["force_full_load"] is True
+        assert seam["load_kwargs"] == [{"full_load": True}]
+
+
 def test_a_model_that_fits_is_still_force_loaded(monkeypatch: pytest.MonkeyPatch, seam) -> None:
     monkeypatch.setattr(comfy_patches, "_force_full_load_would_overflow_vram", lambda models: False)
 

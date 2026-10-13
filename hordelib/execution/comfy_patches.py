@@ -324,7 +324,14 @@ def _force_full_load_would_overflow_vram(models) -> bool:
     the free VRAM instead of erroring or offloading, so we preempt that here. Only the bytes not
     already on the device are charged. Fails open (returns False) when the device isn't CUDA or
     sizes can't be determined, preserving the force-load default.
+
+    Inside a hooked sample whose grant carried the host's activation reserve
+    (:func:`hordelib.execution.sampling_lease.held_sampling_reserve_mb`), the reserve is charged beside the
+    bytes. A forced full load would fill the room the host priced for the activations, and the partial load
+    sizes itself to leave it.
     """
+    from hordelib.execution.sampling_lease import held_sampling_reserve_mb
+
     try:
         import comfy.model_management as model_management
 
@@ -337,11 +344,15 @@ def _force_full_load_would_overflow_vram(models) -> bool:
         logger.debug("Could not estimate force-load VRAM fit; proceeding to force load: error={}", exc)
         return False
 
-    overflow = required > free_memory * FORCE_LOAD_VRAM_SAFETY_FRACTION
+    sampling_reserve_mb = held_sampling_reserve_mb()
+    reserve_bytes = int(sampling_reserve_mb * 1024 * 1024) if sampling_reserve_mb is not None else 0
+    overflow = required + reserve_bytes > free_memory * FORCE_LOAD_VRAM_SAFETY_FRACTION
     if overflow:
         logger.info(
-            "Skipping force-full-load; model would not fit in free VRAM: required_mb={:.0f}, free_mb={:.0f}",
+            "Skipping force-full-load; model would not fit in free VRAM: required_mb={:.0f}, reserve_mb={:.0f},"
+            " free_mb={:.0f}",
             required / 2**20,
+            reserve_bytes / 2**20,
             free_memory / 2**20,
         )
     return overflow
