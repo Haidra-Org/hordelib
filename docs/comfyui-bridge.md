@@ -179,9 +179,7 @@ by a `ComponentCacheKey(kind, identity)`:
   jobs, so no unload runs between them, each job's fresh text encoder and VAE were uploaded beside the
   previous jobs' copies. Serving the resident copy keeps one patcher per file. A name that resolves to no
   file in its folder (`pixel_space`, the tiny autoencoders) goes straight to the stock loader. These entries
-  are held only while the model is retained. A run that ends without `defer_vram_unload` releases them
-  (`ComponentCache.release_unretained`), because their only use is the retained model's next job, and on a
-  process that is not retained they would hold host RAM for nothing.
+  keep the same lifetime as every other entry (see **Lifetime** below).
 
 **Budget and eviction.** The budget is `HORDE_COMPONENT_CACHE_MB` megabytes, read once per process. A load
 inserts its entry and the cache evicts the least-recently-used entries until the summed approximate RAM cost
@@ -198,6 +196,17 @@ release before a cold load, evicts each entry of its own kind and any checkpoint
 evicts everything. A split-files model's diffusion model, text encoder and VAE are three entries of different kinds,
 so they stay resident together the way a checkpoint's do inside its one entry. Larger residency still needs a
 positive budget.
+
+**Lifetime.** The size rule above is an entry's whole lifetime. An entry leaves the cache when an insert
+evicts it for room, when a RAM unload clears the cache (`ComponentCache.evict_all`), or when the host evicts
+it by identity. A retention denial is a device decision. A run that ends without `defer_vram_unload` frees
+the card, and every entry, a checkpoint or a split-files text encoder and VAE alike, keeps its host-RAM copy,
+so the model's next job on that process skips the disk read. The held-component report
+(`HeldComponentSnapshot`, `approx_ram_mb`) lists every resident entry, so the host sees and prices what a
+denial leaves in RAM. `release_component_device_weights()` is the device half for an idle process. It unpatches
+to the offload device every entry whose components still claim loaded weight memory, keeps each entry and
+returns how many it moved. ComfyUI's full unload already detaches every component it tracks, so after one the
+call normally finds nothing.
 
 **LoRA serving.** Every entry is shared with later jobs, including LoRA-bearing ones. The graph's LoRA
 loader (`comfy.sd.load_lora_for_models`) clones the base ModelPatcher/CLIP before patching, but a clone

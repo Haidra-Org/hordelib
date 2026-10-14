@@ -6,12 +6,20 @@ These run the CPU-only mini graph (EmptyImage into HordeImageOutput), so no mode
 the evictor is observed through a stand-in rather than by its effect on a device.
 """
 
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 import hordelib.comfy_horde as comfy_horde
 from hordelib.comfy_horde import Comfy_Horde
+from hordelib.execution.component_cache import (
+    ComponentCache,
+    ComponentCacheEntry,
+    ComponentCacheKey,
+    ComponentSlotKind,
+)
+from hordelib.shared_model_manager import SharedModelManager
 
 
 @pytest.fixture(scope="module")
@@ -66,6 +74,31 @@ def test_real_eviction_survives_a_model_free_run(bridge: Comfy_Horde) -> None:
 
     assert len(results) == 1
     assert results[0]["imagedata"].getvalue().startswith(b"\x89PNG")
+
+
+def test_ungranted_job_leaves_cached_split_components_in_host_ram(
+    bridge: Comfy_Horde,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The grant governs the device only, so a job without it leaves the component cache as it found it.
+
+    The model's next job on this process is then served its text encoder and VAE from host RAM instead of
+    reading both files from disk again.
+    """
+    _record_evictor(monkeypatch)
+    cache = ComponentCache(budget_mb=0)
+    split_keys = [
+        ComponentCacheKey(ComponentSlotKind.UNET, "model_a:unet"),
+        ComponentCacheKey(ComponentSlotKind.CLIP, "text_encoders/te_a.safetensors:qwen_image:default"),
+        ComponentCacheKey(ComponentSlotKind.VAE, "vae/vae_a.safetensors"),
+    ]
+    for key in split_keys:
+        cache.put(ComponentCacheEntry(key=key, payload=(object(),), approx_ram_mb=100.0, source_ckpt_path="p"))
+    monkeypatch.setattr(SharedModelManager, "manager", SimpleNamespace(_models_in_ram=cache))
+
+    bridge.run_pipeline(_mini_graph(), {})
+
+    assert [cache.get(key) is not None for key in split_keys] == [True, True, True]
 
 
 def test_non_aggressive_bridge_never_evicts(init_horde: None, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -102,9 +102,11 @@ def test_retained_split_model_keeps_one_copy_of_each_component_loaded(
     held_kinds_after_unretained = Counter(snapshot.kind for snapshot in held_components())
     unload_all_models_ram()
 
+    # A job without the grant frees the device only. The split components keep their host-RAM copies, so the
+    # model's next job on this process reads neither file from disk.
     assert unretained_results
-    assert held_kinds_after_unretained[ComponentSlotKind.CLIP] == 0
-    assert held_kinds_after_unretained[ComponentSlotKind.VAE] == 0
+    assert held_kinds_after_unretained[ComponentSlotKind.CLIP] == 1
+    assert held_kinds_after_unretained[ComponentSlotKind.VAE] == 1
 
     print(f"loaded models without the split-loader cache: {dict(without_cache)}")
     print(f"loaded models with the split-loader cache: {dict(with_cache)}")

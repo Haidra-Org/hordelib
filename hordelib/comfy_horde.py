@@ -43,7 +43,6 @@ from hordelib.execution.comfy_events import (
     ValidationResult,
     parse_event,
 )
-from hordelib.execution.component_cache import release_unretained_components
 from hordelib.execution.graph_utils import GraphDict, apply_dotted_params
 from hordelib.execution.interface import (
     DEFAULT_IMAGE_OUTPUTS,
@@ -1388,7 +1387,9 @@ class Comfy_Horde:
                 # on small jobs) is skipped; it is the only thing that suppresses the eviction. The
                 # host owns the safety decision; here we only honor it. A full free is idempotent
                 # when nothing is loaded, so this is a no-op in regimes where the executor has
-                # already unloaded by the time this runs.
+                # already unloaded by the time this runs. The grant governs the device only. The
+                # component cache's host-RAM entries outlive an ungranted job under the cache's size
+                # rule, so the model's next job here reads none of them from disk.
                 # Read before the eviction below, which would itself empty the device: with a
                 # deferral in hand that branch is not taken, so what the device holds here is what
                 # the grant actually bought. An empty device under a deferral means ComfyUI freed
@@ -1400,10 +1401,6 @@ class Comfy_Horde:
                         "The retention deferral kept nothing: the device holds no model at the end of "
                         "this run, so ComfyUI freed the weights during it.",
                     )
-                if not defer_vram_unload:
-                    # A split-files graph's text encoder and VAE are cached only so a retained model's next
-                    # job reuses them. Without the grant they would only hold host RAM.
-                    release_unretained_components()
                 if self.aggressive_unloading and not defer_vram_unload:
                     with logfire.span("comfy.cleanup"):
                         unload_all_models_vram()

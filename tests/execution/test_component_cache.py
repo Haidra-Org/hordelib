@@ -1,9 +1,11 @@
 """GPU-free unit tests for the MB-budgeted component cache (``hordelib.execution.component_cache``).
 
 These pin the cache's contract independently of the loader: LRU recency and eviction order, budget fitting,
-the single-slot (``budget_mb=0``) rollback behaviour, identity/all eviction, the stop flag every eviction
+the single-slot (``budget_mb=0``) rollback behaviour, the split components' lifetime across a job the host
+did not retain the model past, identity/all eviction, the stop flag every eviction
 path sets on the entry's weight prefetch, the held-residency report, the
-explicit restore lever and its statistics, and the per-kind RAM estimation fallback. The loader-level
+explicit restore lever and its statistics, the device-weight release that keeps every entry, and the
+per-kind RAM estimation fallback. The loader-level
 behaviours (subset satisfaction, standalone-VAE dedup) are covered by the stubbed-comfy routing tests.
 """
 
@@ -11,6 +13,9 @@ from __future__ import annotations
 
 from typing import Any
 
+import pytest
+
+from hordelib.execution import component_cache
 from hordelib.execution.component_cache import (
     DEFAULT_APPROX_RAM_MB,
     ComponentCache,
@@ -19,26 +24,42 @@ from hordelib.execution.component_cache import (
     ComponentSlotKind,
     approx_ram_mb_from_bytes,
     component_cache_budget_mb,
+    release_component_device_weights,
 )
 
 
 class _FakeModule:
-    def __init__(self, applied_uuid: object | None) -> None:
+    def __init__(self, applied_uuid: object | None, loaded_bytes: int) -> None:
         self.current_weight_patches_uuid = applied_uuid
+        self.model_loaded_weight_memory = loaded_bytes
 
 
 class _FakePatcher:
-    """The minimum shape the residue probe and the restorer look for on a comfy patcher."""
+    """The minimum shape the residue probe, the restorer and the device release look for on a comfy patcher.
 
-    def __init__(self, *, applied_uuid: object | None, patches_uuid: object | None) -> None:
-        self.model = _FakeModule(applied_uuid)
+    ``unpatch_model`` zeroes the module's loaded weight memory and records the device it was sent to, as
+    ComfyUI's detach does.
+    """
+
+    def __init__(self, *, applied_uuid: object | None, patches_uuid: object | None, loaded_bytes: int = 0) -> None:
+        self.model = _FakeModule(applied_uuid, loaded_bytes)
         self.patches_uuid = patches_uuid
         self.offload_device = "cpu"
         self.unpatched = False
+        self.unpatched_to: object = None
 
     def unpatch_model(self, device_to: object = None, unpatch_weights: bool = True) -> None:
         self.unpatched = True
+        self.unpatched_to = device_to
         self.model.current_weight_patches_uuid = None
+        self.model.model_loaded_weight_memory = 0
+
+
+class _FakeWrappedComponent:
+    """Represents a comfy ``CLIP`` or ``VAE``, whose patcher is reached through ``patcher``."""
+
+    def __init__(self, patcher: _FakePatcher) -> None:
+        self.patcher = patcher
 
 
 def _key(identity: str, kind: ComponentSlotKind = ComponentSlotKind.CHECKPOINT) -> ComponentCacheKey:
@@ -132,19 +153,57 @@ def test_release_single_slot_evicts_only_competitors() -> None:
     assert len(cache) == 0
 
 
-def test_release_unretained_drops_only_entries_held_while_retained() -> None:
-    """A checkpoint and a bare UNet keep the plain cache lifetime. Marked split components are released."""
+_SPLIT_UNET = _key("model_a:unet", ComponentSlotKind.UNET)
+_SPLIT_TEXT_ENCODER = _key("text_encoders/te_a.safetensors:qwen_image:default", ComponentSlotKind.CLIP)
+_SPLIT_VAE = _key("vae/vae_a.safetensors", ComponentSlotKind.VAE)
+
+
+def _cache_split_model(cache: ComponentCache) -> None:
+    """Load a split-files model's three components the way its job's loaders do."""
+    for key in (_SPLIT_UNET, _SPLIT_TEXT_ENCODER, _SPLIT_VAE):
+        cache.put(_kind_entry(key.identity, key.kind))
+
+
+def test_split_components_stay_cached_after_a_job_without_retention() -> None:
+    """A retention denial frees the device only, so the next job's encoder and VAE loads are cache hits.
+
+    The job's end performs no cache operation. Only the size rule, a full clear or a host eviction removes an
+    entry.
+    """
     cache = ComponentCache(budget_mb=0)
-    cache.put(_kind_entry("model:unet", ComponentSlotKind.UNET))
-    split_text_encoder = _kind_entry("text_encoders/te", ComponentSlotKind.CLIP)
-    split_text_encoder.held_only_while_retained = True
-    cache.put(split_text_encoder)
+    _cache_split_model(cache)
 
-    released = cache.release_unretained()
+    held = {(snapshot.kind, snapshot.identity) for snapshot in cache.held_report()}
 
-    assert [entry.key.identity for entry in released] == ["text_encoders/te"]
-    assert [snapshot.identity for snapshot in cache.held_report()] == ["model:unet"]
-    assert cache.release_unretained() == []
+    assert held == {(key.kind, key.identity) for key in (_SPLIT_UNET, _SPLIT_TEXT_ENCODER, _SPLIT_VAE)}
+    assert cache.get(_SPLIT_TEXT_ENCODER) is not None
+    assert cache.get(_SPLIT_VAE) is not None
+
+
+def test_single_slot_cold_load_still_evicts_a_cached_split_component_of_its_kind() -> None:
+    """Another model's text encoder displaces the cached one and leaves the diffusion model and VAE."""
+    cache = ComponentCache(budget_mb=0)
+    _cache_split_model(cache)
+
+    released = cache.release_single_slot(ComponentSlotKind.CLIP)
+    evicted = cache.put(_kind_entry("text_encoders/te_b.safetensors:lumina2:default", ComponentSlotKind.CLIP))
+
+    assert [entry.key for entry in released] == [_SPLIT_TEXT_ENCODER]
+    assert evicted == []
+    assert cache.get(_SPLIT_TEXT_ENCODER) is None
+    assert cache.get(_SPLIT_UNET) is not None
+    assert cache.get(_SPLIT_VAE) is not None
+
+
+def test_evict_all_clears_cached_split_components() -> None:
+    cache = ComponentCache(budget_mb=0)
+    _cache_split_model(cache)
+
+    cache.evict_all()
+
+    assert len(cache) == 0
+    assert cache.get(_SPLIT_TEXT_ENCODER) is None
+    assert cache.get(_SPLIT_VAE) is None
 
 
 def test_release_single_slot_is_a_no_op_under_a_budget() -> None:
@@ -307,6 +366,82 @@ def test_restore_identities_restores_whatever_it_is_asked_for_without_evicting()
     assert {snapshot.mutated for snapshot in cache.held_report()} == {False}
 
 
+def _split_entry(key: ComponentCacheKey, payload: Any) -> ComponentCacheEntry:
+    return ComponentCacheEntry(key=key, payload=payload, approx_ram_mb=100, source_ckpt_path=key.identity)
+
+
+def test_release_device_weights_moves_loaded_components_off_the_device_and_keeps_every_entry() -> None:
+    """A split text encoder and VAE left on the device go to their offload device and stay cached.
+
+    The diffusion model a VRAM unload already detached claims nothing and is not touched, so only the two
+    components that held device weights are counted, and the explicit restore statistics do not move.
+    """
+    detached_unet = _FakePatcher(applied_uuid=None, patches_uuid=None)
+    text_encoder = _FakePatcher(applied_uuid=None, patches_uuid=None, loaded_bytes=3 * 2**30)
+    vae = _FakePatcher(applied_uuid=None, patches_uuid=None, loaded_bytes=160 * 2**20)
+    cache = ComponentCache(budget_mb=0)
+    cache.put(_split_entry(_SPLIT_UNET, (detached_unet, None, None)))
+    cache.put(_split_entry(_SPLIT_TEXT_ENCODER, (None, _FakeWrappedComponent(text_encoder), None)))
+    cache.put(_split_entry(_SPLIT_VAE, (None, None, _FakeWrappedComponent(vae))))
+
+    assert cache.release_device_weights() == 2
+
+    assert detached_unet.unpatched is False
+    assert text_encoder.unpatched_to == text_encoder.offload_device
+    assert vae.unpatched_to == vae.offload_device
+    assert text_encoder.model.model_loaded_weight_memory == 0
+    assert vae.model.model_loaded_weight_memory == 0
+    assert len(cache) == 3
+    assert all(cache.get(key) is not None for key in (_SPLIT_UNET, _SPLIT_TEXT_ENCODER, _SPLIT_VAE))
+    assert cache.restore_stats().restored == 0
+
+
+def test_release_device_weights_after_a_full_unload_touches_nothing() -> None:
+    """Every component a full unload detached claims no device weights, so the release is free and counts zero."""
+    patchers = [_FakePatcher(applied_uuid=None, patches_uuid=None) for _ in range(3)]
+    cache = ComponentCache(budget_mb=0)
+    for key, patcher in zip((_SPLIT_UNET, _SPLIT_TEXT_ENCODER, _SPLIT_VAE), patchers, strict=True):
+        cache.put(_split_entry(key, (patcher, None, None)))
+
+    assert cache.release_device_weights() == 0
+
+    assert [patcher.unpatched for patcher in patchers] == [False, False, False]
+    assert len(cache) == 3
+
+
+def test_release_device_weights_failure_is_swallowed_and_the_entry_stays() -> None:
+    """A component whose unpatch raises is not counted and stays cached, and the others are still released."""
+
+    class _RefusingPatcher(_FakePatcher):
+        def unpatch_model(self, device_to: object = None, unpatch_weights: bool = True) -> None:
+            raise RuntimeError("unpatch exploded")
+
+    refusing = _RefusingPatcher(applied_uuid=None, patches_uuid=None, loaded_bytes=2**30)
+    releasing = _FakePatcher(applied_uuid=None, patches_uuid=None, loaded_bytes=2**30)
+    cache = ComponentCache(budget_mb=0)
+    cache.put(_split_entry(_SPLIT_TEXT_ENCODER, (refusing, None, None)))
+    cache.put(_split_entry(_SPLIT_VAE, (releasing, None, None)))
+
+    assert cache.release_device_weights() == 1
+
+    assert releasing.unpatched is True
+    assert len(cache) == 2
+
+
+def test_release_component_device_weights_acts_on_the_process_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The module function releases through this process's cache, and is zero where there is none."""
+    text_encoder = _FakePatcher(applied_uuid=None, patches_uuid=None, loaded_bytes=2**30)
+    cache = ComponentCache(budget_mb=0)
+    cache.put(_split_entry(_SPLIT_TEXT_ENCODER, (text_encoder, None, None)))
+
+    monkeypatch.setattr(component_cache, "process_component_cache", lambda: cache)
+    assert release_component_device_weights() == 1
+    assert len(cache) == 1
+
+    monkeypatch.setattr(component_cache, "process_component_cache", lambda: None)
+    assert release_component_device_weights() == 0
+
+
 def test_held_report_reads_patch_residue_from_the_components() -> None:
     """Residue is reported from the module's applied-patch identity, not from a stored flag."""
     cache = ComponentCache(budget_mb=1000)
@@ -404,20 +539,6 @@ def test_single_slot_insert_and_release_stop_the_displaced_prefetch() -> None:
     assert released == [resident]
     assert displaced_by_insert.prefetch_stop.is_set()
     assert resident.prefetch_stop.is_set()
-
-
-def test_release_unretained_stops_only_the_released_prefetches() -> None:
-    cache = ComponentCache(budget_mb=1000)
-    retained = _kind_entry("model_a:unet", ComponentSlotKind.UNET)
-    unretained = _kind_entry("vae/model_a_vae.safetensors", ComponentSlotKind.VAE)
-    unretained.held_only_while_retained = True
-    cache.put(retained)
-    cache.put(unretained)
-
-    assert cache.release_unretained() == [unretained]
-
-    assert unretained.prefetch_stop.is_set()
-    assert not retained.prefetch_stop.is_set()
 
 
 def test_identity_and_full_eviction_stop_the_evicted_prefetches() -> None:

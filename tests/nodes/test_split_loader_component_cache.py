@@ -217,21 +217,11 @@ def _seed_retained_unet(cache: Any) -> Any:
     return unet_key
 
 
-def test_job_end_without_retention_releases_split_components(single_slot: SimpleNamespace) -> None:
-    """A job the host does not retain past drops its split text encoder and VAE and keeps the diffusion model."""
-    unet_key = _seed_retained_unet(single_slot.cache)
-    _serve_vae(_CountingLoader())
-    _serve_text_encoder(_CountingLoader())
+def test_jobs_keep_one_split_component_per_kind(single_slot: SimpleNamespace) -> None:
+    """Across jobs, retained or not, nothing releases the split components, so each kind stays one resident copy.
 
-    released = single_slot.cache.release_unretained()
-
-    assert sorted(entry.key.kind for entry in released) == sorted([ComponentSlotKind.CLIP, ComponentSlotKind.VAE])
-    assert single_slot.cache.get(unet_key) is not None
-    assert len(single_slot.cache) == 1
-
-
-def test_retained_jobs_keep_one_split_component_per_kind(single_slot: SimpleNamespace) -> None:
-    """Across retained jobs, nothing releases the split components, so each kind stays one resident copy."""
+    A retention denial frees the device only. The host-RAM copies stay cached, so each file is read once.
+    """
     _seed_retained_unet(single_slot.cache)
     vae_stock = _CountingLoader()
     text_encoder_stock = _CountingLoader()

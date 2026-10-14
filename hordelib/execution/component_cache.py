@@ -19,6 +19,15 @@ component kind, and a whole checkpoint occupies every kind (see :meth:`Component
 A split-files model loads its diffusion model, text encoder and VAE as three entries, so evicting every
 other entry on each insert would make each of them displace the others within a single job.
 
+The size rule is an entry's whole lifetime. An entry leaves when an insert evicts it for room, when
+:meth:`ComponentCache.evict_all` clears the cache at a RAM-unload boundary, or when the host evicts it by
+identity. A retention denial is a device decision. A job that ends without the host's grant frees the card,
+and every entry, checkpoint or split component alike, keeps its host-RAM copy so the model's next job on this
+process skips the disk read. :meth:`ComponentCache.held_report` lists every resident entry, so the host
+prices what a denial leaves in RAM. The device half of that rule is
+:func:`release_component_device_weights`, which moves every entry's loaded weights to the offload device and
+keeps the entry, for a host returning an idle process's card while its model stays in RAM.
+
 Every entry that leaves the cache has its :attr:`ComponentCacheEntry.prefetch_stop` set, which ends a weight
 prefetch still reading its components (see :mod:`hordelib.execution.weight_prefetch`).
 
@@ -63,7 +72,7 @@ __all__ = [
     "evict_components",
     "held_components",
     "process_component_cache",
-    "release_unretained_components",
+    "release_component_device_weights",
     "restore_components",
 ]
 
@@ -150,13 +159,6 @@ class ComponentCacheEntry:
     approx_ram_mb: float
     source_ckpt_path: str
     last_used: float = field(default_factory=time.monotonic)
-    held_only_while_retained: bool = False
-    """Whether the entry is released at the end of a job the host did not retain the model past.
-
-    Set for a split-files graph's text encoder and VAE. They are worth keeping only while the diffusion
-    model stays resident for the next job, where reuse stops each job uploading a second copy. On a process
-    that is not retained they would only hold host RAM. A checkpoint's components live in one entry and keep
-    the plain cache lifetime."""
     prefetch_stop: threading.Event = field(default_factory=threading.Event)
     """Set when the entry leaves the cache.
 
@@ -240,6 +242,32 @@ def _patch_residue_predicate() -> Callable[[Any], bool]:
         )
         return _never_carries_residue
     return has_patch_residue
+
+
+def _release_entry_device_weights(entry: ComponentCacheEntry) -> int:
+    """Move *entry*'s loaded weights off the device; report the device bytes they claimed.
+
+    Never raises, and the import is deferred, for the reasons :meth:`ComponentCache.restore_entry` gives.
+    """
+    try:
+        from hordelib.execution.component_restore import release_payload_device_weights
+
+        released = release_payload_device_weights(entry.payload)
+    except Exception as release_error:
+        logger.debug(
+            "Could not move component {} off the device: {} {}",
+            entry.key.identity,
+            type(release_error).__name__,
+            release_error,
+        )
+        return 0
+    if released > 0:
+        logger.debug(
+            "Moved a cached component's weights off the device: identity={}, released_mb={:.1f}",
+            entry.key.identity,
+            released / _BYTES_PER_MB,
+        )
+    return released
 
 
 class ComponentCache:
@@ -326,6 +354,19 @@ class ComponentCache:
         )
         return released
 
+    def release_device_weights(self) -> int:
+        """Move every entry's loaded weights off the device, keeping each entry; return how many held any.
+
+        No entry leaves, so the model's next job re-uploads from host RAM instead of re-reading its files. An
+        entry whose components claim no loaded weight memory, as every entry does after ComfyUI's full unload
+        detached it, is untouched and not counted. Runs outside the lock, as a restore does, since it walks each
+        component's modules. Not counted in :meth:`restore_stats`, which
+        reports the explicit restore lever only.
+        """
+        with self._lock:
+            entries = list(self._entries.values())
+        return sum(1 for entry in entries if _release_entry_device_weights(entry) > 0)
+
     def restore_stats(self) -> ComponentRestoreStats:
         """Return this process's cumulative restore activity."""
         with self._lock:
@@ -361,16 +402,6 @@ class ComponentCache:
             return []
         with self._lock:
             doomed = [key for key in self._entries if _competes_for_single_slot(key.kind, kind)]
-            return _stop_prefetches([self._entries.pop(key) for key in doomed])
-
-    def release_unretained(self) -> list[ComponentCacheEntry]:
-        """Evict and return every entry held only while the model is retained.
-
-        Called at the end of a job the host did not retain the model past (see
-        :attr:`ComponentCacheEntry.held_only_while_retained`).
-        """
-        with self._lock:
-            doomed = [key for key, entry in self._entries.items() if entry.held_only_while_retained]
             return _stop_prefetches([self._entries.pop(key) for key in doomed])
 
     def evict_identities(self, identities: Collection[str]) -> int:
@@ -499,16 +530,21 @@ def restore_components(identities: Collection[str]) -> int:
     return 0 if cache is None else cache.restore_identities(identities)
 
 
+def release_component_device_weights() -> int:
+    """Move every cached component's loaded weights off the device, keeping the entries; return how many held any.
+
+    Zero where there is no cache, and zero after ComfyUI's full unload, which detaches every component it
+    tracks. A component whose weights stayed on the device beside an unloaded model is live allocation an
+    allocator-cache release cannot return, so this call frees it while the host copy stays.
+    """
+    cache = process_component_cache()
+    return 0 if cache is None else cache.release_device_weights()
+
+
 def evict_components(identities: Collection[str]) -> int:
     """Drop the named components from RAM; return how many resident entries were evicted."""
     cache = process_component_cache()
     return 0 if cache is None else cache.evict_identities(identities)
-
-
-def release_unretained_components() -> int:
-    """Drop the entries held only while the model is retained and return how many were evicted."""
-    cache = process_component_cache()
-    return 0 if cache is None else len(cache.release_unretained())
 
 
 def component_restore_stats() -> ComponentRestoreStats:

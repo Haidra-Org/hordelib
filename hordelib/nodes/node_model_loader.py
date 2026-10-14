@@ -853,7 +853,6 @@ def _serve_split_component(
             payload=result,
             approx_ram_mb=approx_ram_mb_from_bytes(cache_key.kind, _safe_file_size(full_path)),
             source_ckpt_path=full_path,
-            held_only_while_retained=True,
         ),
     )
     HordeCheckpointLoader._record_evictions(evicted, cache, collector)

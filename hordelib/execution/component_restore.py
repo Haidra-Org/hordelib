@@ -41,6 +41,7 @@ from loguru import logger
 __all__ = [
     "capture_pristine_state",
     "has_patch_residue",
+    "release_payload_device_weights",
     "restore_component",
     "restore_conv2d_padding",
     "restore_payload",
@@ -208,3 +209,43 @@ def restore_payload(payload: Any) -> int:
     if not isinstance(payload, (tuple, list)):
         return restore_component(payload)
     return sum(restore_component(slot) for slot in payload)
+
+
+def _release_component_device_weights(component: Any) -> int:
+    """Unpatch each of *component*'s patchers that claims loaded weight memory; report the bytes it claimed.
+
+    Never raises. A patcher that cannot be unpatched is logged at debug and counted as zero, as in a restore.
+    """
+    if component is None:
+        return 0
+
+    released = 0
+    for patcher in _patchers(component):
+        try:
+            claimed = int(getattr(patcher.model, "model_loaded_weight_memory", 0) or 0)
+            if claimed <= 0:
+                continue
+            patcher.unpatch_model(device_to=patcher.offload_device, unpatch_weights=True)
+            released += claimed
+        except Exception as release_error:
+            logger.debug(
+                "Could not move a cached component's weights off the device: {} {}",
+                type(release_error).__name__,
+                release_error,
+            )
+    return released
+
+
+def release_payload_device_weights(payload: Any) -> int:
+    """Move every component in *payload* that holds loaded weights to its offload device; report the bytes moved.
+
+    The device half of :func:`restore_payload`. A component whose module claims no loaded weight memory is
+    left untouched, so a payload ComfyUI's full unload has already detached costs nothing and reports zero.
+    One that does claim some is unpatched to its offload device, where hordelib's unpatch hook points each
+    weight back at its host origin instead of copying it, so the host copy the cache holds is what remains.
+    Padding is not reset, since tiling is the next job's concern and costs no device memory.
+    """
+    if payload is None:
+        return 0
+    slots = payload if isinstance(payload, (tuple, list)) else (payload,)
+    return sum(_release_component_device_weights(slot) for slot in slots)
