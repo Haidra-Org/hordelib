@@ -5,6 +5,7 @@ These are the dynamic graph mutations previously inlined in
 they can be unit-tested without a GPU.
 """
 
+import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import StrEnum, auto
@@ -177,6 +178,90 @@ def rewire_cascade_img2img(graph: GraphDict) -> None:
     """Feed both Stable Cascade samplers from the stage-C VAE-encoded source image."""
     reconnect_input(graph, "sampler_stage_c.latent_image", "stablecascade_stagec_vaeencode")
     reconnect_input(graph, "sampler_stage_b.latent_image", "stablecascade_stagec_vaeencode")
+
+
+POSITIVE_PROMPT_NODE = "prompt"
+"""Title of the node that encodes the positive prompt."""
+
+NEGATIVE_PROMPT_NODE = "negative_prompt"
+"""Title of the node that encodes the negative prompt."""
+
+CFG1_OPTIMIZATION_DISABLING_SAMPLERS = frozenset(
+    {
+        "euler_cfg_pp",
+        "euler_ancestral_cfg_pp",
+        "dpmpp_2s_ancestral_cfg_pp",
+        "dpmpp_2m_cfg_pp",
+        "res_multistep_cfg_pp",
+        "res_multistep_ancestral_cfg_pp",
+        "gradient_estimation_cfg_pp",
+        "euler_pp",
+    },
+)
+"""ComfyUI samplers whose sampler function turns off the cfg 1.0 shortcut, and so read the negative at cfg 1.0.
+
+Each installs a post-cfg function that needs the unconditional prediction and sets
+``disable_cfg1_optimization`` in the model options to get it. ``euler_pp`` is offered only through the
+``SamplerEulerCFGpp`` node; the rest are ComfyUI sampler names. ``tests/test_comfy_contract_drift.py``
+derives this set from the sampler sources and fails when the two differ.
+"""
+
+
+def _is_link_to(value: Any, title: str) -> bool:
+    return isinstance(value, list) and len(value) == 2 and value[0] == title
+
+
+def _reads_negative_only_at_cfg_one(node: dict[str, Any], input_name: str) -> bool:
+    """Return whether the input is a sampling node's ``negative``, beside a literal cfg of 1.0."""
+    cfg = node["inputs"].get("cfg")
+    cfg_is_literal_number = isinstance(cfg, int | float) and not isinstance(cfg, bool)
+    return input_name == "negative" and cfg_is_literal_number and math.isclose(cfg, 1.0)
+
+
+def _uses_cfg1_disabling_sampler(graph: GraphDict) -> bool:
+    return any(
+        node.get("inputs", {}).get("sampler_name") in CFG1_OPTIMIZATION_DISABLING_SAMPLERS for node in graph.values()
+    )
+
+
+def drop_unread_negative_prompt(graph: GraphDict) -> bool:
+    """Mutate the graph to feed the positive encode to every unread negative input and remove the negative encode.
+
+    At a cfg of 1.0 ComfyUI's ``sampling_function`` does not evaluate the unconditional pass, and the
+    guidance step ``uncond + (cond - uncond) * cfg`` equals ``cond`` for any ``uncond``, so the negative
+    encode costs a CLIP pass whose result no sampler reads. The fold applies only when every input linked
+    to the negative encode is a ``negative`` input on a node with a literal ``cfg`` of 1.0, and no sampler in
+    the graph is in :data:`CFG1_OPTIMIZATION_DISABLING_SAMPLERS`. Any other consumer, such as a controlnet
+    apply or a stage IO node, leaves the graph unchanged.
+
+    Args:
+        graph: The pipeline graph to mutate.
+
+    Returns:
+        bool: True when the negative encode was removed.
+    """
+    if NEGATIVE_PROMPT_NODE not in graph or POSITIVE_PROMPT_NODE not in graph:
+        return False
+
+    consumers = [
+        (node_title, input_name)
+        for node_title, node in graph.items()
+        for input_name, value in node.get("inputs", {}).items()
+        if _is_link_to(value, NEGATIVE_PROMPT_NODE)
+    ]
+    if not consumers:
+        return False
+    every_consumer_ignores_negative = all(
+        _reads_negative_only_at_cfg_one(graph[node_title], input_name) for node_title, input_name in consumers
+    )
+    if not every_consumer_ignores_negative or _uses_cfg1_disabling_sampler(graph):
+        return False
+
+    for node_title, input_name in consumers:
+        graph[node_title]["inputs"][input_name] = [POSITIVE_PROMPT_NODE, 0]
+    del graph[NEGATIVE_PROMPT_NODE]
+    logger.debug("Removed the negative prompt encode no sampler reads", rewired_inputs=len(consumers))
+    return True
 
 
 @dataclass(frozen=True)

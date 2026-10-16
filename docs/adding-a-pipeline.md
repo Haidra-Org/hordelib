@@ -33,6 +33,15 @@ exercises it end to end. Edit it freely to experiment.
   default-denoise images forever.
 - **Patch steps** handle what bindings cannot: resolved facts (model files on disk,
   downloaded LoRAs) and structural surgery (chain insertion, rewires).
+- **The `prompt` and `negative_prompt` titles carry a contract**: a whole-graph run removes
+  the `negative_prompt` encode when no sampler reads it
+  (`drop_unread_negative_prompt` in `hordelib/pipeline/patches.py`). The removal happens only
+  when every input linked to `negative_prompt` is a `negative` input on a node with a literal
+  `cfg` of 1.0 and no sampler in the graph is a CFG++ sampler; those inputs are relinked to
+  `prompt` output 0. A pipeline whose positive encode has another title, or whose negative
+  also feeds another node (such as `ControlNetApplyAdvanced`), keeps its negative encode. The
+  disaggregated stage path does not apply the removal, because its text-encode stage emits
+  the negative conditioning from that node.
 
 ## Walkthrough: the reference definition
 

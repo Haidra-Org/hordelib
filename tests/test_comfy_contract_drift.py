@@ -12,11 +12,16 @@ Everything here runs on CPU; the mini-execution round trip uses ``EmptyImage`` f
 ``HordeImageOutput``, so it exercises the full executor path without loading any model.
 """
 
+import ast
 import asyncio
+import functools
 import gc
 import inspect
 import io
+import re
+import textwrap
 import weakref
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -722,6 +727,128 @@ class TestMonkeypatchSignaturePins:
             "KSampler.calculate_sigmas no longer calls the module-level calculate_sigmas directly; "
             "re-verify the sigma-generator patch seam"
         )
+
+
+_CFG1_OPTIMIZATION_OFF = re.compile(r"""disable_cfg1_optimization['"]?\]?\s*[=:]\s*True""")
+"""Matches source that sets ``disable_cfg1_optimization`` to True, as a keyword or as a ``model_options`` entry."""
+
+
+def _resolve_callee(expression: ast.expr, namespace: dict[str, Any]) -> Any:
+    """Return the object a call expression names (``name`` or ``module.name``), or None when it is anything else."""
+    if isinstance(expression, ast.Name):
+        return namespace.get(expression.id)
+    if isinstance(expression, ast.Attribute) and isinstance(expression.value, ast.Name):
+        owner = namespace.get(expression.value.id)
+        if inspect.ismodule(owner):
+            return getattr(owner, expression.attr, None)
+    return None
+
+
+def _turns_cfg1_optimization_off(
+    function: Any,
+    *,
+    cfg_pp: bool | None = None,
+    seen: set[tuple[Any, bool | None]] | None = None,
+) -> bool:
+    """Return whether running ``function`` sets ``disable_cfg1_optimization``, following the calls it makes.
+
+    The comfy samplers reach the setting three ways: directly, through a sibling sampler they delegate to,
+    and through a shared body gated on a ``cfg_pp`` parameter. A body that holds the setting counts only
+    when its ``cfg_pp`` (passed by the caller as a literal or forwarded, else the default) is not False.
+    Only comfy and hordelib functions are followed.
+    """
+    if isinstance(function, functools.partial):
+        return _turns_cfg1_optimization_off(
+            function.func,
+            cfg_pp=function.keywords.get("cfg_pp", cfg_pp),
+            seen=seen,
+        )
+    function = inspect.unwrap(function)
+    if not inspect.isfunction(function):
+        return False
+    if not (function.__module__ or "").startswith(("comfy", "hordelib")):
+        return False
+    seen = set() if seen is None else seen
+    if (function, cfg_pp) in seen:
+        return False
+    seen.add((function, cfg_pp))
+
+    source = textwrap.dedent(inspect.getsource(function))
+    parameters = inspect.signature(function).parameters
+    effective_cfg_pp = cfg_pp
+    if effective_cfg_pp is None and "cfg_pp" in parameters:
+        effective_cfg_pp = parameters["cfg_pp"].default
+    if _CFG1_OPTIMIZATION_OFF.search(source) and effective_cfg_pp is not False:
+        return True
+
+    namespace = {**function.__globals__, **inspect.getclosurevars(function).nonlocals}
+    for call in ast.walk(ast.parse(source)):
+        if not isinstance(call, ast.Call):
+            continue
+        callee = _resolve_callee(call.func, namespace)
+        if callee is None:
+            continue
+        callee_cfg_pp: bool | None = None
+        for keyword in call.keywords:
+            if keyword.arg != "cfg_pp":
+                continue
+            if isinstance(keyword.value, ast.Constant) and isinstance(keyword.value.value, bool):
+                callee_cfg_pp = keyword.value.value
+            elif isinstance(keyword.value, ast.Name) and keyword.value.id == "cfg_pp":
+                callee_cfg_pp = effective_cfg_pp
+        if _turns_cfg1_optimization_off(callee, cfg_pp=callee_cfg_pp, seen=seen):
+            return True
+    return False
+
+
+class TestCfgOneOptimizationPins:
+    """Pin which samplers read the negative conditioning at cfg 1.0.
+
+    ``drop_unread_negative_prompt`` removes the negative encode at cfg 1.0 because ComfyUI's
+    ``sampling_function`` skips the unconditional pass there, unless the model options set
+    ``disable_cfg1_optimization``. Its sampler gate lists the samplers that set it; these pins keep that list
+    equal to what the sampler sources do.
+    """
+
+    def test_the_cfg_one_optimization_gate_is_unchanged(self, init_horde: None) -> None:
+        import comfy.samplers
+
+        source = inspect.getsource(comfy.samplers.sampling_function)
+        assert 'math.isclose(cond_scale, 1.0) and model_options.get("disable_cfg1_optimization", False) == False' in (
+            source
+        ), "sampling_function changed how it skips the unconditional pass at cfg 1.0; re-verify the negative fold"
+        assert "uncond_ = None" in source
+
+    def test_the_disabling_sampler_set_matches_the_sampler_sources(self, init_horde: None) -> None:
+        import comfy.samplers
+        from comfy_extras import nodes_advanced_samplers
+
+        from hordelib.pipeline.constants import SAMPLERS_MAP
+        from hordelib.pipeline.patches import CFG1_OPTIMIZATION_DISABLING_SAMPLERS
+
+        derived = {
+            comfy_name
+            for comfy_name in set(SAMPLERS_MAP.values())
+            if _turns_cfg1_optimization_off(comfy.samplers.sampler_object(comfy_name).sampler_function)
+        }
+        # SamplerEulerCFGpp offers this one through its own node, outside the sampler-name table.
+        if _turns_cfg1_optimization_off(nodes_advanced_samplers.sample_euler_pp):
+            derived.add("euler_pp")
+
+        assert derived == CFG1_OPTIMIZATION_DISABLING_SAMPLERS, (
+            f"samplers that read the negative at cfg 1.0 drifted: sources say {sorted(derived)}, "
+            f"the gate lists {sorted(CFG1_OPTIMIZATION_DISABLING_SAMPLERS)}"
+        )
+
+    def test_hordelib_does_not_disable_the_cfg_one_optimization(self) -> None:
+        """A model option set by hordelib itself would make the negative read at cfg 1.0 for every sampler."""
+        package_root = Path(__file__).parent.parent / "hordelib"
+        setters = sorted(
+            str(source_file.relative_to(package_root))
+            for source_file in package_root.rglob("*.py")
+            if _CFG1_OPTIMIZATION_OFF.search(source_file.read_text(encoding="utf-8"))
+        )
+        assert setters == [], f"hordelib sets disable_cfg1_optimization in {setters}; the negative fold is unsafe"
 
 
 class TestFolderPathsPins:

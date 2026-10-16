@@ -8,7 +8,11 @@ import PIL.Image
 import pytest
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
 
-from hordelib.execution.graph_utils import fix_node_names
+from hordelib.execution.graph_utils import GraphDict, fix_node_names
+from hordelib.execution.stage_graph import cut_encode_text_stage
+from hordelib.pipeline.context import ModelContext
+from hordelib.pipeline.families.image import build_default_registry
+from hordelib.pipeline.node_schemas import load_node_input_schemas
 from hordelib.pipeline.patches import (
     SHUFFLE_PREPROCESSOR_CLASS_TYPE,
     FlowShiftNode,
@@ -16,6 +20,7 @@ from hordelib.pipeline.patches import (
     ResolvedLora,
     apply_layerdiffuse,
     configure_controlnet,
+    drop_unread_negative_prompt,
     hires_fix_first_pass_resolution,
     insert_lora_chain,
     insert_model_sampling_shift,
@@ -25,6 +30,7 @@ from hordelib.pipeline.patches import (
     rewire_cascade_img2img,
     rewire_img2img,
 )
+from hordelib.pipeline.payload import ImageGenPayload
 
 PIPELINES_DIR = Path(__file__).parent.parent.parent / "hordelib" / "pipelines"
 
@@ -496,3 +502,182 @@ class TestQrParams:
         params = qr_layout_params(width=512, height=512, qr_size=400, x_offset=400, y_offset=50)
         assert params["qr_flattened_composite.x"] == (512 - 400) - 10
         assert params["qr_flattened_composite.y"] == 50
+
+
+_SD1 = KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_1
+_FLUX = KNOWN_IMAGE_GENERATION_BASELINE.flux_1
+
+
+def _fold_context(baseline: KNOWN_IMAGE_GENERATION_BASELINE) -> ModelContext:
+    return ModelContext(horde_model_name="Fold Model", baseline=baseline, main_file="fold_model.safetensors")
+
+
+def _fold_payload(**overrides: object) -> ImageGenPayload:
+    return ImageGenPayload.from_horde_dict(
+        {"seed": 1, "prompt": "a lighthouse", "negative_prompt": "blurry", "sampler_name": "k_euler", **overrides},
+    )
+
+
+def _materialize(baseline: KNOWN_IMAGE_GENERATION_BASELINE, **overrides: object) -> tuple[str, GraphDict]:
+    payload = _fold_payload(**overrides)
+    context = _fold_context(baseline)
+    definition = build_default_registry().select(payload, context)
+    assert definition is not None
+    return definition.name, definition.materialize(payload, context).raw
+
+
+def _negative_consumers(graph: GraphDict) -> list[str]:
+    return sorted(
+        f"{title}.{input_name}"
+        for title, node in graph.items()
+        for input_name, value in node["inputs"].items()
+        if isinstance(value, list) and len(value) == 2 and value[0] == "negative_prompt"
+    )
+
+
+def _assert_graph_matches_node_schemas(graph: GraphDict) -> None:
+    """Every node keeps the inputs its class requires, and every link resolves to a node in the graph."""
+    schemas = load_node_input_schemas()
+    for title, node in graph.items():
+        schema = schemas[node["class_type"]]
+        missing = [name for name in schema.required if name not in node["inputs"]]
+        assert missing == [], f"{title} lacks required inputs {missing}"
+        dangling = [
+            name
+            for name, value in node["inputs"].items()
+            if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str) and value[0] not in graph
+        ]
+        assert dangling == [], f"{title} links to missing nodes through {dangling}"
+
+
+class TestDropUnreadNegativePrompt:
+    def test_sd_at_cfg_one_feeds_the_sampler_the_positive_encode(self):
+        name, graph = _materialize(_SD1, cfg_scale=1.0)
+        assert name == "stable_diffusion"
+        assert _negative_consumers(graph) == ["sampler.negative"]
+
+        assert drop_unread_negative_prompt(graph) is True
+
+        assert "negative_prompt" not in graph
+        assert graph["sampler"]["inputs"]["negative"] == ["prompt", 0]
+        _assert_graph_matches_node_schemas(graph)
+
+    def test_flux_at_cfg_one_feeds_the_guider_the_positive_encode(self):
+        name, graph = _materialize(_FLUX, cfg_scale=1.0, ddim_steps=4)
+        assert name == "flux"
+        assert _negative_consumers(graph) == ["cfg_guider.negative"]
+
+        assert drop_unread_negative_prompt(graph) is True
+
+        assert "negative_prompt" not in graph
+        assert graph["cfg_guider"]["inputs"]["negative"] == ["prompt", 0]
+        _assert_graph_matches_node_schemas(graph)
+
+    def test_hires_fix_at_cfg_one_rewires_both_samplers(self):
+        name, graph = _materialize(_SD1, cfg_scale=1.0, hires_fix=True)
+        assert name == "stable_diffusion_hires_fix"
+        assert _negative_consumers(graph) == ["sampler.negative", "upscale_sampler.negative"]
+
+        assert drop_unread_negative_prompt(graph) is True
+
+        assert "negative_prompt" not in graph
+        assert graph["sampler"]["inputs"]["negative"] == ["prompt", 0]
+        assert graph["upscale_sampler"]["inputs"]["negative"] == ["prompt", 0]
+        _assert_graph_matches_node_schemas(graph)
+
+    def test_guided_cfg_leaves_the_graph_unchanged(self):
+        _name, graph = _materialize(_SD1, cfg_scale=7.0)
+        before = json.dumps(graph, default=str, sort_keys=True)
+
+        assert drop_unread_negative_prompt(graph) is False
+
+        assert json.dumps(graph, default=str, sort_keys=True) == before
+
+    def test_cfg_pp_sampler_leaves_the_graph_unchanged(self):
+        """A CFG++ sampler evaluates the unconditional pass at cfg 1.0, so its negative input is read."""
+        _name, graph = _materialize(_SD1, cfg_scale=1.0, sampler_name="euler_cfg_pp")
+        assert graph["sampler"]["inputs"]["sampler_name"] == "euler_cfg_pp"
+        before = json.dumps(graph, default=str, sort_keys=True)
+
+        assert drop_unread_negative_prompt(graph) is False
+
+        assert json.dumps(graph, default=str, sort_keys=True) == before
+
+    def test_controlnet_applied_to_the_positive_only_still_folds(self):
+        """``ControlNetApply`` conditions the positive alone, so the sampler is the negative's only reader."""
+        name, graph = _materialize(
+            _SD1,
+            cfg_scale=1.0,
+            control_type="canny",
+            source_image=PIL.Image.new("RGB", (512, 512)),
+            source_processing="img2img",
+        )
+        assert name == "controlnet"
+        assert _negative_consumers(graph) == ["sampler.negative"]
+
+        assert drop_unread_negative_prompt(graph) is True
+
+        assert "negative_prompt" not in graph
+        assert graph["sampler"]["inputs"]["negative"] == ["prompt", 0]
+        assert graph["controlnet_apply"]["inputs"]["conditioning"] == ["prompt", 0]
+        _assert_graph_matches_node_schemas(graph)
+
+    def test_controlnet_conditioning_the_negative_leaves_the_graph_unchanged(self):
+        """``ControlNetApplyAdvanced`` takes the negative as an input, which no cfg makes unread."""
+        graph = _graph("qr_code")
+        for node in graph.values():
+            if "cfg" in node["inputs"]:
+                node["inputs"]["cfg"] = 1.0
+        assert "controlnet_bg.negative" in _negative_consumers(graph)
+        before = json.dumps(graph, default=str, sort_keys=True)
+
+        assert drop_unread_negative_prompt(graph) is False
+
+        assert json.dumps(graph, default=str, sort_keys=True) == before
+
+
+def _stub_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    payload: ImageGenPayload,
+    context: ModelContext,
+) -> None:
+    """Resolve the model and the SDK conversion to canned values, so no model reference is consulted."""
+    from hordelib.shared_model_manager import SharedModelManager
+
+    # An unloaded manager makes TI and LoRA resolution pass the payload through untouched.
+    monkeypatch.setattr(SharedModelManager, "manager", None, raising=False)
+    monkeypatch.setattr("hordelib.pipeline.resolution.resolve_image_model", lambda model_name: context)
+    monkeypatch.setattr("hordelib.pipeline.sdk_adapter.to_image_gen_payload", lambda params: (payload, []))
+
+
+class TestNegativeFoldPlacement:
+    """The whole-graph run drops the unread negative; the stage cut keeps it for the encode stage."""
+
+    def test_monolithic_materialization_drops_the_unread_negative(self, monkeypatch: pytest.MonkeyPatch):
+        from hordelib.horde import HordeLib
+
+        context = _fold_context(_SD1)
+        _stub_resolution(monkeypatch, _fold_payload(cfg_scale=1.0), context)
+        horde = object.__new__(HordeLib)
+
+        graph, _typed, _context, _faults, _outputs = horde._materialize_image_graph(
+            {"model": "Fold Model", "prompt": "a lighthouse", "sampler_name": "k_euler", "cfg_scale": 1.0, "seed": 1},
+        )
+
+        assert not graph.has_node("negative_prompt")
+        assert graph.node("sampler")["inputs"]["negative"] == ["prompt", 0]
+
+    def test_stage_graph_keeps_the_negative_encode(self, monkeypatch: pytest.MonkeyPatch):
+        from hordelib.horde import HordeLib
+
+        context = _fold_context(_SD1)
+        _stub_resolution(monkeypatch, _fold_payload(cfg_scale=1.0), context)
+        horde = object.__new__(HordeLib)
+
+        graph, _outputs, _faults, _typed, _sigma_schedule, _context = horde._materialize_stage_graph(None)
+
+        assert graph.has_node("negative_prompt")
+        assert graph.node("sampler")["inputs"]["negative"] == ["negative_prompt", 0]
+        outputs = cut_encode_text_stage(graph)
+        assert "cond_negative_output" in {output.node for output in outputs}
+        assert graph.node("cond_negative_output")["inputs"]["conditioning"] == ["negative_prompt", 0]

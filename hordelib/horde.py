@@ -249,7 +249,13 @@ class HordeLib:
         context = resolve_image_model(str(model))
         normalized, compat_faults = normalize_horde_payload(payload, context)
         typed = ImageGenPayload.from_horde_dict(normalized)
-        return self._finalize_and_materialize(typed, context, compat_faults, pipeline=AUTO_PIPELINE)
+        return self._finalize_and_materialize(
+            typed,
+            context,
+            compat_faults,
+            pipeline=AUTO_PIPELINE,
+            drop_unread_negative=True,
+        )
 
     def _finalize_and_materialize(
         self,
@@ -258,6 +264,7 @@ class HordeLib:
         faults: list[GenMetadataEntry],
         *,
         pipeline: ImagePipeline | AutoPipeline,
+        drop_unread_negative: bool,
     ) -> tuple[
         ComfyGraph,
         ImageGenPayload,
@@ -265,12 +272,19 @@ class HordeLib:
         list[GenMetadataEntry],
         tuple[OutputSpec, ...],
     ]:
-        """The shared typed tail of the pipeline flow: resize -> resolve -> select -> materialize."""
+        """The shared typed tail of the pipeline flow: resize -> resolve -> select -> materialize.
+
+        ``drop_unread_negative`` removes the negative prompt encode when no sampler reads it (see
+        :func:`hordelib.pipeline.patches.drop_unread_negative_prompt`). A run that executes the whole
+        graph passes True. The stage entry points pass False, because the text-encode stage emits the
+        negative conditioning from that node and the sample stage injects it whatever the cfg.
+        """
         from hordelib.pipeline.horde_compat import (
             disable_hires_fix_for_masked_img2img,
             enforce_schedule_constraints,
             resize_sources_to_request,
         )
+        from hordelib.pipeline.patches import drop_unread_negative_prompt
         from hordelib.pipeline.resolution import resolve_image_generation
 
         typed = disable_hires_fix_for_masked_img2img(typed)
@@ -287,6 +301,8 @@ class HordeLib:
             faults_count=len(faults) + len(resolution_faults),
         )
         graph = definition.materialize(typed, context)
+        if drop_unread_negative:
+            drop_unread_negative_prompt(graph.raw)
         return graph, typed, context, faults + resolution_faults, definition.outputs
 
     @staticmethod
@@ -365,6 +381,7 @@ class HordeLib:
             context,
             conversion_faults + compat_faults,
             pipeline=AUTO_PIPELINE,
+            drop_unread_negative=False,
         )
         # The finalized payload and the sigma schedule come back so a stage can apply what the graph
         # cannot carry. Converting again in the caller would re-decode the job's source images, which is
@@ -877,6 +894,7 @@ class HordeLib:
             context,
             conversion_faults + compat_faults,
             pipeline=pipeline,
+            drop_unread_negative=True,
         )
 
         result = self._run_materialized(
