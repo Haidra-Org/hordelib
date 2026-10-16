@@ -15,17 +15,20 @@ the patcher and restored from the patcher's own backup, so those are left to it.
 byte-identical to what a copy-back would have produced, so nothing downstream can tell the difference
 except the missing pause and the private-memory growth that no longer happens.
 
-A partial unload (ComfyUI trimming a loaded model to make room) moves modules back with ``Module.to``, which
-is the same copy into private memory, and it pins the copy. ``release_copied_back_weights`` runs after it
-and points each unpatched weight back at its origin, so the copy is freed and a later load restores to the
-mapping again rather than to the copy.
+A partial unload (ComfyUI trimming a loaded model to make room) moves modules back one at a time with
+``Module.to`` and pins each moved weight. ComfyUI's plain op classes move through
+``comfy_patches._plain_op_apply_hijack``, which inside ``restoring_cpu_origins`` points each unpatched device weight
+at its origin before torch's move runs (``restore_plain_origins``). The move finds the weight on the CPU and makes no
+copy, and ComfyUI pins the origin. ``release_copied_back_weights`` runs after the partial unload for the weights whose
+moves still copy, such as those of modules that are not comfy op classes, and points each copy back at its origin so
+the copy is freed.
 
 A tensor-subclass weight (a comfy_kitchen ``QuantizedTensor``, as in fp8 checkpoints) is kept differently.
 ComfyUI's quantized ops register a new ``Parameter`` on every move, and assigning ``.data`` on a wrapper
 replaces only its outer metadata, so neither the attribute record nor the ``.data`` restore works for it.
 ``stash_cpu_origins`` keeps the CPU ``Parameter`` object itself in a table on its owning module, keyed by the
 parameter's name, and the quantized move (``comfy_patches._quantized_apply_hijack``) registers that object
-again when a move back to the CPU runs inside ``restoring_quantized_origins``. The device-to-host copy is never
+again when a move back to the CPU runs inside ``restoring_cpu_origins``. The device-to-host copy is never
 made, so a host short of commit charge cannot fail it.
 
 The kill switch ``HORDELIB_DISABLE_CPU_WEIGHT_RETENTION`` restores ComfyUI's copy-back behaviour.
@@ -189,43 +192,81 @@ def note_quantized_device_twin(
     return True
 
 
-class _RestoreTally:
-    """Represents the count and bytes of origins registered during one ``restoring_quantized_origins`` scope."""
+_MoveVerdictKey = tuple[Callable[[torch.Tensor], torch.Tensor], torch.device, torch.dtype]
 
-    __slots__ = ("restored", "restored_bytes")
 
-    def __init__(self) -> None:
+class _RestoreScope:
+    """Represents one ``restoring_cpu_origins`` scope: the weights left to the caller and the origins restored so far.
+
+    Skipped weights are held by weak reference keyed by ``id``, so a weight ComfyUI replaces during the scope is
+    freed as usual, and a later tensor that reuses its ``id`` is not mistaken for it.
+    """
+
+    __slots__ = ("_cpu_move_verdicts", "_skipped", "restored", "restored_bytes")
+
+    def __init__(self, skipped: list[torch.Tensor]) -> None:
         self.restored = 0
         self.restored_bytes = 0
+        self._skipped: dict[int, weakref.ref[torch.Tensor]] = {id(tensor): weakref.ref(tensor) for tensor in skipped}
+        self._cpu_move_verdicts: dict[_MoveVerdictKey, bool] = {}
+
+    def is_skipped(self, tensor: torch.Tensor) -> bool:
+        """Return whether ``tensor`` is a weight the scope leaves to its caller."""
+        reference = self._skipped.get(id(tensor))
+        return reference is not None and reference() is tensor
+
+    def moves_to_cpu(self, fn: Callable[[torch.Tensor], torch.Tensor], tensor: torch.Tensor) -> bool:
+        """Return whether ``fn`` moves ``tensor`` to the CPU without changing its dtype.
+
+        ``fn`` is applied to an empty tensor on ``tensor``'s device, which allocates nothing. The verdict is kept per
+        ``fn``, device and dtype, since one ``Module.to`` applies the same ``fn`` to every module it reaches.
+        """
+        verdict_key = (fn, tensor.device, tensor.dtype)
+        verdict = self._cpu_move_verdicts.get(verdict_key)
+        if verdict is None:
+            moved = fn(torch.empty(0, dtype=tensor.dtype, device=tensor.device))
+            verdict = moved.device.type == "cpu" and moved.dtype == tensor.dtype
+            self._cpu_move_verdicts[verdict_key] = verdict
+        return verdict
 
 
-_restore_scope: contextvars.ContextVar[_RestoreTally | None] = contextvars.ContextVar(
-    "hordelib_quantized_origin_restore_scope",
+_restore_scope: contextvars.ContextVar[_RestoreScope | None] = contextvars.ContextVar(
+    "hordelib_cpu_origin_restore_scope",
     default=None,
 )
 
 
 @contextlib.contextmanager
-def restoring_quantized_origins() -> Iterator[None]:
-    """Context manager inside which a quantized move to the CPU registers recorded origins in place of copying.
+def restoring_cpu_origins(
+    module: torch.nn.Module | None = None,
+    *,
+    skip_keys: set[str] | frozenset[str] | None = None,
+) -> Iterator[None]:
+    """Context manager inside which a move to the CPU restores recorded origins in place of copying.
 
-    ComfyUI restores every patched key from its backup before moving weights back to the offload device, so
-    scoping the restore to its unload paths keeps a move made elsewhere unchanged.
+    A quantized weight registers its origin ``Parameter`` (see :func:`restore_quantized_origin`), and a plain op
+    weight is pointed at its origin tensor (see :func:`restore_plain_origins`). ``skip_keys`` names weights of
+    ``module`` that torch moves as usual, typically the keys ComfyUI backed up before patching, since ComfyUI
+    restores those from its own backup. Scoping the restore to ComfyUI's unload paths keeps a move made elsewhere
+    unchanged.
     """
     if cpu_weight_retention_disabled():
         yield
         return
-    tally = _RestoreTally()
-    token = _restore_scope.set(tally)
+    skipped: list[torch.Tensor] = []
+    if module is not None and skip_keys:
+        skipped = [tensor for name, tensor in _named_weights(module) if name in skip_keys]
+    scope = _RestoreScope(skipped)
+    token = _restore_scope.set(scope)
     try:
         yield
     finally:
         _restore_scope.reset(token)
-        if tally.restored:
+        if scope.restored:
             logger.debug(
-                "Registered {} quantized CPU-origin weight(s) ({} MB) without copying back from the device",
-                tally.restored,
-                tally.restored_bytes // (1024 * 1024),
+                "Restored {} CPU-origin weight(s) ({} MB) without copying back from the device",
+                scope.restored,
+                scope.restored_bytes // (1024 * 1024),
             )
 
 
@@ -242,8 +283,8 @@ def restore_quantized_origin(
     detach a non-inference subclass under ``torch.inference_mode``. ``fn`` is applied only to an empty CPU probe:
     it must return the probe unchanged, which holds for a move to the CPU that keeps the dtype.
     """
-    tally = _restore_scope.get()
-    if tally is None:
+    scope = _restore_scope.get()
+    if scope is None:
         return False
     table = _quantized_origins(module)
     if table is None:
@@ -258,9 +299,40 @@ def restore_quantized_origin(
     if fn(probe) is not probe:
         return False
     module.register_parameter(key, origin)
-    tally.restored += 1
-    tally.restored_bytes += origin.nbytes
+    scope.restored += 1
+    scope.restored_bytes += origin.nbytes
     return True
+
+
+def restore_plain_origins(module: torch.nn.Module, *, fn: Callable[[torch.Tensor], torch.Tensor]) -> int:
+    """Point each of ``module``'s own plain device parameters at its recorded CPU origin when ``fn`` moves it there.
+
+    Applies only inside :func:`restoring_cpu_origins`. A parameter is restored when it has a recorded origin of the
+    same shape and dtype, the scope does not skip it, and ``fn`` moves a tensor on its device to the CPU keeping the
+    dtype. The caller then runs torch's move, which finds each restored weight already on the CPU and returns it
+    unchanged. A ``fn`` that also changes the layout converts the origin as it would have converted a copy. Every other
+    parameter, and every buffer, is moved by torch as before. Returns how many parameters were restored.
+    """
+    scope = _restore_scope.get()
+    if scope is None:
+        return 0
+    restored = 0
+    for param in module._parameters.values():
+        if param is None or _is_tensor_subclass(param) or scope.is_skipped(param):
+            continue
+        origin: Any = getattr(param, _ORIGIN_ATTR, None)
+        if origin is None:
+            continue
+        data = param.data
+        if data.device.type in ("cpu", "meta") or origin.shape != data.shape or origin.dtype != data.dtype:
+            continue
+        if not scope.moves_to_cpu(fn, data):
+            continue
+        scope.restored_bytes += data.nbytes
+        param.data = origin
+        restored += 1
+    scope.restored += restored
+    return restored
 
 
 def restore_cpu_origins(
@@ -309,10 +381,10 @@ def release_copied_back_weights(
 ) -> tuple[int, int]:
     """Point every CPU weight that is a private copy of its recorded origin back at the origin.
 
-    Runs after a copy-back has already happened (ComfyUI's partial unload), so the copy is released rather
-    than avoided. ``unpin`` is called with each weight's key before its copy is dropped, since the copy may be
-    registered as pinned host memory and a registration must not outlive its allocation. ``skip_keys`` is as
-    for :func:`restore_cpu_origins`. Returns ``(released, bytes)``.
+    Runs after ComfyUI's partial unload for the weights whose moves still copied, such as those of modules that are
+    not comfy op classes, the keys the restore scope skipped, and buffers. ``unpin`` is called with each weight's key
+    before its copy is dropped, since the copy may be registered as pinned host memory and a registration must not
+    outlive its allocation. ``skip_keys`` is as for :func:`restore_cpu_origins`. Returns ``(released, bytes)``.
     """
     if cpu_weight_retention_disabled():
         return 0, 0

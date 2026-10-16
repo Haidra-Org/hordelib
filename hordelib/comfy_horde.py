@@ -494,6 +494,7 @@ def do_comfy_import(
             "_quantized_apply",
             comfy_patches._quantized_apply_hijack,
         )
+        comfy_patches.patch_plain_op_apply()
         comfy_patches.capture_and_patch(
             "pin_memory",
             comfy.model_management,

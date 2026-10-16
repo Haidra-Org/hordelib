@@ -284,11 +284,18 @@ partially loaded SDXL UNet went from 0 to 4.9 GB anonymous memory in the one pro
 and stayed that way after the unload. The zero-copy loader tags each weight it adopts from a mapping with its
 data pointer (`is_file_backed`), and the `pin_memory` hijack declines those weights; weights that are already
 private (a dtype-cast copy, a patched weight) are pinned as before. `ModelPatcher.partially_unload` moves
-modules back to the host with `Module.to`, a fresh private copy per weight, which it then pins; its hijack
-runs `release_copied_back_weights` afterwards, which unpins each unpatched copy and points the parameter
-back at its retained origin, so the copy is freed and the next load again restores to the mapping. The cost
-is that an offloaded (low-VRAM) weight that still lives in the mapping is streamed from pageable memory;
-on an 8 GB card running SDXL with the UNet fully offloaded that measured about 20% slower sampling.
+modules back to the host one at a time with `Module.to` and then pins each moved weight. ComfyUI's plain op
+classes (`comfy.ops.disable_weight_init` and its `manual_cast` and `fp8_ops` subclasses) inherit torch's
+`Module._apply`, which would copy each weight into fresh private memory, so hordelib gives them an `_apply` that,
+inside the unload's restore scope (`restoring_cpu_origins`), first points each unpatched device weight at its
+retained origin when the move is to the CPU. Torch's move then finds the weight on the CPU and copies nothing,
+and ComfyUI pins the origin itself (or the `pin_memory` patch refuses it when it is file-backed). A key the
+patcher has backed up when the unload starts, a weight whose device tensor differs from its origin in shape or
+dtype, and a module that is not a comfy op class are moved by torch's copy as before; `release_copied_back_weights`
+runs after the partial unload, unpins each such unpatched copy and points the parameter back at its origin, so
+the copy is freed and the next load again restores to the mapping. The cost is that an offloaded (low-VRAM)
+weight that still lives in the mapping is streamed from pageable memory; on an 8 GB card running SDXL with the
+UNet fully offloaded that measured about 20% slower sampling.
 
 A job's text encoder leaves the device whole once its conditioning is computed. With a sampling lease set, the hook
 on `CFGGuider.sample` (`sampling_lease`) unloads every text encoder on the sampling device before it waits for a stage
@@ -296,13 +303,13 @@ or sampling grant, unless a node of the running prompt that has not finished tak
 the prompt's graph and ComfyUI's per-node progress, so a pipeline that encodes again after sampling keeps its encoder.
 The unload is ComfyUI's full unload (`free_memory` with every other model kept), which restores each weight to its CPU
 origin and copies nothing. An encoder left on the device holds room through the grant wait, the room a stage grant
-needs, and the diffusion load's `free_memory` then unloads it partially, copying each module back to the host and
-releasing the copies afterwards. The component cache keeps the encoder in host RAM, so the next job's encode uploads it
+needs, and the diffusion load's `free_memory` then unloads it partially, pointing each moved weight back at its CPU
+origin. The component cache keeps the encoder in host RAM, so the next job's encode uploads it
 from there instead of finding it on the device.
 
 ## The monkeypatches
 
-Nine ComfyUI internals are patched at import time (`hordelib/execution/comfy_patches.py`),
+The ComfyUI internals below are patched at import time (`hordelib/execution/comfy_patches.py`),
 all policy injections with no native hook:
 
 - `load_models_gpu` and `ModelPatcher.load`: force full GPU loads (with VRAM-overflow and
@@ -325,8 +332,12 @@ all policy injections with no native hook:
   unpatch. A plain tensor wraps there sharing its storage and a recorded origin is registered without a
   wrap, so neither is cloned: a clone is the weight's size in private memory, and cloning every patched key
   of a quantized checkpoint would cost the checkpoint again on the host that just refused the load.
-- `ModelPatcher.partially_unload` and `comfy.model_management.pin_memory`: release the private copies a
-  partial unload makes, and never pin a weight still backed by its checkpoint mapping (see the section above).
+- `ModelPatcher.partially_unload` and `comfy.model_management.pin_memory`: restore CPU origins in place of the
+  copies a partial unload would make, release the copies it still makes, and never pin a weight still backed by
+  its checkpoint mapping (see the section above).
+- `_apply` on each class of `comfy.ops.disable_weight_init` and `comfy.ops._quantized_apply`: inside an unload's
+  restore scope, a move to the CPU ends each unpatched weight on its retained CPU origin without a copy (see the
+  section above). The mixed-precision op classes keep their own `_apply`, which calls `_quantized_apply`.
 - `comfy.utils.set_attr_param`: register a quantized backup that is the recorded CPU origin as that `Parameter`
   object, since ComfyUI's wrap of a quantized tensor copies it (see the section above).
 - `text_encoder_initial_device`: load text encoders on CPU first.

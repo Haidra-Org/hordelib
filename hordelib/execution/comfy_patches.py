@@ -765,34 +765,37 @@ def _model_patcher_unpatch_model_hijack(model_patcher, device_to=None, unpatch_w
                 model_patcher.backup[key] = entry._replace(weight=entry.weight.clone())
     if not (unpatch_weights and device_to is not None and getattr(device_to, "type", None) == "cpu"):
         return _originals["model_patcher_unpatch_model"](model_patcher, device_to, unpatch_weights)
-    from hordelib.execution.cpu_weight_retention import restore_cpu_origins, restoring_quantized_origins
+    from hordelib.execution.cpu_weight_retention import restore_cpu_origins, restoring_cpu_origins
 
+    backed_up_keys = set(model_patcher.backup.keys())
     try:
-        restore_cpu_origins(model_patcher.model, skip_keys=set(model_patcher.backup.keys()))
+        restore_cpu_origins(model_patcher.model, skip_keys=backed_up_keys)
     except Exception as exc:
         logger.warning("CPU weight restore skipped, so the weights are copied back from the device: {}", exc)
-    with restoring_quantized_origins():
+    with restoring_cpu_origins(model_patcher.model, skip_keys=backed_up_keys):
         return _originals["model_patcher_unpatch_model"](model_patcher, device_to, unpatch_weights)
 
 
 def _model_patcher_partially_unload_hijack(model_patcher, device_to, *args, **kwargs):
-    """Intercepts comfy ModelPatcher.partially_unload to release the private copies its moves leave behind.
+    """Intercepts comfy ModelPatcher.partially_unload so its moves restore retained CPU origins instead of copying.
 
-    The original moves whole modules back to the host with ``Module.to`` and pins the copies. Each unpatched
-    weight is then pointed back at its retained CPU origin (see ``cpu_weight_retention``), which frees the copy
-    and keeps the next load reading from the checkpoint mapping. Keys the patcher backed up are left to it.
+    The original moves whole modules back to the host with ``Module.to`` and pins each moved weight. Inside that
+    move a comfy op weight with a retained CPU origin (see ``cpu_weight_retention``) ends on the origin: a plain
+    weight is pointed at it (see ``_plain_op_apply_hijack``) and a quantized one has it registered (see
+    ``_quantized_apply_hijack``). No device-to-host copy is made, and the next load reads from the checkpoint
+    mapping again. Keys the patcher has backed up when the unload starts are left to it and moved by torch.
 
-    Quantized weights are never copied. Inside the original's ``Module.to`` each one is registered as its CPU
-    origin (see ``_quantized_apply_hijack``), and the original then pins the origin in place of a copy (a
-    file-backed origin is refused by ``_pin_memory_hijack``). ComfyUI records the pin by key, and the origin
-    stays the registered weight until the unpin before the next load or at the full unload, so that unpin
-    releases the registration it made.
+    The original then pins the origin in place of a copy (a file-backed origin is refused by
+    ``_pin_memory_hijack``). ComfyUI records the pin by key, and the origin stays the registered weight until the
+    unpin before the next load or at the full unload, so that unpin releases the registration it made. Weights
+    whose move still copied are pointed back at their origins afterwards by ``release_copied_back_weights``, which
+    unpins each copy first.
     """
     if getattr(device_to, "type", None) != "cpu":
         return _originals["model_patcher_partially_unload"](model_patcher, device_to, *args, **kwargs)
-    from hordelib.execution.cpu_weight_retention import release_copied_back_weights, restoring_quantized_origins
+    from hordelib.execution.cpu_weight_retention import release_copied_back_weights, restoring_cpu_origins
 
-    with restoring_quantized_origins():
+    with restoring_cpu_origins(model_patcher.model, skip_keys=set(model_patcher.backup.keys())):
         freed = _originals["model_patcher_partially_unload"](model_patcher, device_to, *args, **kwargs)
     try:
         release_copied_back_weights(
@@ -817,7 +820,7 @@ def _quantized_apply_hijack(module, fn, recurse=True):
     it. Buffers and recursion are unchanged.
 
     A quantized weight moved off the CPU from its recorded origin is noted as that origin's device copy. Inside
-    ``cpu_weight_retention.restoring_quantized_origins`` a move of that copy back to the CPU registers the origin
+    ``cpu_weight_retention.restoring_cpu_origins`` a move of that copy back to the CPU registers the origin
     ``Parameter`` itself and ``fn`` never runs on the weight, so no device-to-host copy is made. The copy would
     allocate the weight's size in new private memory, which fails natively when host commit is exhausted.
     """
@@ -848,6 +851,53 @@ def _quantized_apply_hijack(module, fn, recurse=True):
         if buf is not None:
             module._buffers[key] = fn(buf)
     return module
+
+
+def _plain_op_apply_hijack(module, fn, recurse=True):
+    """Replaces torch's ``Module._apply`` on ComfyUI's plain op classes so an unload restores CPU origins.
+
+    Inside ``cpu_weight_retention.restoring_cpu_origins`` each of the module's own unpatched device weights is first
+    pointed at its recorded CPU origin when ``fn`` is a move to the CPU (``restore_plain_origins``), so torch's move
+    finds it on the CPU and makes no copy. A copy would allocate the weight's size in new private memory and cost
+    about a millisecond per megabyte. Everything else, and every call outside the scope, is torch's ``_apply``.
+    """
+    from hordelib.execution.cpu_weight_retention import restore_plain_origins
+
+    restore_plain_origins(module, fn=fn)
+    return torch.nn.Module._apply(module, fn, recurse)
+
+
+def plain_op_classes() -> list[type[torch.nn.Module]]:
+    """Return ComfyUI's plain op classes, those of ``comfy.ops.disable_weight_init``.
+
+    The ``manual_cast`` and ``fp8_ops`` classes subclass these and inherit their ``_apply``. The mixed-precision op
+    classes define their own ``_apply`` through ``comfy.ops._quantized_apply``.
+    """
+    import comfy.ops
+
+    return [
+        op_class
+        for op_class in vars(comfy.ops.disable_weight_init).values()
+        if isinstance(op_class, type)
+        and issubclass(op_class, torch.nn.Module)
+        and issubclass(op_class, comfy.ops.CastWeightBiasOp)
+    ]
+
+
+def _plain_op_apply_patch_name(op_class: type) -> str:
+    return f"plain_op_apply_{op_class.__name__}"
+
+
+def patch_plain_op_apply() -> None:
+    """Install ``_plain_op_apply_hijack`` as ``_apply`` on every plain op class that inherits torch's.
+
+    A class that defines its own ``_apply`` is left alone, since the hijack defers to torch's and would bypass it.
+    """
+    for op_class in plain_op_classes():
+        if "_apply" in vars(op_class):
+            logger.warning("Not replacing {}._apply, which ComfyUI defines", op_class.__qualname__)
+            continue
+        capture_and_patch(_plain_op_apply_patch_name(op_class), op_class, "_apply", _plain_op_apply_hijack)
 
 
 def _pin_memory_hijack(tensor, *args, **kwargs):
@@ -1127,6 +1177,12 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
             _originals.get("anima_encode_token_weights"),
         ),
     }
+
+    for op_class in plain_op_classes():
+        patch_name = _plain_op_apply_patch_name(op_class)
+        bindings[patch_name] = _MonkeyPatchBinding(
+            op_class, "_apply", _plain_op_apply_hijack, _originals.get(patch_name)
+        )
 
     comfy_nodes = importlib.import_module("nodes")
     bindings["clip_loader_load_clip"] = _MonkeyPatchBinding(

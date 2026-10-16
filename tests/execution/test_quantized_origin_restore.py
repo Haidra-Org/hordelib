@@ -13,7 +13,7 @@ import pytest
 import torch
 
 from hordelib.execution import comfy_patches
-from hordelib.execution.cpu_weight_retention import restoring_quantized_origins, stash_cpu_origins
+from hordelib.execution.cpu_weight_retention import restoring_cpu_origins, stash_cpu_origins
 
 _DEVICES = [
     "meta",
@@ -118,7 +118,7 @@ def test_a_weight_without_a_record_still_moves_normally(quantized_apply_hijacked
     model = _quantized_op()
     model.to("meta")
 
-    with restoring_quantized_origins(), pytest.raises(NotImplementedError, match="meta"):
+    with restoring_cpu_origins(), pytest.raises(NotImplementedError, match="meta"):
         model.to("cpu")
 
 
@@ -129,7 +129,7 @@ def test_a_replaced_device_weight_is_moved_and_not_restored(quantized_apply_hija
     model.to("meta")
     model.weight = torch.nn.Parameter(model.weight.to("meta"), requires_grad=False)
 
-    with restoring_quantized_origins(), pytest.raises(NotImplementedError, match="meta"):
+    with restoring_cpu_origins(), pytest.raises(NotImplementedError, match="meta"):
         model.to("cpu")
 
 
@@ -148,7 +148,7 @@ def test_a_device_to_device_move_inside_an_unload_does_not_restore(quantized_app
     stash_cpu_origins(model)
     model.to("meta")
 
-    with restoring_quantized_origins():
+    with restoring_cpu_origins():
         model.to("meta")
 
     assert model.weight is not origin_weight
