@@ -162,3 +162,66 @@ def test_exception_handling():
     # Cleanup
     test_logger.removeHandler(handler)
     logger.remove()
+
+
+def _comfy_root_record(message: str, *, level: int, pathname: str) -> logging.LogRecord:
+    """Create a record shaped like ComfyUI's module-level ``logging.debug``/``logging.info`` calls.
+
+    ComfyUI logs through the root logger, so the record's logger name is ``root`` and only the emitting
+    file tells its lines apart.
+    """
+    return logging.LogRecord(
+        name="root",
+        level=level,
+        pathname=pathname,
+        lineno=1,
+        msg=message,
+        args=(),
+        exc_info=None,
+    )
+
+
+_MODEL_PATCHER_PATHNAME = str(Path("ComfyUI") / "comfy" / "model_patcher.py")
+
+
+def test_model_patcher_per_module_freed_line_is_dropped():
+    """The per-module ``freed`` line from ComfyUI's partial unload does not reach loguru."""
+    captured_messages: list[str] = []
+    logger.remove()
+    logger.add(lambda message: captured_messages.append(message.record["message"]), level=0)
+
+    handler = InterceptHandler()
+    handler.handle(
+        _comfy_root_record("freed diffusion_model.x", level=logging.DEBUG, pathname=_MODEL_PATCHER_PATHNAME),
+    )
+
+    logger.remove()
+    assert captured_messages == []
+
+
+def test_model_patcher_unload_summary_still_reaches_loguru():
+    """The ``Unloaded partially`` summary line from the same module keeps flowing."""
+    captured_messages: list[str] = []
+    logger.remove()
+    logger.add(lambda message: captured_messages.append(message.record["message"]), level=0)
+
+    handler = InterceptHandler()
+    summary = "Unloaded partially: 1418.35 MB freed, 3478.74 MB remains loaded, 15.00 MB buffer reserved"
+    handler.handle(_comfy_root_record(summary, level=logging.INFO, pathname=_MODEL_PATCHER_PATHNAME))
+
+    logger.remove()
+    assert captured_messages == [summary]
+
+
+def test_freed_line_from_another_module_still_reaches_loguru():
+    """A ``freed`` message emitted outside ComfyUI's model patcher is not dropped."""
+    captured_messages: list[str] = []
+    logger.remove()
+    logger.add(lambda message: captured_messages.append(message.record["message"]), level=0)
+
+    handler = InterceptHandler()
+    other_pathname = str(Path("ComfyUI") / "comfy" / "model_management.py")
+    handler.handle(_comfy_root_record("freed diffusion_model.x", level=logging.DEBUG, pathname=other_pathname))
+
+    logger.remove()
+    assert captured_messages == ["freed diffusion_model.x"]

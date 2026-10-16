@@ -169,6 +169,7 @@ class InterceptHandler(logging.Handler):
 
     _ignored_message_contents: set[str]
     _ignored_libraries: list[str]
+    _ignored_message_prefixes_by_module: dict[str, tuple[str, ...]]
     _seen_once_messages: set[str]
 
     def __init__(self, *args, **kwargs):
@@ -180,6 +181,12 @@ class InterceptHandler(logging.Handler):
         self._ignored_libraries = [
             "numba.core",
         ]
+        # Keyed by the emitting file's module name (``LogRecord.module``) because ComfyUI logs through the root
+        # logger, so the logger name does not tell its lines apart. ``partially_unload`` logs one "freed" line per
+        # module moved, hundreds per unload, and each record would pay the full loguru bridge.
+        self._ignored_message_prefixes_by_module = {
+            "model_patcher": ("freed ",),
+        }
         self._seen_once_messages = set()
 
     def add_ignored_message_content(self, content: str) -> None:
@@ -206,6 +213,19 @@ class InterceptHandler(logging.Handler):
         """Reset the list of ignored libraries."""
         self._ignored_libraries.clear()
 
+    def add_ignored_message_prefix(self, module: str, prefix: str) -> None:
+        """Ignore messages starting with `prefix` emitted from the file whose module name is `module`."""
+        existing_prefixes = self._ignored_message_prefixes_by_module.get(module, ())
+        self._ignored_message_prefixes_by_module[module] = (*existing_prefixes, prefix)
+
+    def get_ignored_message_prefixes(self) -> dict[str, list[str]]:
+        """Return the ignored message prefixes keyed by emitting module name."""
+        return {module: list(prefixes) for module, prefixes in self._ignored_message_prefixes_by_module.items()}
+
+    def reset_ignored_message_prefixes(self) -> None:
+        """Reset the ignored message prefixes."""
+        self._ignored_message_prefixes_by_module.clear()
+
     @logger.catch(default=True, reraise=True)
     def emit(self, record: logging.LogRecord) -> None:
         """
@@ -225,8 +245,12 @@ class InterceptHandler(logging.Handler):
             if ignored_library in library:
                 return
 
-        # Filter by message content
         message = record.getMessage()
+        ignored_prefixes = self._ignored_message_prefixes_by_module.get(record.module)
+        if ignored_prefixes is not None and message.startswith(ignored_prefixes):
+            return
+
+        # Filter by message content
         for ignored_message_content in self._ignored_message_contents:
             if ignored_message_content in message:
                 return
