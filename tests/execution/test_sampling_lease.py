@@ -81,6 +81,7 @@ class _GuiderSeam:
     def __init__(self, monkeypatch: pytest.MonkeyPatch, guider_class: type) -> None:
         self.call_log: list[str] = []
         self.prefetched: list[object] = []
+        self.rebase_measured_at: list[float | None] = []
         self._monkeypatch = monkeypatch
         self._guider_class = guider_class
 
@@ -129,8 +130,9 @@ def rebases(monkeypatch: pytest.MonkeyPatch, guider_seam: _GuiderSeam) -> list[f
     """Record each clamp rebase in the shared call log, so its order against the sample is visible."""
     recorded: list[float] = []
 
-    def _record(device_free_truth_mb: float) -> bool:
+    def _record(device_free_truth_mb: float, *, measured_at: float | None = None) -> bool:
         recorded.append(device_free_truth_mb)
+        guider_seam.rebase_measured_at.append(measured_at)
         guider_seam.call_log.append("rebase")
         return True
 
@@ -384,6 +386,40 @@ def test_grant_figure_rebases_the_clamp_before_sampling(guider_seam: _GuiderSeam
 
     assert rebases == [12288.0]
     assert guider_seam.call_log == ["rebase", "sample"], "the load inside sample must see the grant's figure"
+
+
+class _TimedFigureLease(_FigureLease):
+    """A lease whose grant also says when the host read its figure."""
+
+    def __init__(self, *, figure: float | None, measured_at: float | None) -> None:
+        super().__init__(figure=figure)
+        self._measured_at = measured_at
+        self.time_take_calls = 0
+
+    def take_cleared_device_free_measured_at(self) -> float | None:
+        self.time_take_calls += 1
+        return self._measured_at
+
+
+def test_grant_measurement_time_reaches_the_rebase(guider_seam: _GuiderSeam, rebases: list[float]) -> None:
+    lease = _TimedFigureLease(figure=12288.0, measured_at=1234.5)
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(lease)
+
+    _guider_sample()
+
+    assert rebases == [12288.0]
+    assert guider_seam.rebase_measured_at == [1234.5]
+    assert lease.time_take_calls == 1
+
+
+def test_lease_without_the_time_method_rebases_without_one(guider_seam: _GuiderSeam, rebases: list[float]) -> None:
+    sampling_lease.install_sampling_lease_hook()
+    sampling_lease.set_gpu_sampling_lease(_FigureLease(figure=12288.0))
+
+    _guider_sample()
+
+    assert guider_seam.rebase_measured_at == [None]
 
 
 def test_grant_without_a_figure_does_not_rebase(guider_seam: _GuiderSeam, rebases: list[float]) -> None:

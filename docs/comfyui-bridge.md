@@ -430,6 +430,19 @@ The swap is a plain local capture/restore (like the support-model free cap above
 the monkeypatch registry and cannot double-restore against it. With no figure supplied, or on a non-CUDA
 device, nothing is interposed.
 
+A sampling or stage grant that carries a fresher host figure rebases the clamp
+(`comfy_patches.rebase_free_memory_view_clamp`, called from the sampling lease hook). The baseline the
+growth is counted from is the allocator's reservation when the host measured, not when the rebase runs.
+The process keeps reservation checkpoints on the active clamp, taken at the run start, after every
+`load_models_gpu` and after the text encoder release before the lease wait
+(`comfy_patches.record_reservation_checkpoint`); a grant whose lease reports the figure's measurement time
+(`sampling_lease.ClearanceFigureTimeLease`) takes the latest checkpoint at or before that time. A grant
+written before the job's encoder release and consumed after it then credits the release: the figure
+counted the encoder as used and the card has that room now, so the staged upload sizes itself on the
+true room instead of a figure short by the encoder. A measurement within the clock's resolution of a
+checkpoint takes the lower of the two reservations, the safe side in both directions. A lease without
+the time, or a figure with none, rebases from the reservation at the rebase.
+
 ### Retention grants, and reporting when the device did not honour one
 
 A host that knows the next job reuses the model passes `defer_vram_unload=True`, which suppresses the

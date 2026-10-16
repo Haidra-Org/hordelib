@@ -15,6 +15,7 @@ import hashlib
 import importlib
 import json
 import numbers
+import time
 import typing
 from collections.abc import Callable
 from enum import StrEnum
@@ -419,6 +420,16 @@ def _free_memory_capped(cap_bytes: int):
         model_management.free_memory = original_free_memory
 
 
+@dataclasses.dataclass(frozen=True)
+class _ReservationCheckpoint:
+    """The allocator's reservation right after one event of this process that changed it."""
+
+    at: float
+    """``time.monotonic()`` when the checkpoint was taken, the clock the host stamps its measurements with."""
+    reserved: int
+    """``torch.cuda.memory_reserved`` at that moment, in bytes."""
+
+
 @dataclasses.dataclass
 class _FreeViewClamp:
     """The figures one active free-VRAM clamp computes its ceiling from."""
@@ -431,10 +442,58 @@ class _FreeViewClamp:
     """The allocator's reservation when the figure was taken.
 
     Growth past it comes off the figure, and a release below it is added to the figure."""
+    checkpoints: list[_ReservationCheckpoint] = dataclasses.field(default_factory=list)
+    """The reservation after each of this process's own loads and releases, oldest first.
+
+    A host figure measured between two of them was taken while the allocator held the earlier one's
+    reservation, which is what :func:`rebase_free_memory_view_clamp` needs for its baseline."""
 
 
 _active_free_view_clamp: _FreeViewClamp | None = None
 """The clamp :func:`free_memory_view_clamped` has in force, for :func:`rebase_free_memory_view_clamp`."""
+
+_monotonic: Callable[[], float] = time.monotonic
+"""The clock the reservation checkpoints are stamped with; a seam for the tests."""
+
+
+def record_reservation_checkpoint() -> bool:
+    """Note the allocator's reservation now on the active clamp, after a load or release of this process.
+
+    Returns whether a clamp was active and the allocator readable; without either nothing is recorded.
+    """
+    clamp = _active_free_view_clamp
+    if clamp is None:
+        return False
+    try:
+        reserved = torch.cuda.memory_reserved(clamp.device)
+    except Exception as exc:
+        logger.debug("Could not read the allocator for a reservation checkpoint; skipping it: error={}", exc)
+        return False
+    clamp.checkpoints.append(_ReservationCheckpoint(at=_monotonic(), reserved=reserved))
+    return True
+
+
+def _reservation_baseline_at(clamp: _FreeViewClamp, measured_at: float, reserved_now: int) -> int:
+    """Return the reservation to count growth from for a host figure measured at ``measured_at``.
+
+    The allocator held the latest checkpoint at or before the measurement. A measurement older than every
+    checkpoint takes the first one. A measurement within the clock's resolution of a checkpoint could be on
+    either side of it, and the lower of the two reservations is taken: the lower baseline gives the lower
+    ceiling, so a release in progress at the measurement is not credited and a load in progress is charged.
+    With no checkpoint the reservation now is the baseline.
+    """
+    if not clamp.checkpoints:
+        return reserved_now
+    resolution = time.get_clock_info("monotonic").resolution
+    before = [checkpoint for checkpoint in clamp.checkpoints if checkpoint.at < measured_at - resolution]
+    near = [checkpoint for checkpoint in clamp.checkpoints if abs(checkpoint.at - measured_at) <= resolution]
+    after = [checkpoint for checkpoint in clamp.checkpoints if checkpoint.at > measured_at + resolution]
+    candidates = [checkpoint.reserved for checkpoint in near]
+    if before:
+        candidates.append(before[-1].reserved)
+    elif not near and after:
+        candidates.append(after[0].reserved)
+    return min(candidates)
 
 
 @contextlib.contextmanager
@@ -494,6 +553,7 @@ def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Itera
         device=device,
         truth_bytes=int(device_free_truth_mb * 1024 * 1024),
         reserved_baseline=reserved_baseline,
+        checkpoints=[_ReservationCheckpoint(at=_monotonic(), reserved=reserved_baseline)],
     )
     original_get_free_memory = model_management.get_free_memory
 
@@ -529,18 +589,24 @@ def free_memory_view_clamped(device_free_truth_mb: float | None) -> typing.Itera
         _active_free_view_clamp = enclosing_clamp
 
 
-def rebase_free_memory_view_clamp(device_free_truth_mb: float) -> bool:
-    """Rebase the active free-VRAM clamp on a new host figure, counting growth from now.
+def rebase_free_memory_view_clamp(device_free_truth_mb: float, *, measured_at: float | None = None) -> bool:
+    """Rebase the active free-VRAM clamp on a new host figure, counting growth from the figure's measurement.
 
     A host that grants a run's sampling window after the run began has a fresher device measurement
     than the one the clamp was entered with: memory a sibling released in between is free on the card
-    but absent from the old figure. Rebasing replaces the figure and takes the allocator's current
-    reservation as the new growth baseline. What this process holds at the rebase is in neither term.
-    Growth after the rebase comes off the figure, and a release below the baseline (a model this process
-    held at the rebase, unloaded afterwards) is added back.
+    but absent from the old figure. Rebasing replaces the figure and the growth baseline. Growth after
+    the baseline comes off the figure, and a release below it is added back.
+
+    The baseline is the allocator's reservation when the host measured, read from the reservation
+    checkpoints this process took after its own loads and releases (:func:`record_reservation_checkpoint`).
+    A grant written before the job's text encoder was released, and consumed after, then credits the
+    release: the figure counted the encoder as used and the card has that room now. Without a measurement
+    time the baseline is the reservation at the rebase, and whatever this process released between the
+    measurement and the rebase is in neither term.
 
     Args:
         device_free_truth_mb: Host-measured device-level free VRAM in MB at the grant.
+        measured_at: ``time.monotonic()`` on the host when that figure was read, or None when unknown.
 
     Returns:
         Whether a clamp was active and rebased. With no active clamp nothing changes.
@@ -549,15 +615,22 @@ def rebase_free_memory_view_clamp(device_free_truth_mb: float) -> bool:
     if clamp is None:
         return False
     try:
-        reserved_baseline = torch.cuda.memory_reserved(clamp.device)
+        reserved_now = torch.cuda.memory_reserved(clamp.device)
     except Exception as exc:
         logger.debug("Could not read the allocator to rebase the free-VRAM clamp; keeping it: error={}", exc)
         return False
+    reserved_baseline = (
+        reserved_now if measured_at is None else _reservation_baseline_at(clamp, measured_at, reserved_now)
+    )
     clamp.truth_bytes = int(device_free_truth_mb * 1024 * 1024)
     clamp.reserved_baseline = reserved_baseline
     logger.debug(
-        "Rebased comfy's free-VRAM clamp on the host's grant-time measurement: truth_mb={:.0f}",
+        "Rebased comfy's free-VRAM clamp on the host's grant-time measurement: truth_mb={:.0f}"
+        " baseline_mb={:.0f} reserved_now_mb={:.0f} measured_at_known={}",
         device_free_truth_mb,
+        reserved_baseline / 2**20,
+        reserved_now / 2**20,
+        measured_at is not None,
     )
     return True
 
@@ -668,6 +741,15 @@ def _load_models_gpu_hijack(*args, **kwargs):
     :class:`ForceLoadSkipReason`, so an OOM after that line is attributable to the residents left in place.
     """
 
+    try:
+        _load_models_gpu_as_decided(*args, **kwargs)
+    finally:
+        # A load (and any eviction it ran) moved the allocator; the free-VRAM clamp dates its baseline by it.
+        record_reservation_checkpoint()
+
+
+def _load_models_gpu_as_decided(*args, **kwargs):
+    """Run ComfyUI's ``load_models_gpu`` with the force-load, clamp and partial-load decisions of the hijack."""
     models = args[0]
     skip_reason: ForceLoadSkipReason | None = None
     if any(_do_not_force_load_model_in_patcher(model_patcher) for model_patcher in models):

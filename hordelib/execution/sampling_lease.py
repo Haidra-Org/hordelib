@@ -93,6 +93,21 @@ class ClearanceTruthLease(Protocol):
 
 
 @runtime_checkable
+class ClearanceFigureTimeLease(Protocol):
+    """An optional extension a lease implements when its grant says when the host's device-free figure was read.
+
+    The hook rebases the clamp with the figure's measurement time, so the baseline it counts growth from is the
+    allocator's reservation at that moment rather than at the rebase. The text encoder released before the lease
+    wait is then credited back when the figure predates the release. A lease without this method, or one that
+    returns None, rebases from the reservation at the rebase.
+    """
+
+    def take_cleared_device_free_measured_at(self) -> float | None:
+        """Return ``time.monotonic()`` on the host when the grant's figure was read, once, or None."""
+        ...
+
+
+@runtime_checkable
 class ClearanceReserveLease(Protocol):
     """An optional extension a lease implements when its grant carries the host's activation reserve for the window.
 
@@ -260,6 +275,10 @@ def _release_text_encoders_before_wait(guider: object) -> None:
         ]
         unloaded_models = model_management.free_memory(_FULL_UNLOAD_BYTES, device, keep_loaded=kept_models)
         released_bytes = sum(encoder_bytes.get(id(loaded_model), 0) for loaded_model in unloaded_models)
+        from hordelib.execution.comfy_patches import record_reservation_checkpoint
+
+        # The grant's figure may predate this release; the clamp rebase credits it back from this checkpoint.
+        record_reservation_checkpoint()
         logger.debug(
             "Released text encoder(s) {} ({} MB) to their CPU origins before the sampling lease wait",
             ", ".join(encoder_names),
@@ -275,11 +294,14 @@ def _rebase_clamp_on_grant(lease: SamplingLease) -> None:
         return
     try:
         device_free_mb = lease.take_cleared_device_free_mb()
+        measured_at = (
+            lease.take_cleared_device_free_measured_at() if isinstance(lease, ClearanceFigureTimeLease) else None
+        )
         if device_free_mb is None:
             return
         from hordelib.execution.comfy_patches import rebase_free_memory_view_clamp
 
-        rebase_free_memory_view_clamp(device_free_mb)
+        rebase_free_memory_view_clamp(device_free_mb, measured_at=measured_at)
     except Exception as exc:
         logger.warning(f"Could not rebase the free-VRAM clamp on the lease grant ({exc}); keeping the run's figure")
 

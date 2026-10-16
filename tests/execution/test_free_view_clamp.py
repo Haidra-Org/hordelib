@@ -10,6 +10,7 @@ These are seam tests: the allocator and the device are stand-ins, so no GPU is r
 what comfy would read.
 """
 
+import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Any
@@ -205,6 +206,103 @@ def test_release_below_the_rebase_baseline_raises_the_ceiling(seam: _DeviceSeam)
 
         seam.free_total = 10240 * MB
         assert _free_memory(seam.device) == 10240 * MB, "comfy's own total must still cap the credited ceiling"
+
+
+@pytest.fixture
+def clock(monkeypatch: pytest.MonkeyPatch) -> list[float]:
+    """A settable monotonic clock for the reservation checkpoints; the list's last value is the time now."""
+    now = [100.0]
+    monkeypatch.setattr(comfy_patches, "_monotonic", lambda: now[-1])
+    return now
+
+
+def _checkpoint(seam: _DeviceSeam, clock: list[float], *, at: float, reserved: int) -> None:
+    """Move the allocator to ``reserved`` at time ``at`` and record the checkpoint there."""
+    clock.append(at)
+    seam.reserved = reserved
+    assert comfy_patches.record_reservation_checkpoint() is True
+
+
+def test_rebase_credits_a_release_the_figure_predates(seam: _DeviceSeam, clock: list[float]) -> None:
+    """A figure read while the encoder was resident, consumed after its release, gains the release.
+
+    The grant of a run job is written before the job's encode and consumed right after the encoder release,
+    so the figure counts the encoder as used while the card has that room back.
+    """
+    seam.free_total = 16384 * MB
+    seam.reserved = 7680 * MB
+    with comfy_patches.free_memory_view_clamped(2048):
+        _checkpoint(seam, clock, at=110.0, reserved=7680 * MB)  # after the encoder load
+        _checkpoint(seam, clock, at=120.0, reserved=2560 * MB)  # after the encoder release
+
+        assert comfy_patches.rebase_free_memory_view_clamp(2048, measured_at=115.0) is True
+        assert _free_memory(seam.device) == (2048 + 5120) * MB, "the figure predates the release, so it is credited"
+
+
+def test_rebase_takes_the_figure_as_measured_after_the_release(seam: _DeviceSeam, clock: list[float]) -> None:
+    seam.free_total = 16384 * MB
+    seam.reserved = 7680 * MB
+    with comfy_patches.free_memory_view_clamped(2048):
+        _checkpoint(seam, clock, at=110.0, reserved=7680 * MB)
+        _checkpoint(seam, clock, at=120.0, reserved=2560 * MB)
+
+        assert comfy_patches.rebase_free_memory_view_clamp(7168, measured_at=125.0) is True
+        assert _free_memory(seam.device) == 7168 * MB, "a figure read after the release already counts it"
+
+
+def test_rebase_charges_a_load_the_figure_predates(seam: _DeviceSeam, clock: list[float]) -> None:
+    """A figure read before the staged upload still has that room free, so the upload comes off it."""
+    seam.free_total = 16384 * MB
+    seam.reserved = 2560 * MB
+    with comfy_patches.free_memory_view_clamped(12288):
+        _checkpoint(seam, clock, at=110.0, reserved=2560 * MB)  # after the encoder release
+        _checkpoint(seam, clock, at=130.0, reserved=12800 * MB)  # after the staged upload
+
+        assert comfy_patches.rebase_free_memory_view_clamp(12288, measured_at=120.0) is True
+        assert _free_memory(seam.device) == (12288 - 10240) * MB
+
+
+def test_rebase_near_a_checkpoint_takes_the_lower_reservation(seam: _DeviceSeam, clock: list[float]) -> None:
+    """Within the clock's resolution of a checkpoint the figure may be from either side, so the safe side wins."""
+    seam.free_total = 16384 * MB
+    seam.reserved = 7680 * MB
+    resolution = time.get_clock_info("monotonic").resolution
+    with comfy_patches.free_memory_view_clamped(2048):
+        _checkpoint(seam, clock, at=110.0, reserved=7680 * MB)
+        _checkpoint(seam, clock, at=120.0, reserved=2560 * MB)
+
+        assert comfy_patches.rebase_free_memory_view_clamp(2048, measured_at=120.0 - resolution / 2) is True
+        assert _free_memory(seam.device) == 2048 * MB, "a release in progress at the measurement is not credited"
+
+        seam.reserved = 2560 * MB
+        _checkpoint(seam, clock, at=140.0, reserved=12800 * MB)
+        assert comfy_patches.rebase_free_memory_view_clamp(12288, measured_at=140.0 + resolution / 2) is True
+        assert _free_memory(seam.device) == (12288 - 10240) * MB, "a load in progress at the measurement is charged"
+
+
+def test_rebase_older_than_every_checkpoint_takes_the_first(seam: _DeviceSeam, clock: list[float]) -> None:
+    seam.free_total = 16384 * MB
+    seam.reserved = 1024 * MB
+    with comfy_patches.free_memory_view_clamped(4096):
+        _checkpoint(seam, clock, at=110.0, reserved=6144 * MB)
+
+        assert comfy_patches.rebase_free_memory_view_clamp(4096, measured_at=50.0) is True
+        assert _free_memory(seam.device) == 0, "growth since the entry checkpoint is charged against the figure"
+
+
+def test_rebase_without_a_measurement_time_counts_from_now(seam: _DeviceSeam, clock: list[float]) -> None:
+    seam.free_total = 16384 * MB
+    seam.reserved = 7680 * MB
+    with comfy_patches.free_memory_view_clamped(2048):
+        _checkpoint(seam, clock, at=110.0, reserved=7680 * MB)
+        _checkpoint(seam, clock, at=120.0, reserved=2560 * MB)
+
+        assert comfy_patches.rebase_free_memory_view_clamp(2048) is True
+        assert _free_memory(seam.device) == 2048 * MB
+
+
+def test_checkpoint_without_an_active_clamp_records_nothing(seam: _DeviceSeam) -> None:
+    assert comfy_patches.record_reservation_checkpoint() is False
 
 
 def test_rebase_without_an_active_clamp_is_a_no_op(seam: _DeviceSeam) -> None:
