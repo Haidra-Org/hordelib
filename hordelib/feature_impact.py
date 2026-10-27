@@ -250,6 +250,11 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
         min_recommended_vram_mb=4000,
         max_recommended_batch=8,
         typical_disk_gb=2.1,
+        # An fp16 SD 1.5 checkpoint holds an 860M-parameter UNet (about 1640 MB) beside CLIP-L and the VAE
+        # (about 395 MB). Without these the resident estimate falls back to the activation-inflated base,
+        # which overprices clearance by 1.5 GB and makes measured SD 1.5 weights read as below the floor.
+        vram_weights_mb=1650,
+        vram_support_weights_mb=400,
         vram_decode_spike_mb=2500,
     ),
     BaselineBurden(

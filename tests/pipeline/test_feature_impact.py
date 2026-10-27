@@ -63,7 +63,7 @@ class TestRegistryCoverage:
 
     @pytest.mark.parametrize(
         "baseline",
-        ["flux_1", "flux_schnell", "flux_dev", "stable_diffusion_xl", "krea2_turbo", "anima"],
+        ["flux_1", "flux_schnell", "flux_dev", "stable_diffusion_1", "stable_diffusion_xl", "krea2_turbo", "anima"],
     )
     def test_multi_component_baselines_seed_support_weights(self, baseline: str) -> None:
         """Multi-component checkpoints must charge their force-loaded support components.
@@ -82,10 +82,23 @@ class TestRegistryCoverage:
 
     def test_unseeded_support_weights_fall_back_to_core_footprint(self) -> None:
         """A baseline without a support seed keeps its previous (core-only) footprint."""
-        burden = get_baseline_burden("stable_diffusion_1")
+        burden = get_baseline_burden("stable_diffusion_2_512")
         assert burden is not None
         assert burden.vram_support_weights_mb == 0
         assert burden.resident_footprint_estimate_mb() == burden.resident_weight_estimate_mb()
+
+    def test_sd15_seeds_its_measured_weights_below_the_activation_base(self) -> None:
+        """SD 1.5 charges its fp16 UNet, with CLIP-L and the VAE as support, rather than the activation base.
+
+        The base figure overprices a clearance window by about 1.5 GB and sits above the checkpoint's own
+        file size, so measured SD 1.5 weights would otherwise read as below the resident floor and never
+        be learned.
+        """
+        burden = get_baseline_burden("stable_diffusion_1")
+        assert burden is not None
+        assert burden.resident_weight_estimate_mb() == 1650
+        assert burden.resident_footprint_estimate_mb() == 2050
+        assert burden.resident_footprint_estimate_mb() < burden.vram_base_mb
 
 
 class TestEstimateJobBurden:
