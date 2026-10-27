@@ -43,6 +43,7 @@ def _load_comfy_modules() -> None:
     except ImportError as exc:
         pytest.skip(f"needs the pinned ComfyUI checkout: {exc}")
 
+
 _DIM = 8
 _LAYERS = 4
 _CPU = torch.device("cpu")
