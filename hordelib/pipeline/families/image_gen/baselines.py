@@ -94,6 +94,7 @@ QWEN_GRAPH_BASELINES: frozenset[KNOWN_IMAGE_GENERATION_BASELINE] = frozenset(
     {
         KNOWN_IMAGE_GENERATION_BASELINE.qwen_image,
         KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo,
+        KNOWN_IMAGE_GENERATION_BASELINE.moss_image,
         KNOWN_IMAGE_GENERATION_BASELINE.anima,
     },
 )
@@ -155,6 +156,12 @@ IMAGE_BASELINE_PROFILES: MappingProxyType[KNOWN_IMAGE_GENERATION_BASELINE, Basel
                 loader=LoaderKind.UNET,
                 force_load_skip_classes=("Krea2",),
                 clip_type="krea2",
+            ),
+            BaselineProfile(
+                baseline=KNOWN_IMAGE_GENERATION_BASELINE.moss_image,
+                loader=LoaderKind.UNET,
+                force_load_skip_classes=("MOSSImage",),
+                clip_type="moss_image",
             ),
             BaselineProfile(
                 baseline=KNOWN_IMAGE_GENERATION_BASELINE.anima,

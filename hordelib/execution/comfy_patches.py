@@ -40,6 +40,7 @@ FORCE_LOAD_SKIP_CLASS_NAMES: tuple[str, ...] = (
     "QwenImage",
     "Lumina2",
     "Krea2",
+    "MOSSImage",
     "Anima",
 )
 """The comfy ``model_base`` class names hordelib must keep in lockstep with ComfyUI.
@@ -246,11 +247,12 @@ def _register_executed_outputs_without_disabled_asset_copy(
     output_ui: dict[str, typing.Any],
     job_id: str,
     asset_manager: _AssetManagerState,
+    asset_previews: dict[str, dict],
 ) -> dict[str, typing.Any]:
     """Return fileless output unchanged when hordelib has explicitly disabled assets."""
     if not asset_manager.enabled:
         return output_ui
-    return _originals["register_executed_outputs"](output_ui, job_id, asset_manager)
+    return _originals["register_executed_outputs"](output_ui, job_id, asset_manager, asset_previews)
 
 
 def _register_cached_outputs_without_disabled_asset_copy(

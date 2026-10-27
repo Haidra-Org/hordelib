@@ -266,6 +266,7 @@ Do not hand-edit `pipelines/*.json` if a `pipeline_designs/` source exists.
 Change the relevant commit SHA in `hordelib/installation/manifest.json`:
 - `comfyui_ref` for ComfyUI itself
 - `ref` for each external custom node
+Adjust the pinned dependencies inside pyproject.toml to match the comfyUI requirements.txt
 
 Full 40-character SHAs only. The next `hordelib.initialise()` (or `python -m hordelib.installation`) applies the update. Run the full test suite afterwards.
 

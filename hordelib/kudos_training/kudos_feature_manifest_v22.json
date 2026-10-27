@@ -295,6 +295,7 @@
         "qwen_image",
         "z_image_turbo",
         "krea2_turbo",
+        "moss_image",
         "anima",
         "other"
       ],
