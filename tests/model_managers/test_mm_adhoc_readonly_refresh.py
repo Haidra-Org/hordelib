@@ -38,7 +38,7 @@ from hordelib.model_manager.lora import LoraModelManager
 from hordelib.model_manager.ti import TextualInversionModelManager
 
 
-def _make_lora_record(key: str, version_id: int, *, size_mb: float = 100, adhoc: bool = True) -> HordeLoraModelRecord:
+def _make_lora_record(key: str, version_id: int, *, size_mb: int = 100, adhoc: bool = True) -> HordeLoraModelRecord:
     """Return a single-version LoRA record with a deterministic last-used stamp."""
     version = LoraVersionEntry(
         filename=f"{key}_{version_id}.safetensors",
@@ -343,7 +343,7 @@ class TestReadOnlyMode:
         assert reader.is_model_available("b") is True
 
 
-def _make_eviction_manager(*, max_adhoc_disk: int, count: int, size_mb: float) -> LoraModelManager:
+def _make_eviction_manager(*, max_adhoc_disk: int, count: int, size_mb: int) -> LoraModelManager:
     """Build a LoRA shell seeded with *count* ad-hoc records for eviction/pin tests."""
     manager = object.__new__(LoraModelManager)
     manager.read_only = False

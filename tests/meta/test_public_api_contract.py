@@ -84,7 +84,7 @@ def test_consumer_called_signatures() -> None:
     assert {"payload"} <= params(api.HordeLib.post_process)
 
     assert {"managers_to_load", "multiprocessing_lock", "lora_reference_backups"} <= params(
-        api.SharedModelManager.load_model_managers.__func__,
+        api.SharedModelManager.load_model_managers,
     )
 
     assert {
@@ -96,7 +96,7 @@ def test_consumer_called_signatures() -> None:
         "extra_comfyui_args",
     } <= params(api.initialise)
 
-    assert {"setup_logging", "process_id", "verbosity_count"} <= params(api.HordeLog.initialise.__func__)
+    assert {"setup_logging", "process_id", "verbosity_count"} <= params(api.HordeLog.initialise)
 
     # The execution backend protocol the worker uses for memory control
     assert {"free_vram", "free_ram", "vram_stats", "interrupt", "run_pipeline", "start"} <= {

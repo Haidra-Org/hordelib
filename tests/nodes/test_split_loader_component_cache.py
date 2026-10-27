@@ -57,7 +57,7 @@ def _load_stubbed_loader() -> Generator[None, None, None]:
 
     missing = object()
     stub_names = ("comfy", "comfy.model_management", "comfy.sd", "comfy.utils", "folder_paths")
-    previous_stubs = {name: sys.modules.get(name, missing) for name in stub_names}
+    previous_stubs = {name: sys.modules[name] for name in stub_names if name in sys.modules}
     previous_node_modules = {name for name in sys.modules if name.startswith("hordelib.nodes")}
     nodes_package = sys.modules.get("hordelib.nodes")
     previous_loader_attribute = getattr(nodes_package, "node_model_loader", missing)
@@ -80,11 +80,11 @@ def _load_stubbed_loader() -> Generator[None, None, None]:
                 package_namespace.pop("node_model_loader", None)
             else:
                 package_namespace["node_model_loader"] = previous_loader_attribute
-        for name, previous in previous_stubs.items():
-            if previous is missing:
-                sys.modules.pop(name, None)
+        for name in stub_names:
+            if name in previous_stubs:
+                sys.modules[name] = previous_stubs[name]
             else:
-                sys.modules[name] = previous
+                sys.modules.pop(name, None)
 
 
 _RESOLVABLE_FILES = {
@@ -143,7 +143,10 @@ def _serve_vae(stock: _CountingLoader, vae_name: str = "qwen_image_vae.safetenso
     return node_model_loader.serve_split_vae(lambda: stock(None, vae_name), vae_name=vae_name)
 
 
-@pytest.mark.parametrize("serve", [_serve_text_encoder, _serve_vae], ids=["text_encoder", "vae"])
+_SERVERS: list[Callable[[_CountingLoader], tuple[Any, ...]]] = [_serve_text_encoder, _serve_vae]
+
+
+@pytest.mark.parametrize("serve", _SERVERS, ids=["text_encoder", "vae"])
 def test_repeated_load_of_one_file_serves_one_copy(
     budgeted: SimpleNamespace,
     serve: Callable[[_CountingLoader], tuple[Any, ...]],

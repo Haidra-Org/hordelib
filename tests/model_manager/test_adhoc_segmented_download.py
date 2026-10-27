@@ -13,8 +13,10 @@ from __future__ import annotations
 
 import hashlib
 import threading
+from dataclasses import dataclass
+from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import Mock
 
 import pytest
@@ -53,18 +55,30 @@ class _FakeStreamResponse:
     def __enter__(self) -> _FakeStreamResponse:
         return self
 
-    def __exit__(self, *exc: Any) -> bool:
+    def __exit__(self, *exc: Any) -> Literal[False]:
         return False
 
 
-def _bare_manager(tmp_path: Any, target: DownloadTarget | None) -> LoraModelManager:
+@dataclass
+class _ManagerDoubles:
+    """The mocks ``_bare_manager`` installs that tests assert on, held typed for the checker."""
+
+    commit_download: Mock
+    record_download_event: Mock
+
+
+def _bare_manager(
+    tmp_path: Path,
+    target: DownloadTarget | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[LoraModelManager, _ManagerDoubles]:
     """Build a LoraModelManager wired only for ``_process_download`` (no real init/network/cache).
 
     Mirrors the resilience-suite harness. The segmented path additionally needs ``_download_connections``,
     which the real ``__init__`` sets but ``object.__new__`` does not, so every test sets it explicitly.
     """
     manager = object.__new__(LoraModelManager)
-    manager.model_folder_path = str(tmp_path)
+    manager.model_folder_path = tmp_path
     manager._civitai_api_token = None
     manager.read_only = False
     manager.eviction_pins = set()
@@ -74,18 +88,19 @@ def _bare_manager(tmp_path: Any, target: DownloadTarget | None) -> LoraModelMana
     manager._download_mutex = threading.Lock()
     manager._known_bad_versions = {}
     manager._download_generation = 0
-    manager._prepare_download = Mock(return_value=target)  # pyrefly: ignore
-    manager._existing_file_matches = Mock(return_value=False)  # pyrefly: ignore
-    manager.is_model_url_from_civitai = Mock(return_value=False)  # pyrefly: ignore
-    manager._commit_download = Mock()  # pyrefly: ignore
-    manager.save_reference_to_disk = Mock()  # pyrefly: ignore
-    manager._evict_adhoc_over_limit = Mock()  # pyrefly: ignore
-    manager.is_default_cache_full = Mock(return_value=False)  # pyrefly: ignore
-    manager._record_download_event = Mock()  # pyrefly: ignore
+    doubles = _ManagerDoubles(commit_download=Mock(), record_download_event=Mock())
+    monkeypatch.setattr(manager, "_prepare_download", Mock(return_value=target))
+    monkeypatch.setattr(manager, "_existing_file_matches", Mock(return_value=False))
+    monkeypatch.setattr(manager, "is_model_url_from_civitai", Mock(return_value=False))
+    monkeypatch.setattr(manager, "_commit_download", doubles.commit_download)
+    monkeypatch.setattr(manager, "save_reference_to_disk", Mock())
+    monkeypatch.setattr(manager, "_evict_adhoc_over_limit", Mock())
+    monkeypatch.setattr(manager, "is_default_cache_full", Mock(return_value=False))
+    monkeypatch.setattr(manager, "_record_download_event", doubles.record_download_event)
     manager._metric_download_duration = Mock()  # pyrefly: ignore
     manager._metric_network_errors = Mock()  # pyrefly: ignore
     manager._metric_retries = Mock()  # pyrefly: ignore
-    return manager
+    return manager, doubles
 
 
 def _outcome(destination: Any, *, success: bool, payload: bytes) -> Any:
@@ -104,7 +119,7 @@ def _outcome(destination: Any, *, success: bool, payload: bytes) -> Any:
 def test_segmented_success_commits_without_single_stream(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """A successful segmented transfer commits the download and never touches the single-stream path."""
     target = DownloadTarget(filename="big.safetensors", url="http://example/big", size_mb=200, sha256=None)
-    manager = _bare_manager(tmp_path, target)
+    manager, doubles = _bare_manager(tmp_path, target, monkeypatch)
     manager._download_connections = 4
 
     payload = b"segmented-weight-bytes"
@@ -124,16 +139,16 @@ def test_segmented_success_commits_without_single_stream(tmp_path: Any, monkeypa
     manager._process_download(queued, civitai_adhoc.logger.bind(manager="lora"))
 
     assert queued.success is True
-    manager._commit_download.assert_called_once()  # pyrefly: ignore
-    assert manager._commit_download.call_args.kwargs["downloaded"] is True  # pyrefly: ignore
+    doubles.commit_download.assert_called_once()
+    assert doubles.commit_download.call_args.kwargs["downloaded"] is True
     assert destination.read_bytes() == payload
-    assert manager._record_download_event.call_args.kwargs["success"] is True  # pyrefly: ignore
+    assert doubles.record_download_event.call_args.kwargs["success"] is True
 
 
 def test_segmented_none_falls_back_to_single_stream(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """When the engine reports the file unsuitable (returns None), the single-stream path completes it."""
     target = DownloadTarget(filename="small.safetensors", url="http://example/small", size_mb=1, sha256=None)
-    manager = _bare_manager(tmp_path, target)
+    manager, doubles = _bare_manager(tmp_path, target, monkeypatch)
     manager._download_connections = 4
 
     def _fake_segmented(url: str, dest: Any, **kwargs: Any) -> Any:
@@ -153,14 +168,14 @@ def test_segmented_none_falls_back_to_single_stream(tmp_path: Any, monkeypatch: 
 
     assert queued.success is True
     assert (tmp_path / "small.safetensors").read_bytes() == payload, "the single-stream body must have landed"
-    manager._commit_download.assert_called_once()  # pyrefly: ignore
-    assert manager._commit_download.call_args.kwargs["downloaded"] is True  # pyrefly: ignore
+    doubles.commit_download.assert_called_once()
+    assert doubles.commit_download.call_args.kwargs["downloaded"] is True
 
 
 def test_connections_one_skips_segmentation(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """With a single configured connection the engine helper is never invoked; single-stream serves."""
     target = DownloadTarget(filename="one.safetensors", url="http://example/one", size_mb=200, sha256=None)
-    manager = _bare_manager(tmp_path, target)
+    manager, _ = _bare_manager(tmp_path, target, monkeypatch)
     manager._download_connections = 1
 
     def _must_not_segment(url: str, dest: Any, **kwargs: Any) -> Any:
@@ -191,7 +206,7 @@ def test_segmented_cancellation_returns_false(tmp_path: Any, monkeypatch: pytest
         sha256=None,
         version_key="4242",
     )
-    manager = _bare_manager(tmp_path, target)
+    manager, doubles = _bare_manager(tmp_path, target, monkeypatch)
     manager._download_connections = 4
 
     def _fake_segmented(url: str, dest: Any, **kwargs: Any) -> Any:
@@ -203,8 +218,8 @@ def test_segmented_cancellation_returns_false(tmp_path: Any, monkeypatch: pytest
     manager._process_download(queued, civitai_adhoc.logger.bind(manager="lora"))
 
     assert queued.success is False
-    manager._commit_download.assert_not_called()  # pyrefly: ignore
-    assert manager._record_download_event.call_args.kwargs["success"] is False  # pyrefly: ignore
+    doubles.commit_download.assert_not_called()
+    assert doubles.record_download_event.call_args.kwargs["success"] is False
     assert not manager._is_version_bad("4242"), "a cancel is not a terminal failure and must not poison the cache"
 
 
@@ -219,7 +234,7 @@ def test_segmented_hash_mismatch_discards_and_does_not_commit(
         size_mb=200,
         sha256="deadbeef",
     )
-    manager = _bare_manager(tmp_path, target)
+    manager, doubles = _bare_manager(tmp_path, target, monkeypatch)
     manager._download_connections = 4
     manager.RETRY_DELAY = 0.0
 
@@ -237,10 +252,10 @@ def test_segmented_hash_mismatch_discards_and_does_not_commit(
 
     assert queued.success is False
     assert call_count["n"] == manager.MAX_RETRIES + 1, "a mismatch must retry the full ladder, then fail"
-    manager._commit_download.assert_not_called()  # pyrefly: ignore
+    doubles.commit_download.assert_not_called()
     assert not destination.exists(), "a discarded mismatched download must leave no weight file behind"
     assert not destination.with_suffix(".sha256").exists(), "the sidecar of a discarded download must be removed"
-    assert manager._record_download_event.call_args.kwargs["success"] is False  # pyrefly: ignore
+    assert doubles.record_download_event.call_args.kwargs["success"] is False
 
 
 def test_adhoc_connections_from_env(monkeypatch: pytest.MonkeyPatch) -> None:

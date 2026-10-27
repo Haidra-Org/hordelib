@@ -113,8 +113,8 @@ def _run_stage(spec: dict[str, Any]) -> None:
         Path(outputs["positive"]).write_bytes(positive_bytes)
         Path(outputs["negative"]).write_bytes(negative_bytes)
     elif stage == "vae_encode":
-        source_latent_bytes = hordelib_instance.vae_encode_stage(params)
-        Path(outputs["latent"]).write_bytes(source_latent_bytes)
+        encoded_latent_bytes = hordelib_instance.vae_encode_stage(params)
+        Path(outputs["latent"]).write_bytes(encoded_latent_bytes)
     elif stage == "sample":
         source_latent_bytes = Path(inputs["latent"]).read_bytes() if inputs.get("latent") else None
         latent_bytes = hordelib_instance.sample_stage(
@@ -130,7 +130,9 @@ def _run_stage(spec: dict[str, Any]) -> None:
             latent_bytes=Path(inputs["latent"]).read_bytes(),
         )
         assert len(results) == 1, f"decode stage produced {len(results)} image(s), expected 1"
-        Path(outputs["image"]).write_bytes(results[0].rawpng.getvalue())
+        rawpng = results[0].rawpng
+        assert rawpng is not None, "decode stage returned an image without its PNG bytes"
+        Path(outputs["image"]).write_bytes(rawpng.getvalue())
     else:
         raise ValueError(f"Unknown stage: {stage!r}")
 

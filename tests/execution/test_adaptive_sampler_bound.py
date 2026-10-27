@@ -129,6 +129,7 @@ def test_below_the_bound_matches_the_unpatched_sampler() -> None:
     )
 
     sigma_min = sigmas[-2]
+    assert k_diffusion_sampling is not None, "the autouse fixture imports it or skips"
     stock = k_diffusion_sampling.sample_dpm_adaptive(
         _StubDenoiser(hostile=False),
         noise.clone(),

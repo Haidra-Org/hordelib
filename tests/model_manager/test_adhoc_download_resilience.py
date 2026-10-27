@@ -14,14 +14,17 @@ import hashlib
 import os
 import threading
 import time
+from dataclasses import dataclass
+from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import Mock
 
 import pytest
 
 import hordelib.model_manager.civitai_adhoc as civitai_adhoc
 from hordelib.model_manager.civitai_adhoc import DownloadTarget, _QueuedDownload
+from hordelib.model_manager.civitai_records import HordeLoraModelRecord
 from hordelib.model_manager.lora import LoraModelManager
 
 
@@ -59,14 +62,26 @@ class _FakeStreamResponse:
     def __enter__(self) -> _FakeStreamResponse:
         return self
 
-    def __exit__(self, *exc: Any) -> bool:
+    def __exit__(self, *exc: Any) -> Literal[False]:
         return False
 
 
-def _bare_manager(tmp_path: Any, target: DownloadTarget | None) -> LoraModelManager:
+@dataclass
+class _ManagerDoubles:
+    """The mocks ``_bare_manager`` installs that tests assert on, held typed for the checker."""
+
+    commit_download: Mock
+    record_download_event: Mock
+
+
+def _bare_manager(
+    tmp_path: Path,
+    target: DownloadTarget | None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> tuple[LoraModelManager, _ManagerDoubles]:
     """Build a LoraModelManager wired only for ``_process_download`` (no real init/network/cache)."""
     manager = object.__new__(LoraModelManager)
-    manager.model_folder_path = str(tmp_path)
+    manager.model_folder_path = tmp_path
     manager._civitai_api_token = None
     manager.read_only = False
     manager.eviction_pins = set()
@@ -77,18 +92,19 @@ def _bare_manager(tmp_path: Any, target: DownloadTarget | None) -> LoraModelMana
     manager._known_bad_versions = {}
     manager._download_generation = 0
     manager._download_connections = 1  # keep these single-stream tests off the segmented fast path
-    manager._prepare_download = Mock(return_value=target)  # pyrefly: ignore
-    manager._existing_file_matches = Mock(return_value=False)  # pyrefly: ignore
-    manager.is_model_url_from_civitai = Mock(return_value=False)  # pyrefly: ignore
-    manager._commit_download = Mock()  # pyrefly: ignore
-    manager.save_reference_to_disk = Mock()  # pyrefly: ignore
-    manager._evict_adhoc_over_limit = Mock()  # pyrefly: ignore
-    manager.is_default_cache_full = Mock(return_value=False)  # pyrefly: ignore
-    manager._record_download_event = Mock()  # pyrefly: ignore
+    doubles = _ManagerDoubles(commit_download=Mock(), record_download_event=Mock())
+    monkeypatch.setattr(manager, "_prepare_download", Mock(return_value=target))
+    monkeypatch.setattr(manager, "_existing_file_matches", Mock(return_value=False))
+    monkeypatch.setattr(manager, "is_model_url_from_civitai", Mock(return_value=False))
+    monkeypatch.setattr(manager, "_commit_download", doubles.commit_download)
+    monkeypatch.setattr(manager, "save_reference_to_disk", Mock())
+    monkeypatch.setattr(manager, "_evict_adhoc_over_limit", Mock())
+    monkeypatch.setattr(manager, "is_default_cache_full", Mock(return_value=False))
+    monkeypatch.setattr(manager, "_record_download_event", doubles.record_download_event)
     manager._metric_download_duration = Mock()  # pyrefly: ignore
     manager._metric_network_errors = Mock()  # pyrefly: ignore
     manager._metric_retries = Mock()  # pyrefly: ignore
-    return manager
+    return manager, doubles
 
 
 def test_enospc_write_is_terminal_and_not_retried(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -99,7 +115,7 @@ def test_enospc_write_is_terminal_and_not_retried(tmp_path: Any, monkeypatch: py
     entire budget. A full disk does not heal between attempts, so the download is terminal.
     """
     target = DownloadTarget(filename="big.safetensors", url="http://example/big", size_mb=200, sha256=None)
-    manager = _bare_manager(tmp_path, target)
+    manager, doubles = _bare_manager(tmp_path, target, monkeypatch)
 
     get_calls = {"n": 0}
 
@@ -125,14 +141,14 @@ def test_enospc_write_is_terminal_and_not_retried(tmp_path: Any, monkeypatch: py
     manager._process_download(_QueuedDownload(record=record), civitai_adhoc.logger.bind(manager="lora"))
 
     assert get_calls["n"] == 1, "ENOSPC must not be retried (each retry re-downloads the whole file)"
-    manager._record_download_event.assert_called_once()  # pyrefly: ignore
-    assert manager._record_download_event.call_args.kwargs["success"] is False  # pyrefly: ignore
+    doubles.record_download_event.assert_called_once()
+    assert doubles.record_download_event.call_args.kwargs["success"] is False
 
 
 def test_non_disk_oserror_still_retries(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """A non disk-full OS error keeps the original retry behaviour (it may be transient)."""
     target = DownloadTarget(filename="big.safetensors", url="http://example/big", size_mb=200, sha256=None)
-    manager = _bare_manager(tmp_path, target)
+    manager, _ = _bare_manager(tmp_path, target, monkeypatch)
     manager.RETRY_DELAY = 0.0  # don't sleep between retries in the test
 
     get_calls = {"n": 0}
@@ -166,7 +182,7 @@ def test_wait_for_downloads_zero_timeout_is_bounded(monkeypatch: pytest.MonkeyPa
     """
     manager = object.__new__(LoraModelManager)
     manager.THREAD_WAIT_TIME = 0.01
-    manager.are_downloads_complete = Mock(return_value=False)  # pyrefly: ignore
+    monkeypatch.setattr(manager, "are_downloads_complete", Mock(return_value=False))
 
     start = time.perf_counter()
     with pytest.raises(TimeoutError):
@@ -184,7 +200,7 @@ def test_wait_for_downloads_none_timeout_waits_then_returns(monkeypatch: pytest.
         calls["n"] += 1
         return calls["n"] >= 3
 
-    manager.are_downloads_complete = _complete_after_a_few  # pyrefly: ignore
+    monkeypatch.setattr(manager, "are_downloads_complete", _complete_after_a_few)
 
     manager.wait_for_downloads(None)  # must not raise
 
@@ -212,7 +228,7 @@ def test_download_404_is_terminal_after_one_confirm_retry(tmp_path: Any, monkeyp
         sha256=None,
         version_key="299617",
     )
-    manager = _bare_manager(tmp_path, target)
+    manager, doubles = _bare_manager(tmp_path, target, monkeypatch)
     manager.NOTFOUND_CONFIRM_DELAY = 0.0
 
     get_calls = {"n": 0}
@@ -230,8 +246,8 @@ def test_download_404_is_terminal_after_one_confirm_retry(tmp_path: Any, monkeyp
     manager._process_download(_QueuedDownload(record=record), civitai_adhoc.logger.bind(manager="lora"))
 
     assert get_calls["n"] == 2, "a download 404 should get exactly one confirm retry, not the full ladder"
-    manager._record_download_event.assert_called_once()  # pyrefly: ignore
-    assert manager._record_download_event.call_args.kwargs["success"] is False  # pyrefly: ignore
+    doubles.record_download_event.assert_called_once()
+    assert doubles.record_download_event.call_args.kwargs["success"] is False
     assert manager._is_version_bad("299617"), "the dead version must be remembered for later jobs"
 
 
@@ -244,7 +260,7 @@ def test_known_bad_version_is_skipped_without_network(tmp_path: Any, monkeypatch
         sha256=None,
         version_key="299617",
     )
-    manager = _bare_manager(tmp_path, target)
+    manager, doubles = _bare_manager(tmp_path, target, monkeypatch)
     manager._mark_version_bad("299617")
 
     get_calls = {"n": 0}
@@ -259,8 +275,8 @@ def test_known_bad_version_is_skipped_without_network(tmp_path: Any, monkeypatch
     manager._process_download(_QueuedDownload(record=record), civitai_adhoc.logger.bind(manager="lora"))
 
     assert get_calls["n"] == 0, "a known-bad version must be skipped before any network call"
-    manager._record_download_event.assert_called_once()  # pyrefly: ignore
-    assert manager._record_download_event.call_args.kwargs["success"] is False  # pyrefly: ignore
+    doubles.record_download_event.assert_called_once()
+    assert doubles.record_download_event.call_args.kwargs["success"] is False
 
 
 def test_negative_cache_expires_and_prunes(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -294,7 +310,7 @@ def test_cancel_mid_retry_ladder_stops_further_attempts(tmp_path: Any, monkeypat
         sha256=None,
         version_key="555",
     )
-    manager = _bare_manager(tmp_path, target)
+    manager, doubles = _bare_manager(tmp_path, target, monkeypatch)
     manager.RETRY_DELAY = 0.0
 
     get_calls = {"n": 0}
@@ -312,14 +328,14 @@ def test_cancel_mid_retry_ladder_stops_further_attempts(tmp_path: Any, monkeypat
     manager._process_download(_QueuedDownload(record=record, generation=0), civitai_adhoc.logger.bind(manager="lora"))
 
     assert get_calls["n"] == 2, "a cancelled download must stop retrying instead of exhausting the ladder"
-    assert manager._record_download_event.call_args.kwargs["success"] is False  # pyrefly: ignore
+    assert doubles.record_download_event.call_args.kwargs["success"] is False
     assert not manager._is_version_bad("555"), "a cancel is not a terminal failure and must not poison the cache"
 
 
 def test_stale_generation_download_skips_network(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """A queued download already behind the current generation is abandoned before any network call."""
     target = DownloadTarget(filename="x.safetensors", url="http://example/x", size_mb=1, sha256=None, version_key="9")
-    manager = _bare_manager(tmp_path, target)
+    manager, _ = _bare_manager(tmp_path, target, monkeypatch)
     manager._download_generation = 3  # a cancel happened before this record was picked up
 
     get_calls = {"n": 0}
@@ -345,7 +361,7 @@ def test_cancel_active_downloads_bumps_generation_and_clears_queue() -> None:
     manager._download_generation = 0
     manager._stop_all_threads = False
     manager._download_queue = deque(
-        [_QueuedDownload(record=SimpleNamespace(name="a"), generation=0)],
+        [_QueuedDownload(record=HordeLoraModelRecord(name="a"), generation=0)],
     )
     manager._metric_queue_size = Mock()  # pyrefly: ignore
     manager.METRIC_PREFIX = "lora"
@@ -363,7 +379,7 @@ def test_successful_download_lands_weight_and_sidecar_with_no_temp_residue(
 ) -> None:
     """A successful download leaves the final weight file, its sidecar, and no leftover temp file."""
     target = DownloadTarget(filename="ok.safetensors", url="http://example/ok", size_mb=1, sha256=None)
-    manager = _bare_manager(tmp_path, target)
+    manager, doubles = _bare_manager(tmp_path, target, monkeypatch)
 
     payload = b"weight-bytes"
 
@@ -380,14 +396,14 @@ def test_successful_download_lands_weight_and_sidecar_with_no_temp_residue(
     assert sidecar.split()[0] == hashlib.sha256(payload).hexdigest()
     assert sidecar.split()[1] == "*ok.safetensors"
     assert list(tmp_path.glob("*.tmp-*")) == [], "a successful download must not leave a temp file behind"
-    manager._record_download_event.assert_called_once()  # pyrefly: ignore
-    assert manager._record_download_event.call_args.kwargs["success"] is True  # pyrefly: ignore
+    doubles.record_download_event.assert_called_once()
+    assert doubles.record_download_event.call_args.kwargs["success"] is True
 
 
 def test_replace_failure_leaves_no_partial_final_file(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """When the rename into place fails, no partial final file and no leaked temp file remain."""
     target = DownloadTarget(filename="fail.safetensors", url="http://example/fail", size_mb=1, sha256=None)
-    manager = _bare_manager(tmp_path, target)
+    manager, doubles = _bare_manager(tmp_path, target, monkeypatch)
     manager.RETRY_DELAY = 0.0
 
     def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
@@ -405,8 +421,8 @@ def test_replace_failure_leaves_no_partial_final_file(tmp_path: Any, monkeypatch
 
     assert not (tmp_path / "fail.safetensors").exists(), "a failed replace must not leave a partial final file"
     assert list(tmp_path.glob("*.tmp-*")) == [], "a failed replace must not leak a temp file"
-    manager._record_download_event.assert_called_once()  # pyrefly: ignore
-    assert manager._record_download_event.call_args.kwargs["success"] is False  # pyrefly: ignore
+    doubles.record_download_event.assert_called_once()
+    assert doubles.record_download_event.call_args.kwargs["success"] is False
 
 
 def test_weight_is_exposed_only_by_the_atomic_replace(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -416,7 +432,7 @@ def test_weight_is_exposed_only_by_the_atomic_replace(tmp_path: Any, monkeypatch
     at the instant the rename runs the final path does not yet exist, and the source is a temp file.
     """
     target = DownloadTarget(filename="atomic.safetensors", url="http://example/atomic", size_mb=1, sha256=None)
-    manager = _bare_manager(tmp_path, target)
+    manager, _ = _bare_manager(tmp_path, target, monkeypatch)
 
     payload = b"weight-bytes"
 
@@ -455,7 +471,7 @@ def test_read_timeout_still_retries_and_is_not_cached(tmp_path: Any, monkeypatch
         sha256=None,
         version_key="2493924",
     )
-    manager = _bare_manager(tmp_path, target)
+    manager, doubles = _bare_manager(tmp_path, target, monkeypatch)
     manager.RETRY_DELAY = 0.0
 
     get_calls = {"n": 0}
@@ -473,8 +489,8 @@ def test_read_timeout_still_retries_and_is_not_cached(tmp_path: Any, monkeypatch
 
     assert get_calls["n"] == 2, "a transient ReadTimeout must be retried, then succeed"
     assert not manager._is_version_bad("2493924"), "a transient failure must not poison the negative cache"
-    manager._record_download_event.assert_called_once()  # pyrefly: ignore
-    assert manager._record_download_event.call_args.kwargs["success"] is True  # pyrefly: ignore
+    doubles.record_download_event.assert_called_once()
+    assert doubles.record_download_event.call_args.kwargs["success"] is True
 
 
 def test_streamed_download_uses_temp_replace_and_reports_monotonic_progress(
@@ -488,7 +504,7 @@ def test_streamed_download_uses_temp_replace_and_reports_monotonic_progress(
     and the final weight name appears only via ``os.replace`` from a temp sibling.
     """
     target = DownloadTarget(filename="stream.safetensors", url="http://example/stream", size_mb=1, sha256=None)
-    manager = _bare_manager(tmp_path, target)
+    manager, _ = _bare_manager(tmp_path, target, monkeypatch)
 
     payload = b"ABCDEFGHIJ"  # ten bytes, streamed two at a time -> five chunks
 
@@ -531,7 +547,7 @@ def test_streamed_download_uses_temp_replace_and_reports_monotonic_progress(
 def test_progress_total_is_zero_when_content_length_absent(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """When the server reports no ``Content-Length`` the callback receives ``0`` as the total."""
     target = DownloadTarget(filename="nolen.safetensors", url="http://example/nolen", size_mb=1, sha256=None)
-    manager = _bare_manager(tmp_path, target)
+    manager, _ = _bare_manager(tmp_path, target, monkeypatch)
 
     def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
         return _FakeStreamResponse(content=b"XYZ", url=url, raise_for_status=lambda: None, headers={})
@@ -558,8 +574,8 @@ def test_per_record_event_fires_while_a_sibling_is_still_in_flight(
     This is what lets ``fetch_adhoc_lora``/``fetch_adhoc_ti`` wait on their own record: the whole pool is
     still busy (``are_downloads_complete`` is False), yet the finished record's waiter is already released.
     """
-    manager = _bare_manager(tmp_path, target=None)
-    manager._existing_file_matches = Mock(return_value=True)  # pyrefly: ignore  # short-circuit to success
+    manager, _ = _bare_manager(tmp_path, None, monkeypatch)
+    monkeypatch.setattr(manager, "_existing_file_matches", Mock(return_value=True))  # short-circuit to success
 
     release_sibling = threading.Event()
 
@@ -568,7 +584,7 @@ def test_per_record_event_fires_while_a_sibling_is_still_in_flight(
             release_sibling.wait(5)
         return DownloadTarget(filename=f"{record.name}.safetensors", url="http://x", size_mb=1, sha256=None)
 
-    manager._prepare_download = _prepare  # pyrefly: ignore
+    monkeypatch.setattr(manager, "_prepare_download", _prepare)
 
     fast_q = _QueuedDownload(record=SimpleNamespace(name="fast"))
     slow_q = _QueuedDownload(record=SimpleNamespace(name="slow"))
@@ -597,7 +613,7 @@ def test_per_record_wait_times_out_without_raising_and_without_the_sibling(
     ``fetch_adhoc_*`` rely on this: a wait that elapses returns ``None`` rather than raising, and it does
     not block on any other in-flight download.
     """
-    manager = _bare_manager(tmp_path, target=None)
+    manager, _ = _bare_manager(tmp_path, None, monkeypatch)
 
     never_release = threading.Event()
 
@@ -605,7 +621,7 @@ def test_per_record_wait_times_out_without_raising_and_without_the_sibling(
         never_release.wait()  # deliberately never released within the test
         return DownloadTarget(filename="stuck.safetensors", url="http://x", size_mb=1, sha256=None)
 
-    manager._prepare_download = _prepare  # pyrefly: ignore
+    monkeypatch.setattr(manager, "_prepare_download", _prepare)
 
     stuck_q = _QueuedDownload(record=SimpleNamespace(name="stuck"))
     logger = civitai_adhoc.logger.bind(manager="lora")
@@ -626,7 +642,7 @@ def test_per_record_wait_times_out_without_raising_and_without_the_sibling(
 def test_completion_event_set_on_retries_exhausted(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """A download that exhausts its retry budget still signals its completion event as a failure."""
     target = DownloadTarget(filename="flaky.safetensors", url="http://example/flaky", size_mb=1, sha256=None)
-    manager = _bare_manager(tmp_path, target)
+    manager, _ = _bare_manager(tmp_path, target, monkeypatch)
     manager.RETRY_DELAY = 0.0
 
     def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
@@ -644,9 +660,9 @@ def test_completion_event_set_on_retries_exhausted(tmp_path: Any, monkeypatch: p
 def test_completion_event_set_on_no_room(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
     """A download refused for lack of disk room signals its completion event as a failure, no network."""
     target = DownloadTarget(filename="huge.safetensors", url="http://example/huge", size_mb=999999, sha256=None)
-    manager = _bare_manager(tmp_path, target)
-    manager._ensure_room_for_download = Mock(return_value=False)  # pyrefly: ignore
-    manager.disk_free_mb = Mock(return_value=10.0)  # pyrefly: ignore
+    manager, _ = _bare_manager(tmp_path, target, monkeypatch)
+    monkeypatch.setattr(manager, "_ensure_room_for_download", Mock(return_value=False))
+    monkeypatch.setattr(manager, "disk_free_mb", Mock(return_value=10.0))
 
     get_calls = {"n": 0}
 
@@ -681,7 +697,7 @@ def test_cancellation_stops_stream_at_chunk_boundary_and_signals_event(
         sha256=None,
         version_key="4242",
     )
-    manager = _bare_manager(tmp_path, target)
+    manager, _ = _bare_manager(tmp_path, target, monkeypatch)
 
     payload = b"ABCDEFGHIJ"  # streamed two bytes at a time
 

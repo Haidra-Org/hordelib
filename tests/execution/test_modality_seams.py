@@ -16,6 +16,7 @@ from hordelib.execution.interface import (
     ProgressCallback,
     UnencodedImageArtifact,
     VRAMStats,
+    VramUnloadResult,
 )
 
 
@@ -57,8 +58,13 @@ class _FakeAudioBackend:
     def interrupt(self) -> None:
         pass
 
-    def free_vram(self) -> None:
-        pass
+    def free_vram(self) -> VramUnloadResult:
+        return VramUnloadResult(
+            freed_mb=0.0,
+            remaining_loaded_models=0,
+            remaining_loaded_weights_mb=0.0,
+            dead_model_refs_dropped=0,
+        )
 
     def free_ram(self) -> None:
         pass

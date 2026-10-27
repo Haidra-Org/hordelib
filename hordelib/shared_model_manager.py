@@ -2,7 +2,7 @@
 import asyncio
 from collections.abc import Iterable
 from multiprocessing.synchronize import Lock as multiprocessing_lock
-from typing import Self
+from typing import ClassVar
 
 import torch
 from horde_model_reference import (
@@ -42,7 +42,7 @@ def _await_prefetch(ref_manager: ModelReferenceManager) -> None:
 
 
 class SharedModelManager:
-    _instance: Self = None  # type: ignore
+    _instance: ClassVar["SharedModelManager | None"] = None
     manager: ModelManager
     model_reference_manager: ModelReferenceManager
     cuda_available: bool

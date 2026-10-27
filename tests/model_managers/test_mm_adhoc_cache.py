@@ -15,7 +15,7 @@ from hordelib.model_manager.civitai_records import HordeLoraModelRecord, LoraVer
 from hordelib.model_manager.lora import LoraModelManager
 
 
-def _make_record(key: str, version_id: int, size_mb: float, *, adhoc: bool = True) -> HordeLoraModelRecord:
+def _make_record(key: str, version_id: int, size_mb: int, *, adhoc: bool = True) -> HordeLoraModelRecord:
     """Return a single-version LoRA record of *size_mb* megabytes for cache accounting."""
     version = LoraVersionEntry(
         filename=f"{key}_{version_id}.safetensors",
@@ -55,7 +55,7 @@ def _make_manager(*, max_adhoc_disk: int, min_free_disk_mb: int = DEFAULT_MIN_FR
     return manager
 
 
-def _seed_adhoc(manager: LoraModelManager, count: int, size_mb: float) -> None:
+def _seed_adhoc(manager: LoraModelManager, count: int, size_mb: int) -> None:
     """Add *count* ad-hoc LoRAs of *size_mb* each to the manager's reference."""
     for i in range(count):
         record = _make_record(f"lora{i}", 1000 + i, size_mb)

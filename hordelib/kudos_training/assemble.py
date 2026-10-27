@@ -22,7 +22,7 @@ import re
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from horde_sdk.generation_parameters.image.sampler_work import SamplerExecutionContractVersion
 from loguru import logger
@@ -35,6 +35,10 @@ from hordelib.kudos_training.schema import (
     SourceKind,
 )
 from hordelib.utils.optional_deps import require
+
+if TYPE_CHECKING:
+    from horde_model_reference import SourceSelector
+    from horde_model_reference.model_reference_manager import ModelReferenceManager
 
 DEFAULT_MACHINES_PATH = Path(__file__).parent / "machines.toml"
 """The checked-in table of trusted developer machines."""
@@ -923,7 +927,11 @@ def _build_row(
     )
 
 
-def _beta_aware_image_source(manager: object, pending_source_id: str, horde_source_id: str) -> object:
+def _beta_aware_image_source(
+    manager: "ModelReferenceManager",
+    pending_source_id: str,
+    horde_source_id: str,
+) -> "SourceSelector":
     """Return the image-generation source selector with the PRIMARY's pending (beta) records layered on top.
 
     A model measured while it was still in the pending queue (a beta baseline the worker served under the
@@ -936,11 +944,11 @@ def _beta_aware_image_source(manager: object, pending_source_id: str, horde_sour
         from horde_model_reference import PendingModelProvider, horde_model_reference_settings
         from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY
 
-        if manager.get_provider(pending_source_id) is None:  # type: ignore[attr-defined]
+        if manager.get_provider(pending_source_id) is None:
             primary_api_url = horde_model_reference_settings.primary_api_url
             if not primary_api_url:
                 return horde_source_id
-            manager.register_provider(  # type: ignore[attr-defined]
+            manager.register_provider(
                 PendingModelProvider(
                     primary_api_url=primary_api_url,
                     apikey="0000000000",

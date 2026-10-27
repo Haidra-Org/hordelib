@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import sys
 import types
+from typing import Any
 
 import pytest
 
@@ -146,7 +147,7 @@ def test_aimdo_usage_is_zero_when_package_absent(monkeypatch: pytest.MonkeyPatch
 
     real_import = builtins.__import__
 
-    def _no_aimdo(name: str, *args: object, **kwargs: object) -> object:
+    def _no_aimdo(name: str, *args: Any, **kwargs: Any) -> object:
         if name.startswith("comfy_aimdo"):
             raise ImportError("comfy_aimdo not installed")
         return real_import(name, *args, **kwargs)

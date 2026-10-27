@@ -12,10 +12,12 @@ the forwarding is observed directly.
 """
 
 import io
+import uuid
 from typing import Any
 
 import pytest
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
+from horde_sdk.generation_parameters.image import BasicImageGenerationParameters, ImageGenerationParameters
 
 from hordelib.execution.in_process import InProcessComfyBackend
 from hordelib.execution.interface import OutputArtifact, OutputKind, OutputSpec
@@ -59,6 +61,13 @@ The stage reads both for the footprint it records around the run, so they are th
 than stubs; nothing here needs weights or a model reference lookup to construct them."""
 
 
+_UNREAD_PARAMS = ImageGenerationParameters(
+    result_ids=[uuid.uuid4()],
+    base_params=BasicImageGenerationParameters(model="stub_model", prompt="p"),
+)
+"""Parameters the stubbed materialization never reads; a real instance so the call matches the signature."""
+
+
 def _sampler(monkeypatch: pytest.MonkeyPatch, backend: Any) -> HordeLib:
     """A HordeLib whose stage materialization is stubbed, so only the forwarding is under test."""
     import hordelib.horde as horde_module
@@ -83,7 +92,7 @@ def test_an_ungranted_sample_stage_asks_for_no_deferral(monkeypatch: pytest.Monk
     backend = _RecordingBackend()
     horde = _sampler(monkeypatch, backend)
 
-    horde.sample_stage(None, positive_conditioning_bytes=b"p", negative_conditioning_bytes=b"n")
+    horde.sample_stage(_UNREAD_PARAMS, positive_conditioning_bytes=b"p", negative_conditioning_bytes=b"n")
 
     assert backend.calls[0]["defer_vram_unload"] is False
     assert backend.calls[0]["device_free_truth_mb"] is None
@@ -95,7 +104,7 @@ def test_a_granted_sample_stage_defers_the_unload(monkeypatch: pytest.MonkeyPatc
     horde = _sampler(monkeypatch, backend)
 
     horde.sample_stage(
-        None,
+        _UNREAD_PARAMS,
         positive_conditioning_bytes=b"p",
         negative_conditioning_bytes=b"n",
         defer_vram_unload=True,
@@ -110,7 +119,7 @@ def test_the_device_reading_reaches_the_sample_stages_backend(monkeypatch: pytes
     horde = _sampler(monkeypatch, backend)
 
     horde.sample_stage(
-        None,
+        _UNREAD_PARAMS,
         positive_conditioning_bytes=b"p",
         negative_conditioning_bytes=b"n",
         device_free_truth_mb=1234.0,
@@ -148,7 +157,7 @@ def test_the_grant_reaches_the_layer_that_decides_the_eviction(
     horde = _sampler(monkeypatch, backend)
 
     horde.sample_stage(
-        None,
+        _UNREAD_PARAMS,
         positive_conditioning_bytes=b"p",
         negative_conditioning_bytes=b"n",
         defer_vram_unload=granted,

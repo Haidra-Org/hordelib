@@ -282,10 +282,12 @@ def test_acquisition_never_restores_the_entry(monkeypatch) -> None:
     way out would only eject never-patched components from the device for nothing.
     """
     restored: list[Any] = []
-    monkeypatch.setattr(
-        "hordelib.execution.component_restore.restore_payload",
-        lambda payload: restored.append(payload) or 0,
-    )
+
+    def _record_restore(payload: Any) -> int:
+        restored.append(payload)
+        return 0
+
+    monkeypatch.setattr("hordelib.execution.component_restore.restore_payload", _record_restore)
 
     cache = ComponentCache(budget_mb=1000)
     cache.put(_entry("a", 100))

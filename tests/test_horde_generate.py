@@ -37,7 +37,7 @@ def _base_params(model: str, **overrides) -> BasicImageGenerationParameters:
         "denoising_strength": 1.0,
     }
     fields.update(overrides)
-    return BasicImageGenerationParameters(**fields)
+    return BasicImageGenerationParameters.model_validate(fields)
 
 
 class TestHordeGenerate:

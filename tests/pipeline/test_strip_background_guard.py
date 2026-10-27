@@ -32,7 +32,7 @@ def test_post_process_strip_background_raises_when_rembg_absent(monkeypatch: pyt
     payload = StripBackgroundPayload(source_image=PIL.Image.new("RGB", (8, 8)))
 
     with pytest.raises(MissingFeatureDependencyError) as exc_info:
-        HordeLib.post_process(object(), payload)
+        HordeLib.post_process(object.__new__(HordeLib), payload)
 
     error = exc_info.value
     assert error.feature is FEATURE_KIND.strip_background
@@ -54,7 +54,7 @@ def test_post_process_strip_background_runs_when_rembg_present(monkeypatch: pyte
     # Mock the actual rembg-backed removal; the guard must let the call through when rembg is present.
     monkeypatch.setattr(ImageUtils, "strip_background", _fake_strip)
 
-    result = HordeLib.post_process(object(), StripBackgroundPayload(source_image=source))
+    result = HordeLib.post_process(object.__new__(HordeLib), StripBackgroundPayload(source_image=source))
 
     assert result.image is stripped
     assert seen["image"] is source

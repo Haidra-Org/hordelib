@@ -17,6 +17,8 @@ _POSIX = sys.platform != "win32"
 
 def _soft_limit() -> int | None:
     """The current soft ``RLIMIT_NOFILE``, or None on a platform without it."""
+    if sys.platform == "win32":
+        return None
     try:
         import resource
     except ImportError:

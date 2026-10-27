@@ -67,7 +67,7 @@ def _make_params(
         result_ids=[uuid.uuid4() for _ in range(batch_size)],
         batch_size=batch_size,
         source_processing=source_processing,
-        base_params=BasicImageGenerationParameters(**base_fields),
+        base_params=BasicImageGenerationParameters.model_validate(base_fields),
         additional_params=ImageGenerationComponentContainer(components=components or []),
     )
 

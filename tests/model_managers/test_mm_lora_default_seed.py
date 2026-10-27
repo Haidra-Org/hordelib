@@ -18,6 +18,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import Mock
 
+import pytest
+
 from hordelib.model_manager.civitai_records import HordeLoraModelRecord, LoraVersionEntry
 from hordelib.model_manager.lora import LoraModelManager
 
@@ -27,7 +29,7 @@ _FAKE_SHA = "deadbeef" * 8
 def _seedable_manager(tmp_path: Path) -> LoraModelManager:
     """Build a LoraModelManager shell wired for the default-seed/reset/persist cycle only."""
     manager = object.__new__(LoraModelManager)
-    manager.model_folder_path = str(tmp_path / "lora")
+    manager.model_folder_path = tmp_path / "lora"
     os.makedirs(manager.model_folder_path, exist_ok=True)
     manager.models_db_path = tmp_path / "lora.json"
 
@@ -132,7 +134,7 @@ def _default_metadata_item(name: str, civitai_id: int, version_id: int) -> dict[
     }
 
 
-def test_adhoc_entries_survive_default_seed_cycle(tmp_path: Path) -> None:
+def test_adhoc_entries_survive_default_seed_cycle(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Ad-hoc entries loaded from disk survive the seed/reset/persist cycle and stay referenced.
 
     Regression guard for the boot-time reference wipe: seeding cleared the whole in-memory reference
@@ -152,7 +154,7 @@ def test_adhoc_entries_survive_default_seed_cycle(tmp_path: Path) -> None:
 
     # An empty curated list mirrors the production condition: no default is enqueued, so the only path
     # that touches the reference is the reset/persist cycle.
-    manager._fetch_civitai_json = Mock(return_value=[])  # pyrefly: ignore
+    monkeypatch.setattr(manager, "_fetch_civitai_json", Mock(return_value=[]))
 
     manager.download_default_models()
     manager.wait_for_downloads(15)
@@ -168,7 +170,10 @@ def test_adhoc_entries_survive_default_seed_cycle(tmp_path: Path) -> None:
     assert os.path.exists(os.path.join(manager.model_folder_path, adhoc.versions["2002"].filename))
 
 
-def test_present_default_not_reenqueued_and_reference_keeps_both(tmp_path: Path) -> None:
+def test_present_default_not_reenqueued_and_reference_keeps_both(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A default already on disk and referenced is not re-enqueued, and the ad-hoc entry survives.
 
     Also asserts the reference persisted after the cycle carries both the default and the prior ad-hoc
@@ -191,9 +196,9 @@ def test_present_default_not_reenqueued_and_reference_keeps_both(tmp_path: Path)
             return [333]
         return {"items": [item]}
 
-    manager._fetch_civitai_json = Mock(side_effect=fake_fetch)  # pyrefly: ignore
+    monkeypatch.setattr(manager, "_fetch_civitai_json", Mock(side_effect=fake_fetch))
     enqueue_spy = Mock()
-    manager._enqueue_download = enqueue_spy  # pyrefly: ignore
+    monkeypatch.setattr(manager, "_enqueue_download", enqueue_spy)
 
     manager.download_default_models()
     manager.wait_for_downloads(15)

@@ -6,9 +6,11 @@ is stubbed and the recording bracket is driven directly.
 """
 
 import io
+import uuid
 from typing import Any
 
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
+from horde_sdk.generation_parameters.image import BasicImageGenerationParameters, ImageGenerationParameters
 
 from hordelib.execution.adaptive_sampler_bound import (
     SAMPLER_TRUNCATION_METADATA_KEY,
@@ -59,12 +61,19 @@ The stage reads both for the footprint it records around the run, so they are th
 than stubs; nothing here needs weights or a model reference lookup to construct them."""
 
 
+_UNREAD_PARAMS = ImageGenerationParameters(
+    result_ids=[uuid.uuid4()],
+    base_params=BasicImageGenerationParameters(model="stub_model", prompt="p"),
+)
+"""Parameters the stubbed materialization never reads; a real instance so the call matches the signature."""
+
+
 def _sample_stage_with(metadata: dict[str, Any], monkeypatch) -> SampleStageResult:
     """Run ``sample_stage`` against a stub backend whose artifact carries *metadata*."""
     import hordelib.horde as horde_module
 
     horde = object.__new__(HordeLib)
-    horde.backend = _StubBackend(metadata)
+    monkeypatch.setattr(horde, "backend", _StubBackend(metadata), raising=False)
     monkeypatch.setattr(
         HordeLib,
         "_materialize_stage_graph",
@@ -77,7 +86,7 @@ def _sample_stage_with(metadata: dict[str, Any], monkeypatch) -> SampleStageResu
     )
 
     return horde.sample_stage(
-        None,  # the stubbed materialization never reads the parameters
+        _UNREAD_PARAMS,
         positive_conditioning_bytes=b"p",
         negative_conditioning_bytes=b"n",
     )

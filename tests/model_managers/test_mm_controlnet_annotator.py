@@ -30,7 +30,7 @@ def annotator_only_manager() -> Generator[ControlNetAnnotatorModelManager]:
     settings_offline_prev = horde_model_reference_settings.offline
 
     ModelReferenceManager._instance = None
-    SharedModelManager._instance = None  # type: ignore[assignment]
+    SharedModelManager._instance = None
     SharedModelManager._reference_offline = None
     try:
         SharedModelManager(do_not_load_model_mangers=True)

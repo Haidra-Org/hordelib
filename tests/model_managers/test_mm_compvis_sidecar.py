@@ -119,8 +119,13 @@ def test_sweep_builds_sidecars_for_present_models(tmp_path: Path) -> None:
     assert sidecar_path_for(ckpt_a).exists()
     assert sidecar_path_for(ckpt_b).exists()
     # Byte-identical embedded VAEs deduplicate onto one content-addressed extracted file.
-    name_a = read_sidecar(ckpt_a).embedded["vae"].extracted_file_name  # type: ignore[union-attr]
-    name_b = read_sidecar(ckpt_b).embedded["vae"].extracted_file_name  # type: ignore[union-attr]
+    sidecar_a = read_sidecar(ckpt_a)
+    sidecar_b = read_sidecar(ckpt_b)
+    assert sidecar_a is not None
+    assert sidecar_b is not None
+    name_a = sidecar_a.embedded["vae"].extracted_file_name
+    name_b = sidecar_b.embedded["vae"].extracted_file_name
+    assert name_a is not None
     assert name_a == name_b
     assert (tmp_path / "vae" / name_a).exists()
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import gc
 import sys
+from typing import TYPE_CHECKING
 
 import psutil
 import pytest
@@ -22,6 +23,9 @@ import torch
 
 from hordelib.execution.cpu_weight_retention import _QUANTIZED_ORIGINS_ATTR, QuantizedOrigin
 from hordelib.horde import HordeLib
+
+if TYPE_CHECKING:
+    from comfy.model_patcher import ModelPatcher
 
 _MB = 1024 * 1024
 # The copy-back this guards against grows private memory by the whole moved size. Allocator and CUDA host
@@ -42,7 +46,7 @@ def _private_bytes() -> int:
     return psutil.Process().memory_info().private
 
 
-def _resident_quantized_weights() -> tuple[object, list[tuple[torch.nn.Module, str, QuantizedOrigin]]]:
+def _resident_quantized_weights() -> tuple[ModelPatcher, list[tuple[torch.nn.Module, str, QuantizedOrigin]]]:
     """Return the loaded patcher holding device copies of recorded quantized origins, with those records."""
     import comfy.model_management
 

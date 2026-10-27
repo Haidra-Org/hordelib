@@ -138,7 +138,7 @@ def test_every_label_has_a_typed_model() -> None:
 
 class TestValidationResult:
     def test_from_comfy_maps_the_four_tuple(self) -> None:
-        raw = (True, None, ["output_image"], {})
+        raw: tuple[object, ...] = (True, None, ["output_image"], {})
 
         validation = ValidationResult.from_comfy(raw)
 
@@ -149,7 +149,7 @@ class TestValidationResult:
 
     def test_from_comfy_maps_failure(self) -> None:
         error = {"type": "prompt_outputs_failed_validation", "message": "bad", "details": "d", "extra_info": {}}
-        raw = (False, error, [], {"sampler": [{"type": "value_smaller_than_min"}]})
+        raw: tuple[object, ...] = (False, error, [], {"sampler": [{"type": "value_smaller_than_min"}]})
 
         validation = ValidationResult.from_comfy(raw)
 

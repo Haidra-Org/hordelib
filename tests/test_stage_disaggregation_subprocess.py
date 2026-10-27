@@ -78,6 +78,15 @@ def _params(
     )
 
 
+def _captured_text(output: bytes | str | None) -> str:
+    """Return a timed-out child's captured stream as text; the type allows bytes even under ``text=True``."""
+    if output is None:
+        return ""
+    if isinstance(output, bytes):
+        return output.decode("utf-8", errors="replace")
+    return output
+
+
 def _run_stage_subprocess(
     case_name: str,
     stage: str,
@@ -122,8 +131,8 @@ def _run_stage_subprocess(
             check=False,
         )
     except subprocess.TimeoutExpired as timeout_error:
-        stdout_path.write_text(timeout_error.stdout or "", encoding="utf-8")
-        stderr_path.write_text(timeout_error.stderr or "", encoding="utf-8")
+        stdout_path.write_text(_captured_text(timeout_error.stdout), encoding="utf-8")
+        stderr_path.write_text(_captured_text(timeout_error.stderr), encoding="utf-8")
         raise AssertionError(
             f"{case_name}: {stage} stage subprocess timed out after {_STAGE_TIMEOUT_SECONDS}s; "
             f"stdout at {stdout_path}, stderr at {stderr_path}",

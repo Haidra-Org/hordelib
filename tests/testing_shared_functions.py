@@ -133,17 +133,17 @@ def do_pytest_action(result: ImageSimilarityResult) -> bool:
     Returns:
         bool: _description_
     """
-    if ImageSimilarityResult.result_code == ImageSimilarityResultCode.FAIL:
+    if result.result_code == ImageSimilarityResultCode.FAIL:
         pytest.fail(
             f"Image similarity check failed:\n"
-            f"cosine_similarity_result={ImageSimilarityResult.cosine_similarity_result},\n"
-            f"histogram_distance_result={ImageSimilarityResult.histogram_distance_result}",
+            f"cosine_similarity_result={result.cosine_similarity_result},\n"
+            f"histogram_distance_result={result.histogram_distance_result}",
         )
-    elif ImageSimilarityResult.result_code == ImageSimilarityResultCode.SKIP:
+    elif result.result_code == ImageSimilarityResultCode.SKIP:
         pytest.skip(
             f"Image similarity check skipped:\n"
-            f"cosine_similarity_result={ImageSimilarityResult.cosine_similarity_result},\n"
-            f"histogram_distance_result={ImageSimilarityResult.histogram_distance_result}",
+            f"cosine_similarity_result={result.cosine_similarity_result},\n"
+            f"histogram_distance_result={result.histogram_distance_result}",
         )
 
     return True

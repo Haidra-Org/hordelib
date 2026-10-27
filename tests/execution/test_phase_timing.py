@@ -7,6 +7,7 @@ tests inject fake comfy modules so the recording logic can be exercised without 
 
 import sys
 import types
+from typing import Protocol
 
 import pytest
 
@@ -46,7 +47,13 @@ def _install_fake_model_management(monkeypatch: pytest.MonkeyPatch, load_impl) -
     return mm
 
 
-def _install_fake_sd(monkeypatch: pytest.MonkeyPatch) -> type:
+class _FakeVAEType(Protocol):
+    def decode(self, latent: object) -> str: ...
+
+    def encode(self, image: object) -> str: ...
+
+
+def _install_fake_sd(monkeypatch: pytest.MonkeyPatch) -> type[_FakeVAEType]:
     comfy_pkg = sys.modules.get("comfy") or types.ModuleType("comfy")
     monkeypatch.setitem(sys.modules, "comfy", comfy_pkg)
     sd = types.ModuleType("comfy.sd")

@@ -105,6 +105,7 @@ def test_mapping_commit_charge() -> None:
     found_file = _smallest_measurable_file()
     if found_file is None:
         pytest.skip("no .safetensors of 300 MB to 1.5 GB under $AIWORKER_CACHE_HOME/vae")
+        return  # pytest is untyped in the mypy hook environment, so skip() does not narrow
     file_path: Path = found_file
     file_bytes = file_path.stat().st_size
 

@@ -200,7 +200,9 @@ class TestPatchSeam:
         set_run_schedule(SigmaScheduleRequest(schedule=SigmaGeneratorSchedule.GITS))
         # The schedule name the graph carries is the placeholder, and is overridden whatever it says.
         sigmas = comfy.samplers.calculate_sigmas(_StubModelSampling(), SIGMA_GENERATOR_GRAPH_SCHEDULE, 12)
-        assert sigmas.tolist() == pytest.approx(sigmas_for_run(12).tolist())
+        run_sigmas = sigmas_for_run(12)
+        assert run_sigmas is not None
+        assert sigmas.tolist() == pytest.approx(run_sigmas.tolist())
 
 
 class _StubModelSampling:

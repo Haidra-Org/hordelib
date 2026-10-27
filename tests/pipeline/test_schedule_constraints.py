@@ -71,13 +71,11 @@ class TestNormalizeSchedulerSelection:
 
     @staticmethod
     def _normalize(payload: dict) -> dict:
+        from hordelib.pipeline.context import ModelContext
         from hordelib.pipeline.horde_compat import normalize_horde_payload
 
-        class _Context:
-            horde_model_name = "stable_diffusion"
-            is_inpainting_model = False
-
-        normalized, _faults = normalize_horde_payload(payload, _Context())
+        context = ModelContext(horde_model_name="stable_diffusion", is_inpainting_model=False)
+        normalized, _faults = normalize_horde_payload(payload, context)
         return normalized
 
     def test_karras_true_selects_karras(self):

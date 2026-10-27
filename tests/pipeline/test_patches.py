@@ -2,11 +2,13 @@
 
 import importlib.util
 import json
+import uuid
 from pathlib import Path
 
 import PIL.Image
 import pytest
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE
+from horde_sdk.generation_parameters.image import BasicImageGenerationParameters, ImageGenerationParameters
 
 from hordelib.execution.graph_utils import GraphDict, fix_node_names
 from hordelib.execution.stage_graph import cut_encode_text_stage
@@ -674,7 +676,14 @@ class TestNegativeFoldPlacement:
         _stub_resolution(monkeypatch, _fold_payload(cfg_scale=1.0), context)
         horde = object.__new__(HordeLib)
 
-        graph, _outputs, _faults, _typed, _sigma_schedule, _context = horde._materialize_stage_graph(None)
+        # The conversion is stubbed, so the parameters are never read.
+        unread_params = ImageGenerationParameters(
+            result_ids=[uuid.uuid4()],
+            base_params=BasicImageGenerationParameters(model="stub_model", prompt="p"),
+        )
+        graph, _outputs, _faults, _typed, _sigma_schedule, _context = horde._materialize_stage_graph(
+            unread_params,
+        )
 
         assert graph.has_node("negative_prompt")
         assert graph.node("sampler")["inputs"]["negative"] == ["negative_prompt", 0]

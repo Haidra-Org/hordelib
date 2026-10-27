@@ -46,6 +46,7 @@ from horde_sdk.ai_horde_api.apimodels import (
     ImageGenerateJobPopSkippedStatus,
 )
 from horde_sdk.ai_horde_api.apimodels.base import LorasPayloadEntry, TIPayloadEntry
+from horde_sdk.ai_horde_api.fields import GenerationID
 from horde_sdk.generation_parameters.image import (
     HiresFixGenerationParameters,
     Image2ImageGenerationParameters,
@@ -113,7 +114,7 @@ def _job_pop_response(
     """Build a realistic job pop response, the API shape the converter consumes in each lane process."""
     ids = [uuid.uuid4() for _ in range(n_iter)]
     return ImageGenerateJobPopResponse(
-        ids=ids,
+        ids=[GenerationID(root=id_) for id_ in ids],
         payload=ImageGenerateJobPopPayload(
             prompt=prompt,
             seed=seed,
@@ -462,7 +463,11 @@ class TestPopMatrixStageDisaggregation:
 
         # A transposition (staged image order swapped relative to the monolithic batch) is a distinct
         # failure from per-image corruption; measure the off-diagonal similarity so a swap is legible.
-        cross_cosine, _cross_histogram = evaluate_image_distance(monolithic[1].image, staged[0].image)
+        cross_monolithic_image = monolithic[1].image
+        cross_staged_image = staged[0].image
+        assert cross_monolithic_image is not None
+        assert cross_staged_image is not None
+        cross_cosine, _cross_histogram = evaluate_image_distance(cross_monolithic_image, cross_staged_image)
         print(f"POP_MATRIX_BATCH transposition cross-check staged[0] vs monolithic[1]: {cross_cosine}")
 
         for index, (mono, stage) in enumerate(zip(monolithic, staged, strict=True)):

@@ -1053,10 +1053,9 @@ class TestHordeLora:
         stable_diffusion_model_name_for_testing: str,
     ):
         assert shared_model_manager.manager.lora
-        lora_name: str | None = "51539"
-        lora_name = shared_model_manager.manager.lora.fetch_adhoc_lora(lora_name)
-        assert shared_model_manager.manager.lora.is_model_available(lora_name)
+        lora_name = shared_model_manager.manager.lora.fetch_adhoc_lora("51539")
         assert lora_name
+        assert shared_model_manager.manager.lora.is_model_available(lora_name)
 
         data = {
             "sampler_name": "k_euler",
@@ -1099,10 +1098,9 @@ class TestHordeLora:
         stable_diffusion_model_name_for_testing: str,
     ):
         assert shared_model_manager.manager.lora
-        lora_name: str | None = "58390"
-        lora_name = shared_model_manager.manager.lora.fetch_adhoc_lora(lora_name)
-        assert shared_model_manager.manager.lora.is_model_available(lora_name)
+        lora_name = shared_model_manager.manager.lora.fetch_adhoc_lora("58390")
         assert lora_name
+        assert shared_model_manager.manager.lora.is_model_available(lora_name)
 
         data = {
             "sampler_name": "k_euler",

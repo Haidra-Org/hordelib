@@ -60,7 +60,7 @@ def _load_stubbed_loader() -> Generator[None, None, None]:
 
     missing = object()
     stub_names = ("comfy", "comfy.model_management", "comfy.sd", "comfy.utils", "folder_paths")
-    previous_stubs = {name: sys.modules.get(name, missing) for name in stub_names}
+    previous_stubs = {name: sys.modules[name] for name in stub_names if name in sys.modules}
     previous_node_modules = {name for name in sys.modules if name.startswith("hordelib.nodes")}
     nodes_package = sys.modules.get("hordelib.nodes")
     previous_loader_attribute = getattr(nodes_package, "node_model_loader", missing)
@@ -85,12 +85,12 @@ def _load_stubbed_loader() -> Generator[None, None, None]:
                 except AttributeError:
                     pass
             else:
-                nodes_package.node_model_loader = previous_loader_attribute
-        for name, previous in previous_stubs.items():
-            if previous is missing:
-                sys.modules.pop(name, None)
+                vars(nodes_package)["node_model_loader"] = previous_loader_attribute
+        for name in stub_names:
+            if name in previous_stubs:
+                sys.modules[name] = previous_stubs[name]
             else:
-                sys.modules[name] = previous
+                sys.modules.pop(name, None)
 
 
 _UNET = ("model.diffusion_model.x", "F16", (2,), bytes(range(40, 44)))
