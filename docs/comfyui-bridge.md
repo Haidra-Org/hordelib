@@ -433,8 +433,8 @@ device, nothing is interposed.
 A sampling or stage grant that carries a fresher host figure rebases the clamp
 (`comfy_patches.rebase_free_memory_view_clamp`, called from the sampling lease hook). The baseline the
 growth is counted from is the allocator's reservation when the host measured, not when the rebase runs.
-The process keeps reservation checkpoints on the active clamp, taken at the run start, after every
-`load_models_gpu` and after the text encoder release before the lease wait
+The process keeps reservation checkpoints on the active clamp, taken at the run start, before and after
+every `load_models_gpu` and after the text encoder release before the lease wait
 (`comfy_patches.record_reservation_checkpoint`); a grant whose lease reports the figure's measurement time
 (`sampling_lease.ClearanceFigureTimeLease`) takes the latest checkpoint at or before that time. A grant
 written before the job's encoder release and consumed after it then credits the release: the figure
@@ -442,6 +442,14 @@ counted the encoder as used and the card has that room now, so the staged upload
 true room instead of a figure short by the encoder. A measurement within the clock's resolution of a
 checkpoint takes the lower of the two reservations, the safe side in both directions. A lease without
 the time, or a figure with none, rebases from the reservation at the rebase.
+
+A figure measured inside one of the process's own loads is ignored and the clamp in force is kept. A host
+reading taken mid-upload already excludes the part of the load that had landed, and the only checkpoint
+the lookup can date it by is the one before the load, so the rebase would subtract that part again and the
+next load would unload the weights the upload had just placed. The spans come from the checkpoints the
+load hijack takes either side of each load, and a figure within the clock's resolution of a span's edge
+counts as inside. A figure measured after the load ends is used as described above, so a sibling's release
+after the load is still credited.
 
 ### Retention grants, and reporting when the device did not honour one
 

@@ -301,6 +301,110 @@ def test_rebase_without_a_measurement_time_counts_from_now(seam: _DeviceSeam, cl
         assert _free_memory(seam.device) == 2048 * MB
 
 
+def _own_load(
+    seam: _DeviceSeam,
+    clock: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    starts_at: float,
+    ends_at: float,
+    reserved_after: int,
+) -> None:
+    """Run one load through the load hijack that moves the allocator to ``reserved_after`` between two times."""
+
+    def upload(*_args: Any, **_kwargs: Any) -> None:
+        seam.reserved = reserved_after
+        clock.append(ends_at)
+
+    monkeypatch.setattr(comfy_patches, "_load_models_gpu_as_decided", upload)
+    clock.append(starts_at)
+    comfy_patches._load_models_gpu_hijack([], memory_required=0)
+
+
+def test_rebase_ignores_a_figure_measured_during_an_own_load(
+    seam: _DeviceSeam,
+    clock: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A figure read mid-upload already lacks the landed share, so the clamp in force keeps its ceiling.
+
+    The lookup could only date such a figure by the checkpoint before the load and would charge the landed share
+    a second time, and the sample load would then unload weights it had just uploaded.
+    """
+    seam.free_total = 16384 * MB
+    seam.reserved = 22 * MB
+    with comfy_patches.free_memory_view_clamped(9373):
+        _own_load(seam, clock, monkeypatch, starts_at=110.0, ends_at=112.0, reserved_after=4926 * MB)
+        assert _free_memory(seam.device) == (9373 - 4904) * MB
+
+        assert comfy_patches.rebase_free_memory_view_clamp(6178, measured_at=111.0) is False
+        assert _free_memory(seam.device) == (9373 - 4904) * MB, "the clamp in force keeps its ceiling"
+
+
+def test_rebase_takes_a_figure_measured_after_an_own_load(
+    seam: _DeviceSeam,
+    clock: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A figure read once the load is done counts it already and carries any sibling release since."""
+    seam.free_total = 16384 * MB
+    seam.reserved = 22 * MB
+    with comfy_patches.free_memory_view_clamped(9373):
+        _own_load(seam, clock, monkeypatch, starts_at=110.0, ends_at=112.0, reserved_after=4926 * MB)
+
+        assert comfy_patches.rebase_free_memory_view_clamp(5800, measured_at=113.0) is True
+        assert _free_memory(seam.device) == 5800 * MB
+
+
+def test_rebase_without_a_measurement_time_after_an_own_load_counts_from_now(
+    seam: _DeviceSeam,
+    clock: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A figure with no time cannot be placed inside a load, so it rebases on the reservation at the acquire."""
+    seam.free_total = 16384 * MB
+    seam.reserved = 22 * MB
+    with comfy_patches.free_memory_view_clamped(9373):
+        _own_load(seam, clock, monkeypatch, starts_at=110.0, ends_at=112.0, reserved_after=4926 * MB)
+
+        assert comfy_patches.rebase_free_memory_view_clamp(6178) is True
+        assert _free_memory(seam.device) == 6178 * MB
+
+
+def test_an_own_load_is_bracketed_by_checkpoints(
+    seam: _DeviceSeam,
+    clock: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The load hijack checkpoints the reservation before and after the load, and records the span between."""
+    seam.reserved = 22 * MB
+    with comfy_patches.free_memory_view_clamped(9373):
+        _own_load(seam, clock, monkeypatch, starts_at=110.0, ends_at=112.0, reserved_after=4926 * MB)
+
+        clamp = comfy_patches._active_free_view_clamp
+        assert clamp is not None
+        assert [(checkpoint.at, checkpoint.reserved) for checkpoint in clamp.checkpoints[-2:]] == [
+            (110.0, 22 * MB),
+            (112.0, 4926 * MB),
+        ]
+        assert [(span.started_at, span.ended_at) for span in clamp.own_loads] == [(110.0, 112.0)]
+
+
+def test_a_figure_read_before_an_own_load_is_charged_the_whole_upload(
+    seam: _DeviceSeam,
+    clock: list[float],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A figure read before the load starts still has the upload's room free, so the whole upload comes off it."""
+    seam.free_total = 16384 * MB
+    seam.reserved = 22 * MB
+    with comfy_patches.free_memory_view_clamped(9373):
+        _own_load(seam, clock, monkeypatch, starts_at=110.0, ends_at=112.0, reserved_after=4926 * MB)
+
+        assert comfy_patches.rebase_free_memory_view_clamp(9271, measured_at=105.0) is True
+        assert _free_memory(seam.device) == (9271 - 4904) * MB
+
+
 def test_checkpoint_without_an_active_clamp_records_nothing(seam: _DeviceSeam) -> None:
     assert comfy_patches.record_reservation_checkpoint() is False
 

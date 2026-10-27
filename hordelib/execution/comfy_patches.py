@@ -431,6 +431,16 @@ class _ReservationCheckpoint:
 
 
 @dataclasses.dataclass
+class _OwnLoadSpan:
+    """The span of one of this process's own loads, between the checkpoints taken before and after it."""
+
+    started_at: float
+    """``time.monotonic()`` of the checkpoint taken before the load."""
+    ended_at: float | None = None
+    """``time.monotonic()`` when the load returned, or None while it is in flight."""
+
+
+@dataclasses.dataclass
 class _FreeViewClamp:
     """The figures one active free-VRAM clamp computes its ceiling from."""
 
@@ -443,10 +453,14 @@ class _FreeViewClamp:
 
     Growth past it comes off the figure, and a release below it is added to the figure."""
     checkpoints: list[_ReservationCheckpoint] = dataclasses.field(default_factory=list)
-    """The reservation after each of this process's own loads and releases, oldest first.
+    """The reservation before and after each of this process's own loads and after its releases, oldest first.
 
     A host figure measured between two of them was taken while the allocator held the earlier one's
     reservation, which is what :func:`rebase_free_memory_view_clamp` needs for its baseline."""
+    own_loads: list[_OwnLoadSpan] = dataclasses.field(default_factory=list)
+    """The spans of this process's own loads, oldest first.
+
+    A host figure measured inside one of them has no checkpoint to count from, so the rebase ignores it."""
 
 
 _active_free_view_clamp: _FreeViewClamp | None = None
@@ -457,7 +471,7 @@ _monotonic: Callable[[], float] = time.monotonic
 
 
 def record_reservation_checkpoint() -> bool:
-    """Note the allocator's reservation now on the active clamp, after a load or release of this process.
+    """Note the allocator's reservation now on the active clamp, around a load or after a release of this process.
 
     Returns whether a clamp was active and the allocator readable; without either nothing is recorded.
     """
@@ -471,6 +485,42 @@ def record_reservation_checkpoint() -> bool:
         return False
     clamp.checkpoints.append(_ReservationCheckpoint(at=_monotonic(), reserved=reserved))
     return True
+
+
+@contextlib.contextmanager
+def _own_load_span() -> typing.Iterator[None]:
+    """Bracket one of this process's own loads with reservation checkpoints and record its span on the clamp.
+
+    The checkpoint before the load dates a host figure measured just before it, and the one after dates a
+    figure measured once it is done. The span between them is what :func:`rebase_free_memory_view_clamp`
+    refuses a figure from. With no active clamp only the checkpoint attempts run, and they record nothing.
+    """
+    clamp = _active_free_view_clamp
+    span: _OwnLoadSpan | None = None
+    if clamp is not None and record_reservation_checkpoint():
+        span = _OwnLoadSpan(started_at=clamp.checkpoints[-1].at)
+        clamp.own_loads.append(span)
+    try:
+        yield
+    finally:
+        record_reservation_checkpoint()
+        if span is not None:
+            span.ended_at = _monotonic()
+
+
+def _measured_during_own_load(clamp: _FreeViewClamp, measured_at: float) -> bool:
+    """Whether a host figure measured at ``measured_at`` may have been read while one of this process's loads ran.
+
+    A figure within the clock's resolution of a span's edge could be on either side of it, and is counted as
+    inside, since keeping the previous clamp is correct whichever side it was.
+    """
+    resolution = time.get_clock_info("monotonic").resolution
+    for span in clamp.own_loads:
+        if measured_at < span.started_at - resolution:
+            continue
+        if span.ended_at is None or measured_at <= span.ended_at + resolution:
+            return True
+    return False
 
 
 def _reservation_baseline_at(clamp: _FreeViewClamp, measured_at: float, reserved_now: int) -> int:
@@ -604,15 +654,31 @@ def rebase_free_memory_view_clamp(device_free_truth_mb: float, *, measured_at: f
     time the baseline is the reservation at the rebase, and whatever this process released between the
     measurement and the rebase is in neither term.
 
+    A figure measured inside one of this process's own loads is ignored, and the clamp in force stays as it
+    is. A host reading taken mid-upload already excludes the part of the load that had landed, while the
+    baseline lookup can only find the checkpoint before the load and would subtract that part again, so a
+    load judged on the rebased view would find the card short by what it had just uploaded and unload it. A
+    figure measured after the load ends is used as before, so a sibling's release after the load is still
+    credited.
+
     Args:
         device_free_truth_mb: Host-measured device-level free VRAM in MB at the grant.
         measured_at: ``time.monotonic()`` on the host when that figure was read, or None when unknown.
 
     Returns:
-        Whether a clamp was active and rebased. With no active clamp nothing changes.
+        Whether a clamp was active and rebased. With no active clamp, or a figure measured inside one of this
+        process's own loads, nothing changes.
     """
     clamp = _active_free_view_clamp
     if clamp is None:
+        return False
+    if measured_at is not None and _measured_during_own_load(clamp, measured_at):
+        logger.debug(
+            "Kept comfy's free-VRAM clamp: the host's figure was measured during one of this process's own loads:"
+            " truth_mb={:.0f} measured_at={:.3f}",
+            device_free_truth_mb,
+            measured_at,
+        )
         return False
     try:
         reserved_now = torch.cuda.memory_reserved(clamp.device)
@@ -741,11 +807,10 @@ def _load_models_gpu_hijack(*args, **kwargs):
     :class:`ForceLoadSkipReason`, so an OOM after that line is attributable to the residents left in place.
     """
 
-    try:
+    # A load (and any eviction it ran) moves the allocator. The free-VRAM clamp dates its baseline by the
+    # checkpoints either side of it, and refuses a host figure measured between them.
+    with _own_load_span():
         _load_models_gpu_as_decided(*args, **kwargs)
-    finally:
-        # A load (and any eviction it ran) moved the allocator; the free-VRAM clamp dates its baseline by it.
-        record_reservation_checkpoint()
 
 
 def _load_models_gpu_as_decided(*args, **kwargs):
