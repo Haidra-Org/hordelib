@@ -63,6 +63,7 @@ class TestForceLoadSkipResolution:
         assert "QwenImage" in comfy_patches.models_not_to_force_load
         assert "Krea2" in comfy_patches.models_not_to_force_load
         assert "Anima" in comfy_patches.models_not_to_force_load
+        assert "MOSSImage" in comfy_patches.models_not_to_force_load
         assert "Flux" in comfy_patches.models_not_to_force_load
         assert "qwen_image" not in comfy_patches.models_not_to_force_load
 
@@ -83,6 +84,7 @@ class TestForceLoadSkipResolution:
         [
             (KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo, ["Krea2"]),
             (KNOWN_IMAGE_GENERATION_BASELINE.anima, ["Anima"]),
+            (KNOWN_IMAGE_GENERATION_BASELINE.moss_image, ["MOSSImage"]),
         ],
     )
     def test_graph_compatible_baselines_keep_distinct_load_policies(self, baseline, expected) -> None:

@@ -48,6 +48,7 @@ PORTED_BASELINE_MULTIPLIERS = {
     "z_image_turbo": 8.0,
     "krea2_turbo": 8.0,
     "anima": 8.0,
+    "moss_image": 8.0,
     "qwen_image": 12.0,
 }
 """What the AI-Horde server charges per baseline today, from the served baseline catalog.
@@ -67,7 +68,7 @@ must carry them as replacements too.
 """
 
 PROVISIONAL_BASELINES = frozenset(
-    {"flux_1", "flux_dev", "flux_schnell", "z_image_turbo", "krea2_turbo", "anima", "qwen_image"},
+    {"flux_1", "flux_dev", "flux_schnell", "z_image_turbo", "krea2_turbo", "anima", "moss_image", "qwen_image"},
 )
 """Heavy families whose residual premium awaits measurement on hardware that can hold them."""
 

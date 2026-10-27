@@ -416,19 +416,20 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
     ),
     BaselineBurden(
         baseline="moss_image",
-        vram_base_mb=7500,
-        ram_base_mb=10000,
-        vram_per_megapixel_mb=1200,
+        vram_base_mb=7800,
+        ram_base_mb=15000,
+        vram_per_megapixel_mb=1500,
         native_resolution=(1024, 1024),
-        min_recommended_vram_mb=8000,
+        min_recommended_vram_mb=10000,
         max_recommended_batch=1,
-        typical_disk_gb=5.7,
-        # Published bf16 component sizes: 4.18 GB diffusion model, 1.19 GB Qwen3-0.6B encoder,
-        # and the 254 MB Qwen-Image VAE. Activation-inclusive figures remain estimates until the
-        # GPU calibration test can run against a pending model record.
-        vram_weights_mb=4300,
-        vram_support_weights_mb=1500,
-        vram_decode_spike_mb=3200,
+        typical_disk_gb=13.1,
+        # Published component sizes: the 5B int8 DiT is 5.0 GiB, the w4a8 Qwen3.5-9B encoder 6.8 GiB
+        # and the Flux2 VAE 0.31 GiB, so the encoder outweighs the diffusion model. The weight figures
+        # are those file sizes; the activation-inclusive figures and the decode spike (taken from
+        # Flux) remain estimates until test_registry_footprint_calibration measures a real job.
+        vram_weights_mb=5200,
+        vram_support_weights_mb=7350,
+        vram_decode_spike_mb=3500,
     ),
 ]
 

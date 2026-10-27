@@ -16,6 +16,7 @@ FLUX = KNOWN_IMAGE_GENERATION_BASELINE.flux_1
 QWEN = KNOWN_IMAGE_GENERATION_BASELINE.qwen_image
 KREA2 = KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo
 ANIMA = KNOWN_IMAGE_GENERATION_BASELINE.anima
+MOSS = KNOWN_IMAGE_GENERATION_BASELINE.moss_image
 
 
 def _rgba_image() -> PIL.Image.Image:
@@ -70,6 +71,7 @@ SELECTION_CASES = [
     ("qwen", {}, QWEN, "qwen"),
     ("krea2", {}, KREA2, "qwen"),
     ("anima", {}, ANIMA, "qwen"),
+    ("moss", {}, MOSS, "qwen"),
     ("qr_workflow", {"workflow": "qr_code"}, SD1, "qr_code"),
     ("qr_beats_everything", {"workflow": "qr_code", "control_type": "canny", "hires_fix": True}, CASCADE, "qr_code"),
     (
@@ -107,7 +109,7 @@ def test_selection(payload_dict, baseline, expected):
 
 @pytest.mark.parametrize(
     ("model_name", "baseline"),
-    [("Qwen-Image_fp8", QWEN), ("Krea2-Turbo_fp8", KREA2), ("Anima-Turbo-v1.1", ANIMA)],
+    [("Qwen-Image_fp8", QWEN), ("Krea2-Turbo_fp8", KREA2), ("Anima-Turbo-v1.1", ANIMA), ("MOSS-Image-SFT", MOSS)],
 )
 def test_graph_compatible_baselines_share_one_pipeline(model_name, baseline):
     """Distinct baseline identities can select the same graph family."""
