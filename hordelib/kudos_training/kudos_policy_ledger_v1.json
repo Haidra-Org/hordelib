@@ -96,6 +96,12 @@
         "provenance": "Par until the 4090 corpus supplies this family's cells, at which point the share of the 8x that is measured runtime moves into the v22 prediction and the residual premium beside it falls by the same factor.",
         "provisional": true
       },
+      "moss_image": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Par until the 4090 corpus supplies this family's cells, at which point the share of the 8x that is measured runtime moves into the v22 prediction and the residual premium beside it falls by the same factor.",
+        "provisional": true
+      },
       "qwen_image": {
         "value": 1.0,
         "unit": "multiplier",
@@ -176,6 +182,12 @@
         "provenance": "Ported from the served baseline catalog's horde_policy.kudos of 8x for this family, attributed in full to capability rent because the catalog number does not separate scarcity from quality preference, and provisional until the 4090 corpus measures what serving this family actually costs on hardware that can hold it.",
         "provisional": true
       },
+      "moss_image": {
+        "value": 8.0,
+        "unit": "multiplier",
+        "provenance": "Ported from the served baseline catalog's horde_policy.kudos of 8x for this family, attributed in full to capability rent because the catalog number does not separate scarcity from quality preference, and provisional until the 4090 corpus measures what serving this family actually costs on hardware that can hold it.",
+        "provisional": true
+      },
       "qwen_image": {
         "value": 12.0,
         "unit": "multiplier",
@@ -251,6 +263,12 @@
         "provisional": false
       },
       "anima": {
+        "value": 1.0,
+        "unit": "multiplier",
+        "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",
+        "provisional": false
+      },
+      "moss_image": {
         "value": 1.0,
         "unit": "multiplier",
         "provenance": "Held at par because the ported catalog multiplier is one undifferentiated number; this knob exists so a deliberate over-reward for output quality can be stated apart from capability rent.",

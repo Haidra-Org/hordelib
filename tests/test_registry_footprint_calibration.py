@@ -48,15 +48,16 @@ def _seed_sampling_peak_mb(baseline: str, model_name: str | None = None) -> floa
     return float(burden.vram_base_mb + round(burden.vram_per_megapixel_mb * megapixels * _JOB_BATCH))
 
 
-def _measure_profile(instance: HordeLib, model_name: str, *, steps: int) -> JobVramProfile:
+def _measure_profile(instance: HordeLib, model_name: str, *, steps: int, cfg_scale: float = 1) -> JobVramProfile:
     """Run one minimal text-to-image job and return its measured VRAM profile.
 
     Uses few sampling steps because the measurement is of the VRAM the backend holds, not of image quality;
-    loading and swapping the checkpoint components is what the profiler observes.
+    loading and swapping the checkpoint components is what the profiler observes. A model whose record
+    requires guidance above 1 is measured with it, since CFG adds the unconditional pass to the activations.
     """
     data = {
         "sampler_name": "k_euler",
-        "cfg_scale": 1,
+        "cfg_scale": cfg_scale,
         "denoising_strength": 1.0,
         "seed": 1886,
         "height": _JOB_HEIGHT,
@@ -167,6 +168,20 @@ class TestRegistryFootprintCalibration:
         """Anima Turbo: DiT, Qwen3-0.6B text encoder and Qwen image VAE."""
         profile = _measure_profile(hordelib_instance, anima_turbo_base_model_name, steps=8)
         _verify_seeds_against_profile("anima", profile)
+
+    @pytest.mark.default_moss_sft_model
+    def test_moss_sft_seeds_match_measured(
+        self,
+        hordelib_instance: HordeLib,
+        moss_sft_base_model_name: str,
+    ) -> None:
+        """MOSS-Image-SFT: the int8 DiT, its Qwen3.5-9B text encoder and the Flux2 VAE.
+
+        Its seeds come from the published component file sizes, and its record requires guidance of at
+        least 2.5, so it is measured at that guidance.
+        """
+        profile = _measure_profile(hordelib_instance, moss_sft_base_model_name, steps=4, cfg_scale=2.5)
+        _verify_seeds_against_profile("moss_image", profile)
 
     @pytest.mark.default_qwen_model
     def test_qwen_image_seeds_match_measured(

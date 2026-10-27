@@ -47,7 +47,7 @@ class TestRegistryCoverage:
 
     @pytest.mark.parametrize(
         ("baseline", "model_name"),
-        [("qwen_image", None), ("z_image_turbo", None), ("krea2_turbo", None), ("anima", None)],
+        [("qwen_image", None), ("z_image_turbo", None), ("krea2_turbo", None), ("anima", None), ("moss_image", None)],
     )
     def test_whole_card_baselines_seed_their_resident_weights(self, baseline: str, model_name: str | None) -> None:
         """Whole-card baselines must seed ``vram_weights_mb`` explicitly.
@@ -63,7 +63,16 @@ class TestRegistryCoverage:
 
     @pytest.mark.parametrize(
         "baseline",
-        ["flux_1", "flux_schnell", "flux_dev", "stable_diffusion_1", "stable_diffusion_xl", "krea2_turbo", "anima"],
+        [
+            "flux_1",
+            "flux_schnell",
+            "flux_dev",
+            "stable_diffusion_1",
+            "stable_diffusion_xl",
+            "krea2_turbo",
+            "anima",
+            "moss_image",
+        ],
     )
     def test_multi_component_baselines_seed_support_weights(self, baseline: str) -> None:
         """Multi-component checkpoints must charge their force-loaded support components.
