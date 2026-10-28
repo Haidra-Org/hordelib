@@ -270,7 +270,12 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     Thread Safety:
         Downloads run on a pool of daemon threads. ``_mutex`` guards mutations of the in-memory
         reference and indices; ``_file_mutex``/``_file_lock`` guard on-disk reads and writes (the
-        latter may be a multiprocessing lock shared across worker processes).
+        latter may be a multiprocessing lock shared across worker processes). A download's commit,
+        the eviction that follows it, and the save of the resulting reference run as one section under
+        ``_mutex`` (:meth:`_commit_and_save`). The commit reloads the reference from disk before
+        merging, so another thread's reload between a commit and its save would replace the in-memory
+        reference with one that lacks the committed record. The network transfer stays outside
+        ``_mutex``.
     """
 
     MODEL_CATEGORY: MODEL_REFERENCE_CATEGORY
@@ -910,10 +915,9 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 hashpath = f"{os.path.splitext(filepath)[0]}.sha256"
 
                 if self._existing_file_matches(filepath, hashpath, target.sha256):
-                    self._commit_download(record, target, downloaded=False)
+                    self._commit_and_save(record, target, downloaded=False, evict=False)
                     if self.is_default_cache_full():
                         self.stop_downloading = True
-                    self.save_reference_to_disk()
                     return True
 
                 # Refuse to fetch a fresh weight when the volume can't hold it above the floor, even
@@ -1039,7 +1043,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                         # harmlessly re-verified or re-downloaded.
                         self._atomic_write_bytes(hashpath, f"{sha256} *{target.filename}".encode())
 
-                self._commit_download(record, target, downloaded=True)
+                self._commit_and_save(record, target, downloaded=True, evict=True)
                 self._metric_download_duration.record(time.perf_counter() - download_start)
                 self._record_download_event(
                     record,
@@ -1048,8 +1052,6 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                     duration_seconds=time.perf_counter() - download_start,
                     retries=retries,
                 )
-                self._evict_adhoc_over_limit()
-                self.save_reference_to_disk()
                 elapsed = max(time.perf_counter() - download_start, 1e-6)
                 download_logger.info(
                     "adhoc.download_success",
@@ -1146,6 +1148,22 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                 return False
             time.sleep(self.RETRY_DELAY)
         return False
+
+    def _commit_and_save(self, record: RecordT, target: DownloadTarget, *, downloaded: bool, evict: bool) -> None:
+        """Commit *record*, optionally evict over budget, and save the reference, all under ``_mutex``.
+
+        :meth:`_commit_download` may reload the reference from disk before merging. Holding ``_mutex``
+        until the save completes means no other thread's reload can read the file between this commit
+        and its save, so the saved reference always contains the committed record. Eviction runs inside
+        the same section because each eviction drops an entry in memory, deletes its weight file, and
+        saves. A reload between the drop and that save would restore a record whose weight file is
+        already gone.
+        """
+        with self._mutex:
+            self._commit_download(record, target, downloaded=downloaded)
+            if evict:
+                self._evict_adhoc_over_limit()
+            self.save_reference_to_disk()
 
     def _try_segmented_download(
         self,
@@ -1581,7 +1599,11 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
 
     @abstractmethod
     def _commit_download(self, record: RecordT, target: DownloadTarget, *, downloaded: bool) -> None:
-        """Record a successful download/verification of *target* into the reference and indices."""
+        """Record a successful download/verification of *target* into the reference and indices.
+
+        Called with ``_mutex`` held by :meth:`_commit_and_save`. ``_mutex`` is not reentrant, so an
+        implementation must not take it again.
+        """
 
     @abstractmethod
     def _rebuild_indices(self) -> None:

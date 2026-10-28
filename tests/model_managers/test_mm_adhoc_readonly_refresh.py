@@ -1,11 +1,13 @@
 """Unit tests for the split-role ad-hoc manager primitives (no CivitAI network, no GPU).
 
-These exercise the four primitives the reader/writer split relies on, in isolation:
+These exercise the five primitives the reader/writer split relies on, in isolation:
 
 * atomic reference saves (temp file plus :func:`os.replace`, so a reader never sees a torn file);
 * :meth:`CivitaiAdhocModelManager.refresh_reference_if_stale` (cheap stat-gated reload);
-* ``read_only`` mode (a pure reader that never writes, downloads, or evicts); and
-* eviction pins (reference keys every eviction and deletion path must skip).
+* ``read_only`` mode (a pure reader that never writes, downloads, or evicts);
+* eviction pins (reference keys every eviction and deletion path must skip); and
+* commit-and-save atomicity (a download commit and the save of the reference it produced are one
+  critical section, so another download thread's reload cannot drop the committed record).
 
 Managers are built with ``object.__new__`` and wired with only the attributes each path needs,
 mirroring the existing ad-hoc unit tests, so no real construction (and therefore no network or
@@ -20,14 +22,18 @@ import threading
 import time
 from contextlib import nullcontext
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
+from loguru import logger
 
 import hordelib.model_manager.civitai_adhoc as civitai_adhoc
 from hordelib.model_manager.civitai_adhoc import (
     DownloadTarget,
     ReadOnlyModelManagerError,
+    _QueuedDownload,
 )
 from hordelib.model_manager.civitai_records import (
     HordeLoraModelRecord,
@@ -471,3 +477,93 @@ def test_ensure_room_for_download_read_only_raises(tmp_path: Path) -> None:
     target = DownloadTarget(filename="x.safetensors", url="http://x", size_mb=1.0)
     with pytest.raises(ReadOnlyModelManagerError):
         reader._ensure_room_for_download(target)
+
+
+def _wire_download_shell(manager: LoraModelManager, monkeypatch: pytest.MonkeyPatch, *, verified: bool) -> None:
+    """Wire a persistence shell for ``_run_download`` with the transfer itself stubbed out.
+
+    *verified* selects the re-verify exit (the weight is already on disk and matches) over the
+    fresh-download exit (a stubbed segmented transfer reports success).
+    """
+    manager._civitai_api_token = None
+    manager.stop_downloading = False
+    manager.total_retries_attempted = 0
+    manager._download_mutex = threading.Lock()
+    manager._known_bad_versions = {}
+    manager._download_generation = 0
+    manager._metric_download_duration = Mock()  # pyrefly: ignore
+    manager._metric_network_errors = Mock()  # pyrefly: ignore
+    manager._metric_retries = Mock()  # pyrefly: ignore
+    monkeypatch.setattr(manager, "_record_download_event", Mock())
+    monkeypatch.setattr(manager, "_existing_file_matches", Mock(return_value=verified))
+    monkeypatch.setattr(manager, "_ensure_room_for_download", Mock(return_value=True))
+    monkeypatch.setattr(
+        manager,
+        "_try_segmented_download",
+        Mock(return_value=SimpleNamespace(success=True, bytes_written=1)),
+    )
+
+
+class TestCommitAndSaveAtomicity:
+    @pytest.mark.parametrize("verified", [False, True], ids=["downloaded", "reverified"])
+    def test_concurrent_commit_does_not_drop_a_committed_record(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        verified: bool,
+    ) -> None:
+        """A second download thread's commit cannot reload the file between another's commit and save.
+
+        The commit reloads the reference from disk before merging its record. Thread B's reload is held
+        until thread A has committed and reached its save, and A's save is held until B has reloaded or a
+        short timeout passes. If A's commit and save are separate critical sections, B's reload reads a
+        file without A's record and replaces the in-memory reference, so every later save drops A. Both
+        records must be in the saved file.
+        """
+        db_path = tmp_path / "lora.json"
+        manager = _lora_shell(tmp_path, db_path)
+        manager.save_reference_to_disk()
+        _wire_download_shell(manager, monkeypatch, verified=verified)
+
+        a_reloading = threading.Event()
+        a_in_save = threading.Event()
+        b_reloaded = threading.Event()
+        real_reload = manager.reload_reference_from_disk
+        real_save = manager.save_reference_to_disk
+
+        def _gated_reload() -> None:
+            name = threading.current_thread().name
+            if name == "writer-a":
+                a_reloading.set()
+            elif name == "writer-b":
+                a_in_save.wait(timeout=5)
+            real_reload()
+            if name == "writer-b":
+                b_reloaded.set()
+
+        def _gated_save() -> None:
+            if threading.current_thread().name == "writer-a" and not a_in_save.is_set():
+                a_in_save.set()
+                b_reloaded.wait(timeout=0.5)
+            real_save()
+
+        monkeypatch.setattr(manager, "reload_reference_from_disk", _gated_reload)
+        monkeypatch.setattr(manager, "save_reference_to_disk", _gated_save)
+
+        results: dict[str, bool] = {}
+
+        def _download(key: str, version_id: int) -> None:
+            queued = _QueuedDownload(record=_make_lora_record(key, version_id))
+            results[key] = manager._run_download(queued, logger)
+
+        writer_a = threading.Thread(target=_download, args=("a", 1), name="writer-a")
+        writer_b = threading.Thread(target=_download, args=("b", 2), name="writer-b")
+        writer_a.start()
+        assert a_reloading.wait(timeout=5), "thread A never reached its commit"
+        writer_b.start()
+        writer_a.join(timeout=10)
+        writer_b.join(timeout=10)
+
+        assert results == {"a": True, "b": True}
+        saved = json.loads(db_path.read_text())
+        assert set(saved) == {"a", "b"}, f"a committed record was lost to a concurrent save: {sorted(saved)}"

@@ -339,19 +339,21 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
         *,
         downloaded: bool,
     ) -> None:
-        """Add *record* to the reference and indices, recording the resolved checksum."""
-        with self._mutex:
-            if target.sha256:
-                record.sha256 = target.sha256
-            if downloaded:
-                record.last_used = now_timestamp()
-            record.last_checked = now_timestamp()
-            self._sync_top_level(record)
+        """Add *record* to the reference and indices, recording the resolved checksum.
 
-            ti_key = record.name.lower().strip()
-            self.model_reference[ti_key] = record
-            self._index_ids[record.civitai_id] = ti_key
-            self._index_orig_names[record.orig_name.lower().strip()] = ti_key
+        The caller holds ``_mutex``.
+        """
+        if target.sha256:
+            record.sha256 = target.sha256
+        if downloaded:
+            record.last_used = now_timestamp()
+        record.last_checked = now_timestamp()
+        self._sync_top_level(record)
+
+        ti_key = record.name.lower().strip()
+        self.model_reference[ti_key] = record
+        self._index_ids[record.civitai_id] = ti_key
+        self._index_orig_names[record.orig_name.lower().strip()] = ti_key
 
     @override
     def _rebuild_indices(self) -> None:

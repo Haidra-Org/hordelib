@@ -86,6 +86,7 @@ def _bare_manager(
     manager.stop_downloading = False
     manager.min_free_disk_mb = 0
     manager._download_mutex = threading.Lock()
+    manager._mutex = threading.Lock()
     manager._known_bad_versions = {}
     manager._download_generation = 0
     doubles = _ManagerDoubles(commit_download=Mock(), record_download_event=Mock())

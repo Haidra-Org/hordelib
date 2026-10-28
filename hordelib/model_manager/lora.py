@@ -444,29 +444,32 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
 
     @override
     def _commit_download(self, record: HordeLoraModelRecord, target: DownloadTarget, *, downloaded: bool) -> None:
-        """Merge *record*'s downloaded version into the reference and refresh indices."""
-        with self._mutex:
-            self.reload_reference_from_disk()
-            new_version_id = next(iter(record.versions.keys()))
-            new_version = record.versions[new_version_id]
-            if downloaded:
-                new_version.last_used = now_timestamp()
-            record.last_checked = now_timestamp()
+        """Merge *record*'s downloaded version into the reference and refresh indices.
 
-            existing = self.model_reference.get(record.name)
-            if existing is None:
-                self.model_reference[record.name] = record
-                merged = record
-            else:
-                if new_version_id not in existing.versions:
-                    existing.versions[new_version_id] = new_version
-                existing.last_checked = now_timestamp()
-                merged = existing
+        The caller holds ``_mutex``. The reload picks up records other processes or threads have saved
+        since this manager last read the file.
+        """
+        self.reload_reference_from_disk()
+        new_version_id = next(iter(record.versions.keys()))
+        new_version = record.versions[new_version_id]
+        if downloaded:
+            new_version.last_used = now_timestamp()
+        record.last_checked = now_timestamp()
 
-            self._sync_top_level(merged)
-            self._index_ids[merged.civitai_id] = merged.name
-            self._index_version_ids[new_version_id] = merged.name
-            self._index_orig_names[merged.orig_name.lower()] = merged.name
+        existing = self.model_reference.get(record.name)
+        if existing is None:
+            self.model_reference[record.name] = record
+            merged = record
+        else:
+            if new_version_id not in existing.versions:
+                existing.versions[new_version_id] = new_version
+            existing.last_checked = now_timestamp()
+            merged = existing
+
+        self._sync_top_level(merged)
+        self._index_ids[merged.civitai_id] = merged.name
+        self._index_version_ids[new_version_id] = merged.name
+        self._index_orig_names[merged.orig_name.lower()] = merged.name
 
     @override
     def _rebuild_indices(self) -> None:
