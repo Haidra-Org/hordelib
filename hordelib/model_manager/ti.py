@@ -24,6 +24,7 @@ from strenum import StrEnum
 
 from hordelib.exceptions import CivitAIResourceNotFound
 from hordelib.model_manager.civitai_adhoc import (
+    AdhocDownloadSkipReason,
     CacheEntry,
     CivitaiAdhocModelManager,
     DownloadTarget,
@@ -453,14 +454,15 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> tuple[
         str | None,
-        TIRejectionReason | None,
+        TIRejectionReason | AdhocDownloadSkipReason | None,
     ]:
         """Ensure an embedding is available, downloading it from CivitAI/Hordeling on demand.
 
         Behaves like :meth:`fetch_adhoc_ti`, additionally returning why a request produced no key. A
         successful fetch yields ``(reference_key, None)``. A transient failure (metadata fetch failure,
         an elapsed *timeout*, or a plain download failure) yields ``(None, None)``. A permanent upstream
-        rejection yields ``(None, reason)``.
+        rejection yields ``(None, reason)`` with a ``TIRejectionReason``. A skip for a local condition that
+        may clear (a full cache volume) yields ``(None, reason)`` with an ``AdhocDownloadSkipReason``.
 
         Args:
             ti_name: The CivitAI id or name to resolve.
@@ -518,4 +520,4 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
         existing_key = self.fuzzy_find_ti_key(record.civitai_id)
         if existing_key:
             return existing_key, None
-        return None, None
+        return None, queued.skip_reason

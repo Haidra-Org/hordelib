@@ -23,9 +23,9 @@ from unittest.mock import Mock
 import pytest
 
 import hordelib.model_manager.civitai_adhoc as civitai_adhoc
-from hordelib.model_manager.civitai_adhoc import DownloadTarget, _QueuedDownload
+from hordelib.model_manager.civitai_adhoc import AdhocDownloadSkipReason, DownloadTarget, _QueuedDownload
 from hordelib.model_manager.civitai_records import HordeLoraModelRecord
-from hordelib.model_manager.lora import LoraModelManager
+from hordelib.model_manager.lora import _NO_CACHE_FALLBACK, LoraModelManager
 
 
 class _FakeStreamResponse:
@@ -725,3 +725,79 @@ def test_cancellation_stops_stream_at_chunk_boundary_and_signals_event(
     assert queued.completion_event.is_set(), "a cancelled download must still release the waiter"
     assert queued.success is False
     assert not manager._is_version_bad("4242"), "a cancel is not a terminal failure and must not poison the cache"
+
+
+def test_full_volume_with_nothing_evictable_records_the_disk_full_skip(
+    tmp_path: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A volume below the floor with no unpinned ad-hoc entry records DISK_FULL on the skipped download.
+
+    The room check runs for real: free space cannot cover the floor plus the file, and eviction finds nothing it
+    may delete. The skip is a local condition, so it carries the non-terminal skip reason and never touches the
+    network.
+    """
+    target = DownloadTarget(filename="full.safetensors", url="http://example/full", size_mb=100, sha256=None)
+    manager, _ = _bare_manager(tmp_path, target, monkeypatch)
+    manager.min_free_disk_mb = 1024
+    monkeypatch.setattr(manager, "disk_free_mb", Mock(return_value=256.0))
+    monkeypatch.setattr(manager, "find_oldest_adhoc_entry", Mock(return_value=None))
+    monkeypatch.setattr(manager, "find_adhoc_models", Mock(return_value=[]))
+    get_calls = {"n": 0}
+
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
+        get_calls["n"] += 1
+        return _FakeStreamResponse(content=b"x", url=url, raise_for_status=lambda: None)
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    queued = _QueuedDownload(record=SimpleNamespace(name="full lora"))
+    manager._process_download(queued, civitai_adhoc.logger.bind(manager="lora"))
+
+    assert get_calls["n"] == 0
+    assert queued.completion_event.is_set()
+    assert queued.success is False
+    assert queued.skip_reason is AdhocDownloadSkipReason.DISK_FULL
+
+
+def test_transfer_failure_records_no_skip_reason(tmp_path: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A download that exhausts its retries is a transfer failure, so it records no skip reason."""
+    target = DownloadTarget(filename="flaky2.safetensors", url="http://example/flaky2", size_mb=1, sha256=None)
+    manager, _ = _bare_manager(tmp_path, target, monkeypatch)
+    manager.RETRY_DELAY = 0.0
+
+    def _fake_get(url: str, timeout: float | None = None, stream: bool = False) -> Any:
+        raise civitai_adhoc.requests.ConnectionError("connection refused")
+
+    monkeypatch.setattr(civitai_adhoc.requests, "get", _fake_get)
+
+    queued = _QueuedDownload(record=SimpleNamespace(name="flaky lora"))
+    manager._process_download(queued, civitai_adhoc.logger.bind(manager="lora"))
+
+    assert queued.success is False
+    assert queued.skip_reason is None
+
+
+def test_fetch_with_reason_returns_the_disk_full_skip_reason(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The caller-facing fetch returns the queued download's skip reason in the reason slot.
+
+    The reason is an ``AdhocDownloadSkipReason``, distinct from the terminal ``LoRaRejectionReason``, so a caller
+    can retry the LoRA once the volume has room.
+    """
+    manager = object.__new__(LoraModelManager)
+    manager.read_only = False
+    manager.nsfw = True
+    record = SimpleNamespace(name="full lora", civitai_id=4242)
+    queued = _QueuedDownload(record=record)
+    queued.success = False
+    queued.skip_reason = AdhocDownloadSkipReason.DISK_FULL
+    queued.completion_event.set()
+    monkeypatch.setattr(manager, "get_lora_metadata", Mock(return_value=(record, None)))
+    monkeypatch.setattr(manager, "_resolve_metadata_mismatch", Mock(return_value=_NO_CACHE_FALLBACK))
+    monkeypatch.setattr(manager, "fuzzy_find_lora_key", Mock(return_value=None))
+    monkeypatch.setattr(manager, "_enqueue_download", Mock(return_value=queued))
+
+    key, reason = manager.fetch_adhoc_lora_with_reason("4242", timeout=1, is_version=True)
+
+    assert key is None
+    assert reason is AdhocDownloadSkipReason.DISK_FULL

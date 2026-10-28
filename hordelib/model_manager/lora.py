@@ -29,6 +29,7 @@ import hordelib.exceptions as he
 from hordelib.model_manager.civitai_adhoc import (
     DEFAULT_MIN_FREE_DISK_MB,
     TESTS_ONGOING,
+    AdhocDownloadSkipReason,
     CacheEntry,
     CivitaiAdhocModelManager,
     DownloadTarget,
@@ -729,7 +730,7 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> tuple[
         str | None,
-        LoRaRejectionReason | None,
+        LoRaRejectionReason | AdhocDownloadSkipReason | None,
     ]:
         """Ensure a LoRA is available, downloading it from CivitAI on demand.
 
@@ -737,6 +738,10 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         no longer extend the wait) and returns the reference key; otherwise starts the download and
         returns ``None`` immediately. When *timeout* elapses before the download finishes, this returns
         ``None`` (the LoRA is not yet available) rather than raising.
+
+        The second element says why no key was returned. A ``LoRaRejectionReason`` is terminal (the LoRA can
+        never be used). An ``AdhocDownloadSkipReason`` names a local condition that may clear (a full cache
+        volume), so a later request can succeed. ``None`` is a transient or timed-out failure.
 
         Args:
             lora_name: The CivitAI id, version id, or name to resolve.
@@ -819,7 +824,7 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         # that elapses (or a download that failed) falls through to None instead of raising.
         queued.completion_event.wait(timeout)
         if not queued.success:
-            return None, None
+            return None, queued.skip_reason
         version = lora_name if is_version else self.find_latest_version(record)
         if version is None:
             return None, None

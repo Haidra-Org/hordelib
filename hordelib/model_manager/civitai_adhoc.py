@@ -34,6 +34,7 @@ from collections.abc import Callable, Iterable
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import auto
 from multiprocessing.synchronize import Lock as multiprocessing_lock
 from pathlib import Path
 from typing import Any, override
@@ -44,6 +45,7 @@ from fuzzywuzzy import fuzz
 from horde_model_reference.meta_consts import MODEL_REFERENCE_CATEGORY
 from horde_model_reference.model_reference_records import GenericModelRecord
 from loguru import logger
+from strenum import StrEnum
 
 from hordelib.exceptions import CivitAIResourceNotFound
 from hordelib.metrics import DownloadCategory, DownloadEvent, get_metrics_collector
@@ -195,6 +197,19 @@ class DownloadTarget:
     """The version id this target corresponds to, for multi-version (LoRA) records."""
 
 
+class AdhocDownloadSkipReason(StrEnum):
+    """Why an ad-hoc download was skipped for a reason that can clear on its own.
+
+    A sibling of the per-category rejection reasons (``LoRaRejectionReason``, ``TIRejectionReason``), which are
+    terminal by contract: a rejected file can never be used, so a caller skips it permanently. A skip reason
+    names a local condition instead, and a later request for the same file may succeed.
+    """
+
+    DISK_FULL = auto()
+    """The cache volume cannot hold the file above its free-space floor, even with every unpinned ad-hoc entry
+    evicted."""
+
+
 class SkipDownload(Exception):
     """Raised by :meth:`CivitaiAdhocModelManager._prepare_download` to abandon a queued download.
 
@@ -252,6 +267,11 @@ class _QueuedDownload[R]:
 
     ``True`` when the weight file is present and committed (freshly downloaded or already on disk and
     verified), ``False`` on any failure/skip/cancellation, and ``None`` while still in flight."""
+    skip_reason: AdhocDownloadSkipReason | None = None
+    """Why the download was skipped without a transfer, readable once :attr:`completion_event` is set.
+
+    Set only for a skip the caller may retry later (see :class:`AdhocDownloadSkipReason`). ``None`` on success,
+    on a transfer failure, and while still in flight."""
 
 
 class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
@@ -933,6 +953,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                         free_mb=round(self.disk_free_mb() or -1.0),
                         floor_mb=self.min_free_disk_mb,
                     )
+                    queued.skip_reason = AdhocDownloadSkipReason.DISK_FULL
                     self._record_download_event(
                         record,
                         success=False,
