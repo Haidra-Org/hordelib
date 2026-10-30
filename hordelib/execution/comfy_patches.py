@@ -266,6 +266,44 @@ def _register_cached_outputs_without_disabled_asset_copy(
     return _originals["register_cached_outputs"](ui_wrapper, job_id, asset_manager)
 
 
+async def _get_output_data_releasing_cast_buffers(
+    prompt_id: str,
+    unique_id: str,
+    obj: typing.Any,
+    input_data_all: dict[str, typing.Any],
+    execution_block_cb: Callable | None = None,
+    pre_execute_cb: Callable | None = None,
+    v3_data: dict[str, typing.Any] | None = None,
+) -> typing.Any:
+    """Run one node through ComfyUI's ``get_output_data``, then release the stream cast buffers when aimdo is off.
+
+    ComfyUI's per-node loop (``execution.execute``) calls ``reset_cast_buffers`` after each node only when aimdo
+    is enabled, and hordelib's embedding does not initialise aimdo. Without this reset, the staging buffer a
+    streamed (partially loaded) component allocates stays on the device for the life of the process, about 1 GB
+    for an offloaded multi-GB text encoder, and the sampling and decode that follow have that much less room.
+    With aimdo enabled the loop resets the buffers itself, so this wrapper does not reset them a second time.
+    """
+    import comfy.memory_management
+    import comfy.model_management
+
+    try:
+        return await _originals["get_output_data"](
+            prompt_id,
+            unique_id,
+            obj,
+            input_data_all,
+            execution_block_cb=execution_block_cb,
+            pre_execute_cb=pre_execute_cb,
+            v3_data=v3_data,
+        )
+    finally:
+        # The reset synchronises the device and empties the allocator cache, so it is skipped after a node that
+        # did not stream any weights (every component resident). Otherwise every node of every job would pay
+        # that cost.
+        if not comfy.memory_management.aimdo_enabled and comfy.model_management.STREAM_CAST_BUFFERS:
+            comfy.model_management.reset_cast_buffers()
+
+
 def _resolve_skip_classes_and_fragments() -> tuple[tuple[type, ...], list[str]]:
     """Resolve ``models_not_to_force_load`` entries into comfy classes + legacy fragments.
 
@@ -1361,6 +1399,12 @@ def _build_monkeypatch_registry() -> dict[str, _MonkeyPatchBinding]:
             "register_cached_outputs",
             _register_cached_outputs_without_disabled_asset_copy,
             _originals.get("register_cached_outputs"),
+        )
+        bindings["get_output_data"] = _MonkeyPatchBinding(
+            _comfy_execution_module,
+            "get_output_data",
+            _get_output_data_releasing_cast_buffers,
+            _originals.get("get_output_data"),
         )
 
     if _comfy_execution_module is not None and _originals.get("is_changed_cache_get") is not None:

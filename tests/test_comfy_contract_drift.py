@@ -463,6 +463,148 @@ class TestMiniExecutionRoundTrip:
         )
 
 
+_CAST_BUFFER_STUB_NODE_CLASS_TYPE = "HordeDriftTestCastBufferStub"
+_CAST_BUFFER_PROBE_NODE_CLASS_TYPE = "HordeDriftTestCastBufferProbe"
+
+
+class _CastBufferStubNode:
+    """Leave a stream cast buffer behind, as a node that streamed an offloaded weight does."""
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, Any]:  # ComfyUI node contract requires this exact name
+        """Return an empty ComfyUI input schema."""
+        return {"required": {}}
+
+    RETURN_TYPES: tuple = ("IMAGE",)
+    FUNCTION = "run"
+    CATEGORY = "image"
+
+    def run(self) -> tuple:
+        """Store a buffer in ComfyUI's stream cast buffers and return a small image."""
+        import comfy.model_management
+        import torch
+
+        comfy.model_management.STREAM_CAST_BUFFERS[None] = torch.empty(1024, dtype=torch.int8)
+        return (torch.zeros((1, 8, 8, 3)),)
+
+
+class _CastBufferProbeNode:
+    """Record how many stream cast buffers are held when the next node starts."""
+
+    held_at_start: list[int] = []
+
+    @classmethod
+    def INPUT_TYPES(cls) -> dict[str, Any]:  # ComfyUI node contract requires this exact name
+        """Return the ComfyUI input schema: a single required IMAGE input."""
+        return {"required": {"images": ("IMAGE",)}}
+
+    RETURN_TYPES: tuple = ()
+    FUNCTION = "run"
+    OUTPUT_NODE = True
+    CATEGORY = "image"
+
+    def run(self, images: Any) -> dict[str, Any]:
+        """Record the held buffer count and return an empty UI payload."""
+        import comfy.model_management
+
+        type(self).held_at_start.append(len(comfy.model_management.STREAM_CAST_BUFFERS))
+        return {"ui": {}}
+
+
+class TestCastBufferRelease:
+    """hordelib releases ComfyUI's stream cast buffers after each node, as ComfyUI's loop does under aimdo."""
+
+    def test_the_node_loop_calls_get_output_data_as_a_module_global(self, init_horde: None) -> None:
+        """The per-node patch reaches the loop only while ``execute`` looks the function up on the module."""
+        import execution
+
+        # hordelib's instrumentation replaces ``execution.execute`` with a wrapper, so read the loop from the
+        # module source.
+        module_source = inspect.getsource(execution)
+        execute_node = next(
+            node
+            for node in ast.parse(module_source).body
+            if isinstance(node, ast.AsyncFunctionDef) and node.name == "execute"
+        )
+        source = ast.get_source_segment(module_source, execute_node) or ""
+        assert "await get_output_data(" in source, (
+            "execution.execute no longer awaits the module-level get_output_data, "
+            "so re-verify the cast-buffer release patch seam"
+        )
+        assert "comfy.memory_management.aimdo_enabled" in source and "reset_cast_buffers()" in source, (
+            "execution.execute no longer resets the cast buffers under aimdo, "
+            "so re-verify whether ComfyUI or hordelib performs the per-node reset"
+        )
+
+    def test_cast_buffers_are_released_before_the_next_node_runs(self, comfy_bridge: Comfy_Horde) -> None:
+        """A buffer left by one node is gone when the next node starts and after the run."""
+        import comfy.memory_management
+        import comfy.model_management
+        import execution
+
+        assert comfy.memory_management.aimdo_enabled is False
+        _CastBufferProbeNode.held_at_start = []
+        execution.nodes.NODE_CLASS_MAPPINGS[_CAST_BUFFER_STUB_NODE_CLASS_TYPE] = _CastBufferStubNode
+        execution.nodes.NODE_CLASS_MAPPINGS[_CAST_BUFFER_PROBE_NODE_CLASS_TYPE] = _CastBufferProbeNode
+        graph = {
+            "stub": {"class_type": _CAST_BUFFER_STUB_NODE_CLASS_TYPE, "inputs": {}},
+            "probe": {"class_type": _CAST_BUFFER_PROBE_NODE_CLASS_TYPE, "inputs": {"images": ["stub", 0]}},
+        }
+        try:
+            server = _StrictRecordingServer()
+            executor = _build_executor(server)
+            executor.execute(graph, "cast-buffer-prompt", {"client_id": "drift-test-client"}, ["probe"])
+
+            assert executor.success is True
+            assert _CastBufferProbeNode.held_at_start == [0]
+            assert comfy.model_management.STREAM_CAST_BUFFERS == {}
+        finally:
+            comfy.model_management.STREAM_CAST_BUFFERS.clear()
+            execution.nodes.NODE_CLASS_MAPPINGS.pop(_CAST_BUFFER_STUB_NODE_CLASS_TYPE, None)
+            execution.nodes.NODE_CLASS_MAPPINGS.pop(_CAST_BUFFER_PROBE_NODE_CLASS_TYPE, None)
+
+    @pytest.mark.parametrize(
+        ("aimdo_enabled", "buffer_held", "expected_resets"),
+        [(False, True, 1), (False, False, 0), (True, True, 0)],
+    )
+    def test_the_patch_resets_only_when_aimdo_is_off_and_a_buffer_is_held(
+        self,
+        init_horde: None,
+        monkeypatch: pytest.MonkeyPatch,
+        aimdo_enabled: bool,
+        buffer_held: bool,
+        expected_resets: int,
+    ) -> None:
+        """Under aimdo ComfyUI's loop performs the reset, and a node that did not stream does not hold a buffer.
+
+        The reset synchronises the device and empties the allocator cache, so the patch runs it only when a
+        streamed cast left a buffer behind.
+        """
+        import comfy.memory_management
+        import comfy.model_management
+        import execution
+
+        from hordelib.execution import comfy_patches
+
+        resets: list[None] = []
+        node_result = object()
+
+        async def _original_get_output_data(*args: Any, **kwargs: Any) -> object:
+            return node_result
+
+        monkeypatch.setattr(comfy.memory_management, "aimdo_enabled", aimdo_enabled)
+        monkeypatch.setattr(comfy.model_management, "reset_cast_buffers", lambda: resets.append(None))
+        monkeypatch.setitem(comfy_patches._originals, "get_output_data", _original_get_output_data)
+        if buffer_held:
+            monkeypatch.setitem(comfy.model_management.STREAM_CAST_BUFFERS, object(), object())
+
+        assert execution.get_output_data is comfy_patches._get_output_data_releasing_cast_buffers
+        result = asyncio.run(execution.get_output_data("prompt", "node", object(), {}))
+
+        assert result is node_result
+        assert len(resets) == expected_resets
+
+
 class TestV3CanaryNode:
     """Proves the comfy_api V3 extension path works in hordelib's headless embedding.
 

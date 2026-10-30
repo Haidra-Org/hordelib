@@ -417,16 +417,20 @@ _BASELINE_SEEDS: list[BaselineBurden] = [
     BaselineBurden(
         baseline="moss_image",
         vram_base_mb=7800,
-        ram_base_mb=15000,
+        ram_base_mb=25000,
         vram_per_megapixel_mb=1500,
         native_resolution=(1024, 1024),
-        min_recommended_vram_mb=10000,
+        min_recommended_vram_mb=8000,
         max_recommended_batch=1,
         typical_disk_gb=13.1,
-        # Published component sizes: the 5B int8 DiT is 5.0 GiB, the w4a8 Qwen3.5-9B encoder 6.8 GiB
-        # and the Flux2 VAE 0.31 GiB, so the encoder outweighs the diffusion model. The weight figures
-        # are those file sizes; the activation-inclusive figures and the decode spike (taken from
-        # Flux) remain estimates until test_registry_footprint_calibration measures a real job.
+        # On a measured 1024x1024 job the int8 DiT is 5163 MB resident, and the w4a8 Qwen3.5-9B encoder
+        # (7003 MB) plus the Flux2 VAE (160 MB) are the 7163 MB of support weights at peak. On a card too
+        # small to hold the encoder whole it streams, and the job completes down to 6144 MB usable (peak
+        # 6063 MB allocated, in decode). 8000 is that floor plus room for the CUDA context and display.
+        # ram_base_mb is the measured peak commit of the hordelib process when the encoder streams, and the
+        # learned store replaces it after the first job. vram_per_megapixel_mb and vram_decode_spike_mb are
+        # still estimates carried from Flux and over-count the measured MOSS figures 4 to 5 times, which errs
+        # toward the safe side.
         vram_weights_mb=5200,
         vram_support_weights_mb=7350,
         vram_decode_spike_mb=3500,

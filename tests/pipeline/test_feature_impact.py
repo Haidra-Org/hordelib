@@ -109,6 +109,17 @@ class TestRegistryCoverage:
         assert burden.resident_footprint_estimate_mb() == 2050
         assert burden.resident_footprint_estimate_mb() < burden.vram_base_mb
 
+    def test_moss_image_seeds_the_measured_floor_and_commit(self) -> None:
+        """The MOSS baseline fits an 8 GB card and is charged the commit a streamed-encoder job reaches.
+
+        A 1024x1024 job completes at 6144 MB usable once the stream cast buffers are released per node, and
+        the hordelib process peaks near 25 GB of commit when the encoder streams.
+        """
+        burden = get_baseline_burden("moss_image")
+        assert burden is not None
+        assert burden.min_recommended_vram_mb == 8000
+        assert burden.ram_base_mb == 25000
+
 
 class TestEstimateJobBurden:
     def test_unknown_baseline_uses_fallback_and_is_flagged(self) -> None:

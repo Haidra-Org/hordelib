@@ -420,6 +420,12 @@ def do_comfy_import(
             comfy_patches._register_cached_outputs_without_disabled_asset_copy,
         )
         comfy_patches.capture_and_patch(
+            "get_output_data",
+            execution,
+            "get_output_data",
+            comfy_patches._get_output_data_releasing_cast_buffers,
+        )
+        comfy_patches.capture_and_patch(
             "is_changed_cache_get",
             IsChangedCache,
             "get",
