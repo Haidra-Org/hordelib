@@ -51,6 +51,7 @@ from strenum import StrEnum
 from hordelib.exceptions import CivitAIResourceNotFound
 from hordelib.metrics import DownloadCategory, DownloadEvent, get_metrics_collector
 from hordelib.model_manager.base import BaseModelManager
+from hordelib.utils.sanitizer import Sanitizer
 
 try:
     from horde_model_reference.download_engine import DownloadOutcome, _segmented_download
@@ -75,6 +76,19 @@ ad-hoc downloader treats these as terminal so the queue drains promptly instead 
 
 A1111_TRIGGER_PATTERN = re.compile(r"<(?:lora|ti):(.*):.*>")
 """Matches A1111-style inline trigger syntax so it can be reduced to the bare trigger word."""
+
+_WHITESPACE_RUN = re.compile(r"\s+")
+
+
+def _fold_name_for_comparison(name: str) -> str:
+    """Fold a name for equality/substring/fuzzy comparison only, never for a stored cache key.
+
+    CivitAI writes a display name with spaces where a job requests it with underscores. Folding underscores
+    to spaces and collapsing repeated whitespace lets the two agree in the match path without changing how
+    keys are sanitised and stored (those keep their underscores).
+    """
+    return _WHITESPACE_RUN.sub(" ", name.replace("_", " ")).strip()
+
 
 REFERENCE_REPLACE_ATTEMPTS = 20
 """How many times an atomic reference rename is retried before giving up.
@@ -696,6 +710,24 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
             if str(item.get("name", "")).strip().casefold() == wanted:
                 return item
         return items[0]
+
+    def _requested_name_matches(self, requested: str, candidate_names: Iterable[str]) -> bool:
+        """Return whether a requested name corresponds to one of a record's names.
+
+        A name search can return an unrelated model when nothing closer exists. The names match when, after
+        sanitising and folding, one contains the other or their fuzzy ratio is at least ``FUZZ_THRESHOLD``.
+        """
+        requested_folded = _fold_name_for_comparison(Sanitizer.sanitise_model_name(requested).lower())
+        if not requested_folded:
+            return False
+        candidates = {
+            _fold_name_for_comparison(Sanitizer.sanitise_model_name(name).lower()) for name in candidate_names if name
+        }
+        candidates.discard("")
+        if any(requested_folded in candidate or candidate in requested_folded for candidate in candidates):
+            return True
+        best_ratio = max((fuzz.ratio(requested_folded, candidate) for candidate in candidates), default=0)
+        return best_ratio >= self.FUZZ_THRESHOLD
 
     def _fetch_civitai_json(self, url: str) -> dict | None:
         """Return the parsed JSON body of a CivitAI API GET, retrying transient failures.

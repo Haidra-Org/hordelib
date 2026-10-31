@@ -20,6 +20,7 @@ from fuzzywuzzy import fuzz
 from horde_model_reference import horde_model_reference_paths
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE, MODEL_REFERENCE_CATEGORY
 from horde_model_reference.model_reference_records import DownloadRecord, ImageGenerationModelRecord
+from loguru import logger
 from strenum import StrEnum
 
 from hordelib.exceptions import CivitAIResourceNotFound
@@ -83,6 +84,8 @@ class TIRejectionReason(StrEnum):
     """Hordeling reported the resolved file is the wrong type or its hash does not match."""
     INVALID = auto()
     """The embedding's metadata is invalid or incomplete (impossible id, missing checksum, etc.)."""
+    MISMATCH = auto()
+    """A name search returned a different embedding than requested, and no cached entry covers the request."""
 
 
 class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversionModelRecord]):
@@ -500,6 +503,21 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
             record = self._parse_civitai_item(data, adhoc=True)
         if not record:
             return None, TIRejectionReason.INVALID
+
+        if not str(ti_name).isdigit() and not self._requested_name_matches(
+            str(ti_name),
+            [record.name, record.orig_name or ""],
+        ):
+            logger.bind(manager=self.METRIC_PREFIX).warning(
+                "adhoc.search_name_mismatch",
+                requested=str(ti_name),
+                civitai_id=record.civitai_id,
+                returned_name=record.orig_name,
+            )
+            cached_key = self.fuzzy_find_ti_key(ti_name)
+            if cached_key:
+                return cached_key, None
+            return None, TIRejectionReason.MISMATCH
 
         existing_key = self.fuzzy_find_ti_key(record.civitai_id)
         if existing_key:
