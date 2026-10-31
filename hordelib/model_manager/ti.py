@@ -480,7 +480,7 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
                 return None, TIRejectionReason.INVALID
             url = f"https://civitai.com/api/v1/models/{ti_name}"
         else:
-            url = f"{self.TI_API}&nsfw={str(self.nsfw).lower()}&query={ti_name}"
+            url = self._civitai_search_url(self.TI_API, str(ti_name))
 
         try:
             data = self._fetch_civitai_json(url)
@@ -495,7 +495,7 @@ class TextualInversionModelManager(CivitaiAdhocModelManager[HordeTextualInversio
         if "items" in data:
             if len(data["items"]) == 0:
                 return None, TIRejectionReason.NOT_FOUND
-            record = self._parse_civitai_item(data["items"][0], adhoc=True)
+            record = self._parse_civitai_item(self._select_search_item(data["items"], str(ti_name)), adhoc=True)
         else:
             record = self._parse_civitai_item(data, adhoc=True)
         if not record:

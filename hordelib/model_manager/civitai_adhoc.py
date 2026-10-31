@@ -38,6 +38,7 @@ from enum import auto
 from multiprocessing.synchronize import Lock as multiprocessing_lock
 from pathlib import Path
 from typing import Any, override
+from urllib.parse import quote, urlencode
 
 import logfire
 import requests
@@ -673,6 +674,28 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     # ------------------------------------------------------------------
     # CivitAI metadata fetching
     # ------------------------------------------------------------------
+
+    def _civitai_search_url(self, base_url: str, query: str) -> str:
+        """Return *base_url* extended with the NSFW flag and an encoded name *query*.
+
+        Names may contain ``&``, ``+``, ``#`` or non-ASCII characters. Without encoding, an ``&`` ends the
+        ``query`` value early and CivitAI searches for the text before it.
+        """
+        params = urlencode({"nsfw": str(self.nsfw).lower(), "query": query}, quote_via=quote)
+        return f"{base_url}&{params}"
+
+    @staticmethod
+    def _select_search_item(items: list[dict[str, Any]], query: str) -> dict[str, Any]:
+        """Return the search result whose name equals *query* (case-insensitive), else the first result.
+
+        CivitAI orders search results by the endpoint's sort parameter, so an exact match may not come first.
+        Falling back to the first result lets partial or approximate names still resolve.
+        """
+        wanted = query.strip().casefold()
+        for item in items:
+            if str(item.get("name", "")).strip().casefold() == wanted:
+                return item
+        return items[0]
 
     def _fetch_civitai_json(self, url: str) -> dict | None:
         """Return the parsed JSON body of a CivitAI API GET, retrying transient failures.

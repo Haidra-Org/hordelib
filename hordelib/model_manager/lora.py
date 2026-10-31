@@ -659,8 +659,14 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             self._evict_adhoc_over_limit()
             self.save_reference_to_disk()
 
-    def get_lora_metadata(self, url: str) -> tuple[HordeLoraModelRecord | None, LoRaRejectionReason | None]:
-        """Return a parsed LoRA record for the first item at *url*.
+    def get_lora_metadata(
+        self,
+        url: str,
+        query: str | None = None,
+    ) -> tuple[HordeLoraModelRecord | None, LoRaRejectionReason | None]:
+        """Return a parsed LoRA record for the item at *url*.
+
+        For a search response, the item whose name equals *query* is used when present, otherwise the first item.
 
         Raises:
             he.CivitAIDown: If CivitAI returned no data (a transient outage, retryable).
@@ -675,7 +681,8 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
         if "items" in data:
             if len(data["items"]) == 0:
                 raise he.ModelEmpty("Lora appears empty")
-            record, rejection_reason = self._parse_civitai_item_with_reason(data["items"][0], adhoc=True)
+            item = self._select_search_item(data["items"], query) if query else data["items"][0]
+            record, rejection_reason = self._parse_civitai_item_with_reason(item, adhoc=True)
         else:
             record, rejection_reason = self._parse_civitai_item_with_reason(data, adhoc=True)
         if not record:
@@ -764,12 +771,12 @@ class LoraModelManager(CivitaiAdhocModelManager[HordeLoraModelRecord]):
             endpoint = "model-versions" if is_version else "models"
             url = f"https://civitai.com/api/v1/{endpoint}/{lora_name}"
         else:
-            url = f"{self.LORA_API}&nsfw={str(self.nsfw).lower()}&query={lora_name}"
+            url = self._civitai_search_url(self.LORA_API, lora_name)
 
         record: HordeLoraModelRecord | None = None
         rejection_reason: LoRaRejectionReason | None = None
         try:
-            record, rejection_reason = self.get_lora_metadata(url)
+            record, rejection_reason = self.get_lora_metadata(url, query=str(lora_name))
         except he.CivitAIResourceNotFound:
             # A definitive not-found/unauthorized is terminal: the reference does not exist, so surface a
             # terminal rejection the caller can memoize rather than a retryable (None, None).
