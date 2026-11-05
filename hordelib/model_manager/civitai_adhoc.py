@@ -809,6 +809,15 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
     # Download queue and worker threads
     # ------------------------------------------------------------------
 
+    def configure_downloads(self, *, connections: int) -> None:
+        """Set the connection count for subsequent large files without changing queue admission.
+
+        Direct consumers keep the environment-selected default until they call this method.
+        An active segmented transfer keeps the starting connection count.
+        """
+        with self._download_mutex:
+            self._download_connections = max(1, min(8, connections))
+
     def _enqueue_download(
         self,
         record: RecordT,
@@ -1119,7 +1128,9 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                         # harmlessly re-verified or re-downloaded.
                         self._atomic_write_bytes(hashpath, f"{sha256} *{target.filename}".encode())
 
+                commit_started = time.perf_counter()
                 self._commit_and_save(record, target, downloaded=True, evict=True)
+                commit_seconds = time.perf_counter() - commit_started
                 self._metric_download_duration.record(time.perf_counter() - download_start)
                 self._record_download_event(
                     record,
@@ -1138,6 +1149,7 @@ class CivitaiAdhocModelManager[RecordT: GenericModelRecord](
                     segmented=segmented is not None,
                     queue_wait_seconds=round(overall_start - queued.enqueued_at, 1),
                     setup_seconds=round(download_start - overall_start, 1),
+                    commit_seconds=round(commit_seconds, 3),
                 )
                 return True
             except _DownloadCancelled:

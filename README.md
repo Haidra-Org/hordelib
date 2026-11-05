@@ -303,6 +303,7 @@ git push origin vX.Y.Z
 | [docs/public_api.md](docs/public_api.md) | Declared consumer surface and key patterns |
 | [docs/adding-a-baseline.md](docs/adding-a-baseline.md) | Checklist for supporting a new model architecture |
 | [docs/modality-readiness.md](docs/modality-readiness.md) | Audit of audio/video modality seams |
+| [docs/download-controls.md](docs/download-controls.md) | Ad-hoc LoRA/TI download connection setting and timing fields |
 | [docs/plans/major-overhaul-1.md](docs/plans/major-overhaul-1.md) | v3 phased refactor plan and status |
 | [AGENTS.md](AGENTS.md) | Comprehensive codebase map, conventions, and sensitive areas |
 

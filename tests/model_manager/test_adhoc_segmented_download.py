@@ -272,3 +272,26 @@ def test_adhoc_connections_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setenv("AIWORKER_LORA_DOWNLOAD_CONNECTIONS", "not-an-int")
     assert civitai_adhoc._adhoc_connections_from_env() == civitai_adhoc.DEFAULT_ADHOC_DOWNLOAD_CONNECTIONS
+
+
+@pytest.mark.parametrize(("requested", "expected"), [(1, 1), (4, 4), (100, 8), (0, 1)])
+def test_configured_connections_reach_segmented_transfer(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    requested: int,
+    expected: int,
+) -> None:
+    """One large LoRA can use the requested connections without changing the existing file pool."""
+    target = DownloadTarget(filename="configured.bin", url="https://example.invalid/file", size_mb=200, sha256="")
+    manager, _doubles = _bare_manager(tmp_path, target, monkeypatch)
+    manager.configure_downloads(connections=requested)
+    assert manager._download_connections == expected
+    segmented = Mock(return_value=None)
+    monkeypatch.setattr(civitai_adhoc, "_segmented_download", segmented)
+    manager._try_segmented_download(
+        target.url, str(tmp_path / target.filename), target, _QueuedDownload(record=Mock())
+    )
+    if expected == 1:
+        segmented.assert_not_called()
+    else:
+        assert segmented.call_args.kwargs["connections"] == expected
