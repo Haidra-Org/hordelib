@@ -247,7 +247,7 @@ def _register_executed_outputs_without_disabled_asset_copy(
     output_ui: dict[str, typing.Any],
     job_id: str,
     asset_manager: _AssetManagerState,
-    asset_previews: dict[str, dict],
+    asset_previews: dict[str, dict] | None = None,
 ) -> dict[str, typing.Any]:
     """Return fileless output unchanged when hordelib has explicitly disabled assets."""
     if not asset_manager.enabled:
@@ -260,9 +260,10 @@ def _register_cached_outputs_without_disabled_asset_copy(
     job_id: str,
     asset_manager: _AssetManagerState,
 ) -> dict[str, typing.Any] | None:
-    """Return cached output unchanged when hordelib has explicitly disabled assets."""
+    """Isolate replay metadata without copying artifact payloads when assets are disabled."""
     if not asset_manager.enabled:
-        return ui_wrapper
+        # emit_cached_output replaces this wrapper's meta for the current node.
+        return None if ui_wrapper is None else ui_wrapper.copy()
     return _originals["register_cached_outputs"](ui_wrapper, job_id, asset_manager)
 
 

@@ -288,7 +288,7 @@ class TestMiniExecutionRoundTrip:
         assert executor.caches.outputs.enable_providers is False
 
     def test_disabled_assets_do_not_duplicate_output_containers(self, comfy_bridge: Comfy_Horde) -> None:
-        """The disabled asset seam must preserve identity instead of deep-copying artifacts."""
+        """Cached wrappers isolate metadata while their artifact payloads retain identity."""
         import execution
         from comfy_execution.asset_enrichment import register_cached_outputs
 
@@ -297,7 +297,11 @@ class TestMiniExecutionRoundTrip:
         cached_ui = {"meta": {"node_id": "output"}, "output": output_ui}
 
         assert execution.register_executed_outputs(output_ui, "prompt", executor.asset_manager) is output_ui
-        assert register_cached_outputs(cached_ui, "prompt", executor.asset_manager) is cached_ui
+        replay_ui = register_cached_outputs(cached_ui, "prompt", executor.asset_manager)
+        assert replay_ui == cached_ui
+        assert replay_ui is not cached_ui
+        assert replay_ui["output"] is output_ui
+        assert register_cached_outputs(None, "prompt", executor.asset_manager) is None
 
     def test_generations_return_distinct_artifact_buffers(self, comfy_bridge: Comfy_Horde) -> None:
         """A later run must never return an artifact object retained by an earlier run."""
@@ -428,7 +432,7 @@ class TestMiniExecutionRoundTrip:
         assert list(signature.parameters) == [
             "server",
             "node_id",
-            "display_node_id",
+            "meta",
             "cached",
             "prompt_id",
             "ui_outputs",
@@ -438,23 +442,41 @@ class TestMiniExecutionRoundTrip:
         class _DisabledAssetManager:
             enabled = False
 
-        cached_ui = {"meta": {"node_id": "cached"}, "output": {"images": [{"type": "PNG"}]}}
+        writer_meta = {"node_id": "writer", "display_node": "writer", "parent_node": None, "real_node_id": "writer"}
+        output_ui = {"images": [{"imagedata": io.BytesIO(b"cached output"), "type": "PNG"}]}
+        cached_ui = {"meta": writer_meta.copy(), "output": output_ui}
         cached = execution.CacheEntry(ui=cached_ui, outputs=[])
         server = _StrictRecordingServer()
         ui_outputs: dict[str, Any] = {}
 
-        emit_cached_output(server, "cached", "cached", cached, "prompt", ui_outputs, _DisabledAssetManager())
+        first_meta = {"node_id": "cached", "display_node": "display-1", "parent_node": None, "real_node_id": "cached"}
+        emit_cached_output(server, "cached", first_meta, cached, "prompt", ui_outputs, _DisabledAssetManager())
 
-        assert ui_outputs == {"cached": cached_ui}
+        assert ui_outputs == {"cached": {"meta": first_meta, "output": output_ui}}
         assert server.events == [], "a client-less cached replay must not emit a websocket event"
 
         server.client_id = "drift-test-client"
-        emit_cached_output(server, "cached-2", "cached-2", cached, "prompt", ui_outputs, _DisabledAssetManager())
-        assert ui_outputs["cached-2"] == cached_ui
+        second_meta = {
+            "node_id": "cached-2",
+            "display_node": "display-2",
+            "parent_node": None,
+            "real_node_id": "cached-2",
+        }
+        emit_cached_output(server, "cached-2", second_meta, cached, "prompt", ui_outputs, _DisabledAssetManager())
+        assert ui_outputs == {
+            "cached": {"meta": first_meta, "output": output_ui},
+            "cached-2": {"meta": second_meta, "output": output_ui},
+        }
+        assert cached_ui["meta"] == writer_meta, "cached replay must preserve the cache writer's metadata"
+        assert ui_outputs["cached"] is not cached_ui
+        assert ui_outputs["cached-2"] is not cached_ui
+        assert ui_outputs["cached"] is not ui_outputs["cached-2"]
+        assert ui_outputs["cached"]["output"] is output_ui
+        assert ui_outputs["cached-2"]["output"] is output_ui
         assert server.events == [
             (
                 "executed",
-                {"node": "cached-2", "display_node": "cached-2", "output": cached_ui["output"], "prompt_id": "prompt"},
+                {"node": "cached-2", "display_node": "display-2", "output": output_ui, "prompt_id": "prompt"},
                 "drift-test-client",
             )
         ], (
