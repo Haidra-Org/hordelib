@@ -17,7 +17,7 @@ import json
 import numbers
 import time
 import typing
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from enum import StrEnum
 
 import logfire
@@ -283,10 +283,17 @@ async def _get_output_data_releasing_cast_buffers(
     streamed (partially loaded) component allocates stays on the device for the life of the process, about 1 GB
     for an offloaded multi-GB text encoder, and the sampling and decode that follow have that much less room.
     With aimdo enabled the loop resets the buffers itself, so this wrapper does not reset them a second time.
+
+    A node that streamed weights is recorded on the free-VRAM clamp as one of this process's own spans (see
+    :func:`_record_streamed_node_span`), so a host figure measured while its buffers were on the device is not
+    used to rebase the clamp. It also logs one :data:`STREAMED_NODE_HIGH_WATER_TEXT` line.
     """
     import comfy.memory_management
     import comfy.model_management
 
+    started_at = _monotonic()
+    reserved_at_start = _allocator_reserved_bytes()
+    free_view_at_start = _clamp_free_view_bytes(reserved_at_start)
     try:
         return await _originals["get_output_data"](
             prompt_id,
@@ -302,7 +309,83 @@ async def _get_output_data_releasing_cast_buffers(
         # did not stream any weights (every component resident). Otherwise every node of every job would pay
         # that cost.
         if not comfy.memory_management.aimdo_enabled and comfy.model_management.STREAM_CAST_BUFFERS:
+            reserved_before_release = _allocator_reserved_bytes()
             comfy.model_management.reset_cast_buffers()
+            _record_streamed_node_span(started_at)
+            _log_streamed_node_high_water(
+                unique_id,
+                obj,
+                reserved_at_start=reserved_at_start,
+                reserved_before_release=reserved_before_release,
+                free_view_at_start=free_view_at_start,
+            )
+
+
+STREAMED_NODE_HIGH_WATER_TEXT: str = "Streamed node allocator high-water"
+"""Stable prefix of the line logged after each node that streamed weights through cast buffers."""
+
+
+def _allocator_reserved_bytes() -> int | None:
+    """Return the allocator's reservation on the clamp's device, or the default device, or None when unreadable.
+
+    The figure is the allocator's counter, so reading it does not cost a device query.
+    """
+    clamp = _active_free_view_clamp
+    try:
+        if clamp is not None:
+            return int(torch.cuda.memory_reserved(clamp.device))
+        return int(torch.cuda.memory_reserved())
+    except Exception:
+        return None
+
+
+def _clamp_free_view_bytes(reserved: int | None) -> int | None:
+    """Return the active clamp's ceiling on the free figure at the given reservation, or None without a clamp.
+
+    This is the ceiling applied by :func:`free_memory_view_clamped`, less the reclaimable pool, which is part of
+    the reservation and only grows the figure. It does not read a device figure, so ComfyUI's reading is not
+    compared.
+    """
+    clamp = _active_free_view_clamp
+    if clamp is None or reserved is None:
+        return None
+    return max(0, clamp.truth_bytes - (reserved - clamp.reserved_baseline))
+
+
+def _log_streamed_node_high_water(
+    unique_id: str,
+    obj: typing.Any,
+    *,
+    reserved_at_start: int | None,
+    reserved_before_release: int | None,
+    free_view_at_start: int | None,
+) -> None:
+    """Log the allocator growth of a node that streamed weights, read just before its cast buffers are released.
+
+    The cast buffers stay reserved until the release, and freed activations stay in the allocator's cache, so the
+    reservation then is the node's high-water unless the node emptied the cache itself (ComfyUI does when it
+    replaces a cast buffer of more than 50 MB). The growth is a lower bound in that case. The allocator's peak
+    counter is not used, because the process's VRAM report resets it on the report's interval.
+    """
+
+    def _mb(value: int | None) -> str:
+        return "unknown" if value is None else f"{value / 2**20:.0f}"
+
+    growth = (
+        None
+        if reserved_at_start is None or reserved_before_release is None
+        else reserved_before_release - reserved_at_start
+    )
+    logger.info(
+        STREAMED_NODE_HIGH_WATER_TEXT + ": node={} class={} growth_mb={} reserved_start_mb={}"
+        " reserved_before_release_mb={} free_view_at_start_mb={}",
+        unique_id,
+        type(obj).__name__,
+        _mb(growth),
+        _mb(reserved_at_start),
+        _mb(reserved_before_release),
+        _mb(free_view_at_start),
+    )
 
 
 def _resolve_skip_classes_and_fragments() -> tuple[tuple[type, ...], list[str]]:
@@ -411,7 +494,8 @@ in the free VRAM already available; for decodes, ComfyUI degrades to tiled decod
 anyway. Diffusion models themselves are never clamped (their estimate covers sampling, which has
 no such fallback), and the 1 GiB ceiling keeps every image VAE inside while excluding text
 encoders large enough to declare their own memory-estimation functions, whose encode path has no
-OOM fallback either.
+OOM fallback either. A text encoder's load beside the job's diffusion model is capped instead
+(:func:`_plan_text_encoder_eviction_cap`), and the cap keeps room for the encode's working memory.
 """
 
 
@@ -436,27 +520,44 @@ def _small_support_models_only(models) -> bool:
 
 
 @contextlib.contextmanager
-def _free_memory_capped(cap_bytes: int):
+def _free_memory_capped(cap_bytes: int, *, kept_models: Sequence[typing.Any] = ()) -> typing.Iterator[list[float]]:
     """Temporarily cap ComfyUI's ``free_memory`` target on the way into one load.
 
     ``load_models_gpu`` frees ``weights * 1.1 + max(minimum_inference_memory(), memory_required +
     extra_reserved)`` before loading; the inference-reserve floor cannot be lowered through the call's
     arguments, so a small support-model load on a card whose free VRAM sits under that floor still
     evicts a resident diffusion model. Within this scope, ``free_memory`` requests are capped at
-    ``cap_bytes`` (enough for the weights being loaded plus a margin), so the load can only reclaim
-    what it needs for itself. ComfyUI executes one graph at a time per process, so the scoped swap
-    cannot race another load.
+    ``cap_bytes``, so the load can only reclaim that much. The swap replaces the module function, which
+    ``load_models_gpu`` looks up at each call, so it covers the second ``free_memory`` call that runs when
+    free memory is still under the load's minimum. ComfyUI executes one graph at a time per process, so
+    the scoped swap cannot race another load.
+
+    Args:
+        cap_bytes: The largest free target passed to any ``free_memory`` call in the scope.
+        kept_models: ComfyUI ``LoadedModel`` entries added to each call's ``keep_loaded``. ``free_memory``
+            visits residents in an order set by their offloaded size and reference count, so a cap alone
+            does not decide which resident gives up the room.
+
+    Yields:
+        The targets ComfyUI requested inside the scope, before the cap, in call order.
     """
     import comfy.model_management as model_management
 
     original_free_memory = model_management.free_memory
+    requested_targets: list[float] = []
 
     def capped_free_memory(memory_required, device, *args, **kwargs):
+        requested_targets.append(memory_required)
+        if kept_models:
+            if args:
+                args = ([*args[0], *kept_models], *args[1:])
+            else:
+                kwargs["keep_loaded"] = [*kwargs.get("keep_loaded", ()), *kept_models]
         return original_free_memory(min(memory_required, cap_bytes), device, *args, **kwargs)
 
     model_management.free_memory = capped_free_memory
     try:
-        yield
+        yield requested_targets
     finally:
         model_management.free_memory = original_free_memory
 
@@ -473,12 +574,12 @@ class _ReservationCheckpoint:
 
 @dataclasses.dataclass
 class _OwnLoadSpan:
-    """The span of one of this process's own loads, between the checkpoints taken before and after it."""
+    """The span of one of this process's own loads, or of a node that streamed weights through cast buffers."""
 
     started_at: float
-    """``time.monotonic()`` of the checkpoint taken before the load."""
+    """``time.monotonic()`` of the checkpoint taken before the load, or when the streamed node started."""
     ended_at: float | None = None
-    """``time.monotonic()`` when the load returned, or None while it is in flight."""
+    """``time.monotonic()`` when the load returned or the node's cast buffers were released, or None in flight."""
 
 
 @dataclasses.dataclass
@@ -499,7 +600,7 @@ class _FreeViewClamp:
     A host figure measured between two of them was taken while the allocator held the earlier one's
     reservation, which is what :func:`rebase_free_memory_view_clamp` needs for its baseline."""
     own_loads: list[_OwnLoadSpan] = dataclasses.field(default_factory=list)
-    """The spans of this process's own loads, oldest first.
+    """The spans of this process's own loads and streamed nodes, oldest first.
 
     A host figure measured inside one of them has no checkpoint to count from, so the rebase ignores it."""
 
@@ -547,6 +648,26 @@ def _own_load_span() -> typing.Iterator[None]:
         record_reservation_checkpoint()
         if span is not None:
             span.ended_at = _monotonic()
+
+
+def _record_streamed_node_span(started_at: float) -> None:
+    """Record a node that streamed weights as an own span on the active clamp, once its cast buffers are released.
+
+    A streamed component (a text encoder beside a kept diffusion model, or a partially loaded diffusion model)
+    grows the allocator by its cast buffers during the node, and the buffer release at the end returns that
+    memory to the driver. Checkpoints do not date the growth. A host figure measured during the node counts the
+    buffers as used, and a rebase on it keeps them charged after they are freed. The sample-time load then sizes
+    itself short by the buffers. The span makes the rebase ignore such a figure, as it ignores one measured
+    inside a load. The checkpoint after the release dates a figure measured once the node is done. Without an
+    active clamp the span is not recorded.
+    """
+    clamp = _active_free_view_clamp
+    if clamp is None:
+        return
+    span = _OwnLoadSpan(started_at=started_at)
+    clamp.own_loads.append(span)
+    record_reservation_checkpoint()
+    span.ended_at = _monotonic()
 
 
 def _measured_during_own_load(clamp: _FreeViewClamp, measured_at: float) -> bool:
@@ -700,22 +821,24 @@ def rebase_free_memory_view_clamp(device_free_truth_mb: float, *, measured_at: f
     baseline lookup can only find the checkpoint before the load and would subtract that part again, so a
     load judged on the rebased view would find the card short by what it had just uploaded and unload it. A
     figure measured after the load ends is used as before, so a sibling's release after the load is still
-    credited.
+    credited. A figure measured inside a node that streamed weights is ignored the same way. Such a figure counts
+    the node's cast buffers as used, and they are released before the rebase (see :func:`_record_streamed_node_span`).
 
     Args:
         device_free_truth_mb: Host-measured device-level free VRAM in MB at the grant.
         measured_at: ``time.monotonic()`` on the host when that figure was read, or None when unknown.
 
     Returns:
-        Whether a clamp was active and rebased. With no active clamp, or a figure measured inside one of this
-        process's own loads, nothing changes.
+        Whether a clamp was active and rebased. Without an active clamp, or for a figure measured inside one of
+        this process's own loads or streamed nodes, the clamp does not change.
     """
     clamp = _active_free_view_clamp
     if clamp is None:
         return False
     if measured_at is not None and _measured_during_own_load(clamp, measured_at):
         logger.debug(
-            "Kept comfy's free-VRAM clamp: the host's figure was measured during one of this process's own loads:"
+            "Kept comfy's free-VRAM clamp: the host's figure was measured during one of this process's own loads or"
+            " streamed nodes:"
             " truth_mb={:.0f} measured_at={:.3f}",
             device_free_truth_mb,
             measured_at,
@@ -778,8 +901,9 @@ def _log_sampling_beside_resident_models(models, reason: ForceLoadSkipReason) ->
     """Log once when a skipped force-full load proceeds while other models hold weights on the device.
 
     Reads ComfyUI's ``current_loaded_models`` before the load, so the line records the residents at the
-    decision point; any eviction ComfyUI then makes for a shortfall logs its own line. Models being loaded
-    (and their clones, which ComfyUI detaches during the load) are not counted as residents.
+    decision point. hordelib does not force the load. ComfyUI's ``free_memory`` still unloads residents to reach
+    its request, unless :func:`_text_encoder_eviction_bounded` caps it, and ComfyUI logs that unload separately.
+    Models being loaded (and their clones, which ComfyUI detaches during the load) are not counted as residents.
     """
     try:
         import comfy.model_management as model_management
@@ -813,7 +937,7 @@ def _log_sampling_beside_resident_models(models, reason: ForceLoadSkipReason) ->
     logger.info(
         SAMPLING_BESIDE_RESIDENT_MODELS_TEXT
         + ": reason={} {} loading {:.0f} MB with {:.0f} MB of other models resident ({}), free {:.0f} MB;"
-        " no forced eviction",
+        " load not forced, ComfyUI may still unload residents for room",
         reason,
         ", ".join(loading_names),
         loading_bytes / 2**20,
@@ -821,6 +945,200 @@ def _log_sampling_beside_resident_models(models, reason: ForceLoadSkipReason) ->
         ", ".join(resident_names),
         free_bytes / 2**20,
     )
+
+
+TEXT_ENCODER_EVICTION_CAPPED_TEXT: str = "Text encoder load capped beside the job's diffusion model"
+"""Stable prefix of the line logged after each text-encoder load whose ``free_memory`` requests were capped."""
+
+
+class TextEncoderEvictionCapMode(StrEnum):
+    """How a capped text-encoder load treats the job's resident diffusion model. The value is the ``mode=`` token."""
+
+    KEEP_DIFFUSION = "keep_diffusion"
+    """The diffusion model is kept whole. ComfyUI places what fits in the room left and streams the rest."""
+    SHORTFALL = "shortfall"
+    """The room left is under the encode's floor. The load frees at most the encoder bytes plus the floor."""
+
+
+@dataclasses.dataclass(frozen=True)
+class _TextEncoderEvictionCap:
+    """Represents the cap for one text-encoder load and the figures used to derive it."""
+
+    mode: TextEncoderEvictionCapMode
+    cap_bytes: int
+    """The largest target passed to ComfyUI's ``free_memory`` during the load."""
+    kept_models: tuple[typing.Any, ...]
+    """The ``LoadedModel`` entries of the job's diffusion model that ``free_memory`` must not unload."""
+    protected_names: tuple[str, ...]
+    """The class names of the job's resident diffusion models, for the log line."""
+    free_bytes: int
+    """Free VRAM before the load."""
+    room_bytes: int
+    """Free VRAM once every resident other than the job's diffusion model is unloaded."""
+    floor_bytes: int
+    """The working memory the encode needs beside its weights."""
+
+
+def _running_prompt_graph() -> typing.Any:
+    """Return the ``DynamicPrompt`` of the prompt now executing in this process, or None outside a prompt run."""
+    progress = importlib.import_module("comfy_execution.progress")
+    executing = importlib.import_module("comfy_execution.utils").get_executing_context()
+    registry = progress.get_progress_state()
+    if executing is None or registry.prompt_id != executing.prompt_id:
+        return None
+    return registry.dynprompt
+
+
+def _job_diffusion_model_patchers() -> list[typing.Any]:
+    """Return the diffusion model patchers served from the cache to the running prompt's model loaders.
+
+    Each ``HordeCheckpointLoader`` of the prompt that outputs a model names it by its inputs. The component cache
+    entry under that name holds the patcher returned by the loader when it runs. For a split-files graph the
+    loader runs after the text encode. A resident model that is not one of these, or a clone of one, belongs to
+    another job. Outside a prompt run, or when the cache does not have an entry for the prompt's model, the list is
+    empty.
+    """
+    dynprompt = _running_prompt_graph()
+    if dynprompt is None:
+        return []
+    from hordelib.execution.component_cache import process_component_cache
+
+    cache = process_component_cache()
+    if cache is None:
+        return []
+    from hordelib.nodes import node_model_loader
+
+    patchers: list[typing.Any] = []
+    for node_id in dynprompt.all_node_ids():
+        node = dynprompt.get_node(node_id)
+        if node.get("class_type") not in node_model_loader.NODE_CLASS_MAPPINGS:
+            continue
+        loader_inputs = node.get("inputs", {})
+        horde_model_name = loader_inputs.get("horde_model_name")
+        file_type = loader_inputs.get("file_type")
+        if not isinstance(horde_model_name, str) or not (file_type is None or isinstance(file_type, str)):
+            continue
+        if loader_inputs.get("output_model", True) is False:
+            continue
+        entry = cache.get(node_model_loader.main_loader_cache_key(horde_model_name, file_type))
+        if entry is None or not entry.payload or entry.payload[0] is None:
+            continue
+        patchers.append(entry.payload[0])
+    return patchers
+
+
+def _plan_text_encoder_eviction_cap(models, memory_required: float) -> _TextEncoderEvictionCap | None:
+    """Return the cap for a text-encoder load beside the job's resident diffusion model, or None to leave it as is.
+
+    ComfyUI frees the encoder's weights times 1.1 plus its inference floor and the reserve before the load, and
+    takes that room from whatever is resident, including the job's diffusion model. That model is uploaded
+    again for the sample moments later. When the room left beside it covers the encode's working memory, the
+    load keeps it whole and ComfyUI streams the encoder's weights through the forward. The encode does not have
+    an OOM fallback, so when that room is short the cap only bounds the eviction at the encoder bytes plus the
+    floor.
+
+    The floor is ComfyUI's inference floor without the reserve kept for other applications, or the encoder's
+    memory estimate when the encoder declares a larger one. The free figure is the clamped device view, which
+    already counts other processes' memory.
+
+    Returns None, so the load runs unchanged, for a load that is not all text encoders, outside a prompt run,
+    when a diffusion model of the running prompt is not resident, and when the figures cannot be read.
+    """
+    if not models or not all(getattr(model_patcher, "is_clip", False) is True for model_patcher in models):
+        return None
+    try:
+        import comfy.model_management as model_management
+
+        job_patchers = _job_diffusion_model_patchers()
+        if not job_patchers:
+            return None
+        device = model_management.get_torch_device()
+        kept_models: list[typing.Any] = []
+        protected_names: list[str] = []
+        other_resident_bytes = 0
+        for loaded_model in model_management.current_loaded_models:
+            if loaded_model.device != device:
+                continue
+            resident_patcher = loaded_model.model
+            if any(
+                resident_patcher is model_patcher or resident_patcher.is_clone(model_patcher)
+                for model_patcher in models
+            ):
+                continue
+            loaded_bytes = loaded_model.model_loaded_memory()
+            if loaded_bytes <= 0:
+                continue
+            if any(
+                resident_patcher is job_patcher or resident_patcher.is_clone(job_patcher)
+                for job_patcher in job_patchers
+            ):
+                kept_models.append(loaded_model)
+                protected_names.append(type(resident_patcher.model).__name__)
+            else:
+                other_resident_bytes += loaded_bytes
+        if not kept_models:
+            return None
+        free_bytes = int(model_management.get_free_memory(device))
+        inference_floor_bytes = model_management.minimum_inference_memory() - model_management.extra_reserved_memory()
+        floor_bytes = int(max(inference_floor_bytes, memory_required or 0))
+        encoder_bytes = sum(_bytes_still_to_load(model_patcher) for model_patcher in models)
+    except Exception as exc:
+        logger.debug(
+            "Could not plan a text encoder load beside the job's diffusion model, so it is not capped: error={}",
+            exc,
+        )
+        return None
+
+    room_bytes = free_bytes + other_resident_bytes
+    if room_bytes >= floor_bytes:
+        return _TextEncoderEvictionCap(
+            mode=TextEncoderEvictionCapMode.KEEP_DIFFUSION,
+            cap_bytes=room_bytes,
+            kept_models=tuple(kept_models),
+            protected_names=tuple(protected_names),
+            free_bytes=free_bytes,
+            room_bytes=room_bytes,
+            floor_bytes=floor_bytes,
+        )
+    return _TextEncoderEvictionCap(
+        mode=TextEncoderEvictionCapMode.SHORTFALL,
+        cap_bytes=encoder_bytes + floor_bytes,
+        kept_models=(),
+        protected_names=tuple(protected_names),
+        free_bytes=free_bytes,
+        room_bytes=room_bytes,
+        floor_bytes=floor_bytes,
+    )
+
+
+@contextlib.contextmanager
+def _text_encoder_eviction_bounded(models, memory_required: float) -> typing.Iterator[None]:
+    """Cap ``free_memory`` for one text-encoder load beside the job's diffusion model, as planned.
+
+    The cap never raises a request, so a load does not free more than ComfyUI requested. One
+    :data:`TEXT_ENCODER_EVICTION_CAPPED_TEXT` line is logged per capped load, with ComfyUI's requests.
+    """
+    cap = _plan_text_encoder_eviction_cap(models, memory_required)
+    if cap is None:
+        yield
+        return
+    with _free_memory_capped(cap.cap_bytes, kept_models=cap.kept_models) as requested_targets:
+        try:
+            yield
+        finally:
+            requested_mb = ",".join(f"{target / 2**20:.0f}" for target in requested_targets) or "none"
+            logger.info(
+                TEXT_ENCODER_EVICTION_CAPPED_TEXT
+                + ": mode={} protected={} requested_mb={} cap_mb={:.0f} free_mb={:.0f} room_mb={:.0f}"
+                " floor_mb={:.0f}",
+                cap.mode,
+                ",".join(cap.protected_names),
+                requested_mb,
+                cap.cap_bytes / 2**20,
+                cap.free_bytes / 2**20,
+                cap.room_bytes / 2**20,
+                cap.floor_bytes / 2**20,
+            )
 
 
 @logfire.instrument("comfy.load_models_gpu_hijack")
@@ -839,13 +1157,14 @@ def _load_models_gpu_hijack(*args, **kwargs):
     falls back to tiling on a genuine OOM rather than failing.
 
     When the force-full load is skipped (a skip-listed diffusion model, or weights that would not fit),
-    ComfyUI sizes the load from the caller's own arguments; only ``force_full_load`` is dropped. No
-    eviction of other models is forced. The host arbiter prices the sampling peak and measures it, and a
-    child-side eviction the host cannot see competes with that pricing. A forced ``memory_required``
-    also became ComfyUI's minimum on callers that pass none (the encode path), which sized the partial
-    load below zero and unloaded the very model being loaded. A skipped load beside other resident
-    models logs :data:`SAMPLING_BESIDE_RESIDENT_MODELS_TEXT` with the skip's
-    :class:`ForceLoadSkipReason`, so an OOM after that line is attributable to the residents left in place.
+    ComfyUI sizes the load from the caller's arguments, and only ``force_full_load`` is dropped. hordelib
+    does not add a ``memory_required`` of its own. A forced one would become ComfyUI's minimum on callers that do
+    not pass one (the encode path). That sizes the partial load below zero and unloads the model being loaded.
+    ComfyUI's ``free_memory`` still unloads residents to reach its request. For a text-encoder load
+    beside the running job's diffusion model, :func:`_text_encoder_eviction_bounded` caps that request, so
+    the job's model stays on the device for its sample. A skipped load beside other resident models logs
+    :data:`SAMPLING_BESIDE_RESIDENT_MODELS_TEXT` with the skip's :class:`ForceLoadSkipReason`, so an OOM
+    after that line is attributable to the residents on the device.
     """
 
     # A load (and any eviction it ran) moves the allocator. The free-VRAM clamp dates its baseline by the
@@ -871,7 +1190,7 @@ def _load_models_gpu_as_decided(*args, **kwargs):
         # ComfyUI will size a partial load for these patchers. The ModelPatcher.load hijack below must let
         # that stand: forcing full_load there loads the whole weight set into free VRAM the check above
         # just found too small, and the process OOMs.
-        with _partial_load_allowed(models):
+        with _partial_load_allowed(models), _text_encoder_eviction_bounded(models, kwargs.get("memory_required", 0)):
             _originals["load_models_gpu"](*args, **kwargs)
         return
 

@@ -83,6 +83,20 @@ through ``load_checkpoint_guess_config``.
 """
 
 
+def main_loader_cache_key(horde_model_name: str, file_type: str | None) -> ComponentCacheKey:
+    """Return the component cache key from which a :class:`HordeCheckpointLoader` load serves its model.
+
+    A bare component is keyed by its slot and ``<model name>:<file_type>``. Any other load shares the one
+    checkpoint entry under the bare model name.
+    """
+    if file_type in COMPONENT_FILE_TYPES:
+        return ComponentCacheKey(
+            _COMPONENT_FILE_TYPE_KINDS.get(file_type, ComponentSlotKind.CHECKPOINT),
+            f"{horde_model_name}:{file_type}",
+        )
+    return ComponentCacheKey(ComponentSlotKind.CHECKPOINT, horde_model_name)
+
+
 class HordeCheckpointLoader:
     @classmethod
     def INPUT_TYPES(s):
@@ -256,7 +270,7 @@ class HordeCheckpointLoader:
         no record or disk path, and every full-or-subset load of a model shares one entry (the property the
         subset-satisfaction check relies on). Checkpoint file resolution happens only on a miss.
         """
-        cache_key = ComponentCacheKey(ComponentSlotKind.CHECKPOINT, horde_model_name)
+        cache_key = main_loader_cache_key(horde_model_name, None)
         collector = get_metrics_collector()
 
         entry = cache.get(cache_key, will_mutate=will_mutate)
@@ -390,10 +404,7 @@ class HordeCheckpointLoader:
         Component file_types (unet, vae, text_encoder) select one file of a multi-file model and load it as a
         single object; the cached tuple is ``(component, None, None)``. A cache hit returns the tuple as-is.
         """
-        cache_key = ComponentCacheKey(
-            _COMPONENT_FILE_TYPE_KINDS.get(file_type, ComponentSlotKind.CHECKPOINT),
-            f"{horde_model_name}:{file_type}",
-        )
+        cache_key = main_loader_cache_key(horde_model_name, file_type)
         collector = get_metrics_collector()
 
         entry = cache.get(cache_key, will_mutate=will_mutate)

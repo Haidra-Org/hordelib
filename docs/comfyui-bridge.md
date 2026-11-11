@@ -305,7 +305,8 @@ The unload is ComfyUI's full unload (`free_memory` with every other model kept),
 origin and copies nothing. An encoder left on the device holds room through the grant wait, the room a stage grant
 needs, and the diffusion load's `free_memory` then unloads it partially, pointing each moved weight back at its CPU
 origin. The component cache keeps the encoder in host RAM, so the next job's encode uploads it
-from there instead of finding it on the device.
+from there instead of finding it on the device. Beside a diffusion model kept from the previous job, the encoder is
+streamed instead (see the `load_models_gpu` entry below).
 
 ## The monkeypatches
 
@@ -316,7 +317,25 @@ all policy injections with no native hook:
   model-class guards) so sibling worker processes sharing a GPU behave predictably. When the
   overflow guard declines the full load, ComfyUI sizes a partial (low-VRAM) load instead, and the
   `ModelPatcher.load` hijack lets that stand for those patchers (`_partial_load_allowed`) rather
-  than forcing the whole weight set into free VRAM the guard just found too small. Small
+  than forcing the whole weight set into free VRAM the guard just found too small. Before that
+  partial load, ComfyUI's `free_memory` still unloads residents to reach its request, which is the
+  weights times 1.1 plus its inference floor and the reserve. For a text encoder that request would
+  page out the diffusion model for the same job's sample, and the sample would then upload it
+  again. The job's diffusion model is the component cache entry served to the running prompt's
+  `HordeCheckpointLoader` (`_job_diffusion_model_patchers`), or a clone of it, so ComfyUI unloads a
+  model left by another job in the usual way. For a text-encoder load beside the job's model,
+  `_plan_text_encoder_eviction_cap` measures the room left once every other resident (a VAE, say) is
+  unloaded, and compares it with the encode's floor. The floor is ComfyUI's inference floor without
+  the reserve, or the encoder's memory estimate when the encoder declares a larger one. When the room
+  covers the floor, `free_memory` is capped at that room and the diffusion model is added to its
+  `keep_loaded`, so ComfyUI places what fits and streams the rest of the encoder through the forward.
+  The encode does not have an OOM fallback. When the room is under the floor, the cap is the
+  encoder's bytes still to load plus the floor, and the diffusion model may give up that much. The
+  cap only lowers a request. It replaces the module function for the load, so it also covers the
+  second `free_memory` call made by ComfyUI when free memory is still under the load's minimum. Each
+  capped load logs one line starting `Text encoder load capped beside the job's diffusion model`,
+  with the mode (`keep_diffusion` or `shortfall`), the protected model, ComfyUI's requests, the cap,
+  the free memory, the room and the floor. Small
   support-model loads (VAEs) additionally have their caller-supplied working-memory estimate
   clamped *and* the free-memory target capped near their own weights for the duration of the
   load: ComfyUI otherwise frees the worst-case decode estimate (or, failing that, its ~1GB
@@ -450,6 +469,24 @@ next load would unload the weights the upload had just placed. The spans come fr
 load hijack takes either side of each load, and a figure within the clock's resolution of a span's edge
 counts as inside. A figure measured after the load ends is used as described above, so a sibling's release
 after the load is still credited.
+
+A figure measured inside a node that streamed weights is ignored the same way. A streamed component (a text
+encoder beside a kept diffusion model, or a partially loaded diffusion model) grows the allocator by its cast
+buffers during the node, and the buffer release in the `get_output_data` wrapper returns them to the driver at
+the node's end. Checkpoints do not date that growth, so a figure measured during the node counts the buffers as
+used after they are freed. For a job with a kept diffusion model, a grant written during the streamed encode
+would size the sample-time load short by the buffers, several hundred MB for the Krea2 encoder, on every job.
+After the release the wrapper records the node's span on the clamp and takes a checkpoint
+(`comfy_patches._record_streamed_node_span`). The clamp in force at the sample is then the run's own figure,
+less the process's growth since, and the sample-time load sizes the kept model to the room on the card. The
+wrapper also logs one line per streamed node, starting `Streamed node allocator high-water`, with the
+allocator's growth from the node's start to just before the release, and the clamp's free figure at the start.
+
+The size of that load follows from two sizing rules. The force-full overflow check passes
+when the bytes still to load plus the grant's activation reserve fit in 95% of the free figure, and the model is
+then loaded whole. Otherwise ComfyUI sizes a partial load that leaves its minimum free. The minimum is the
+activation reserve plus ComfyUI's reserve (`--reserve-vram`). The staged upload and `prepare_sampling` each run
+the check, so a partial staged upload followed by a forced load of the rest can still end with the model whole.
 
 ### Retention grants, and reporting when the device did not honour one
 

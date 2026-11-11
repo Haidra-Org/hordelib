@@ -704,6 +704,72 @@ class TestMonkeypatchSignaturePins:
         parameters = list(inspect.signature(comfy_horde._comfy_free_memory).parameters)
         assert parameters[:2] == ["memory_required", "device"]
 
+    def test_free_memory_takes_the_models_to_keep_third(self, init_horde: None) -> None:
+        """``_free_memory_capped`` adds the job's diffusion model to ``keep_loaded``, by position or keyword."""
+        from hordelib import comfy_horde
+
+        parameters = list(inspect.signature(comfy_horde._comfy_free_memory).parameters)
+        assert parameters[:3] == ["memory_required", "device", "keep_loaded"]
+
+    def test_load_models_gpu_frees_through_the_module_global_at_most_twice(self, init_horde: None) -> None:
+        """The text-encoder cap swaps ``comfy.model_management.free_memory`` for the scope of one load.
+
+        That covers the load only while ``load_models_gpu`` reaches ``free_memory`` by its module-global name.
+        The cap's log line lists the requests of ComfyUI's two calls. The first is the load's request, and the
+        second is the load's minimum when free memory is still under it.
+        """
+        from hordelib.execution.comfy_patches import _originals
+
+        tree = ast.parse(textwrap.dedent(inspect.getsource(_originals["load_models_gpu"])))
+        free_memory_calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "free_memory"
+        ]
+        assert len(free_memory_calls) == 2
+        attribute_calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "free_memory"
+        ]
+        assert attribute_calls == []
+
+    def test_a_load_that_is_not_forced_places_only_its_low_vram_budget(self, init_horde: None) -> None:
+        """A capped text-encoder load relies on ComfyUI placing what fits and streaming the rest.
+
+        ``load_models_gpu`` must size ``lowvram_model_memory`` from free memory less its minimum, gated on
+        ``force_full_load``, and hand that budget to ``model_load``. The cap's floor also reads the two figures
+        used to build the request, ``minimum_inference_memory`` and ``extra_reserved_memory``.
+        """
+        import comfy.model_management as model_management
+
+        from hordelib.execution.comfy_patches import _originals
+
+        source = textwrap.dedent(inspect.getsource(_originals["load_models_gpu"]))
+        tree = ast.parse(source)
+        budget_passed = any(
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "model_load"
+            and node.args
+            and isinstance(node.args[0], ast.Name)
+            and node.args[0].id == "lowvram_model_memory"
+            for node in ast.walk(tree)
+        )
+        assert budget_passed
+        assert "not force_full_load" in source
+        assert "minimum_inference_memory()" in source
+        assert "extra_reserved_memory()" in source
+        assert callable(model_management.minimum_inference_memory)
+        assert callable(model_management.extra_reserved_memory)
+
+    def test_patcher_clone_and_text_encoder_marks(self, init_horde: None) -> None:
+        """The job's diffusion model is matched by ``is_clone`` and a text encoder by ``is_clip``."""
+        import comfy.model_patcher
+
+        assert list(inspect.signature(comfy.model_patcher.ModelPatcher.is_clone).parameters) == ["self", "other"]
+        assert "is_clip" in inspect.getsource(comfy.model_patcher.ModelPatcher.__init__)
+
     def test_model_patcher_load_signature(self, init_horde: None) -> None:
         from hordelib.execution.comfy_patches import _originals
 

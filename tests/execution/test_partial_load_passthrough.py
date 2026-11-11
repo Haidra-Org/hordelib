@@ -285,7 +285,8 @@ def test_a_skipped_load_beside_a_resident_model_logs_the_line_once_with_its_reas
     assert _resident_line_count(info_lines) == 1
     assert info_lines[-1] == (
         "Sampling beside resident models: reason=class_list _DiffusionModel loading 11740 MB with 7672 MB of "
-        "other models resident (_TextEncoder), free 4604 MB; no forced eviction"
+        "other models resident (_TextEncoder), free 4604 MB; load not forced, ComfyUI may still unload residents "
+        "for room"
     )
     assert seam["gpu_kwargs"] == {"memory_required": 0}
 
@@ -295,7 +296,8 @@ def test_a_skipped_load_beside_a_resident_model_logs_the_line_once_with_its_reas
     assert _resident_line_count(info_lines) == 2
     assert info_lines[-1] == (
         "Sampling beside resident models: reason=overflow _TextEncoder loading 7672 MB with 7672 MB of "
-        "other models resident (_TextEncoder), free 4604 MB; no forced eviction"
+        "other models resident (_TextEncoder), free 4604 MB; load not forced, ComfyUI may still unload residents "
+        "for room"
     )
 
 
