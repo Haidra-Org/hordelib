@@ -216,8 +216,13 @@ def _prefetch_weakly_held_module(
 
     The module is held strongly only while its ranges and weight list are read. The hint is issued after that
     reference is dropped. Both OS calls validate the address range, so a range unmapped in between fails the
-    hint and harms nothing. The touch takes one tensor at a time through a weakref and returns once *stop* is
-    set or the module is collected, so an evicted component's mapping is held for at most one tensor's touch.
+    hint and does not harm anything. The touch takes one tensor at a time and looks each one up by name through
+    the module's weakref. It returns once *stop* is set or the module is collected, so an evicted component's
+    mapping is held for at most one tensor's touch.
+
+    The touch does not keep a weakref to each weight. ``Module._apply`` swaps a parameter in place when it
+    converts a module to a device or a dtype and the module's weights are tensor subclasses. That swap raises for
+    a parameter with a weakref, so a conversion during the read would fail.
     """
     started = time.perf_counter()
     module = module_ref()
@@ -225,22 +230,32 @@ def _prefetch_weakly_held_module(
         return
     display_label = label or module.__class__.__name__
     ranges = collect_cpu_weight_ranges(module)
-    weight_refs = [weakref.ref(tensor) for tensor in (*module.parameters(recurse=True), *module.buffers(recurse=True))]
+    weight_names = [
+        *((name, True) for name, _parameter in module.named_parameters(recurse=True)),
+        *((name, False) for name, _buffer in module.named_buffers(recurse=True)),
+    ]
     del module
 
     total = sum(length for _, length in ranges)
     accepted = False if stop.is_set() or module_ref() is None else prefetch_ranges(ranges)
     prefetched_at = time.perf_counter()
     touched = 0
-    for weight_ref in weight_refs:
-        if stop.is_set() or module_ref() is None:
+    for weight_name, is_parameter in weight_names:
+        module = module_ref()
+        if stop.is_set() or module is None:
             logger.debug(
                 "Weight prefetch {} stopped after touching {} MB because its component was released",
                 display_label,
                 touched // (1024 * 1024),
             )
             return
-        weight = weight_ref()
+        try:
+            weight = module.get_parameter(weight_name) if is_parameter else module.get_buffer(weight_name)
+        except AttributeError:
+            # The module's structure changed since the names were listed.
+            del module
+            continue
+        del module
         if weight is None or weight.device.type != "cpu" or weight.is_meta or weight.numel() == 0:
             continue
         # A parameter is read through ``.data`` as the synchronous path does. A buffer is touched as it is,

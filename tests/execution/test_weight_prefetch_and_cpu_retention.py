@@ -292,3 +292,28 @@ def test_an_unstopped_prefetch_touches_every_weight(gated_touch: _GatedTouch) ->
 
     assert not thread.is_alive()
     assert gated_touch.touched == sum(p.numel() * p.element_size() for p in module.parameters())
+
+
+def test_a_module_is_converted_with_parameter_swapping_while_the_prefetch_runs(gated_touch: _GatedTouch) -> None:
+    """A module is converted in place, with parameter swapping on, while the prefetch is mid-read.
+
+    ``Module._apply`` swaps the parameters of a module whose weights are tensor subclasses. The swap raises for
+    a parameter with a weakref, so the prefetch must not hold weakrefs to the weights. The test forces the same
+    swap on plain weights with ``torch.__future__.set_swap_module_params_on_conversion``.
+    """
+    from hordelib.execution.weight_prefetch import prefetch_module_weights_async
+
+    module = _module()
+    thread = prefetch_module_weights_async(module, label="swapped")
+    assert thread is not None
+    torch.__future__.set_swap_module_params_on_conversion(True)
+    try:
+        assert gated_touch.entered.wait(timeout=10)
+        module.float()
+    finally:
+        torch.__future__.set_swap_module_params_on_conversion(False)
+        gated_touch.release.set()
+        thread.join(timeout=10)
+
+    assert not thread.is_alive()
+    assert all(parameter.dtype == torch.float32 for parameter in module.parameters())
