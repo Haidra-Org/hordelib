@@ -6,7 +6,7 @@ and VAE were uploaded beside the previous copies. These check that a repeated lo
 resident object (one copy, read from disk once), that the hijacks pass ComfyUI's node inputs through, and that
 under the single-slot budget the split components stay resident beside the diffusion model. The preload rows
 check that a preloaded model is cached under the key its run's main loader asks for, so the run reads the file
-once.
+once, and that a split-files preload pages in the cached text encoder and VAE without loading an uncached one.
 
 ComfyUI cannot be imported without a GPU-adjacent initialise, so ``comfy``/``folder_paths`` are stubbed for the
 duration of this module, only when ComfyUI is absent.
@@ -439,6 +439,185 @@ def test_checkpoint_preload_then_run_maps_the_file_once(monkeypatch: pytest.Monk
     assert _held_keys(env.cache) == preloaded_keys
     assert env.disk_loads == [f"/models/checkpoints/{_SDXL_FILE}"]
     assert served is preloaded
+
+
+class _PrefetchRecorder:
+    """Records each ``prefetch_module_weights_async`` call as ``(module, label, stop)``."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple[torch.nn.Module, str, Any]] = []
+
+    def __call__(self, module: torch.nn.Module, *, label: str = "", stop: Any = None) -> None:
+        self.calls.append((module, label, stop))
+
+    def labels(self) -> list[str]:
+        return [label for _module, label, _stop in self.calls]
+
+
+class _FakeTextEncoder:
+    """Stands in for ``comfy.sd.CLIP``, whose module is ``cond_stage_model``."""
+
+    def __init__(self) -> None:
+        self.cond_stage_model = torch.nn.Linear(2, 2)
+
+
+class _FakeVae:
+    """Stands in for ``comfy.sd.VAE``, whose module is ``first_stage_model``."""
+
+    def __init__(self) -> None:
+        self.first_stage_model = torch.nn.Linear(2, 2)
+
+
+_KREA2_TEXT_ENCODER_FILE = "qwen_3_4b.safetensors"
+_KREA2_VAE_FILE = "qwen_image_vae.safetensors"
+
+
+def _split_warm_env(monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """A Krea2 preload environment whose record declares a text encoder and a VAE, with prefetches recorded."""
+    meta_consts = importlib.import_module("horde_model_reference.meta_consts")
+    env = _preload_env(
+        monkeypatch,
+        horde_model_name=_KREA2_MODEL,
+        baseline=meta_consts.KNOWN_IMAGE_GENERATION_BASELINE.krea2_turbo,
+        main_file=_KREA2_UNET_FILE,
+        file_type="unet",
+    )
+    env.context.extra_files = {
+        "unet": _KREA2_UNET_FILE,
+        "text_encoders": f"../text_encoders/{_KREA2_TEXT_ENCODER_FILE}",
+        "vae": f"../vae/{_KREA2_VAE_FILE}",
+    }
+    env.recorder = _PrefetchRecorder()
+    monkeypatch.setattr(node_model_loader, "prefetch_module_weights_async", env.recorder)
+    return env
+
+
+def _krea2_text_encoder_key(device: str = "default") -> Any:
+    return node_model_loader.split_text_encoder_cache_key(
+        clip_name=_KREA2_TEXT_ENCODER_FILE,
+        clip_type_name="krea2",
+        device=device,
+    )
+
+
+def _seed_split_entry(cache: Any, key: Any, component: Any) -> Any:
+    entry = ComponentCacheEntry(key=key, payload=(component,), approx_ram_mb=1.0, source_ckpt_path="split")
+    cache.put(entry)
+    return entry
+
+
+def test_split_files_warm_prefetches_the_cached_text_encoder_and_vae(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A preload of a split-files model pages in the model's cached text encoder and VAE.
+
+    The entries are seeded under the keys made by the run's loaders, so the warm pages in the entries that
+    serve the next job.
+    """
+    env = _split_warm_env(monkeypatch)
+    text_encoder = _FakeTextEncoder()
+    vae = _FakeVae()
+    text_encoder_entry = _seed_split_entry(env.cache, _krea2_text_encoder_key(), text_encoder)
+    vae_entry = _seed_split_entry(
+        env.cache,
+        node_model_loader.split_vae_cache_key(vae_name=_KREA2_VAE_FILE),
+        vae,
+    )
+
+    _preload(_KREA2_MODEL, diffusion_model_only=False)
+
+    split_calls = [call for call in env.recorder.calls if not call[1].endswith(":unet")]
+    assert split_calls == [
+        (text_encoder.cond_stage_model, f"{_KREA2_MODEL}:text_encoder", text_encoder_entry.prefetch_stop),
+        (vae.first_stage_model, f"{_KREA2_MODEL}:vae", vae_entry.prefetch_stop),
+    ]
+    assert env.disk_loads == [f"/models/checkpoints/{_KREA2_UNET_FILE}"]
+
+
+def test_split_files_warm_does_not_load_an_uncached_text_encoder(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A warm with the text encoder absent from the cache does not load it and does not prefetch it."""
+    env = _split_warm_env(monkeypatch)
+    vae = _FakeVae()
+    _seed_split_entry(env.cache, node_model_loader.split_vae_cache_key(vae_name=_KREA2_VAE_FILE), vae)
+
+    def unexpected_clip_load(*args: Any, **kwargs: Any) -> Any:
+        raise AssertionError("a warm must not load a text encoder")
+
+    monkeypatch.setattr(node_model_loader.comfy.sd, "load_clip", unexpected_clip_load, raising=False)
+
+    _preload(_KREA2_MODEL, diffusion_model_only=False)
+
+    assert env.disk_loads == [f"/models/checkpoints/{_KREA2_UNET_FILE}"]
+    assert env.cache.peek(_krea2_text_encoder_key()) is None
+    assert ComponentSlotKind.CLIP not in [kind for kind, _identity in _held_keys(env.cache)]
+    assert env.recorder.labels() == [f"{_KREA2_MODEL}:unet", f"{_KREA2_MODEL}:vae"]
+
+
+def test_split_files_warm_does_not_change_cached_component_recency(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The warm reads the cached text encoder without making it the most recently used entry."""
+    env = _split_warm_env(monkeypatch)
+    text_encoder_entry = _seed_split_entry(env.cache, _krea2_text_encoder_key(), _FakeTextEncoder())
+    recency_before = text_encoder_entry.last_used
+
+    _preload(_KREA2_MODEL, diffusion_model_only=False)
+
+    assert text_encoder_entry.last_used == recency_before
+
+
+def test_checkpoint_preload_prefetches_only_the_served_components(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A checkpoint preload starts prefetches only for the checkpoint's served components."""
+    meta_consts = importlib.import_module("horde_model_reference.meta_consts")
+    env = _preload_env(
+        monkeypatch,
+        horde_model_name=_SDXL_MODEL,
+        baseline=meta_consts.KNOWN_IMAGE_GENERATION_BASELINE.stable_diffusion_xl,
+        main_file=_SDXL_FILE,
+        file_type=None,
+    )
+    recorder = _PrefetchRecorder()
+    monkeypatch.setattr(node_model_loader, "prefetch_module_weights_async", recorder)
+
+    preloaded = _preload(_SDXL_MODEL, diffusion_model_only=False)
+
+    checkpoint_entry = env.cache.peek(ComponentCacheKey(ComponentSlotKind.CHECKPOINT, _SDXL_MODEL))
+    assert checkpoint_entry is not None
+    assert recorder.calls == [(preloaded[0].model, f"{_SDXL_MODEL}:unet", checkpoint_entry.prefetch_stop)]
+
+
+@pytest.mark.parametrize("device", ["default", "cpu"])
+def test_split_files_warm_prefetches_the_text_encoder_cached_for_any_device(
+    monkeypatch: pytest.MonkeyPatch,
+    device: str,
+) -> None:
+    """The warm pages in the model's cached text encoder whichever device its ``CLIPLoader`` node loaded it for.
+
+    The device is an input of the graph's node and is part of the cache identity, so the warm looks the encoder
+    up by the file and CLIP type alone.
+    """
+    env = _split_warm_env(monkeypatch)
+    text_encoder = _FakeTextEncoder()
+    text_encoder_entry = _seed_split_entry(env.cache, _krea2_text_encoder_key(device), text_encoder)
+
+    _preload(_KREA2_MODEL, diffusion_model_only=False)
+
+    assert (
+        text_encoder.cond_stage_model,
+        f"{_KREA2_MODEL}:text_encoder",
+        text_encoder_entry.prefetch_stop,
+    ) in env.recorder.calls
+
+
+def test_split_files_warm_does_not_prefetch_another_models_text_encoder(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The warm does not prefetch a cached text encoder from a different file."""
+    env = _split_warm_env(monkeypatch)
+    other_key = node_model_loader.split_text_encoder_cache_key(
+        clip_name=f"other_{_KREA2_TEXT_ENCODER_FILE}",
+        clip_type_name="krea2",
+        device="default",
+    )
+    _seed_split_entry(env.cache, other_key, _FakeTextEncoder())
+
+    _preload(_KREA2_MODEL, diffusion_model_only=False)
+
+    assert env.recorder.labels() == [f"{_KREA2_MODEL}:unet"]
 
 
 @pytest.mark.parametrize(

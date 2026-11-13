@@ -324,6 +324,27 @@ class ComponentCache:
                 self._marked_count += 1
         return entry
 
+    def peek(self, key: ComponentCacheKey) -> ComponentCacheEntry | None:
+        """Return the resident entry for *key*, or None on a miss, without changing its recency.
+
+        A warm that pages in a cached component reads the entry through this, so the read does not change
+        which entry the next insert evicts.
+        """
+        with self._lock:
+            return self._entries.get(key)
+
+    def peek_identity_prefix(self, kind: ComponentSlotKind, identity_prefix: str) -> list[ComponentCacheEntry]:
+        """Return the resident entries of *kind* whose identity starts with *identity_prefix*.
+
+        Like :meth:`peek`, this does not change recency. It is for a lookup by the leading part of an identity.
+        """
+        with self._lock:
+            return [
+                entry
+                for key, entry in self._entries.items()
+                if key.kind is kind and key.identity.startswith(identity_prefix)
+            ]
+
     def restore_entry(self, entry: ComponentCacheEntry) -> int:
         """Return *entry*'s payload to its loaded state; report the device bytes it gave up.
 

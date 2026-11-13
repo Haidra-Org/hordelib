@@ -11,6 +11,7 @@ from typing import Any
 
 from horde_model_reference.meta_consts import KNOWN_IMAGE_GENERATION_BASELINE, get_baseline_native_resolution
 from loguru import logger
+from pydantic import BaseModel, ConfigDict
 
 from hordelib.pipeline.context import ModelContext
 from hordelib.pipeline.definition import PatchStep
@@ -39,6 +40,7 @@ from hordelib.utils.image_utils import ImageUtils
 
 __all__ = [
     "IMAGE_PATCH_STEPS",
+    "SplitComponentLoaderInputs",
     "apply_component_loaders",
     "apply_controlnet",
     "apply_hires_fix_resolution",
@@ -51,6 +53,7 @@ __all__ = [
     "apply_qr_layout",
     "apply_remix_chain",
     "apply_upscale_sampler_steps",
+    "split_component_loader_inputs",
 ]
 
 TEXT_ENCODER_FILE_PURPOSES = ("text_encoders", "text_encoder")
@@ -58,6 +61,40 @@ TEXT_ENCODER_FILE_PURPOSES = ("text_encoders", "text_encoder")
 
 VAE_FILE_PURPOSE = "vae"
 """The ``file_purpose`` the reference uses for a standalone VAE."""
+
+
+class SplitComponentLoaderInputs(BaseModel):
+    """Represents the inputs given to a split-files graph's ``clip_loader`` and ``vae_loader`` for one model.
+
+    A None field leaves that input at the graph's default.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    clip_name: str | None
+    """The bare ``text_encoders`` file name from the model's record."""
+    clip_type: str | None
+    """The name of the comfy ``CLIPType`` used to load the encoder."""
+    vae_name: str | None
+    """The bare ``vae`` file name from the model's record."""
+
+
+def split_component_loader_inputs(context: ModelContext) -> SplitComponentLoaderInputs:
+    """Return the CLIP and VAE loader inputs given to a split-files graph for the model in *context*.
+
+    The graph patch step and the preload's warm of the cached components both call this, so the keys built
+    by the warm match the cache entries made by the run's loaders.
+    """
+    encoder_file = next(
+        (context.extra_files[purpose] for purpose in TEXT_ENCODER_FILE_PURPOSES if purpose in context.extra_files),
+        None,
+    )
+    vae_file = context.extra_files.get(VAE_FILE_PURPOSE)
+    return SplitComponentLoaderInputs(
+        clip_name=Path(encoder_file).name if encoder_file is not None else None,
+        clip_type=resolve_clip_type(context.baseline, context.horde_model_name),
+        vae_name=Path(vae_file).name if vae_file is not None else None,
+    )
 
 
 def apply_lora_chain(graph: ComfyGraph, payload: ImageGenPayload, context: ModelContext) -> None:
@@ -85,21 +122,16 @@ def apply_component_loaders(graph: ComfyGraph, payload: ImageGenPayload, context
     resolved inside comfy's own component folder, not the ``../<folder>/`` path the manager reports.
     """
     updates: dict[str, Any] = {}
+    loader_inputs = split_component_loader_inputs(context)
 
-    encoder_file = next(
-        (context.extra_files[purpose] for purpose in TEXT_ENCODER_FILE_PURPOSES if purpose in context.extra_files),
-        None,
-    )
-    if encoder_file is not None:
-        updates["clip_loader.clip_name"] = Path(encoder_file).name
+    if loader_inputs.clip_name is not None:
+        updates["clip_loader.clip_name"] = loader_inputs.clip_name
 
-    clip_type = resolve_clip_type(context.baseline, context.horde_model_name)
-    if clip_type is not None:
-        updates["clip_loader.type"] = clip_type
+    if loader_inputs.clip_type is not None:
+        updates["clip_loader.type"] = loader_inputs.clip_type
 
-    vae_file = context.extra_files.get(VAE_FILE_PURPOSE)
-    if vae_file is not None:
-        updates["vae_loader.vae_name"] = Path(vae_file).name
+    if loader_inputs.vae_name is not None:
+        updates["vae_loader.vae_name"] = loader_inputs.vae_name
 
     graph.set_inputs(updates)
 

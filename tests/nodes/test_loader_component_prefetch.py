@@ -3,7 +3,8 @@
 A served component may be retained across jobs with its weights still mapped from the checkpoint file, so the
 loader starts a page-in of every component the request asks for, on a cache hit as well as a cold load. These
 seed a ``ComponentCache`` with comfy-shaped fakes carrying tiny ``torch.nn.Module``s and record the prefetch
-calls, so they check which modules are read, in what order and under which labels.
+calls, so they check which modules are read, in what order and under which labels. The split loaders' text
+encoder and VAE are checked the same way. Their labels use the file name in place of the horde model name.
 
 ComfyUI cannot be imported without a GPU-adjacent initialise, so ``comfy``/``folder_paths`` are stubbed for the
 duration of this module, only when ComfyUI is absent.
@@ -282,6 +283,116 @@ def test_none_slots_are_skipped_without_raising(serve_env: SimpleNamespace) -> N
     )
 
     assert serve_env.recorder.calls == []
+
+
+_SPLIT_TEXT_ENCODER_FILE = "qwen_3_4b.safetensors"
+_SPLIT_VAE_FILE = "ae.safetensors"
+
+
+@pytest.fixture
+def split_serve_env(serve_env: SimpleNamespace, monkeypatch: pytest.MonkeyPatch) -> SimpleNamespace:
+    """The serve environment, with the split loaders' cache and file lookup patched to use it."""
+    monkeypatch.setattr(node_model_loader, "process_component_cache", lambda: serve_env.cache)
+    monkeypatch.setattr(
+        node_model_loader.folder_paths,
+        "get_full_path",
+        lambda folder, name: f"/models/{folder}/{name}",
+        raising=False,
+    )
+    monkeypatch.setattr(node_model_loader, "_safe_file_size", lambda path: 1024 * 1024)
+    return serve_env
+
+
+def _serve_split_text_encoder(load_from_disk: Any) -> tuple[Any, ...]:
+    return node_model_loader.serve_split_text_encoder(
+        load_from_disk,
+        clip_name=_SPLIT_TEXT_ENCODER_FILE,
+        clip_type_name="lumina2",
+        device="default",
+    )
+
+
+def _serve_split_vae(load_from_disk: Any) -> tuple[Any, ...]:
+    return node_model_loader.serve_split_vae(load_from_disk, vae_name=_SPLIT_VAE_FILE)
+
+
+def _split_text_encoder_key() -> Any:
+    return node_model_loader.split_text_encoder_cache_key(
+        clip_name=_SPLIT_TEXT_ENCODER_FILE,
+        clip_type_name="lumina2",
+        device="default",
+    )
+
+
+def _split_vae_key() -> Any:
+    return node_model_loader.split_vae_cache_key(vae_name=_SPLIT_VAE_FILE)
+
+
+def _split_cases(env: SimpleNamespace) -> dict[str, tuple[Any, Any, Any, torch.nn.Module, str]]:
+    """Per split kind: the serve function, the key, a payload, the payload's module and the expected label."""
+    return {
+        "text_encoder": (
+            _serve_split_text_encoder,
+            _split_text_encoder_key(),
+            (_FakeClip(env.text_encoder_module),),
+            env.text_encoder_module,
+            f"{_SPLIT_TEXT_ENCODER_FILE}:text_encoder",
+        ),
+        "vae": (
+            _serve_split_vae,
+            _split_vae_key(),
+            (_FakeVae(env.vae_module),),
+            env.vae_module,
+            f"{_SPLIT_VAE_FILE}:vae",
+        ),
+    }
+
+
+@pytest.mark.parametrize("split_kind", ["text_encoder", "vae"])
+def test_split_component_hit_prefetches_with_the_entry_stop_flag(
+    split_serve_env: SimpleNamespace,
+    split_kind: str,
+) -> None:
+    """A split text encoder or VAE served from the cache starts one prefetch, stopped by its entry's eviction."""
+    serve, cache_key, payload, module, expected_label = _split_cases(split_serve_env)[split_kind]
+    entry = ComponentCacheEntry(key=cache_key, payload=payload, approx_ram_mb=1.0, source_ckpt_path="split")
+    split_serve_env.cache.put(entry)
+
+    def unexpected_disk_load() -> tuple[Any, ...]:
+        raise AssertionError("a cache hit must not load from disk")
+
+    served = serve(unexpected_disk_load)
+
+    assert served is payload
+    assert split_serve_env.recorder.calls == [(module, expected_label)]
+    assert split_serve_env.recorder.stops == [entry.prefetch_stop]
+
+
+@pytest.mark.parametrize("split_kind", ["text_encoder", "vae"])
+def test_split_component_fresh_load_prefetches_with_the_new_entry_stop_flag(
+    split_serve_env: SimpleNamespace,
+    split_kind: str,
+) -> None:
+    """A split text encoder or VAE loaded from disk starts one prefetch, stopped by the new entry's eviction."""
+    serve, cache_key, payload, module, expected_label = _split_cases(split_serve_env)[split_kind]
+
+    served = serve(lambda: payload)
+
+    cached_entry = split_serve_env.cache.peek(cache_key)
+    assert served is payload
+    assert cached_entry is not None
+    assert split_serve_env.recorder.calls == [(module, expected_label)]
+    assert split_serve_env.recorder.stops == [cached_entry.prefetch_stop]
+
+
+def test_split_component_without_a_module_is_served_without_a_prefetch(split_serve_env: SimpleNamespace) -> None:
+    """A split component object without a module is served unchanged, and a prefetch does not start."""
+    payload = (object(),)
+
+    served = _serve_split_vae(lambda: payload)
+
+    assert served is payload
+    assert split_serve_env.recorder.calls == []
 
 
 def test_prefetch_failure_does_not_fail_the_serve(

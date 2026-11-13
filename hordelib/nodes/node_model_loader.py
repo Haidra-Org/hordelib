@@ -6,7 +6,7 @@ import threading
 import time
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import comfy.model_management
 import comfy.sd
@@ -39,6 +39,9 @@ from hordelib.execution.weight_prefetch import prefetch_module_weights_async
 from hordelib.metrics import ModelLoadEvent, get_metrics_collector
 from hordelib.shared_model_manager import SharedModelManager
 from hordelib.utils.memory_trim import trim_host_after_component_release
+
+if TYPE_CHECKING:
+    from hordelib.pipeline.context import ModelContext
 
 _COMPONENT_FILE_TYPE_KINDS: dict[str, ComponentSlotKind] = {
     "unet": ComponentSlotKind.UNET,
@@ -139,6 +142,10 @@ class HordeCheckpointLoader:
         reads too, so a split-files model is cached as its bare diffusion model and the run's load is a
         hit. Under any other key the run maps the file a second time beside the preload's mapping.
 
+        A split-files model's text encoder and VAE are also paged in when they are already in this process's
+        cache (see :func:`_prefetch_cached_split_components`). This happens even when *diffusion_model_only* is
+        True, because the prefetch reads only components that this process already holds.
+
         Args:
             horde_model_name: The model to load.
             will_load_loras: Whether the job this preload serves will patch the model.
@@ -149,11 +156,12 @@ class HordeCheckpointLoader:
         Returns:
             The loader's ``(model, clip, vae, ...)`` tuple.
         """
-        from hordelib.pipeline.families.image_gen.baselines import main_loader_file_type
+        from hordelib.pipeline.families.image_gen.baselines import UNET_FILE_TYPE, main_loader_file_type
         from hordelib.pipeline.resolution import resolve_image_model
 
-        file_type = main_loader_file_type(resolve_image_model(horde_model_name).baseline)
-        return self.load_checkpoint(
+        context = resolve_image_model(horde_model_name)
+        file_type = main_loader_file_type(context.baseline)
+        result = self.load_checkpoint(
             will_load_loras=will_load_loras,
             seamless_tiling_enabled=seamless_tiling_enabled,
             horde_model_name=horde_model_name,
@@ -162,6 +170,9 @@ class HordeCheckpointLoader:
             output_clip=not diffusion_model_only,
             preloading=True,
         )
+        if file_type == UNET_FILE_TYPE:
+            _prefetch_cached_split_components(context)
+        return result
 
     @logfire.instrument("model.load_checkpoint", extract_args=False)
     def load_checkpoint(
@@ -808,8 +819,8 @@ def serve_split_text_encoder(
     if full_path is None:
         # The stock loader owns the not-found error for a name it cannot resolve.
         return load_from_disk()
-    cache_key = ComponentCacheKey(ComponentSlotKind.CLIP, f"text_encoders/{clip_name}:{clip_type_name}:{device}")
-    return _serve_split_component(cache_key, full_path, load_from_disk)
+    cache_key = split_text_encoder_cache_key(clip_name=clip_name, clip_type_name=clip_type_name, device=device)
+    return _serve_split_component(cache_key, full_path, load_from_disk, prefetch_label_name=clip_name)
 
 
 def serve_split_vae(load_from_disk: Callable[[], tuple[Any, ...]], *, vae_name: str) -> tuple[Any, ...]:
@@ -829,16 +840,49 @@ def serve_split_vae(load_from_disk: Callable[[], tuple[Any, ...]], *, vae_name: 
     full_path = folder_paths.get_full_path("vae", vae_name)
     if full_path is None:
         return load_from_disk()
-    cache_key = ComponentCacheKey(ComponentSlotKind.VAE, f"vae/{vae_name}")
-    return _serve_split_component(cache_key, full_path, load_from_disk)
+    cache_key = split_vae_cache_key(vae_name=vae_name)
+    return _serve_split_component(cache_key, full_path, load_from_disk, prefetch_label_name=vae_name)
+
+
+def split_text_encoder_cache_key(*, clip_name: str, clip_type_name: str, device: str) -> ComponentCacheKey:
+    """Return the component cache key of a split-files graph's ``CLIPLoader`` output.
+
+    Args:
+        clip_name: The ``text_encoders`` file name given to the node.
+        clip_type_name: The node's ``type`` input. The same file loads as a different object per CLIP type.
+        device: The node's ``device`` input. A load on the CPU is a different object.
+    """
+    identity_prefix = split_text_encoder_identity_prefix(clip_name=clip_name, clip_type_name=clip_type_name)
+    return ComponentCacheKey(ComponentSlotKind.CLIP, f"{identity_prefix}{device}")
+
+
+def split_text_encoder_identity_prefix(*, clip_name: str, clip_type_name: str) -> str:
+    """Return the part of a split text encoder's cache identity that comes before the node's device.
+
+    The device is an input of the graph's ``CLIPLoader`` node, so a reader outside the graph looks the
+    encoder up by this prefix.
+    """
+    return f"text_encoders/{clip_name}:{clip_type_name}:"
+
+
+def split_vae_cache_key(*, vae_name: str) -> ComponentCacheKey:
+    """Return the component cache key of a split-files graph's ``VAELoader`` output for *vae_name*."""
+    return ComponentCacheKey(ComponentSlotKind.VAE, f"vae/{vae_name}")
 
 
 def _serve_split_component(
     cache_key: ComponentCacheKey,
     full_path: str,
     load_from_disk: Callable[[], tuple[Any, ...]],
+    *,
+    prefetch_label_name: str,
 ) -> tuple[Any, ...]:
-    """Return the resident payload for *cache_key*, or load it with *load_from_disk* and cache it."""
+    """Return the resident payload for *cache_key*, or load it with *load_from_disk* and cache it.
+
+    Either way the served component's weights are paged in on a background thread. The prefetch label is
+    ``<prefetch_label_name>:<component>``. The caller passes the file name because the loader node is given
+    only a file name.
+    """
     cache = process_component_cache()
     if cache is None:
         return load_from_disk()
@@ -850,6 +894,9 @@ def _serve_split_component(
         collector.record_component_cache_hit()
         collector.record_component_cache_held_mb(cache.held_mb())
         logger.info("Split component cache hit: identity={}", cache_key.identity)
+        # A split component released to the file-backed CPU copy between jobs may have cold pages. Read them
+        # on a background thread so the next upload does not fault them in from disk.
+        _prefetch_split_component(entry.payload, prefetch_label_name, kind=cache_key.kind, stop=entry.prefetch_stop)
         return entry.payload
 
     cache_misses_counter.add(1)
@@ -858,16 +905,90 @@ def _serve_split_component(
     _release_single_slot_before_cold_load(cache, cache_key.kind)
 
     result = load_from_disk()
-    evicted = cache.put(
-        ComponentCacheEntry(
-            key=cache_key,
-            payload=result,
-            approx_ram_mb=approx_ram_mb_from_bytes(cache_key.kind, _safe_file_size(full_path)),
-            source_ckpt_path=full_path,
-        ),
+    split_entry = ComponentCacheEntry(
+        key=cache_key,
+        payload=result,
+        approx_ram_mb=approx_ram_mb_from_bytes(cache_key.kind, _safe_file_size(full_path)),
+        source_ckpt_path=full_path,
     )
+    evicted = cache.put(split_entry)
     HordeCheckpointLoader._record_evictions(evicted, cache, collector)
+    _prefetch_split_component(result, prefetch_label_name, kind=cache_key.kind, stop=split_entry.prefetch_stop)
     return result
+
+
+def _prefetch_split_component(
+    payload: tuple[Any, ...],
+    label_name: str,
+    *,
+    kind: ComponentSlotKind,
+    stop: threading.Event,
+) -> None:
+    """Start a background page-in of the one component of a split loader. Does not raise.
+
+    A split payload holds the component in slot 0. This function moves it to the slot used by a checkpoint
+    payload, so :func:`_prefetch_served_components` reads it through the same attribute and labels it
+    ``text_encoder`` or ``vae``, as for a checkpoint.
+
+    Args:
+        payload: The split loader's output tuple, ``(clip,)`` or ``(vae,)``.
+        label_name: The name before the colon in the prefetch label.
+        kind: The cache slot kind of the component, ``CLIP`` or ``VAE``.
+        stop: The serving cache entry's :attr:`ComponentCacheEntry.prefetch_stop`.
+    """
+    component = payload[0] if payload else None
+    is_text_encoder = kind is ComponentSlotKind.CLIP
+    _prefetch_served_components(
+        (None, component if is_text_encoder else None, None if is_text_encoder else component),
+        label_name,
+        output_model=False,
+        output_clip=is_text_encoder,
+        output_vae=not is_text_encoder,
+        stop=stop,
+    )
+
+
+def _prefetch_cached_split_components(context: "ModelContext") -> None:
+    """Start a page-in of a split-files model's text encoder and VAE if they are cached. Does not load them.
+
+    A warm of an idle process requests only the diffusion model, so without this the encoder's pages stay cold
+    until the job's upload faults them in from disk. A component that is not cached is left for the job to
+    load, because a warm must not start a cold disk read of a multi-gigabyte encoder.
+
+    Args:
+        context: The resolved model. The component file names come from
+            :func:`hordelib.pipeline.families.image_gen.steps.split_component_loader_inputs`, which also sets
+            the run's graph inputs, so the keys match the entries made by the run's loaders.
+    """
+    from hordelib.pipeline.families.image_gen.steps import split_component_loader_inputs
+
+    cache = process_component_cache()
+    if cache is None:
+        return
+    loader_inputs = split_component_loader_inputs(context)
+    entries: list[ComponentCacheEntry] = []
+    if loader_inputs.clip_name is not None and loader_inputs.clip_type is not None:
+        entries.extend(
+            cache.peek_identity_prefix(
+                ComponentSlotKind.CLIP,
+                split_text_encoder_identity_prefix(
+                    clip_name=loader_inputs.clip_name,
+                    clip_type_name=loader_inputs.clip_type,
+                ),
+            ),
+        )
+    if loader_inputs.vae_name is not None:
+        vae_entry = cache.peek(split_vae_cache_key(vae_name=loader_inputs.vae_name))
+        if vae_entry is not None:
+            entries.append(vae_entry)
+
+    for entry in entries:
+        _prefetch_split_component(
+            entry.payload,
+            context.horde_model_name,
+            kind=entry.key.kind,
+            stop=entry.prefetch_stop,
+        )
 
 
 def _locate_vae_file(file_name: str) -> Path | None:

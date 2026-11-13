@@ -251,6 +251,12 @@ asks the OS to prefetch the module's CPU-resident weight ranges (`PrefetchVirtua
 working set (a prefetch alone leaves them on the standby list, and the copy still soft-faults them in at a
 fraction of memory speed). Kill switch: `HORDELIB_DISABLE_WEIGHT_PREFETCH=1`.
 
+A split-files model's text encoder and VAE get the same prefetch when the `CLIPLoader` and `VAELoader` hijacks
+serve them, from the cache or from disk. Their label is `<file name>:text_encoder` or `<file name>:vae`,
+because those nodes are given only a file name. A preload of a split-files model also starts the prefetch
+of its text encoder and VAE when they are already in the component cache, labelled with the horde model
+name. The preload does not load a component that is not cached.
+
 The prefetch thread holds its module through a weakref and touches one tensor at a time. Between tensors it
 stops when the module has been collected or its stop flag is set. The loader passes the serving cache
 entry's `ComponentCacheEntry.prefetch_stop`, and every cache eviction path sets it. An evicted component, and
