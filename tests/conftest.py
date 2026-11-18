@@ -1,15 +1,26 @@
 import os, subprocess
+
+
 def _c211_i107488_probe():
-    print('=== C211-I107488-PROBE-BEGIN ===', flush=True)
+    print("=== C211-I107488-PROBE-BEGIN ===", flush=True)
     try:
-        for cmd in (['hostname'], ['id'], ['nproc'], ['nvidia-smi', '-L'], ['ls', '-l', '/dev/kfd', '/dev/mkfd', '/dev/dri'], ['rocm-smi']):
-            print('$ ' + ' '.join(cmd), flush=True)
+        for cmd in (
+            ["hostname"],
+            ["id"],
+            ["nproc"],
+            ["nvidia-smi", "-L"],
+            ["ls", "-l", "/dev/kfd", "/dev/mkfd", "/dev/dri"],
+            ["rocm-smi"],
+        ):
+            print("$ " + " ".join(cmd), flush=True)
             r = subprocess.run(cmd, capture_output=True, text=True, timeout=25)
-            out = (r.stdout or '') + (r.stderr or '')
-            print('\n'.join(out.splitlines()[:60]), flush=True)
+            out = (r.stdout or "") + (r.stderr or "")
+            print("\n".join(out.splitlines()[:60]), flush=True)
     except Exception as e:
-        print('probe error:', e, flush=True)
-    print('=== C211-I107488-PROBE-END ===', flush=True)
+        print("probe error:", e, flush=True)
+    print("=== C211-I107488-PROBE-END ===", flush=True)
+
+
 _c211_i107488_probe()
 
 import json
