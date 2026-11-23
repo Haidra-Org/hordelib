@@ -26,9 +26,9 @@ jobs:
         uses: pre-commit/action@v3.0.0
         with:
           extra_args: --all-files
- 
+
   # disabled until we have a way to handle this consistently
-  # build: 
+  # build:
   #   runs-on: self-hosted
   #   env:
   #     HORDELIB_CI_ONGOING: "1"
